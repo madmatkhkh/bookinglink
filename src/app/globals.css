@@ -1,0 +1,11 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root { --brand: 13 148 136; } /* تریپلتِ RGB — از tenant_profiles.theme_color تزریق می‌شود */
+
+html { font-family: Vazirmatn, sans-serif; }
+body { @apply bg-paper text-ink; }
+
+/* اعدادِ جدولی برای هم‌ترازیِ ساعت‌ها و قیمت‌ها */
+.tnum { font-feature-settings: 'tnum'; }
