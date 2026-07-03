@@ -14,6 +14,8 @@ import { MODE_LABEL } from '@/lib/config'
 
 type Service = { id: string; name: string; duration_minutes: number; price: number; mode: string }
 type Profile = { display_name: string; theme_color: string }
+type Resource = { id: string; name: string; title: string; avatar_url: string | null; is_selectable: boolean }
+type Labels = { client: string; resource: string; booking: string }
 
 function fmtDate(dateStr: string): string {
   const [y, m, d] = toLatinNum(dateStr).split('/').map(Number)
@@ -27,6 +29,9 @@ function BookingFlow() {
 
   const [profile, setProfile] = useState<Profile | null>(null)
   const [service, setService] = useState<Service | null>(null)
+  const [resources, setResources] = useState<Resource[]>([])
+  const [labels, setLabels] = useState<Labels>({ client: 'مراجع', resource: 'ارائه‌دهنده', booking: 'نوبت' })
+  const [pickedResource, setPickedResource] = useState<string | null>(null) // null = هر کسی که آزاد بود
   const [loadErr, setLoadErr] = useState(false)
 
   // گام ۱
@@ -58,6 +63,8 @@ function BookingFlow() {
     fetch(`/api/t/${slug}/public`).then(r => r.json()).then(d => {
       if (!d.profile) { setLoadErr(true); return }
       setProfile(d.profile)
+      if (d.labels) setLabels(d.labels)
+      setResources(d.resources || [])
       const s = (d.services || []).find((x: Service) => x.id === serviceId)
       if (!s) { setLoadErr(true); return }
       setService(s)
@@ -66,17 +73,19 @@ function BookingFlow() {
 
   const loadMonth = useCallback(async (y: number, m: number) => {
     setMonthAvail({})
-    const r = await fetch(`/api/t/${slug}/availability?service=${serviceId}&month=${y}/${m}`)
+    const rp = pickedResource ? `&resource=${pickedResource}` : ''
+    const r = await fetch(`/api/t/${slug}/availability?service=${serviceId}&month=${y}/${m}${rp}`)
     const d = await r.json()
     if (d.days) setMonthAvail(d.days)
-  }, [slug, serviceId])
+  }, [slug, serviceId, pickedResource])
 
   useEffect(() => { loadMonth(calY, calM) }, [calY, calM, loadMonth])
 
   async function pickDay(day: number) {
     const dateStr = jalaliKey(calY, calM, day)
     setPickedDate(dateStr); setPickedTime(''); setDaySlots(null)
-    const r = await fetch(`/api/t/${slug}/availability?service=${serviceId}&date=${dateStr}`)
+    const rp = pickedResource ? `&resource=${pickedResource}` : ''
+    const r = await fetch(`/api/t/${slug}/availability?service=${serviceId}&date=${dateStr}${rp}`)
     const d = await r.json()
     setDaySlots(d.slots || [])
   }
@@ -111,7 +120,7 @@ function BookingFlow() {
     setBusy(true)
     const r = await fetch(`/api/t/${slug}/book`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ service_id: serviceId, date: pickedDate, time: pickedTime, client_name: name, client_note: note }),
+      body: JSON.stringify({ service_id: serviceId, resource_id: pickedResource, date: pickedDate, time: pickedTime, client_name: name, client_note: note }),
     })
     const d = await r.json(); setBusy(false)
     if (!r.ok) {
@@ -164,6 +173,24 @@ function BookingFlow() {
         {/* ── گام ۱: تقویم و ساعت ── */}
         {step === 1 && (
           <div>
+            {/* انتخابِ پرسنل — فقط اگر بیش از یک منبعِ انتخاب‌شدنی باشد */}
+            {resources.length > 1 && (
+              <div className="mb-5">
+                <div className="text-xs font-bold text-soot mb-2">انتخابِ {labels.resource}</div>
+                <div className="flex gap-2 flex-wrap">
+                  <button onClick={() => { setPickedResource(null); setPickedDate(''); setDaySlots(null); setPickedTime('') }}
+                    className={`px-4 py-2.5 rounded-xl text-sm border ${pickedResource === null ? 'bg-accent text-white border-accent font-bold' : 'bg-white border-sand text-soot'}`}>
+                    هر کسی که آزاد بود
+                  </button>
+                  {resources.map(r => (
+                    <button key={r.id} onClick={() => { setPickedResource(r.id); setPickedDate(''); setDaySlots(null); setPickedTime('') }}
+                      className={`px-4 py-2.5 rounded-xl text-sm border ${pickedResource === r.id ? 'bg-accent text-white border-accent font-bold' : 'bg-white border-sand text-soot'}`}>
+                      {r.name}{r.title ? ` · ${r.title}` : ''}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
             <MonthCalendar year={calY} month={calM} onPrev={prevMonth} onNext={nextMonth}
               renderDay={day => {
                 const dateStr = jalaliKey(calY, calM, day)

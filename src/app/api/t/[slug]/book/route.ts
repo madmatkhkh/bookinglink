@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { sb } from '@/lib/supabase'
 import { requireTenant, isTenantResponse } from '@/lib/tenant'
 import { getClientPhone } from '@/lib/auth'
-import { computeDaySlots } from '@/lib/slots'
+import { findFreeResource } from '@/lib/slots'
 import { toLatinNum, jalaliDateTimeToTimestamp } from '@/lib/calendar'
 
 export const dynamic = 'force-dynamic'
@@ -14,7 +14,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   const phone = getClientPhone(req)
   if (!phone) return NextResponse.json({ error: 'ابتدا شماره‌ی خود را تایید کنید' }, { status: 401 })
 
-  const { service_id, date, time, client_name, client_note } = await req.json()
+  const { service_id, resource_id, date, time, client_name, client_note } = await req.json()
   const name = String(client_name || '').trim()
   if (!name) return NextResponse.json({ error: 'نام لازم است' }, { status: 400 })
 
@@ -26,14 +26,15 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   const [jy, jm, jd] = dateStr.split('/').map(Number)
   if (!jy || !jm || !jd) return NextResponse.json({ error: 'تاریخ نامعتبر' }, { status: 400 })
 
-  // اعتبارسنجی: این ساعت واقعاً جزو اسلات‌های خالیِ الان است؟
-  const slots = await computeDaySlots(t.id, service, jy, jm, jd)
-  if (!slots.includes(timeStr))
+  // منبعِ آزاد برای این ساعت پیدا کن (resource_id مشخص یا «هر منبع»)
+  const reqResource = resource_id ? String(resource_id) : null
+  const freeResource = await findFreeResource(t.id, service, dateStr, timeStr, reqResource)
+  if (!freeResource)
     return NextResponse.json({ error: 'این ساعت دیگر خالی نیست؛ ساعتِ دیگری انتخاب کنید' }, { status: 409 })
 
   const booking_ts = jalaliDateTimeToTimestamp(dateStr, timeStr)!
   const { data, error } = await sb().from('bookings').insert({
-    tenant_id: t.id, service_id: service.id,
+    tenant_id: t.id, resource_id: freeResource, service_id: service.id,
     booking_date: dateStr, booking_time: timeStr, booking_ts,
     client_name: name, client_phone: phone,
     client_note: String(client_note || '').slice(0, 500),
@@ -41,7 +42,6 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   }).select('id').single()
 
   if (error) {
-    // برخورد با unique index یعنی کسی همین الان زودتر گرفت
     if (error.code === '23505')
       return NextResponse.json({ error: 'این ساعت همین الان رزرو شد؛ ساعتِ دیگری انتخاب کنید' }, { status: 409 })
     return NextResponse.json({ error: error.message }, { status: 500 })

@@ -1,27 +1,40 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// تشخیص و بارگذاریِ tenant — از slug یا از دامنه‌ی اختصاصی
+// ─────────────────────────────────────────────────────────────────────────────
 import { sb } from './supabase'
+import { NextRequest, NextResponse } from 'next/server'
+import { getPanelTenantId } from './auth'
 
 export type Tenant = {
-  id: string; slug: string; status: string; plan: string; owner_phone: string
+  id: string; slug: string; status: string; plan: string
+  owner_phone: string; niche_key: string
+  custom_domain: string | null; domain_verified: boolean
 }
 
-/** tenant فعال را از slug برمی‌گرداند؛ null یعنی ۴۰۴ */
+const TENANT_COLS = 'id, slug, status, plan, owner_phone, niche_key, custom_domain, domain_verified'
+
+/** tenant فعال از slug */
 export async function getActiveTenant(slug: string): Promise<Tenant | null> {
-  const { data } = await sb().from('tenants').select('id, slug, status, plan, owner_phone')
-    .eq('slug', slug).single()
+  const { data } = await sb().from('tenants').select(TENANT_COLS).eq('slug', slug).single()
   if (!data || data.status !== 'active') return null
   return data as Tenant
 }
 
-import { NextRequest, NextResponse } from 'next/server'
-import { getPanelTenantId } from './auth'
+/** tenant فعال از دامنه‌ی اختصاصیِ تاییدشده — برای middleware/routing */
+export async function getTenantByDomain(domain: string): Promise<Tenant | null> {
+  const { data } = await sb().from('tenants').select(TENANT_COLS)
+    .eq('custom_domain', domain).eq('domain_verified', true).single()
+  if (!data || data.status !== 'active') return null
+  return data as Tenant
+}
 
-/** گاردِ مشترکِ همه‌ی روت‌های عمومیِ tenant: یا tenant فعال یا 404 */
+/** گاردِ روت‌های عمومیِ tenant: یا tenant فعال یا 404 */
 export async function requireTenant(slug: string): Promise<Tenant | NextResponse> {
   const t = await getActiveTenant(slug)
   return t ?? NextResponse.json({ error: 'یافت نشد' }, { status: 404 })
 }
 
-/** گاردِ مشترکِ روت‌های پنلِ متخصص: tenant فعال + نشستِ معتبرِ صاحبِ همان tenant */
+/** گاردِ روت‌های پنل: tenant فعال + نشستِ معتبرِ صاحبِ همان tenant */
 export async function requirePanel(req: NextRequest, slug: string): Promise<Tenant | NextResponse> {
   const t = await getActiveTenant(slug)
   if (!t) return NextResponse.json({ error: 'یافت نشد' }, { status: 404 })

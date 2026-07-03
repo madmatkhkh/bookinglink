@@ -23,17 +23,26 @@ type Service = {
   id: string; name: string; duration_minutes: number; price: number
   mode: string; description: string; is_active: boolean; sort_order: number
 }
-type WeeklyRow = { weekday: number; start_time: string; end_time: string; mode: string }
-type Override = { id: string; date: string; type: string }
+type WeeklyRow = { resource_id: string; weekday: number; start_time: string; end_time: string; mode: string }
+type Override = { id: string; resource_id: string; date: string; type: string }
+type Resource = {
+  id: string; name: string; title: string; avatar_url: string | null
+  is_active: boolean; is_selectable: boolean; sort_order: number
+}
+type RecordField = { key: string; label: string; type: string; options?: string[] }
+type Labels = { client: string; resource: string; booking: string }
 type Profile = {
   display_name: string; title: string; bio: string; avatar_url: string | null
   theme_color: string; location_text: string; instagram_handle: string | null
   card_number: string; card_holder_name: string
 }
 type Overview = {
-  slug: string; profile: Profile; services: Service[]
+  slug: string; niche_key: string; labels: Labels; record_fields: RecordField[]
+  plan: string; custom_domain: string | null; domain_verified: boolean
+  profile: Profile; services: Service[]; resources: Resource[]
   weekly: WeeklyRow[]; overrides: Override[]
   pending: Booking[]; upcoming: Booking[]
+  features: { feature_key: string; enabled: boolean; config: any }[]
 }
 
 // ─── ثابت‌های نمایشی ─────────────────────────────────────────────
@@ -77,8 +86,8 @@ async function api(path: string, method = 'GET', body?: unknown) {
 }
 
 // ═══ ریشه ════════════════════════════════════════════════════════
-type Tab = 'home' | 'bookings' | 'calendar' | 'settings'
-type SettingsView = 'menu' | 'profile' | 'services' | 'schedule'
+type Tab = 'home' | 'bookings' | 'records' | 'calendar' | 'settings'
+type SettingsView = 'menu' | 'profile' | 'services' | 'resources' | 'schedule'
 
 function Panel() {
   const { slug } = useParams<{ slug: string }>()
@@ -124,6 +133,7 @@ function Panel() {
       <div className="max-w-md mx-auto px-5 pt-5">
         {tab === 'home' && <HomeTab ov={ov} goTo={(t, sv) => { setTab(t); if (sv) setSettingsView(sv) }} />}
         {tab === 'bookings' && <BookingsTab ov={ov} slug={slug} reload={load} uiAlert={uiAlert} uiConfirm={uiConfirm} />}
+        {tab === 'records' && <RecordsTab ov={ov} slug={slug} uiAlert={uiAlert} />}
         {tab === 'calendar' && <CalendarTab ov={ov} slug={slug} reload={load} uiAlert={uiAlert} uiConfirm={uiConfirm} />}
         {tab === 'settings' && (
           <SettingsTab ov={ov} slug={slug} reload={load} uiAlert={uiAlert} uiConfirm={uiConfirm}
@@ -133,10 +143,11 @@ function Panel() {
 
       {/* ── ناوبریِ پایینی ── */}
       <nav className="fixed bottom-0 inset-x-0 bg-white border-t border-sand" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
-        <div className="max-w-md mx-auto grid grid-cols-4">
+        <div className="max-w-md mx-auto grid grid-cols-5">
           {([
             ['home', '🏠', 'خانه'],
             ['bookings', '📋', 'نوبت‌ها'],
+            ['records', '🗂', 'پرونده‌ها'],
             ['calendar', '📅', 'تقویم'],
             ['settings', '⚙️', 'تنظیمات'],
           ] as [Tab, string, string][]).map(([k, icon, label]) => (
@@ -492,13 +503,18 @@ function CalendarTab({ ov, slug, reload, uiAlert, uiConfirm }: {
   }
 
   async function toggleClosed(dateStr: string) {
-    const ovr = ov.overrides.find(o => o.date === dateStr && o.type === 'closed')
-    if (ovr) {
-      await api(`/api/t/${slug}/panel/schedule`, 'DELETE', { id: ovr.id })
+    const dayOverrides = ov.overrides.filter(o => o.date === dateStr && o.type === 'closed')
+    const activeResources = ov.resources.filter(r => r.is_active)
+    if (dayOverrides.length > 0) {
+      // بازکردن: همه‌ی override های closed این روز حذف شوند
+      for (const ovr of dayOverrides) await api(`/api/t/${slug}/panel/schedule`, 'DELETE', { id: ovr.id })
     } else {
       if (!await uiConfirm('این روز برای رزروِ جدید بسته شود؟ نوبت‌های ثبت‌شده سرِ جایشان می‌مانند.')) return
-      const r = await api(`/api/t/${slug}/panel/schedule`, 'POST', { date: dateStr })
-      if (!r.ok) { uiAlert(r.data.error || 'انجام نشد'); return }
+      // بستن برای همه‌ی منابع (کلِ روز تعطیل)
+      for (const res of activeResources) {
+        const r = await api(`/api/t/${slug}/panel/schedule`, 'POST', { resource_id: res.id, date: dateStr })
+        if (!r.ok) { uiAlert(r.data.error || 'انجام نشد'); return }
+      }
     }
     reload()
   }
@@ -568,6 +584,7 @@ function SettingsTab({ ov, slug, reload, uiAlert, uiConfirm, view, setView }: {
     const items = [
       { key: 'profile' as const, icon: '🎨', title: 'پروفایل و برند', sub: 'نام، معرفی، رنگ، شماره کارت' },
       { key: 'services' as const, icon: '🧾', title: 'سرویس‌ها', sub: `${toFarsiNum(ov.services.filter(s => s.is_active).length)} سرویسِ فعال` },
+      { key: 'resources' as const, icon: '👥', title: `${ov.labels.resource}‌ها`, sub: `${toFarsiNum(ov.resources.filter(r => r.is_active).length)} نفرِ فعال` },
       { key: 'schedule' as const, icon: '⏰', title: 'ساعاتِ کاری', sub: 'برنامه‌ی هفتگیِ رزرو' },
     ]
     return (
@@ -593,6 +610,7 @@ function SettingsTab({ ov, slug, reload, uiAlert, uiConfirm, view, setView }: {
 
   if (view === 'profile') return <div>{back}<ProfileForm ov={ov} slug={slug} reload={reload} uiAlert={uiAlert} /></div>
   if (view === 'services') return <div>{back}<ServicesForm ov={ov} slug={slug} reload={reload} uiAlert={uiAlert} uiConfirm={uiConfirm} /></div>
+  if (view === 'resources') return <div>{back}<ResourcesForm ov={ov} slug={slug} reload={reload} uiAlert={uiAlert} uiConfirm={uiConfirm} /></div>
   return <div>{back}<ScheduleForm ov={ov} slug={slug} reload={reload} uiAlert={uiAlert} /></div>
 }
 
@@ -774,12 +792,22 @@ function ServicesForm({ ov, slug, reload, uiAlert, uiConfirm }: {
   )
 }
 
-// ─── فرمِ ساعاتِ کاری ─────────────────────────────────────────────
+// ─── فرمِ ساعاتِ کاری (به‌ازای هر منبع) ───────────────────────────
 function ScheduleForm({ ov, slug, reload, uiAlert }: {
   ov: Overview; slug: string; reload: () => void; uiAlert: (m: string) => Promise<void>
 }) {
-  const [weekly, setWeekly] = useState<WeeklyRow[]>(ov.weekly.map(w => ({ weekday: w.weekday, start_time: w.start_time, end_time: w.end_time, mode: w.mode })))
+  const activeResources = ov.resources.filter(r => r.is_active)
+  const [resourceId, setResourceId] = useState<string>(activeResources[0]?.id || '')
+  const [weekly, setWeekly] = useState<WeeklyRow[]>(
+    ov.weekly.filter(w => w.resource_id === (activeResources[0]?.id || ''))
+      .map(w => ({ ...w }))
+  )
   const [busy, setBusy] = useState(false)
+
+  function switchResource(rid: string) {
+    setResourceId(rid)
+    setWeekly(ov.weekly.filter(w => w.resource_id === rid).map(w => ({ ...w })))
+  }
 
   async function save() {
     for (const r of weekly) {
@@ -789,7 +817,7 @@ function ScheduleForm({ ov, slug, reload, uiAlert }: {
       }
     }
     setBusy(true)
-    const r = await api(`/api/t/${slug}/panel/schedule`, 'PUT', { weekly })
+    const r = await api(`/api/t/${slug}/panel/schedule`, 'PUT', { resource_id: resourceId, weekly })
     setBusy(false)
     if (!r.ok) { uiAlert(r.data.error || 'ذخیره نشد'); return }
     await uiAlert('ساعاتِ کاری ذخیره شد ✓')
@@ -797,11 +825,26 @@ function ScheduleForm({ ov, slug, reload, uiAlert }: {
   }
 
   const timeSelectCls = 'p-2.5 rounded-xl border border-sand bg-white text-xs tnum'
+  const addRange = (wd: number) => setWeekly([...weekly, { resource_id: resourceId, weekday: wd, start_time: '09:00', end_time: '13:00', mode: 'both' }])
 
   return (
     <div className="space-y-3">
+      {/* انتخابِ منبع — فقط اگر چند نفر باشند */}
+      {activeResources.length > 1 && (
+        <div className="mb-1">
+          <div className="text-[11px] font-bold text-soot mb-2">ساعاتِ کاریِ کدام {ov.labels.resource}؟</div>
+          <div className="flex gap-2 flex-wrap">
+            {activeResources.map(r => (
+              <button key={r.id} onClick={() => switchResource(r.id)}
+                className={`px-3.5 py-2 rounded-xl text-xs border ${resourceId === r.id ? 'bg-ink text-white border-ink font-bold' : 'bg-white border-sand text-soot'}`}>
+                {r.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       <p className="text-[11px] text-soot leading-relaxed">
-        برای هر روز بازه‌های کاری‌تان را مشخص کنید — ساعت‌های قابلِ رزرو از همین‌ها ساخته می‌شوند.
+        برای هر روز بازه‌های کاری را مشخص کنید — ساعت‌های قابلِ رزرو از همین‌ها ساخته می‌شوند.
       </p>
       {PERSIAN_WEEKDAYS_FULL.map((dayName, wd) => {
         const rows = weekly.map((r, idx) => ({ ...r, idx })).filter(r => r.weekday === wd)
@@ -809,7 +852,7 @@ function ScheduleForm({ ov, slug, reload, uiAlert }: {
           <div key={wd} className={`rounded-2xl border bg-white p-3.5 ${rows.length ? 'border-sand' : 'border-sand/60'}`}>
             <div className="flex items-center justify-between mb-1.5">
               <span className={`text-sm font-bold ${rows.length ? '' : 'text-soot/60'}`}>{dayName}</span>
-              <button onClick={() => setWeekly([...weekly, { weekday: wd, start_time: '09:00', end_time: '13:00', mode: 'both' }])}
+              <button onClick={() => addRange(wd)}
                 className="text-[11px] px-3 py-1.5 rounded-lg bg-paper text-soot font-medium">+ بازه</button>
             </div>
             {rows.length === 0 && <div className="text-[11px] text-soot/60">تعطیل</div>}
@@ -837,10 +880,172 @@ function ScheduleForm({ ov, slug, reload, uiAlert }: {
           </div>
         )
       })}
-      <button onClick={save} disabled={busy}
+      <button onClick={save} disabled={busy || !resourceId}
         className="w-full py-3.5 rounded-2xl bg-ink text-white text-sm font-bold disabled:opacity-50">
         {busy ? 'در حالِ ذخیره…' : 'ذخیره‌ی ساعاتِ کاری'}
       </button>
+    </div>
+  )
+}
+
+// ═══ تبِ پرونده‌ها ═══════════════════════════════════════════════
+// جست‌وجو با شماره → نمایش/ویرایشِ پرونده با فیلدهای نیچ + تاریخچه‌ی نوبت‌ها
+function RecordsTab({ ov, slug, uiAlert }: {
+  ov: Overview; slug: string; uiAlert: (m: string) => Promise<void>
+}) {
+  const [phone, setPhone] = useState('')
+  const [loaded, setLoaded] = useState<{ record: any; history: any[] } | null>(null)
+  const [name, setName] = useState('')
+  const [data, setData] = useState<Record<string, string>>({})
+  const [busy, setBusy] = useState(false)
+
+  async function search() {
+    const p = toLatinNum(phone).replace(/[^0-9]/g, '')
+    if (!/^09\d{9}$/.test(p)) { uiAlert('شماره‌ی موبایل را درست وارد کنید'); return }
+    setBusy(true)
+    const r = await api(`/api/t/${slug}/panel/records?phone=${p}`)
+    setBusy(false)
+    if (!r.ok) { uiAlert(r.data.error || 'خطا'); return }
+    setLoaded({ record: r.data.record, history: r.data.history || [] })
+    setName(r.data.record?.client_name || '')
+    setData(r.data.record?.data || {})
+  }
+
+  async function save() {
+    const p = toLatinNum(phone).replace(/[^0-9]/g, '')
+    setBusy(true)
+    const r = await api(`/api/t/${slug}/panel/records`, 'PUT', { phone: p, name, data })
+    setBusy(false)
+    if (!r.ok) { uiAlert(r.data.error || 'ذخیره نشد'); return }
+    await uiAlert('پرونده ذخیره شد ✓')
+  }
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <div className="text-xs font-bold text-soot mb-2">جست‌وجوی پرونده‌ی {ov.labels.client}</div>
+        <div className="flex gap-2">
+          <input value={phone} onChange={e => setPhone(e.target.value)} dir="ltr" inputMode="tel"
+            placeholder="09…" className="flex-1 p-3 rounded-xl border border-sand bg-white text-sm tnum" />
+          <button onClick={search} disabled={busy}
+            className="px-5 rounded-xl bg-ink text-white text-sm font-medium disabled:opacity-50">جست‌وجو</button>
+        </div>
+      </div>
+
+      {loaded && (
+        <>
+          {!loaded.record && (
+            <p className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-xl p-3">
+              پرونده‌ای برای این شماره نیست؛ می‌توانید همین‌جا بسازید.
+            </p>
+          )}
+          <div className="rounded-2xl border border-sand bg-white p-4 space-y-3">
+            <Field label={`نامِ ${ov.labels.client}`}>
+              <input value={name} onChange={e => setName(e.target.value)} className={inputCls} />
+            </Field>
+            {ov.record_fields.map(f => (
+              <Field key={f.key} label={f.label}>
+                {f.type === 'textarea'
+                  ? <textarea value={data[f.key] || ''} onChange={e => setData({ ...data, [f.key]: e.target.value })} rows={2} className={inputCls} />
+                  : <input type={f.type === 'number' ? 'text' : 'text'} inputMode={f.type === 'number' ? 'numeric' : undefined}
+                      value={data[f.key] || ''} onChange={e => setData({ ...data, [f.key]: e.target.value })} className={inputCls} />}
+              </Field>
+            ))}
+            <button onClick={save} disabled={busy}
+              className="w-full py-3 rounded-2xl bg-ink text-white text-sm font-bold disabled:opacity-50">ذخیره‌ی پرونده</button>
+          </div>
+
+          {loaded.history.length > 0 && (
+            <div className="rounded-2xl border border-sand bg-white p-4">
+              <div className="text-xs font-bold text-soot mb-3">تاریخچه‌ی {ov.labels.booking}‌ها</div>
+              <div className="space-y-2">
+                {loaded.history.map((h: any) => (
+                  <div key={h.id} className="flex items-center justify-between text-xs">
+                    <span>{h.services?.name} · {fmtDate(h.booking_date)} · <span className="tnum">{toFarsiNum(h.booking_time)}</span></span>
+                    <span className="text-soot">{BOOKING_STATUS_LABEL[h.status] || h.status}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
+// ─── فرمِ منابع (پرسنل) ───────────────────────────────────────────
+function ResourcesForm({ ov, slug, reload, uiAlert, uiConfirm }: {
+  ov: Overview; slug: string; reload: () => void
+  uiAlert: (m: string) => Promise<void>; uiConfirm: (m: string) => Promise<boolean>
+}) {
+  const empty = { id: '', name: '', title: '', avatar_url: '', is_selectable: true, is_active: true, sort_order: 0 }
+  const active = ov.resources.filter(r => r.is_active)
+  const [edit, setEdit] = useState<typeof empty | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  async function save() {
+    if (!edit) return
+    if (!edit.name.trim()) { uiAlert('نام لازم است'); return }
+    setBusy(true)
+    const r = await api(`/api/t/${slug}/panel/resources`, edit.id ? 'PATCH' : 'POST', edit)
+    setBusy(false)
+    if (!r.ok) { uiAlert(r.data.error || 'ذخیره نشد'); return }
+    setEdit(null); reload()
+  }
+
+  async function remove(r: Resource) {
+    if (!await uiConfirm(`«${r.name}» حذف شود؟ رزروهای قبلی دست‌نخورده می‌مانند.`)) return
+    const res = await api(`/api/t/${slug}/panel/resources`, 'DELETE', { id: r.id })
+    if (!res.ok) { uiAlert(res.data.error || 'حذف نشد'); return }
+    reload()
+  }
+
+  return (
+    <div className="space-y-3">
+      <p className="text-[11px] text-soot leading-relaxed">
+        هر {ov.labels.resource} برنامه‌ی کاریِ جداگانه دارد. {ov.labels.client} می‌تواند هنگامِ رزرو یکی را انتخاب کند.
+      </p>
+      {active.map(r => (
+        <div key={r.id} className="rounded-2xl border border-sand bg-white p-4 flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="font-bold text-sm">{r.name}</div>
+            {r.title && <div className="mt-0.5 text-xs text-soot">{r.title}</div>}
+            {!r.is_selectable && <div className="mt-1 text-[10px] text-soot">فقط تخصیصِ خودکار (قابلِ انتخاب توسطِ {ov.labels.client} نیست)</div>}
+          </div>
+          <div className="flex gap-1.5 shrink-0 text-xs">
+            <button onClick={() => setEdit({ ...r, avatar_url: r.avatar_url || '' })} className="px-3 py-1.5 rounded-xl border border-sand text-soot">ویرایش</button>
+            <button onClick={() => remove(r)} className="px-3 py-1.5 rounded-xl border border-red-200 text-red-600">حذف</button>
+          </div>
+        </div>
+      ))}
+
+      {!edit && (
+        <button onClick={() => setEdit({ ...empty })}
+          className="w-full py-3.5 rounded-2xl border-2 border-dashed border-sand text-soot text-sm font-medium">
+          + {ov.labels.resource}ِ جدید
+        </button>
+      )}
+
+      {edit && (
+        <div className="rounded-2xl border-2 border-ink bg-white p-4 space-y-3">
+          <div className="text-xs font-bold">{edit.id ? 'ویرایش' : `${ov.labels.resource}ِ جدید`}</div>
+          <input value={edit.name} onChange={e => setEdit({ ...edit, name: e.target.value })}
+            placeholder="نام" className="w-full p-3 rounded-xl border border-sand text-sm" />
+          <input value={edit.title} onChange={e => setEdit({ ...edit, title: e.target.value })}
+            placeholder="تخصص / عنوان (اختیاری)" className="w-full p-3 rounded-xl border border-sand text-sm" />
+          <label className="flex items-center gap-2.5 text-sm cursor-pointer">
+            <input type="checkbox" checked={edit.is_selectable}
+              onChange={e => setEdit({ ...edit, is_selectable: e.target.checked })} className="w-4 h-4" />
+            <span>{ov.labels.client} بتواند این {ov.labels.resource} را مستقیم انتخاب کند</span>
+          </label>
+          <div className="flex gap-2">
+            <button onClick={save} disabled={busy}
+              className="flex-1 py-3 rounded-xl bg-ink text-white text-sm font-bold disabled:opacity-50">ذخیره</button>
+            <button onClick={() => setEdit(null)} className="px-4 py-3 rounded-xl border border-sand text-soot text-sm">انصراف</button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

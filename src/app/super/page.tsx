@@ -41,6 +41,8 @@ function SuperInner() {
   const [slug, setSlug] = useState('')
   const [phone, setPhone] = useState('')
   const [name, setName] = useState('')
+  const [nicheKey, setNicheKey] = useState('psychology')
+  const [niches, setNiches] = useState<{ key: string; display_name: string }[]>([])
   const [creating, setCreating] = useState(false)
 
   const load = useCallback(async () => {
@@ -54,6 +56,9 @@ function SuperInner() {
   }, [])
 
   useEffect(() => { load() }, [load])
+  useEffect(() => {
+    fetch('/api/niches').then(r => r.json()).then(d => setNiches(d.niches || [])).catch(() => {})
+  }, [])
 
   async function login() {
     if (!secret.trim()) return
@@ -82,7 +87,7 @@ function SuperInner() {
     const res = await fetch('/api/super/tenants', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ slug: slug.trim(), owner_phone: phone.trim(), display_name: name.trim() }),
+      body: JSON.stringify({ slug: slug.trim(), owner_phone: phone.trim(), display_name: name.trim(), niche_key: nicheKey }),
     })
     const d = await res.json().catch(() => ({}))
     setCreating(false)
@@ -168,6 +173,13 @@ function SuperInner() {
             value={name}
             onChange={e => setName(e.target.value)}
           />
+          <select
+            className="border border-sand rounded-xl px-3 py-2 text-sm bg-white"
+            value={nicheKey}
+            onChange={e => setNicheKey(e.target.value)}
+          >
+            {niches.map(n => <option key={n.key} value={n.key}>{n.display_name}</option>)}
+          </select>
         </div>
         <button
           onClick={createTenant}
