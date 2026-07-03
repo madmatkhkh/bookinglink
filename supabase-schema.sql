@@ -328,6 +328,7 @@ create table psy_sessions (
   status text not null default 'confirmed',
   -- کنسلی و بازپرداخت
   refund_status text,          -- null | 'pending' | 'done'
+  refund_percent int default 0,-- درصدی که به مراجع برمی‌گردد
   refund_amount bigint default 0,
   notes text,
   created_at timestamptz not null default now()
@@ -341,7 +342,11 @@ create table psy_packages (
   tenant_id uuid not null references tenants(id) on delete cascade,
   case_number text not null,
   title text not null default '',
-  session_count int not null default 1,
+  -- جلسه‌های کودک و والدین جدا شمرده و قیمت‌گذاری می‌شوند
+  child_sessions int not null default 0,
+  child_session_type text default 'offline',   -- 'online' | 'offline'
+  parent_sessions int not null default 0,
+  parent_session_type text default 'offline',
   price bigint not null default 0,
   paid boolean default false,
   payment_submitted boolean default false,
@@ -350,6 +355,9 @@ create table psy_packages (
   created_at timestamptz not null default now()
 );
 create index on psy_packages (tenant_id, case_number);
+
+-- ستون‌های نوعِ اسلات روی برنامه‌ی روزانه (آنلاین/حضوری و مطبِ هر ساعت)
+-- در psy_schedules پایین به‌صورت jsonb نگه داشته می‌شوند.
 
 -- ── تنظیماتِ کلینیک (معادلِ clinic_settings، حالا per-tenant) ───────────────
 -- تک‌ردیف به‌ازای هر tenant روانشناسی. session_modes/آدرس‌ها/کارت‌ها.
@@ -372,6 +380,8 @@ create table psy_schedules (
   tenant_id uuid not null references tenants(id) on delete cascade,
   date text not null,           -- '1405/04/15'
   available_times jsonb not null default '[]',
+  slot_types jsonb not null default '{}',  -- { "10:00": "online" | "offline" }
+  slot_locs jsonb not null default '{}',   -- { "10:00": "<office_location_id>" }
   is_off boolean not null default false,
   created_at timestamptz not null default now(),
   unique (tenant_id, date)

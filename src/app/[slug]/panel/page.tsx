@@ -1,1055 +1,2829 @@
 'use client'
-// ─────────────────────────────────────────────────────────────────────────────
-// پنلِ متخصص — بازطراحی‌شده حولِ سه اصل:
-// ۱) سریع: کلِ داده در یک درخواست (/panel/overview) + اسکلتونِ لودینگ
-// ۲) واضح: تبِ «خانه» با چک‌لیستِ راه‌اندازی و خلاصه‌ی روز — همیشه معلوم است قدمِ بعدی چیست
-// ۳) موبایل‌فرست: ناوبریِ پایینی، تنظیماتِ تفکیک‌شده به زیرصفحه‌ها
-// ─────────────────────────────────────────────────────────────────────────────
-import { useState, useEffect, useCallback } from 'react'
-import { useParams } from 'next/navigation'
-import MonthCalendar from '@/components/MonthCalendar'
-import { DialogProvider, useDialog } from '@/components/Dialog'
-import { getCurrentJalali, jalaliKey, toFarsiNum, toLatinNum, PERSIAN_MONTHS, PERSIAN_WEEKDAYS_FULL, timeKey } from '@/lib/calendar'
-import { BOOKING_STATUS_LABEL, MODE_LABEL } from '@/lib/config'
+import { useEffect, useState, useCallback } from 'react'
+import { useRouter, useParams } from 'next/navigation'
+import { PERSIAN_MONTHS, toLatinNum, getCurrentJalali, getDaysInJalaliMonth, jalaliDateTimeToTimestamp } from '@/lib/calendar'
+import { FLOW, FLOW_LABEL as FLOW_LABEL_SHARED } from '@/lib/flow'
+import { PRICING } from '@/lib/config'
+import { ClinicSettings, DEFAULT_SETTINGS, SessionMode, OfficeLocation, PaymentCardInfo } from '@/lib/settings'
+import { DialogHost, uiAlert, uiConfirm, uiPrompt } from '@/components/ui/Dialog'
 
-// ─── تایپ‌ها ──────────────────────────────────────────────────────
+// در پنلِ ادمین همه‌ی ارقام لاتین نمایش داده می‌شوند (فقط نمایش؛ فرمتِ ذخیره دست‌نخورده)
+const toFarsiNum = (n: number | string) => toLatinNum(String(n))
+const enTime = (t?: string) => toLatinNum(String(t || ''))
+
+// ─── Types ───────────────────────────────────────────────────────────────────
+
+type Patient = {
+  id: string
+  case_number: string
+  // اطلاعات کودک
+  child_name: string
+  child_name_en?: string
+  birth_date: string
+  birth_place?: string
+  nationality?: string
+  religion?: string
+  grade?: string
+  school_name?: string
+  school_type?: string        // دولتی / خصوصی / غیرانتفاعی
+  // شکایت اصلی
+  reason: string
+  complaint_duration?: string  // مدت شکایت
+  referred_by?: string         // معرف
+  prev_visit?: string          // مراجعه قبلی
+  prev_diagnosis?: string      // تشخیص قبلی
+  prev_treatment?: string      // درمان قبلی
+  // اطلاعات خانواده
+  father_name: string
+  father_birth_year?: string
+  father_education?: string
+  father_job?: string
+  father_phone: string
+  father_health?: string       // وضعیت سلامت پدر
+  mother_name: string
+  mother_birth_year?: string
+  mother_education?: string
+  mother_job?: string
+  mother_phone: string
+  mother_health?: string       // وضعیت سلامت مادر
+  family_status?: string       // وضعیت زندگی والدین
+  siblings_count?: string      // تعداد خواهر و برادر
+  child_order?: string         // ترتیب تولد
+  family_income?: string       // وضعیت اقتصادی
+  home_address?: string
+  siblings_info?: string        // سن و تحصیلاتِ خواهر/برادر
+  family_members_info?: string  // اعضای دیگرِ ساکن
+  // سابقه بارداری و تولد
+  pregnancy_info?: string      // شرایط بارداری
+  birth_type?: string          // نوع زایمان
+  birth_weight?: string        // وزن هنگام تولد
+  birth_complications?: string // عوارض هنگام تولد
+  // رشد و تکامل
+  walking_age?: string         // سن راه رفتن
+  talking_age?: string         // سن صحبت کردن
+  toilet_training?: string     // سن کنترل ادرار
+  growth_info?: string         // مشکلات رشدی
+  // سابقه پزشکی
+  medical_info?: string        // بیماری‌های خاص
+  medications?: string         // داروهای مصرفی
+  allergies?: string           // آلرژی‌ها
+  surgery_history?: string     // سابقه جراحی
+  head_trauma?: string         // ضربه به سر
+  // اطلاعات تکمیلی
+  sleep_info?: string          // مشکلات خواب
+  appetite_info?: string       // مشکلات اشتها
+  sports_info?: string         // فعالیت ورزشی
+  social_info?: string         // روابط اجتماعی
+  academic_info?: string       // وضعیت تحصیلی
+  parent_behavior?: string     // نحوه برخورد والدین
+  family_stress?: string       // استرس‌های خانوادگی
+  extra_notes?: string         // توضیحات اضافی
+  // ستون‌هایی که فرمِ مصاحبه ذخیره می‌کند (رشته‌ای/ترکیبی)
+  school_info?: string         // نام مدرسه | مؤسسه | پایه | تلفن
+  child_conditions?: string    // ویژگی‌های کودک
+  session_type?: string        // online | offline
+  parent_name?: string
+  phone?: string
+  // وضعیت
+  status: string
+  booking_date?: string
+  created_at: string
+}
+
 type Booking = {
-  id: string; booking_date: string; booking_time: string; booking_ts: number
-  client_name: string; client_phone: string; status: string
-  payment_ref: string | null; price_snapshot: number; client_note: string
-  services: { name: string; mode: string; duration_minutes: number } | null
-}
-type Service = {
-  id: string; name: string; duration_minutes: number; price: number
-  mode: string; description: string; is_active: boolean; sort_order: number
-}
-type WeeklyRow = { resource_id: string; weekday: number; start_time: string; end_time: string; mode: string }
-type Override = { id: string; resource_id: string; date: string; type: string }
-type Resource = {
-  id: string; name: string; title: string; avatar_url: string | null
-  is_active: boolean; is_selectable: boolean; sort_order: number
-}
-type RecordField = { key: string; label: string; type: string; options?: string[] }
-type Labels = { client: string; resource: string; booking: string }
-type Profile = {
-  display_name: string; title: string; bio: string; avatar_url: string | null
-  theme_color: string; location_text: string; instagram_handle: string | null
-  card_number: string; card_holder_name: string
-}
-type Overview = {
-  slug: string; niche_key: string; labels: Labels; record_fields: RecordField[]
-  plan: string; custom_domain: string | null; domain_verified: boolean
-  profile: Profile; services: Service[]; resources: Resource[]
-  weekly: WeeklyRow[]; overrides: Override[]
-  pending: Booking[]; upcoming: Booking[]
-  features: { feature_key: string; enabled: boolean; config: any }[]
-}
-
-// ─── ثابت‌های نمایشی ─────────────────────────────────────────────
-const STATUS_STYLE: Record<string, string> = {
-  pending_payment: 'bg-amber-50 text-amber-700 border-amber-200',
-  payment_submitted: 'bg-blue-50 text-blue-700 border-blue-200',
-  confirmed: 'bg-green-50 text-green-700 border-green-200',
-  cancelled: 'bg-red-50 text-red-600 border-red-200',
-  completed: 'bg-sand text-soot border-sand',
-  no_show: 'bg-red-50 text-red-600 border-red-200',
+  id: string
+  case_number: string
+  child_name: string
+  father_name?: string
+  mother_name?: string
+  father_phone?: string
+  mother_phone?: string
+  session_type: 'online' | 'offline'
+  office_location?: string
+  booking_date: string
+  booking_time: string
+  price: number
+  status: 'pending' | 'confirmed' | 'cancelled'
+  doctor_notes?: string
+  flow_status?: string
+  reject_reason?: string
+  interview_date?: string
+  interview_time?: string
+  interview_paid?: boolean
+  interview_payment_ref?: string
+  interview_price?: number
+  assessment_date?: string
+  assessment_time?: string
+  assessment_paid?: boolean
+  assessment_payment_ref?: string
+  assessment_price?: number
+  interview_notes?: string
+  assessment_notes?: string
+  interview_held?: boolean
+  assessment_held?: boolean
+  cancel_notice?: string
+  created_at: string
 }
 
-const THEME_PRESETS: { name: string; rgb: string }[] = [
-  { name: 'سبزِ دریایی', rgb: '13 148 136' },
-  { name: 'سرمه‌ای', rgb: '30 64 175' },
-  { name: 'بنفش', rgb: '124 58 237' },
-  { name: 'زرشکی', rgb: '190 24 60' },
-  { name: 'نارنجیِ خاکی', rgb: '194 93 44' },
-  { name: 'زغالی', rgb: '41 37 36' },
-]
-
-// گزینه‌های ساعت برای انتخاب‌گرِ برنامه‌ی هفتگی (۶ صبح تا ۱۲ شب، گام ۳۰ دقیقه)
-const TIME_OPTIONS: string[] = []
-for (let h = 6; h <= 23; h++) for (const m of ['00', '30'])
-  TIME_OPTIONS.push(`${String(h).padStart(2, '0')}:${m}`)
-
-function fmtDate(dateStr: string): string {
-  const [, m, d] = toLatinNum(dateStr).split('/').map(Number)
-  return `${toFarsiNum(d)} ${PERSIAN_MONTHS[m - 1]}`
-}
-function fmtPrice(n: number): string { return toFarsiNum(n.toLocaleString('en-US')) }
-
-async function api(path: string, method = 'GET', body?: unknown) {
-  const res = await fetch(path, {
-    method,
-    headers: body ? { 'Content-Type': 'application/json' } : undefined,
-    body: body ? JSON.stringify(body) : undefined,
-  })
-  const data = await res.json().catch(() => ({}))
-  return { ok: res.ok, status: res.status, data }
+type Package = {
+  id: string
+  case_number: string
+  month: string
+  year: string
+  child_sessions: number
+  parent_sessions: number
+  child_session_type: string
+  parent_session_type: string
+  notes: string
+  status: string
+  paid: boolean
+  payment_submitted?: boolean
+  payment_ref?: string
 }
 
-// ═══ ریشه ════════════════════════════════════════════════════════
-type Tab = 'home' | 'bookings' | 'records' | 'calendar' | 'settings'
-type SettingsView = 'menu' | 'profile' | 'services' | 'resources' | 'schedule'
+type Session = {
+  id: string
+  package_id: string
+  case_number: string
+  session_number: number
+  session_date: string
+  session_time: string
+  session_type: string
+  attendee: string
+  status: string
+  session_goals: string
+  session_summary: string
+  doctor_notes_private: string
+  doctor_note_for_patient: string
+  paid: boolean
+  payment_submitted?: boolean
+  payment_ref?: string
+  refund_percent?: number
+  refund_card?: string
+  refund_status?: string
+  refund_ref?: string
+}
 
-function Panel() {
+type FinanceCats = { interview: number; assessment: number; packages: number; sessions: number }
+type FinanceData = {
+  totalPaid: number
+  totalPending: number
+  refundsTotal: number
+  refundsCount: number
+  netPaid: number
+  paid: FinanceCats
+  paidCount: FinanceCats
+  pending: FinanceCats
+  pendingCount: FinanceCats
+  split: { online: number; offline: number }
+  monthly: { month: string; amount: number }[]
+  topCases: { case_number: string; name: string; amount: number }[]
+}
+
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const ALL_TIMES = ['۸:۰۰','۹:۰۰','۱۰:۰۰','۱۱:۰۰','۱۲:۰۰','۱۳:۰۰','۱۴:۰۰','۱۵:۰۰','۱۶:۰۰','۱۷:۰۰','۱۸:۰۰']
+
+// کلیدِ مرتب‌سازیِ عددیِ ساعت (رقمِ فارسی «۱۱:۰۰» → دقیقه) تا ترتیب درست باشد نه الفبایی
+function timeKey(t: string): number {
+  const [h, m] = toLatinNum(t || '').split(':').map(x => parseInt(x, 10))
+  return (isNaN(h) ? 0 : h) * 60 + (isNaN(m) ? 0 : m)
+}
+
+const FLOW_LABEL = FLOW_LABEL_SHARED
+
+const STATUS_LABEL: Record<string, string> = {
+  pending: 'در انتظار',
+  confirmed: 'تایید شده',
+  cancelled: 'کنسل شده',
+  forfeited: 'سوخت شده',
+  replaced: 'جایگزین شد',
+  completed: 'برگزار شده',
+  active: 'فعال',
+}
+const STATUS_COLOR: Record<string, string> = {
+  pending: 'bg-amber-50 text-amber-700 border border-amber-200',
+  confirmed: 'bg-green-50 text-green-700 border border-green-200',
+  cancelled: 'bg-red-50 text-red-700 border border-red-200',
+  forfeited: 'bg-red-50 text-red-700 border border-red-200',
+  replaced: 'bg-gray-100 text-gray-500 border border-gray-200',
+  completed: 'bg-blue-50 text-blue-700 border border-blue-200',
+  active: 'bg-blue-50 text-blue-700 border border-blue-200',
+}
+
+// ─── Sub-components ───────────────────────────────────────────────────────────
+
+// کارتِ جلسه‌ی مصاحبه/ارزیابی در پرونده — یادداشت + تأیید برگزاری
+function StageSessionCard({ stage, date, time, notes, held, canHold, onSave }: {
+  stage: 'interview' | 'assessment'; date?: string; time?: string
+  notes: string; held: boolean; canHold: boolean
+  onSave: (notes: string, markHeld: boolean) => Promise<void> | void
+}) {
+  const [val, setVal] = useState(notes)
+  const [saving, setSaving] = useState(false)
+  const label = stage === 'interview' ? 'جلسه‌ی مصاحبه‌ی اولیه' : 'جلسه‌ی ارزیابیِ کودک'
+  const icon = stage === 'interview' ? '🩺' : '🧩'
+  return (
+    <div className="bg-white rounded-xl border border-gray-100 p-3">
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2">
+          <span className="text-lg">{icon}</span>
+          <div>
+            <div className="text-sm font-medium text-gray-900">{label}</div>
+            <div className="text-xs text-gray-400">{date ? `${enTime(date)} — ${enTime(time)}` : 'زمان ثبت نشده'}</div>
+          </div>
+        </div>
+        <span className={`text-xs px-2 py-0.5 rounded-full ${held ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'}`}>
+          {held ? '✅ برگزار شد' : 'برگزار نشده'}
+        </span>
+      </div>
+      <textarea value={val} onChange={e => setVal(e.target.value)} rows={2} placeholder="مطالب و یادداشتِ این جلسه..."
+        className="w-full text-sm px-3 py-2 border border-gray-200 rounded-lg resize-none focus:outline-none focus:border-brand-400 mb-2" />
+      <div className="flex gap-2">
+        <button onClick={async () => { setSaving(true); await onSave(val, false); setSaving(false) }} disabled={saving}
+          className="flex-1 py-2 border border-gray-200 text-gray-600 rounded-lg text-sm disabled:opacity-40">💾 ذخیره یادداشت</button>
+        {!held && canHold && (
+          <button onClick={async () => { if (!await uiConfirm('تأیید برگزاریِ این جلسه؟ مرحله‌ی بعد برای مراجع باز می‌شود.')) return; setSaving(true); await onSave(val, true); setSaving(false) }} disabled={saving}
+            className="flex-1 py-2 bg-green-600 text-white rounded-lg text-sm disabled:opacity-40">✅ تایید برگزاری</button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function PendingSection({ title, icon, count, children }: { title: string; icon: string; count: number; children: React.ReactNode }) {
+  return (
+    <div>
+      <div className="flex items-center gap-2 mb-3">
+        <span className="text-lg">{icon}</span>
+        <h3 className="text-sm font-semibold text-gray-800">{title}</h3>
+        <span className={`text-xs px-2 py-0.5 rounded-full ${count > 0 ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-400'}`}>{toFarsiNum(count)}</span>
+      </div>
+      {count === 0 ? (
+        <div className="text-center py-6 text-xs text-gray-300 bg-white rounded-xl border border-dashed border-gray-100">موردی نیست</div>
+      ) : (
+        <div className="space-y-2">{children}</div>
+      )}
+    </div>
+  )
+}
+
+function PendingPayCard({ name, caseNumber, amount, receipt, sub, children }: {
+  name: string; caseNumber: string; amount: number; receipt?: string; sub?: string; children: React.ReactNode
+}) {
+  return (
+    <div className="bg-white rounded-xl border border-gray-100 p-4">
+      <div className="flex items-start justify-between mb-2">
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="font-medium text-gray-900 text-sm">{name}</span>
+            <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-500 rounded-md font-mono">{caseNumber}</span>
+          </div>
+          {sub && <div className="text-xs text-gray-400 mt-0.5">{sub}</div>}
+        </div>
+        <span className="text-sm font-semibold text-brand-600 shrink-0">{amount.toLocaleString('en-US')} ت</span>
+      </div>
+      {receipt && (
+        <div className="bg-gray-50 rounded-lg p-2.5 border border-gray-100 mb-3">
+          <p className="text-xs text-gray-400 mb-0.5">فیش واریزی:</p>
+          <p className="text-xs text-gray-700 whitespace-pre-wrap break-words">{receipt}</p>
+        </div>
+      )}
+      {children}
+    </div>
+  )
+}
+
+// انتخابگرِ تاریخِ جلالی (سال/ماه/روز) برای بازه‌ی گزارش
+function JalaliDateSelect({ value, onChange }: { value: { y: number; m: number; d: number }; onChange: (v: { y: number; m: number; d: number }) => void }) {
+  const nowY = getCurrentJalali().year
+  const years = [nowY - 3, nowY - 2, nowY - 1, nowY]
+  const days = getDaysInJalaliMonth(value.y, value.m - 1)
+  const cls = 'text-xs px-2 py-1.5 border border-gray-200 rounded-lg bg-white focus:outline-none focus:border-brand-400'
+  return (
+    <div className="flex gap-1">
+      <select value={value.y} onChange={e => onChange({ ...value, y: +e.target.value })} className={cls}>
+        {years.map(y => <option key={y} value={y}>{toFarsiNum(y)}</option>)}
+      </select>
+      <select value={value.m} onChange={e => onChange({ ...value, m: +e.target.value })} className={cls}>
+        {PERSIAN_MONTHS.map((mn, i) => <option key={i} value={i + 1}>{mn}</option>)}
+      </select>
+      <select value={value.d} onChange={e => onChange({ ...value, d: Math.min(+e.target.value, days) })} className={cls}>
+        {Array.from({ length: days }, (_, i) => i + 1).map(d => <option key={d} value={d}>{toFarsiNum(d)}</option>)}
+      </select>
+    </div>
+  )
+}
+
+function InfoRow({ label, value }: { label: string; value?: string | null }) {
+  if (!value) return null
+  return (
+    <div className="flex gap-2 py-2 border-b border-gray-50 last:border-0">
+      <span className="text-xs text-gray-400 w-40 shrink-0">{label}</span>
+      <span className="text-sm text-gray-800">{value}</span>
+    </div>
+  )
+}
+
+// کارتِ بازپرداختِ کنسلی: نمایشِ کارتِ مراجع + ورودیِ فیشِ واریز
+function RefundPendingCard({ name, caseNumber, card, amount, onDone }: {
+  name: string; caseNumber: string; card: string; amount: number; onDone: (ref: string) => void
+}) {
+  const [ref, setRef] = useState('')
+  const [saving, setSaving] = useState(false)
+  return (
+    <div className="bg-white rounded-xl border border-amber-100 p-4">
+      <div className="flex items-start justify-between mb-2">
+        <div className="flex items-center gap-2">
+          <span className="font-medium text-gray-900 text-sm">{name}</span>
+          <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-500 rounded-md font-mono">{caseNumber}</span>
+        </div>
+        <span className="text-sm font-semibold text-amber-600 shrink-0">{amount.toLocaleString('en-US')} ت</span>
+      </div>
+      <div className="bg-amber-50 rounded-lg p-2.5 border border-amber-100 mb-3">
+        <p className="text-xs text-gray-400 mb-0.5">شماره کارتِ مراجع برای واریز:</p>
+        <p dir="ltr" className="font-mono text-sm text-gray-800 tracking-wider text-right">{card || '—'}</p>
+      </div>
+      <input value={ref} onChange={e => setRef(e.target.value)} placeholder="متنِ فیشِ واریز (کد پیگیری/تاریخ)"
+        className="w-full text-sm px-3 py-2 border border-gray-200 rounded-lg mb-2 focus:outline-none focus:border-brand-400" />
+      <button disabled={saving || !ref.trim()}
+        onClick={async () => { if (!await uiConfirm(`واریزِ بازپرداختِ ${amount.toLocaleString('en-US')} تومان به کارتِ مراجع ثبت شود؟`)) return; setSaving(true); await onDone(ref); setSaving(false) }}
+        className="w-full py-2 bg-amber-500 text-white rounded-lg text-sm disabled:opacity-40">
+        {saving ? 'در حال ثبت...' : '✓ ثبتِ واریزِ بازپرداخت'}
+      </button>
+    </div>
+  )
+}
+
+function Section({ title, icon, children }: { title: string; icon?: string; children: React.ReactNode }) {
+  return (
+    <div className="mb-5">
+      <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2 bg-gray-50 px-3 py-2 rounded-lg flex items-center gap-1.5">
+        {icon && <span>{icon}</span>}
+        {title}
+      </h3>
+      <div className="px-1">{children}</div>
+    </div>
+  )
+}
+
+// ─── Main Component ───────────────────────────────────────────────────────────
+
+export default function AdminPanel() {
+  const router = useRouter()
   const { slug } = useParams<{ slug: string }>()
-  const { uiAlert, uiConfirm } = useDialog()
+  const api = (path: string) => `/api/t/${slug}/panel/psy${path}`
+  const [mainTab, setMainTab] = useState<'patients' | 'bookings' | 'schedule' | 'settings' | 'finance'>('patients')
 
-  const [authed, setAuthed] = useState<boolean | null>(null)
-  const [ov, setOv] = useState<Overview | null>(null)
-  const [tab, setTab] = useState<Tab>('home')
-  const [settingsView, setSettingsView] = useState<SettingsView>('menu')
+  // ── Patients state ─────────────────────────────────────────────
+  const [patients, setPatients] = useState<Patient[]>([])
+  const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null)
+  const [patientView, setPatientView] = useState<'list' | 'detail' | 'edit'>('list')
+  const [patientTab, setPatientTab] = useState<'info' | 'payment' | 'packages' | 'sessions'>('info')
+  const [infoSubTab, setInfoSubTab] = useState<'child' | 'family' | 'medical' | 'growth' | 'other'>('child')
+  const [packages, setPackages] = useState<Package[]>([])
+  const [sessions, setSessions] = useState<Session[]>([])
+  const [patientSearch, setPatientSearch] = useState('')
+  const [showNewPackage, setShowNewPackage] = useState(false)
+  const [showNewSession, setShowNewSession] = useState(false)
+  const [showAddPatient, setShowAddPatient] = useState(false)
+  const [addPatientSaving, setAddPatientSaving] = useState(false)
+  const [newPatientForm, setNewPatientForm] = useState({
+    child_name: '', birth_date: '', grade: '', reason: '',
+    father_name: '', father_phone: '', mother_name: '', mother_phone: '',
+  })
+  const [editSession, setEditSession] = useState<Session | null>(null)
+  const [editingPatient, setEditingPatient] = useState<Partial<Patient>>({})
 
-  const load = useCallback(async () => {
-    const r = await api(`/api/t/${slug}/panel/overview`)
-    if (!r.ok) { setAuthed(false); return }
-    setOv(r.data); setAuthed(true)
-  }, [slug])
+  // ── Bookings state ─────────────────────────────────────────────
+  const [bookings, setBookings] = useState<Booking[]>([])
+  const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null)
+  const [bookingFilter, setBookingFilter] = useState<'all' | 'pending' | 'confirmed' | 'cancelled'>('all')
+  const [bookingSearch, setBookingSearch] = useState('')
+  const [bookingNotes, setBookingNotes] = useState('')
 
-  useEffect(() => { load() }, [load])
+  // ── Pending payments (تب تأیید پرداخت‌ها) ─────────────────────────
+  const [pendingPkgs, setPendingPkgs] = useState<Package[]>([])
+  const [pendingSess, setPendingSess] = useState<Session[]>([])
+  const [pendingRefunds, setPendingRefunds] = useState<Session[]>([])
 
-  if (authed === null) return <Skeleton />
-  if (authed === false) return <Login slug={slug} onSuccess={load} />
-  if (!ov) return <Skeleton />
+  // ── Schedule state ─────────────────────────────────────────────
+  const today = getCurrentJalali()
+  const [schedMonth, setSchedMonth] = useState(today.month)
+  const [schedYear, setSchedYear] = useState(today.year)
+  const [selectedDay, setSelectedDay] = useState<number | null>(null)
+  const [selectedTimes, setSelectedTimes] = useState<string[]>([])
+  const [slotTypes, setSlotTypes] = useState<Record<string, 'online' | 'offline'>>({})
+  const [slotLocs, setSlotLocs] = useState<Record<string, string>>({})
+  const [isOff, setIsOff] = useState(false)
+  const [schedSaving, setSchedSaving] = useState(false)
+  const [schedSaved, setSchedSaved] = useState(false)
+  const [schedSubTab, setSchedSubTab] = useState<'edit' | 'agenda'>('edit')
+  const [agendaMode, setAgendaMode] = useState<'month' | 'week'>('week')
+  const [weekIdx, setWeekIdx] = useState(0)
+  const [monthSchedules, setMonthSchedules] = useState<{ date: string; available_times: string[]; is_off: boolean; slot_types?: Record<string, string>; slot_locs?: Record<string, string> }[]>([])
+  const [allSessions, setAllSessions] = useState<{ id: string; case_number: string; session_date: string; session_time: string; session_type: string; attendee: string; status: string }[]>([])
 
-  const pendingCount = ov.pending.length
+  // ── Loading ────────────────────────────────────────────────────
+  const [loading, setLoading] = useState(true)
+  const [needsLogin, setNeedsLogin] = useState(false)
+
+  // ── Settings (تنظیماتِ کلینیک + ظاهر) ──────────────────────────
+  const [settings, setSettings] = useState<ClinicSettings>(DEFAULT_SETTINGS)
+  const [settingsLoaded, setSettingsLoaded] = useState(false)
+  const [settingsSaving, setSettingsSaving] = useState(false)
+  const [settingsSaved, setSettingsSaved] = useState(false)
+  const [darkMode, setDarkMode] = useState(false)
+  const [finance, setFinance] = useState<FinanceData | null>(null)
+  const [financeLoaded, setFinanceLoaded] = useState(false)
+  const [financeRange, setFinanceRange] = useState<'all' | '1m' | '3m' | '6m' | '12m' | 'custom'>('6m')
+  const [financeFromIso, setFinanceFromIso] = useState('')
+  const [financeToIso, setFinanceToIso] = useState('')
+  const [financeCustomOpen, setFinanceCustomOpen] = useState(false)
+  const [fromJ, setFromJ] = useState(() => { const t = getCurrentJalali(); return { y: t.year, m: t.month + 1, d: 1 } })
+  const [toJ, setToJ] = useState(() => { const t = getCurrentJalali(); return { y: t.year, m: t.month + 1, d: t.day } })
+
+  // ── Package / Session forms ────────────────────────────────────
+  const [newPkg, setNewPkg] = useState({
+    month: '1', year: '1404',
+    child_sessions: 8, parent_sessions: 2,
+    child_session_type: 'offline', parent_session_type: 'offline', notes: ''
+  })
+  const [newSess, setNewSess] = useState({
+    session_date: '', session_time: '', session_type: 'offline', attendee: 'child', package_id: '', standalone: false, paid: true
+  })
+  const [sessForm, setSessForm] = useState({
+    session_goals: '', session_summary: '',
+    doctor_notes_private: '', doctor_note_for_patient: '', status: 'confirmed'
+  })
+
+  // ─── Data fetching ───────────────────────────────────────────────────────────
+
+  const fetchAll = useCallback(async () => {
+    setLoading(true)
+    const [pRes, bRes] = await Promise.all([
+      fetch(api('/cases'), { cache: 'no-store' }),
+      fetch(api('/cases'), { cache: 'no-store' }),
+    ])
+    if (pRes.status === 401) { setNeedsLogin(true); return }
+    const pData = await pRes.json()
+    setPatients(pData.bookings || [])
+    setBookings(pData.bookings || [])
+    loadPendingPayments()
+    setLoading(false)
+  }, [router])
+
+  // پرداخت‌های منتظرِ تأیید (پروتکل‌های درمان و جلسه‌های جایگزین) در همه‌ی پرونده‌ها
+  async function loadPendingPayments() {
+    try {
+      const [pkgRes, sessRes, refundRes] = await Promise.all([
+        fetch(api('/packages?pending=1'), { cache: 'no-store' }),
+        fetch(api('/sessions?pending=1'), { cache: 'no-store' }),
+        fetch(api('/sessions?refunds=1'), { cache: 'no-store' }),
+      ])
+      const pkg = await pkgRes.json().catch(() => ({}))
+      const sess = await sessRes.json().catch(() => ({}))
+      const refunds = await refundRes.json().catch(() => ({}))
+      setPendingPkgs(pkg.packages || [])
+      setPendingSess(sess.sessions || [])
+      setPendingRefunds(refunds.sessions || [])
+    } catch {}
+  }
+
+  useEffect(() => { fetchAll() }, [fetchAll])
+
+  async function loadPatientData(case_number: string) {
+    const [pkgRes, sessRes] = await Promise.all([
+      fetch(api(`/packages?case_number=${case_number}`), { cache: 'no-store' }),
+      fetch(api(`/sessions?case_number=${case_number}`), { cache: 'no-store' }),
+    ])
+    const pkgData = await pkgRes.json()
+    const sessData = await sessRes.json()
+    setPackages(pkgData.packages || [])
+    setSessions(sessData.sessions || [])
+  }
+
+  async function openPatient(p: Patient) {
+    setSelectedPatient(p)
+    setPatientView('detail')
+    setPatientTab('info')
+    await loadPatientData(p.case_number)
+  }
+
+  // ─── Patient edit ────────────────────────────────────────────────────────────
+
+  function startEdit(p: Patient) {
+    setEditingPatient({ ...p })
+    setPatientView('edit')
+  }
+
+  async function savePatient() {
+    await fetch(api('/cases'), {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(editingPatient),
+    })
+    await fetchAll()
+    const updated = { ...selectedPatient, ...editingPatient } as Patient
+    setSelectedPatient(updated)
+    setPatientView('detail')
+  }
+
+  // ─── Package & Session ───────────────────────────────────────────────────────
+
+  async function createPackage() {
+    if (!selectedPatient) return
+    await fetch(api('/packages'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...newPkg, case_number: selectedPatient.case_number }),
+    })
+    // پرونده وارد مرحله‌ی درمان شد
+    const bk = bookings.find(b => b.case_number === selectedPatient.case_number)
+    if (bk) {
+      await fetch(api('/cases'), {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: bk.id, flow_status: 'package_assigned' }),
+      })
+    }
+    setShowNewPackage(false)
+    await loadPatientData(selectedPatient.case_number)
+    fetchAll()
+  }
+
+  // حذفِ کاملِ یک پرونده (با تأیید)
+  async function deletePatient(p: Patient) {
+    if (!await uiConfirm(`پرونده‌ی «${p.child_name}» (${p.case_number}) و همه‌ی پروتکل‌های درمان و جلسه‌هایش برای همیشه حذف شود؟`)) return
+    const res = await fetch(api('/cases'), {
+      method: 'DELETE', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: p.id }),
+    })
+    if (!res.ok) { uiAlert('حذف ناموفق بود'); return }
+    if (selectedPatient?.id === p.id) { setSelectedPatient(null); setPatientView('list') }
+    fetchAll()
+  }
+
+  // افزودنِ پرونده‌ی دستی
+  async function createPatient() {
+    if (!newPatientForm.child_name.trim()) { uiAlert('نام کودک را وارد کنید'); return }
+    if (!newPatientForm.father_phone.trim() && !newPatientForm.mother_phone.trim()) { uiAlert('حداقل یک شماره تماس وارد کنید'); return }
+    setAddPatientSaving(true)
+    try {
+      const res = await fetch(api('/cases'), {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newPatientForm),
+      })
+      const data = await res.json().catch(() => ({}))
+      setAddPatientSaving(false)
+      if (!res.ok) { uiAlert(data.error || 'ثبت پرونده ناموفق بود'); return }
+      setShowAddPatient(false)
+      setNewPatientForm({ child_name: '', birth_date: '', grade: '', reason: '', father_name: '', father_phone: '', mother_name: '', mother_phone: '' })
+      await fetchAll()
+      if (data.booking) { setSelectedPatient(data.booking); await loadPatientData(data.booking.case_number); setPatientView('detail') }
+    } catch (e: any) {
+      setAddPatientSaving(false)
+      uiAlert('خطای شبکه: ' + (e?.message || e))
+    }
+  }
+
+  // تأیید پرداختِ کارت‌به‌کارتِ پروتکل درمان → مراجع می‌تواند روزهای جلسات را انتخاب کند
+  async function confirmPackagePayment(pkgId: string) {
+    if (!await uiConfirm('پرداختِ پروتکل درمان تأیید شود؟ پس از تأیید، مراجع می‌تواند روزهای جلسات را انتخاب کند.')) return
+    const res = await fetch(api('/packages'), {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: pkgId, paid: true }),
+    })
+    if (!res.ok) { uiAlert('خطا در تأیید پرداخت'); return }
+    loadPendingPayments()
+    if (selectedPatient) await loadPatientData(selectedPatient.case_number)
+  }
+
+  async function createSession() {
+    if (!selectedPatient) return
+    if (!newSess.standalone && !newSess.package_id) { uiAlert('یک پروتکل درمان انتخاب کنید یا «جلسه‌ی جداگانه» را بزنید.'); return }
+    const payload = newSess.standalone
+      ? {
+          case_number: selectedPatient.case_number,
+          session_date: newSess.session_date, session_time: newSess.session_time,
+          session_type: newSess.session_type, attendee: newSess.attendee,
+          package_id: null, paid: newSess.paid,
+        }
+      : {
+          case_number: selectedPatient.case_number,
+          session_date: newSess.session_date, session_time: newSess.session_time,
+          session_type: newSess.session_type, attendee: newSess.attendee,
+          package_id: newSess.package_id, paid: false,
+        }
+    await fetch(api('/sessions'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+    setShowNewSession(false)
+    setNewSess({ session_date: '', session_time: '', session_type: 'offline', attendee: 'child', package_id: '', standalone: false, paid: true })
+    await loadPatientData(selectedPatient.case_number)
+    loadAllSessions()
+  }
+
+  // تأیید پرداختِ جلسه‌ی جایگزین
+  async function confirmSessionPayment(sessionId: string) {
+    if (!await uiConfirm('پرداختِ جلسه‌ی جایگزین تأیید شود؟')) return
+    await fetch(api('/sessions'), {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: sessionId, paid: true }),
+    })
+    loadPendingPayments()
+    if (selectedPatient) await loadPatientData(selectedPatient.case_number)
+  }
+
+  // ثبتِ بازپرداختِ کنسلی به‌همراهِ فیشِ واریز
+  async function markRefunded(sessionId: string, refundRef: string) {
+    await fetch(api('/sessions'), {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: sessionId, refund_status: 'done', refund_ref: refundRef.trim() }),
+    })
+    await loadPendingPayments()
+    if (selectedPatient) await loadPatientData(selectedPatient.case_number)
+  }
+
+  async function saveSession() {
+    if (!editSession) return
+    await fetch(api('/sessions'), {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: editSession.id, ...sessForm }),
+    })
+    setEditSession(null)
+    if (selectedPatient) await loadPatientData(selectedPatient.case_number)
+    loadAllSessions()
+  }
+
+  // ─── Booking actions ─────────────────────────────────────────────────────────
+
+  async function updateBookingStatus(id: string, status: string) {
+    await fetch(api('/cases'), {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, status, doctor_notes: bookingNotes }),
+    })
+    setSelectedBooking(null)
+    fetchAll()
+  }
+
+  // تأیید پرداختِ یک مرحله (مصاحبه/ارزیابی) → باز شدنِ گرفتنِ وقت
+  async function confirmStagePayment(id: string, stage: 'interview' | 'assessment') {
+    const label = stage === 'interview' ? 'مصاحبه' : 'ارزیابی'
+    if (!await uiConfirm(`پرداختِ ${label} تأیید شود؟ پس از تأیید، مراجع می‌تواند وقت بگیرد.`)) return
+    const patch = stage === 'interview'
+      ? { id, flow_status: FLOW.INTERVIEW_AWAITING_BOOKING, interview_paid: true, status: 'confirmed' }
+      : { id, flow_status: FLOW.ASSESSMENT_AWAITING_BOOKING, assessment_paid: true }
+    const res = await fetch(api('/cases'), {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch),
+    })
+    if (!res.ok) { uiAlert('خطا در ثبت'); return }
+    setSelectedBooking(null); fetchAll()
+  }
+
+  // ردِ مرحله‌ی مصاحبه
+  async function rejectInterview(id: string) {
+    const r = await uiPrompt('دلیل رد را بنویسید (برای مراجع نمایش داده می‌شود):', { required: true })
+    if (r === null) return
+    const reject_reason = r.trim()
+    if (!reject_reason) { uiAlert('لطفاً دلیل را بنویسید.'); return }
+    const res = await fetch(api('/cases'), {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, flow_status: FLOW.INTERVIEW_REJECTED, reject_reason, status: 'cancelled' }),
+    })
+    if (!res.ok) { uiAlert('خطا در ثبت'); return }
+    setSelectedBooking(null); fetchAll()
+  }
+
+  // ردِ پرداختِ ارزیابی → بازگشت به مرحله‌ی پرداخت تا مراجع دوباره واریز کند
+  async function rejectAssessmentPayment(id: string) {
+    const r = await uiPrompt('دلیل ردِ پرداخت را بنویسید (برای مراجع نمایش داده می‌شود):', { required: true })
+    if (r === null) return
+    const reason = r.trim()
+    if (!reason) { uiAlert('لطفاً دلیل را بنویسید.'); return }
+    const res = await fetch(api('/cases'), {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, flow_status: FLOW.ASSESSMENT_AWAITING_PAYMENT, assessment_paid: false, cancel_notice: `پرداختِ ارزیابی تأیید نشد: ${reason}` }),
+    })
+    if (!res.ok) { uiAlert('خطا در ثبت'); return }
+    await loadPendingPayments(); setSelectedBooking(null); fetchAll()
+  }
+
+  // ردِ پرداختِ پروتکل درمان → مراجع باید دوباره واریز کند
+  async function rejectPackagePayment(pkgId: string) {
+    const r = await uiPrompt('دلیلِ ردِ پرداختِ این پروتکل درمان را بنویسید (مراجع باید دوباره کارت‌به‌کارت کند):', { required: true })
+    if (r === null) return
+    const res = await fetch(api('/packages'), {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: pkgId, payment_submitted: false, paid: false, notes: `پرداخت رد شد: ${r.trim()}` }),
+    })
+    if (!res.ok) { uiAlert('خطا در ثبت'); return }
+    await loadPendingPayments()
+    if (selectedPatient) await loadPatientData(selectedPatient.case_number)
+  }
+
+  // ردِ پرداختِ جلسه‌ی جایگزین → مراجع باید دوباره واریز کند
+  async function rejectSessionPayment(sessionId: string) {
+    const r = await uiPrompt('دلیلِ ردِ پرداختِ این جلسه را بنویسید (مراجع باید دوباره کارت‌به‌کارت کند):', { required: true })
+    if (r === null) return
+    const res = await fetch(api('/sessions'), {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: sessionId, payment_submitted: false, paid: false, doctor_note_for_patient: `پرداخت تأیید نشد: ${r.trim()}` }),
+    })
+    if (!res.ok) { uiAlert('خطا در ثبت'); return }
+    await loadPendingPayments()
+    if (selectedPatient) await loadPatientData(selectedPatient.case_number)
+  }
+
+  // باز کردنِ مرحله‌ی ارزیابی پس از برگزاریِ مصاحبه (مراجع باید پرداخت کند)
+  async function openAssessmentStage(id: string) {
+    const res = await fetch(api('/cases'), {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, flow_status: FLOW.ASSESSMENT_AWAITING_PAYMENT }),
+    })
+    if (!res.ok) { uiAlert('خطا در ثبت'); return }
+    setSelectedBooking(null); fetchAll()
+  }
+
+  // ذخیره‌ی یادداشت و/یا تأییدِ برگزاریِ جلسه‌ی مصاحبه/ارزیابی
+  async function saveStageSession(bookingId: string, stage: 'interview' | 'assessment', notes: string, markHeld: boolean) {
+    const patch: Record<string, any> = { id: bookingId }
+    if (stage === 'interview') {
+      patch.interview_notes = notes
+      if (markHeld) { patch.interview_held = true; patch.flow_status = FLOW.ASSESSMENT_AWAITING_PAYMENT }
+    } else {
+      patch.assessment_notes = notes
+      if (markHeld) patch.assessment_held = true
+    }
+    const res = await fetch(api('/cases'), {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch),
+    })
+    if (!res.ok) { uiAlert('خطا در ثبت'); return }
+    await fetchAll()
+    if (selectedPatient) await loadPatientData(selectedPatient.case_number)
+  }
+
+  // ─── Schedule ────────────────────────────────────────────────────────────────
+
+  const daysInMonth = getDaysInJalaliMonth(schedYear, schedMonth)
+
+  // ── کمک‌توابعِ برنامه ───────────────────────────────────────────
+  const childNameOf = (cn: string) => bookings.find(b => b.case_number === cn)?.child_name || cn
+  const schedForDay = (d: number) => monthSchedules.find(s => s.date === `${schedYear}/${schedMonth + 1}/${d}`)
+
+  // همه‌ی نوبت‌های یک تاریخ (مصاحبه + ارزیابی + جلسه) مرتب‌شده بر اساس ساعت
+  function apptsForDate(dateStr: string) {
+    const out: { time: string; name: string; type: string; mode?: string; loc?: string; color: string; kind: 'interview' | 'assessment' | 'session'; id: string; caseNumber: string }[] = []
+    for (const b of bookings) {
+      if (b.interview_date === dateStr && b.interview_time)
+        out.push({ time: b.interview_time, name: b.child_name, type: 'مصاحبه', mode: b.session_type, loc: b.office_location, color: 'bg-blue-50 text-blue-700 border-blue-100', kind: 'interview', id: b.id, caseNumber: b.case_number })
+      if (b.assessment_date === dateStr && b.assessment_time)
+        out.push({ time: b.assessment_time, name: b.child_name, type: 'ارزیابی', mode: b.session_type, loc: b.office_location, color: 'bg-purple-50 text-purple-700 border-purple-100', kind: 'assessment', id: b.id, caseNumber: b.case_number })
+    }
+    for (const s of allSessions) {
+      if (s.session_date === dateStr && s.session_time && s.status !== 'cancelled' && s.status !== 'forfeited' && s.status !== 'replaced')
+        out.push({ time: s.session_time, name: childNameOf(s.case_number), type: s.attendee === 'parent' ? 'جلسه (والدین)' : 'جلسه (کودک)', mode: s.session_type, color: 'bg-green-50 text-green-700 border-green-100', kind: 'session', id: s.id, caseNumber: s.case_number })
+    }
+    return out.sort((a, b) => timeKey(a.time) - timeKey(b.time))
+  }
+
+  // لغوِ یک نوبت توسط مطب → کاربر بدونِ پرداختِ اضافه دوباره وقت می‌گیرد
+  async function cancelAppointment(appt: { kind: 'interview' | 'assessment' | 'session'; id: string; name: string }) {
+    const notice = await uiPrompt(`لغوِ نوبتِ «${appt.name}». پیامی برای مراجع بنویسید (اختیاری):`,
+      { defaultValue: 'نوبتِ شما توسط مطب لغو شد. لطفاً بدون پرداختِ اضافه، زمانِ جدیدی انتخاب کنید.' })
+    if (notice === null) return
+    const msg = notice.trim() || 'نوبتِ شما توسط مطب لغو شد. لطفاً زمانِ جدیدی انتخاب کنید.'
+    if (appt.kind === 'session') {
+      await fetch(api('/sessions'), {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: appt.id, session_date: '', session_time: '', doctor_note_for_patient: msg }),
+      })
+    } else {
+      const patch = appt.kind === 'interview'
+        ? { id: appt.id, flow_status: FLOW.INTERVIEW_AWAITING_BOOKING, interview_date: '', interview_time: '', cancel_notice: msg }
+        : { id: appt.id, flow_status: FLOW.ASSESSMENT_AWAITING_BOOKING, assessment_date: '', assessment_time: '', cancel_notice: msg }
+      await fetch(api('/cases'), {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch),
+      })
+    }
+    await Promise.all([fetchAll(), loadAllSessions()])
+  }
+
+  // لغوِ همه‌ی نوبت‌های یک روز
+  async function cancelDay(dateStr: string, appts: { kind: 'interview' | 'assessment' | 'session'; id: string; name: string }[]) {
+    if (appts.length === 0) return
+    if (!await uiConfirm(`همه‌ی ${appts.length} نوبتِ این روز لغو شود؟ به همه‌ی مراجعان اطلاع داده می‌شود تا دوباره وقت بگیرند.`)) return
+    const msg = 'نوبتِ شما توسط مطب لغو شد. لطفاً بدون پرداختِ اضافه، زمانِ جدیدی انتخاب کنید.'
+    for (const a of appts) {
+      if (a.kind === 'session') {
+        await fetch(api('/sessions'), { method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: a.id, session_date: '', session_time: '', doctor_note_for_patient: msg }) })
+      } else {
+        const patch = a.kind === 'interview'
+          ? { id: a.id, flow_status: FLOW.INTERVIEW_AWAITING_BOOKING, interview_date: '', interview_time: '', cancel_notice: msg }
+          : { id: a.id, flow_status: FLOW.ASSESSMENT_AWAITING_BOOKING, assessment_date: '', assessment_time: '', cancel_notice: msg }
+        await fetch(api('/cases'), { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch) })
+      }
+    }
+    await Promise.all([fetchAll(), loadAllSessions()])
+  }
+
+
+
+  function changeMonth(dir: number) {
+    let m = schedMonth + dir, y = schedYear
+    if (m < 0) { m = 11; y-- }
+    if (m > 11) { m = 0; y++ }
+    setSchedMonth(m); setSchedYear(y)
+    setSelectedDay(null); setSelectedTimes([]); setIsOff(false)
+    setWeekIdx(0)
+    loadMonthSchedules(m, y)
+  }
+
+  // برنامه‌ی کلِ ماه را بخوان تا روزهای تقویم رنگی شوند
+  async function loadMonthSchedules(month: number, year: number) {
+    try {
+      const res = await fetch(api(`/schedule?year=${year}&month=${month + 1}`), { cache: 'no-store' })
+      const data = await res.json()
+      setMonthSchedules(data.schedules || [])
+    } catch {}
+  }
+
+  // همه‌ی جلسه‌های زمان‌بندی‌شده را بخوان (برای نمای برنامه)
+  async function loadAllSessions() {
+    try {
+      const res = await fetch(api('/sessions?all=1'), { cache: 'no-store' })
+      const data = await res.json()
+      setAllSessions(data.sessions || [])
+    } catch {}
+  }
+
+  // تازه‌سازیِ رزروها بدونِ لودینگِ کلی (برای به‌روزماندنِ تعدادِ نوبتِ تقویم)
+  async function refreshBookings() {
+    try {
+      const res = await fetch(api('/cases'), { cache: 'no-store' })
+      if (res.status === 401) { setNeedsLogin(true); return }
+      const data = await res.json()
+      setBookings(data.bookings || [])
+    } catch {}
+  }
+
+  // با ورود به تب برنامه، داده‌های ماه و جلسه‌ها را بارگذاری کن
+  useEffect(() => {
+    if (mainTab === 'schedule') { loadMonthSchedules(schedMonth, schedYear); loadAllSessions(); refreshBookings(); if (!settingsLoaded) loadSettings() }
+    if (mainTab === 'settings' && !settingsLoaded) loadSettings()
+    if (mainTab === 'finance') loadFinance()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mainTab])
+
+  // ── دارک‌مود: از localStorage بخوان و روی پنل اعمال کن ──────────
+  useEffect(() => {
+    const saved = typeof window !== 'undefined' && localStorage.getItem('pb_admin_dark') === '1'
+    setDarkMode(saved)
+  }, [])
+
+  function toggleDark(on: boolean) {
+    setDarkMode(on)
+    try { localStorage.setItem('pb_admin_dark', on ? '1' : '0') } catch {}
+  }
+
+  // ── خواندن و ذخیره‌ی تنظیماتِ کلینیک ───────────────────────────
+  async function loadSettings() {
+    try {
+      const res = await fetch(api('/settings'), { cache: 'no-store' })
+      if (res.status === 401) { setNeedsLogin(true); return }
+      const data = await res.json()
+      if (data.settings) {
+        setSettings({ ...DEFAULT_SETTINGS, ...data.settings,
+          badges: data.settings.badges ?? DEFAULT_SETTINGS.badges,
+          office_locations: data.settings.office_locations ?? DEFAULT_SETTINGS.office_locations,
+          cards: data.settings.cards ?? DEFAULT_SETTINGS.cards,
+        })
+      }
+    } catch {}
+    setSettingsLoaded(true)
+  }
+
+  async function saveSettings() {
+    setSettingsSaving(true); setSettingsSaved(false)
+    try {
+      const res = await fetch(api('/settings'), {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(settings),
+      })
+      if (res.status === 401) { setNeedsLogin(true); return }
+      const data = await res.json()
+      if (data.settings) setSettings({ ...DEFAULT_SETTINGS, ...data.settings })
+      setSettingsSaved(true)
+      setTimeout(() => setSettingsSaved(false), 2500)
+    } catch {}
+    setSettingsSaving(false)
+  }
+
+  // helperهای ویرایشِ آرایه‌ها
+  const patchSettings = (p: Partial<ClinicSettings>) => setSettings(s => ({ ...s, ...p }))
+  const genId = (prefix: string) => `${prefix}_${Date.now()}_${Math.floor(Math.random() * 1000)}`
+
+  // ── گزارشاتِ مالی ──────────────────────────────────────────────
+  async function loadFinance(range: 'all' | '1m' | '3m' | '6m' | '12m' | 'custom' = financeRange, iso?: { from?: string; to?: string }) {
+    try {
+      let qs = ''
+      if (range === 'custom') {
+        const p = new URLSearchParams()
+        const from = iso?.from ?? financeFromIso
+        const to = iso?.to ?? financeToIso
+        if (from) p.set('from', from)
+        if (to) p.set('to', to)
+        qs = p.toString() ? '?' + p.toString() : ''
+      } else if (range !== 'all') {
+        const days = { '1m': 30, '3m': 90, '6m': 180, '12m': 365 }[range]
+        const fromIso = new Date(Date.now() - days * 86400000).toISOString()
+        qs = `?from=${encodeURIComponent(fromIso)}`
+      }
+      const res = await fetch(api('/finance') + qs, { cache: 'no-store' })
+      if (res.status === 401) { setNeedsLogin(true); return }
+      const data = await res.json()
+      setFinance(data)
+    } catch {}
+    setFinanceLoaded(true)
+  }
+
+  // اعمالِ بازه‌ی دقیقِ جلالی
+  function applyCustomRange() {
+    const fromTs = jalaliDateTimeToTimestamp(`${fromJ.y}/${fromJ.m}/${fromJ.d}`, '00:00')
+    const toTs = jalaliDateTimeToTimestamp(`${toJ.y}/${toJ.m}/${toJ.d}`, '23:59')
+    if (fromTs === null || toTs === null) { uiAlert('تاریخ نامعتبر است'); return }
+    if (fromTs > toTs) { uiAlert('تاریخِ «از» نباید بعد از «تا» باشد.'); return }
+    const from = new Date(fromTs).toISOString()
+    const to = new Date(toTs).toISOString()
+    setFinanceFromIso(from); setFinanceToIso(to); setFinanceRange('custom'); setFinanceLoaded(false)
+    loadFinance('custom', { from, to })
+  }
+
+  async function saveSchedule() {
+    if (!selectedDay) return
+    setSchedSaving(true)
+    const date = `${schedYear}/${schedMonth + 1}/${selectedDay}`
+    // نوعِ هر اسلات: هر اسلات یک نوعِ مشخص دارد (آنلاین یا یکی از مطب‌ها) — «هردو» حذف شد
+    const mode = settings.session_modes
+    const offlineLocs = settings.office_locations
+    const firstLoc = offlineLocs[0]?.title
+    const outTypes: Record<string, string> = {}
+    const outLocs: Record<string, string> = {}
+    for (const t of selectedTimes) {
+      if (mode === 'online') outTypes[t] = 'online'
+      else if (mode === 'offline') {
+        outTypes[t] = 'offline'
+        const loc = slotLocs[t] || firstLoc
+        if (loc) outLocs[t] = loc
+      } else {
+        // حالتِ «هردو» در تنظیمات: دکتر برای هر اسلات آنلاین یا یک مطب را انتخاب می‌کند
+        if (slotTypes[t] === 'offline') {
+          outTypes[t] = 'offline'
+          const loc = slotLocs[t] || firstLoc
+          if (loc) outLocs[t] = loc
+        } else {
+          // پیش‌فرض یا انتخابِ صریحِ آنلاین
+          outTypes[t] = 'online'
+        }
+      }
+    }
+    try {
+      const res = await fetch(api('/schedule'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ date, available_times: selectedTimes, is_off: isOff, slot_types: outTypes, slot_locs: outLocs }),
+      })
+      setSchedSaving(false)
+      if (res.status === 401) { uiAlert('نشستِ شما منقضی شده. دوباره وارد شوید.'); setNeedsLogin(true); return }
+      if (!res.ok) {
+        // متنِ واقعیِ پاسخ را بخوان (اگر JSON نبود، احتمالاً بلاکِ سطحِ سرور/فایروال است)
+        const raw = await res.text().catch(() => '')
+        let msg = ''
+        try { msg = JSON.parse(raw).error || '' } catch {}
+        if (res.status === 403 && !msg) {
+          uiAlert('ذخیره نشد (۴۰۳). این خطا از خودِ برنامه نیست؛ درخواست توسطِ فایروالِ Vercel بلاک شده. در پنلِ Vercel → Firewall، گزینه‌ی «Attack Challenge Mode» را خاموش کن (یا Deployment Protection را بررسی کن).')
+        } else {
+          uiAlert(`ذخیره نشد (کد ${res.status}): ${msg || raw.slice(0, 200) || 'خطای ناشناخته'}`)
+        }
+        return
+      }
+      setSchedSaved(true)
+      setTimeout(() => setSchedSaved(false), 2000)
+      // بعد از ذخیره، همان روز و کلِ ماه را دوباره بخوان + رزروها را تازه کن
+      selectSchedDay(selectedDay)
+      loadMonthSchedules(schedMonth, schedYear)
+      loadAllSessions()
+      refreshBookings()
+    } catch (e: any) {
+      setSchedSaving(false)
+      uiAlert('خطای شبکه: ' + (e?.message || e))
+    }
+  }
+
+  // با کلیک روی هر روز، ساعت‌های ذخیره‌شده‌اش را بارگذاری کن تا ویرایش درست باشد
+  async function selectSchedDay(d: number) {
+    setSelectedDay(d)
+    setSelectedTimes([])
+    setSlotTypes({})
+    setSlotLocs({})
+    setIsOff(false)
+    const date = `${schedYear}/${schedMonth + 1}/${d}`
+    try {
+      const res = await fetch(api(`/schedule?date=${date}`), { cache: 'no-store' })
+      const data = await res.json()
+      if (data.schedule) {
+        setSelectedTimes(data.schedule.available_times || [])
+        setSlotTypes(data.schedule.slot_types || {})
+        setSlotLocs(data.schedule.slot_locs || {})
+        setIsOff(data.schedule.is_off || false)
+      }
+    } catch {}
+  }
+
+  // ─── Filtered lists ──────────────────────────────────────────────────────────
+
+  const filteredPatients = patients.filter(p => {
+    if (!patientSearch) return true
+    const q = patientSearch.toLowerCase()
+    return (
+      p.child_name?.toLowerCase().includes(q) ||
+      p.father_name?.toLowerCase().includes(q) ||
+      p.mother_name?.toLowerCase().includes(q) ||
+      p.case_number?.toLowerCase().includes(q) ||
+      p.father_phone?.includes(q) ||
+      p.mother_phone?.includes(q)
+    )
+  })
+
+  const filteredBookings = bookings
+    .filter(b => bookingFilter === 'all' || b.status === bookingFilter)
+    .filter(b => {
+      if (!bookingSearch) return true
+      const q = bookingSearch.toLowerCase()
+      return (
+        b.child_name?.toLowerCase().includes(q) ||
+        b.father_name?.toLowerCase().includes(q) ||
+        b.case_number?.toLowerCase().includes(q) ||
+        b.father_phone?.includes(q)
+      )
+    })
+
+  const bookingCounts = {
+    all: bookings.length,
+    pending: bookings.filter(b => b.status === 'pending').length,
+    confirmed: bookings.filter(b => b.status === 'confirmed').length,
+    cancelled: bookings.filter(b => b.status === 'cancelled').length,
+  }
+
+  // ─── Render ──────────────────────────────────────────────────────────────────
+
+  if (needsLogin) return <PanelLogin slug={slug} onSuccess={() => { setNeedsLogin(false); fetchAll() }} />
 
   return (
-    <main className="min-h-screen pb-28" style={{ ['--brand' as any]: ov.profile.theme_color }}>
-      {/* ── سربرگِ برند ── */}
-      <div className="bg-accent">
-        <div className="max-w-md mx-auto px-5 pt-6 pb-5 flex items-center gap-3">
-          <div className="w-12 h-12 rounded-2xl bg-white/20 overflow-hidden flex items-center justify-center text-xl shrink-0">
-            {ov.profile.avatar_url
-              ? /* eslint-disable-next-line @next/next/no-img-element */
-                <img src={ov.profile.avatar_url} alt="" className="w-full h-full object-cover" />
-              : '👤'}
+    <div className={`min-h-screen bg-gray-50 ${darkMode ? 'pb-admin-dark' : ''}`} dir="rtl">
+      <DialogHost />
+
+      {/* ── Header ─────────────────────────────────────────────────────── */}
+      <div className="bg-white border-b border-gray-100 sticky top-0 z-20">
+        <div className="max-w-5xl mx-auto px-3 sm:px-4 py-3 flex items-center justify-between gap-2">
+          <div className="min-w-0">
+            <h1 className="text-sm sm:text-base font-semibold text-gray-900">پنل مدیریت</h1>
+            <p className="text-[11px] sm:text-xs text-gray-400 truncate">دکتر سارا محمدی — روانشناس کودک</p>
           </div>
-          <div className="min-w-0 text-white">
-            <div className="font-extrabold truncate">{ov.profile.display_name || 'پنلِ مدیریت'}</div>
-            <div className="text-xs opacity-80 tnum" dir="ltr">/{ov.slug}</div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button onClick={() => setMainTab('settings')}
+              className={`text-xs px-2.5 sm:px-3 py-1.5 border rounded-lg transition-colors whitespace-nowrap ${
+                mainTab === 'settings'
+                  ? 'border-brand-600 text-brand-700 bg-brand-50'
+                  : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}>
+              ⚙️ تنظیمات
+            </button>
+            <button onClick={() => router.push('/')}
+              className="text-xs px-2.5 sm:px-3 py-1.5 border border-gray-200 rounded-lg text-gray-500 hover:bg-gray-50 whitespace-nowrap">
+              🔗 سایت
+            </button>
           </div>
+        </div>
+
+        {/* Main Tabs */}
+        <div className="max-w-5xl mx-auto px-2 sm:px-4 flex gap-1 pb-0 overflow-x-auto no-scrollbar">
+          {(() => {
+            const pendingActionCount =
+              bookings.filter(b => b.flow_status === FLOW.INTERVIEW_PAYMENT_SUBMITTED).length +
+              bookings.filter(b => b.flow_status === FLOW.ASSESSMENT_PAYMENT_SUBMITTED).length +
+              pendingPkgs.length + pendingSess.length + pendingRefunds.length
+            return ([
+              ['patients', '📁 پرونده‌ها'],
+              ['bookings', '💳 تأیید پرداخت‌ها'],
+              ['schedule', '🗓 روزهای کاری'],
+              ['finance', '📊 گزارشات مالی'],
+            ] as const).map(([k, label]) => (
+              <button key={k} onClick={() => setMainTab(k)}
+                className={`px-3 sm:px-4 py-2.5 text-xs sm:text-sm font-medium border-b-2 transition-all whitespace-nowrap flex items-center gap-1.5 shrink-0 ${
+                  mainTab === k
+                    ? 'border-brand-600 text-brand-700'
+                    : 'border-transparent text-gray-400 hover:text-gray-600'
+                }`}>
+                {label}
+                {k === 'bookings' && pendingActionCount > 0 && (
+                  <span className="min-w-5 h-5 px-1.5 bg-red-500 text-white text-[11px] rounded-full flex items-center justify-center font-medium">
+                    {toFarsiNum(pendingActionCount)}
+                  </span>
+                )}
+              </button>
+            ))
+          })()}
         </div>
       </div>
 
-      <div className="max-w-md mx-auto px-5 pt-5">
-        {tab === 'home' && <HomeTab ov={ov} goTo={(t, sv) => { setTab(t); if (sv) setSettingsView(sv) }} />}
-        {tab === 'bookings' && <BookingsTab ov={ov} slug={slug} reload={load} uiAlert={uiAlert} uiConfirm={uiConfirm} />}
-        {tab === 'records' && <RecordsTab ov={ov} slug={slug} uiAlert={uiAlert} />}
-        {tab === 'calendar' && <CalendarTab ov={ov} slug={slug} reload={load} uiAlert={uiAlert} uiConfirm={uiConfirm} />}
-        {tab === 'settings' && (
-          <SettingsTab ov={ov} slug={slug} reload={load} uiAlert={uiAlert} uiConfirm={uiConfirm}
-            view={settingsView} setView={setSettingsView} />
+      <div className="max-w-5xl mx-auto p-3 sm:p-4">
+
+        {/* ════════════════════════════════════════════════════════════════
+            TAB: PATIENTS
+        ════════════════════════════════════════════════════════════════ */}
+        {mainTab === 'patients' && (
+          <>
+            {/* ── Patient List ─────────────────────────────────────────── */}
+            {patientView === 'list' && (
+              <div>
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="relative flex-1">
+                    <input value={patientSearch} onChange={e => setPatientSearch(e.target.value)}
+                      placeholder="جستجو بر اساس نام، شماره پرونده یا تلفن..."
+                      className="w-full text-sm px-4 py-2.5 border border-gray-200 rounded-xl bg-white pr-9 focus:outline-none focus:border-brand-400" />
+                    <span className="absolute right-3 top-2.5 text-gray-400">🔍</span>
+                  </div>
+                  <button onClick={() => setShowAddPatient(true)}
+                    className="text-sm px-4 py-2.5 bg-brand-600 text-white rounded-xl hover:bg-brand-800 whitespace-nowrap shrink-0">
+                    ➕ افزودن پرونده
+                  </button>
+                </div>
+                {loading ? (
+                  <div className="text-center py-16 text-gray-400">در حال بارگذاری...</div>
+                ) : filteredPatients.length === 0 ? (
+                  <div className="text-center py-16 text-gray-400">پرونده‌ای یافت نشد</div>
+                ) : (
+                  <div className="space-y-2">
+                    {filteredPatients.map(p => (
+                      <div key={p.id} onClick={() => openPatient(p)}
+                        className="bg-white rounded-xl border border-gray-100 p-4 cursor-pointer hover:border-brand-200 hover:shadow-sm transition-all">
+                        <div className="flex items-center justify-between">
+                          <div className="flex gap-3 items-center">
+                            <div className="w-10 h-10 rounded-full bg-brand-50 flex items-center justify-center text-brand-600 font-semibold text-sm shrink-0">
+                              {p.child_name?.charAt(0) || '?'}
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium text-gray-900 text-sm">{p.child_name}</span>
+                                {p.case_number && (
+                                  <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-500 rounded-md font-mono">{p.case_number}</span>
+                                )}
+                              </div>
+                              <div className="text-xs text-gray-400 mt-0.5">
+                                {p.grade && `پایه ${p.grade}`}
+                                {p.grade && p.birth_date && ' • '}
+                                {p.birth_date && `متولد ${p.birth_date}`}
+                              </div>
+                              <div className="text-xs text-gray-400 mt-0.5">
+                                {p.father_name && `پدر: ${p.father_name}`}
+                                {p.father_name && p.mother_name && ' | '}
+                                {p.mother_name && `مادر: ${p.mother_name}`}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex flex-col items-end gap-2">
+                            <span className="text-xs text-gray-400">
+                              {p.father_phone || p.mother_phone}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ── Patient Detail ───────────────────────────────────────── */}
+            {patientView === 'detail' && selectedPatient && (
+              <div>
+                {/* Back + edit bar */}
+                <div className="flex items-center justify-between mb-4">
+                  <button onClick={() => setPatientView('list')}
+                    className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-800">
+                    ← بازگشت
+                  </button>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button onClick={() => startEdit(selectedPatient)}
+                      className="text-xs sm:text-sm px-3 sm:px-4 py-2 bg-brand-600 text-white rounded-xl hover:bg-brand-700 whitespace-nowrap">
+                      ✏️ ویرایش
+                    </button>
+                    <button onClick={() => deletePatient(selectedPatient)}
+                      className="text-xs sm:text-sm px-3 py-2 border border-red-200 text-red-500 rounded-xl hover:bg-red-50 whitespace-nowrap">
+                      🗑 حذف
+                    </button>
+                  </div>
+                </div>
+
+                {/* Patient header */}
+                <div className="bg-white rounded-2xl border border-gray-100 p-4 mb-4">
+                  <div className="flex items-center gap-4">
+                    <div className="w-14 h-14 rounded-full bg-brand-50 flex items-center justify-center text-brand-600 font-bold text-xl">
+                      {selectedPatient.child_name?.charAt(0)}
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h2 className="text-lg font-semibold text-gray-900">{selectedPatient.child_name}</h2>
+                        <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-500 rounded-md font-mono">{selectedPatient.case_number}</span>
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${STATUS_COLOR[selectedPatient.status] || ''}`}>
+                          {STATUS_LABEL[selectedPatient.status] || selectedPatient.status}
+                        </span>
+                      </div>
+                      <div className="text-sm text-gray-400 mt-0.5">{selectedPatient.reason}</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Sub-tabs */}
+                <div className="flex gap-1 mb-4 overflow-x-auto">
+                  {([
+                    ['info', '👤 اطلاعات مراجع'],
+                    ['payment', '💳 اطلاعات پرداخت'],
+                    ['packages', '📦 پروتکل‌های درمان'],
+                    ['sessions', '🗓 جلسات'],
+                  ] as const).map(([k, label]) => (
+                    <button key={k} onClick={() => setPatientTab(k)}
+                      className={`px-3 py-1.5 text-xs font-medium rounded-lg whitespace-nowrap transition-all ${
+                        patientTab === k
+                          ? 'bg-brand-600 text-white'
+                          : 'bg-white border border-gray-200 text-gray-500 hover:border-gray-300'
+                      }`}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* ── Tab: اطلاعات مراجع ─────────────────────────────── */}
+                {patientTab === 'info' && (
+                  <div>
+                    <div className="flex gap-1 mb-3 overflow-x-auto no-scrollbar">
+                      {([['child', '👤 کودک'], ['family', '👨‍👩‍👧 خانواده'], ['medical', '🏥 پزشکی'], ['growth', '📈 رشد'], ['other', '📝 سایر']] as const).map(([k, label]) => (
+                        <button key={k} onClick={() => setInfoSubTab(k)}
+                          className={`px-3 py-1 text-xs rounded-lg whitespace-nowrap transition-all shrink-0 ${infoSubTab === k ? 'bg-brand-100 text-brand-700 font-medium' : 'bg-white border border-gray-200 text-gray-500'}`}>
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+
+                    {infoSubTab === 'child' && (
+                      <div className="bg-white rounded-xl border border-gray-100 p-4">
+                        <Section title="مشخصات کودک" icon="👤">
+                          <InfoRow label="نام کودک" value={selectedPatient.child_name} />
+                          <InfoRow label="تاریخ تولد" value={enTime(selectedPatient.birth_date)} />
+                          <InfoRow label="پایه‌ی تحصیلی" value={selectedPatient.grade} />
+                          <InfoRow label="مدرسه (نام / مؤسسه / پایه / تلفن)" value={selectedPatient.school_info} />
+                        </Section>
+                        <Section title="شکایت اصلی" icon="💬">
+                          <InfoRow label="دلیلِ مراجعه" value={selectedPatient.reason} />
+                          <InfoRow label="مراجعه‌ی قبلی" value={selectedPatient.prev_visit} />
+                          <InfoRow label="ویژگی‌های کودک" value={selectedPatient.child_conditions} />
+                        </Section>
+                        <Section title="ورزش و سرگرمی" icon="⚽">
+                          <InfoRow label="فعالیتِ ورزشی / محدودیت" value={selectedPatient.sports_info} />
+                        </Section>
+                      </div>
+                    )}
+
+                    {infoSubTab === 'family' && (
+                      <div className="bg-white rounded-xl border border-gray-100 p-4">
+                        <Section title="اطلاعات پدر" icon="👨">
+                          <InfoRow label="نام" value={selectedPatient.father_name} />
+                          <InfoRow label="تحصیلات" value={selectedPatient.father_education} />
+                          <InfoRow label="شغل" value={selectedPatient.father_job} />
+                          <InfoRow label="تلفن" value={enTime(selectedPatient.father_phone)} />
+                        </Section>
+                        <Section title="اطلاعات مادر" icon="👩">
+                          <InfoRow label="نام" value={selectedPatient.mother_name} />
+                          <InfoRow label="تحصیلات" value={selectedPatient.mother_education} />
+                          <InfoRow label="شغل" value={selectedPatient.mother_job} />
+                          <InfoRow label="تلفن" value={enTime(selectedPatient.mother_phone)} />
+                        </Section>
+                        <Section title="وضعیت خانواده" icon="🏠">
+                          <InfoRow label="وضعیتِ والدین" value={selectedPatient.family_status} />
+                          <InfoRow label="خواهر / برادر" value={selectedPatient.siblings_info} />
+                          <InfoRow label="سایرِ ساکنینِ منزل" value={selectedPatient.family_members_info} />
+                          <InfoRow label="آدرسِ منزل" value={selectedPatient.home_address} />
+                          <InfoRow label="نحوه‌ی برخوردِ والدین (پدر / مادر / ناظرِ اصلی)" value={selectedPatient.parent_behavior} />
+                        </Section>
+                      </div>
+                    )}
+
+                    {infoSubTab === 'medical' && (
+                      <div className="bg-white rounded-xl border border-gray-100 p-4">
+                        <Section title="سابقه پزشکی" icon="🏥">
+                          <InfoRow label="غش/تشنج و داروهای مصرفی" value={selectedPatient.medical_info} />
+                        </Section>
+                        <Section title="بارداری و تولد" icon="👶">
+                          <InfoRow label="شرایطِ بارداری" value={selectedPatient.pregnancy_info} />
+                          <InfoRow label="نوعِ زایمان" value={selectedPatient.birth_type} />
+                          <InfoRow label="وزنِ هنگامِ تولد" value={selectedPatient.birth_weight} />
+                        </Section>
+                      </div>
+                    )}
+
+                    {infoSubTab === 'growth' && (
+                      <div className="bg-white rounded-xl border border-gray-100 p-4">
+                        <Section title="رشد و تکامل" icon="📈">
+                          <InfoRow label="سینه‌خیز / چهاردست‌وپا / راه‌رفتن / حرف‌زدن و مشکلاتِ رشدی" value={selectedPatient.growth_info} />
+                        </Section>
+                      </div>
+                    )}
+
+                    {infoSubTab === 'other' && (
+                      <div className="bg-white rounded-xl border border-gray-100 p-4">
+                        <Section title="توضیحاتِ تکمیلی" icon="📝">
+                          <InfoRow label="توضیحاتِ اضافه" value={selectedPatient.extra_notes} />
+                        </Section>
+                        <Section title="مشخصاتِ نوبت‌دهی" icon="🗓">
+                          <InfoRow label="نوعِ جلسه" value={selectedPatient.session_type === 'online' ? '🎥 آنلاین' : selectedPatient.session_type === 'offline' ? '🏥 حضوری' : selectedPatient.session_type} />
+                          <InfoRow label="مطبِ انتخابی" value={(selectedPatient as any).office_location} />
+                          <InfoRow label="نامِ سرپرست" value={(selectedPatient as any).parent_name} />
+                          <InfoRow label="تلفنِ تماس" value={enTime((selectedPatient as any).phone)} />
+                          <InfoRow label="شماره‌ی پرونده" value={selectedPatient.case_number} />
+                        </Section>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* ── Tab: اطلاعات پرداخت ─────────────────────────────── */}
+                {patientTab === 'payment' && (
+                  <div className="bg-white rounded-xl border border-gray-100 p-4">
+                    {(() => {
+                      const bk = bookings.find(b => b.case_number === selectedPatient.case_number)
+                      const fmt = (paid?: boolean, sub?: boolean, ref?: string) =>
+                        paid ? `✅ پرداخت‌شده${ref ? ' — فیش: ' + ref : ''}` : sub ? '⏳ منتظر تأیید' : '—'
+                      return (
+                        <Section title="اطلاعات پرداخت" icon="💳">
+                          <InfoRow label="مصاحبه‌ی اولیه" value={fmt(bk?.interview_paid, false, bk?.interview_payment_ref)} />
+                          <InfoRow label="ارزیابیِ کودک" value={fmt(bk?.assessment_paid, false, bk?.assessment_payment_ref)} />
+                          {packages.map(p => (
+                            <InfoRow key={p.id} label={`پروتکل درمان ${PERSIAN_MONTHS[parseInt(p.month) - 1]} ${p.year}`}
+                              value={fmt(p.paid, p.payment_submitted, p.payment_ref)} />
+                          ))}
+                        </Section>
+                      )
+                    })()}
+                  </div>
+                )}
+
+                {/* ── Tab: پروتکل‌های درمان ──────────────────────────────────── */}
+                {patientTab === 'packages' && (
+                  <div>
+                    <button onClick={() => setShowNewPackage(true)}
+                      className="w-full py-3 border-2 border-dashed border-brand-200 rounded-xl text-sm text-brand-600 hover:bg-brand-50 mb-4 transition-all">
+                      + تعریف پروتکل درمانی جدید
+                    </button>
+                    <div className="space-y-3">
+                      {packages.map(pkg => {
+                        const pkgSessions = sessions.filter(s => s.package_id === pkg.id)
+                        const childSess = pkgSessions.filter(s => s.attendee === 'child')
+                        const parentSess = pkgSessions.filter(s => s.attendee === 'parent')
+                        const total = (pkg.child_sessions * (pkg.child_session_type === 'online' ? PRICING.sessionOnline : PRICING.sessionOffline)) +
+                          (pkg.parent_sessions * (pkg.parent_session_type === 'online' ? PRICING.sessionOnline : PRICING.sessionOffline))
+                        return (
+                          <div key={pkg.id} className="bg-white rounded-xl border border-gray-100 p-4">
+                            <div className="flex items-center justify-between mb-3">
+                              <h3 className="font-medium text-gray-900 text-sm">
+                                {PERSIAN_MONTHS[parseInt(pkg.month) - 1]} {pkg.year}
+                              </h3>
+                              <span className="text-sm font-semibold text-brand-600">{total.toLocaleString('en-US')} ت</span>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2 text-xs text-gray-500">
+                              <div>کودک: {childSess.length}/{pkg.child_sessions} جلسه ({pkg.child_session_type === 'online' ? 'آنلاین' : 'حضوری'})</div>
+                              <div>والدین: {parentSess.length}/{pkg.parent_sessions} جلسه ({pkg.parent_session_type === 'online' ? 'آنلاین' : 'حضوری'})</div>
+                            </div>
+                            {pkg.notes && <p className="text-xs text-gray-400 mt-2 pt-2 border-t border-gray-50">{pkg.notes}</p>}
+                            <div className="mt-3 pt-3 border-t border-gray-50">
+                              {pkg.paid ? (
+                                <div className="text-center text-xs text-green-600 bg-green-50 rounded-lg py-2 border border-green-100">
+                                  ✅ پرداخت تأیید شد{pkg.payment_ref ? ` — فیش: ${pkg.payment_ref}` : ''}
+                                </div>
+                              ) : pkg.payment_submitted ? (
+                                <div className="text-xs text-blue-600 text-center bg-blue-50 rounded-lg py-2 border border-blue-100">
+                                  💳 مراجع اعلام کرده پرداخت کرده{pkg.payment_ref ? ` — فیش: ${pkg.payment_ref}` : ''} — تأیید از تبِ «تأیید پرداخت‌ها»
+                                </div>
+                              ) : (
+                                <div className="text-center text-xs text-amber-600 bg-amber-50 rounded-lg py-2 border border-amber-100">💳 منتظر پرداختِ مراجع</div>
+                              )}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* ── Tab: جلسات ────────────────────────────────────── */}
+                {patientTab === 'sessions' && (
+                  <div>
+                    {/* جلسه‌های مصاحبه و ارزیابی (مرحله‌های اولِ درمان) */}
+                    {(() => {
+                      const bk = bookings.find(b => b.case_number === selectedPatient.case_number)
+                      if (!bk) return null
+                      const showInterview = !!bk.interview_date || bk.interview_held
+                      const showAssessment = !!bk.assessment_date || bk.assessment_held
+                      if (!showInterview && !showAssessment) return null
+                      return (
+                        <div className="space-y-2 mb-4">
+                          {showInterview && (
+                            <StageSessionCard stage="interview" date={bk.interview_date} time={bk.interview_time}
+                              notes={bk.interview_notes || ''} held={!!bk.interview_held}
+                              canHold={!!bk.interview_date && !bk.interview_held}
+                              onSave={(notes, markHeld) => saveStageSession(bk.id, 'interview', notes, markHeld)} />
+                          )}
+                          {showAssessment && (
+                            <StageSessionCard stage="assessment" date={bk.assessment_date} time={bk.assessment_time}
+                              notes={bk.assessment_notes || ''} held={!!bk.assessment_held}
+                              canHold={!!bk.assessment_date && !bk.assessment_held}
+                              onSave={(notes, markHeld) => saveStageSession(bk.id, 'assessment', notes, markHeld)} />
+                          )}
+                        </div>
+                      )
+                    })()}
+
+                    <div className="text-xs text-gray-400 mb-2 px-1">جلسات پروتکل درمان</div>
+                    <button onClick={() => setShowNewSession(true)}
+                      className="w-full py-3 border-2 border-dashed border-brand-200 rounded-xl text-sm text-brand-600 hover:bg-brand-50 mb-4 transition-all">
+                      + ثبت جلسه جدید
+                    </button>
+                    <div className="space-y-2">
+                      {(() => {
+                        const sorted = [...sessions].sort((a, b) => (a.session_number || 0) - (b.session_number || 0))
+                        let n = 0
+                        return sorted.map((s) => {
+                          const active = s.status !== 'forfeited' && s.status !== 'replaced' && s.status !== 'cancelled'
+                          const num = active ? ++n : null
+                          return (
+                        <div key={s.id} onClick={() => { setEditSession(s); setSessForm({ session_goals: s.session_goals || '', session_summary: s.session_summary || '', doctor_notes_private: s.doctor_notes_private || '', doctor_note_for_patient: s.doctor_note_for_patient || '', status: s.status || 'confirmed' }) }}
+                          className="bg-white rounded-xl border border-gray-100 p-3 cursor-pointer hover:border-brand-200 transition-all">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${num ? 'bg-brand-50 text-brand-600' : 'bg-gray-100 text-gray-400'}`}>{num ? toFarsiNum(num) : '—'}</div>
+                              <div>
+                                <div className="text-sm font-medium text-gray-900">{enTime(s.session_date)} — {enTime(s.session_time)}</div>
+                                <div className="text-xs text-gray-400">
+                                  {s.attendee === 'child' ? '👧 کودک' : '👨‍👩 والدین'} •
+                                  {s.session_type === 'online' ? ' 🎥 آنلاین' : ' 🏥 حضوری'}
+                                </div>
+                              </div>
+                            </div>
+                            <span className={`text-xs px-2 py-0.5 rounded-full ${STATUS_COLOR[s.status] || 'bg-gray-100 text-gray-500'}`}>
+                              {STATUS_LABEL[s.status] || s.status}
+                            </span>
+                          </div>
+                          {s.session_summary && (
+                            <div className="mt-2 bg-blue-50 rounded-lg p-2 border border-blue-100">
+                              <p className="text-xs text-blue-600 mb-0.5">شرح جلسه:</p>
+                              <p className="text-xs text-gray-700 line-clamp-2">{s.session_summary}</p>
+                            </div>
+                          )}
+                          {!s.paid && s.payment_submitted && (
+                            <div className="mt-2 text-xs text-blue-600" onClick={e => e.stopPropagation()}>
+                              💳 پرداختِ جایگزین اعلام شد{s.payment_ref ? ` — ${s.payment_ref}` : ''} — تأیید از تبِ «تأیید پرداخت‌ها»
+                            </div>
+                          )}
+                          {!s.paid && !s.payment_submitted && active && (
+                            <div className="mt-2 text-xs text-gray-400" onClick={e => e.stopPropagation()}>⏳ در انتظارِ پرداختِ مراجع</div>
+                          )}
+                          {s.refund_status === 'pending' && (
+                            <div className="mt-2 text-xs text-amber-600" onClick={e => e.stopPropagation()}>
+                              💸 بازپرداختِ {toFarsiNum(s.refund_percent || 50)}٪ — در انتظارِ واریز (از تبِ «تأیید پرداخت‌ها» انجام می‌شود)
+                            </div>
+                          )}
+                          {s.refund_status === 'done' && (
+                            <div className="mt-2 text-xs text-green-600" onClick={e => e.stopPropagation()}>✅ بازپرداخت واریز شد{s.refund_ref ? ` — ${s.refund_ref}` : ''}</div>
+                          )}
+                        </div>
+                          )
+                        })
+                      })()}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ── Patient Edit Form ────────────────────────────────────── */}
+            {patientView === 'edit' && selectedPatient && (
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <button onClick={() => setPatientView('detail')}
+                    className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-800">
+                    ← انصراف
+                  </button>
+                  <button onClick={savePatient}
+                    className="text-sm px-4 py-2 bg-brand-600 text-white rounded-xl hover:bg-brand-700">
+                    💾 ذخیره پرونده
+                  </button>
+                </div>
+
+                <div className="space-y-4">
+                  {/* مشخصات کودک */}
+                  <div className="bg-white rounded-xl border border-gray-100 p-4">
+                    <h3 className="text-sm font-semibold text-gray-700 mb-3 pb-2 border-b border-gray-100">👤 مشخصات کودک</h3>
+                    <div className="grid grid-cols-2 gap-3">
+                      <Field label="نام کودک *" value={editingPatient.child_name} onChange={v => setEditingPatient(p => ({...p, child_name: v}))} />
+                      <Field label="تاریخ تولد *" value={editingPatient.birth_date} onChange={v => setEditingPatient(p => ({...p, birth_date: v}))} placeholder="1394/06/15" />
+                      <Field label="پایه‌ی تحصیلی" value={editingPatient.grade} onChange={v => setEditingPatient(p => ({...p, grade: v}))} placeholder="سوم ابتدایی" />
+                      <SelectField label="مراجعه‌ی قبلی" value={editingPatient.prev_visit} onChange={v => setEditingPatient(p => ({...p, prev_visit: v}))} options={['ندارد','دارد']} />
+                    </div>
+                    <div className="mt-3 space-y-3">
+                      <TextareaField label="مدرسه (نام / مؤسسه / پایه / تلفن)" value={editingPatient.school_info} onChange={v => setEditingPatient(p => ({...p, school_info: v}))} rows={2} />
+                      <TextareaField label="دلیلِ مراجعه *" value={editingPatient.reason} onChange={v => setEditingPatient(p => ({...p, reason: v}))} rows={3} />
+                      <TextareaField label="ویژگی‌های کودک" value={(editingPatient as any).child_conditions} onChange={v => setEditingPatient(p => ({...p, child_conditions: v} as any))} rows={2} />
+                      <TextareaField label="فعالیتِ ورزشی / محدودیت" value={editingPatient.sports_info} onChange={v => setEditingPatient(p => ({...p, sports_info: v}))} rows={2} />
+                    </div>
+                  </div>
+
+                  {/* اطلاعات پدر */}
+                  <div className="bg-white rounded-xl border border-gray-100 p-4">
+                    <h3 className="text-sm font-semibold text-gray-700 mb-3 pb-2 border-b border-gray-100">👨 اطلاعات پدر</h3>
+                    <div className="grid grid-cols-2 gap-3">
+                      <Field label="نام پدر *" value={editingPatient.father_name} onChange={v => setEditingPatient(p => ({...p, father_name: v}))} />
+                      <Field label="تلفن پدر *" value={editingPatient.father_phone} onChange={v => setEditingPatient(p => ({...p, father_phone: v}))} placeholder="09xxxxxxxxx" />
+                      <Field label="تحصیلات" value={editingPatient.father_education} onChange={v => setEditingPatient(p => ({...p, father_education: v}))} placeholder="لیسانس" />
+                      <Field label="شغل" value={editingPatient.father_job} onChange={v => setEditingPatient(p => ({...p, father_job: v}))} />
+                    </div>
+                  </div>
+
+                  {/* اطلاعات مادر */}
+                  <div className="bg-white rounded-xl border border-gray-100 p-4">
+                    <h3 className="text-sm font-semibold text-gray-700 mb-3 pb-2 border-b border-gray-100">👩 اطلاعات مادر</h3>
+                    <div className="grid grid-cols-2 gap-3">
+                      <Field label="نام مادر *" value={editingPatient.mother_name} onChange={v => setEditingPatient(p => ({...p, mother_name: v}))} />
+                      <Field label="تلفن مادر *" value={editingPatient.mother_phone} onChange={v => setEditingPatient(p => ({...p, mother_phone: v}))} placeholder="09xxxxxxxxx" />
+                      <Field label="تحصیلات" value={editingPatient.mother_education} onChange={v => setEditingPatient(p => ({...p, mother_education: v}))} placeholder="فوق لیسانس" />
+                      <Field label="شغل" value={editingPatient.mother_job} onChange={v => setEditingPatient(p => ({...p, mother_job: v}))} />
+                    </div>
+                  </div>
+
+                  {/* وضعیت خانواده */}
+                  <div className="bg-white rounded-xl border border-gray-100 p-4">
+                    <h3 className="text-sm font-semibold text-gray-700 mb-3 pb-2 border-b border-gray-100">🏠 وضعیت خانواده</h3>
+                    <div className="space-y-3">
+                      <Field label="وضعیتِ والدین" value={editingPatient.family_status} onChange={v => setEditingPatient(p => ({...p, family_status: v}))} placeholder="با هم زندگی می‌کنند / جدا / ..." fullWidth />
+                      <Field label="خواهر / برادر (سن و تحصیلات)" value={editingPatient.siblings_info} onChange={v => setEditingPatient(p => ({...p, siblings_info: v}))} fullWidth />
+                      <Field label="سایرِ ساکنینِ منزل" value={editingPatient.family_members_info} onChange={v => setEditingPatient(p => ({...p, family_members_info: v}))} fullWidth />
+                      <Field label="آدرسِ منزل" value={editingPatient.home_address} onChange={v => setEditingPatient(p => ({...p, home_address: v}))} fullWidth />
+                      <TextareaField label="نحوه‌ی برخوردِ والدین (پدر / مادر / ناظرِ اصلی)" value={editingPatient.parent_behavior} onChange={v => setEditingPatient(p => ({...p, parent_behavior: v}))} rows={2} />
+                    </div>
+                  </div>
+
+                  {/* سابقه پزشکی و بارداری */}
+                  <div className="bg-white rounded-xl border border-gray-100 p-4">
+                    <h3 className="text-sm font-semibold text-gray-700 mb-3 pb-2 border-b border-gray-100">🏥 پزشکی، بارداری و تولد</h3>
+                    <div className="space-y-3">
+                      <TextareaField label="سابقه‌ی پزشکی (غش/تشنج، داروها)" value={editingPatient.medical_info} onChange={v => setEditingPatient(p => ({...p, medical_info: v}))} rows={2} />
+                      <TextareaField label="شرایطِ بارداری" value={editingPatient.pregnancy_info} onChange={v => setEditingPatient(p => ({...p, pregnancy_info: v}))} rows={2} />
+                      <div className="grid grid-cols-2 gap-3">
+                        <SelectField label="نوعِ زایمان" value={editingPatient.birth_type} onChange={v => setEditingPatient(p => ({...p, birth_type: v}))} options={['طبیعی','سزارین','زودرس']} />
+                        <Field label="وزنِ هنگامِ تولد" value={editingPatient.birth_weight} onChange={v => setEditingPatient(p => ({...p, birth_weight: v}))} placeholder="3.2 کیلوگرم" />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* رشد و تکامل */}
+                  <div className="bg-white rounded-xl border border-gray-100 p-4">
+                    <h3 className="text-sm font-semibold text-gray-700 mb-3 pb-2 border-b border-gray-100">📈 رشد و تکامل</h3>
+                    <TextareaField label="سینه‌خیز / چهاردست‌وپا / راه‌رفتن / حرف‌زدن و مشکلاتِ رشدی" value={editingPatient.growth_info} onChange={v => setEditingPatient(p => ({...p, growth_info: v}))} rows={3} />
+                  </div>
+
+                  {/* سایر */}
+                  <div className="bg-white rounded-xl border border-gray-100 p-4">
+                    <h3 className="text-sm font-semibold text-gray-700 mb-3 pb-2 border-b border-gray-100">📝 سایر</h3>
+                    <div className="space-y-3">
+                      <TextareaField label="توضیحاتِ اضافه" value={editingPatient.extra_notes} onChange={v => setEditingPatient(p => ({...p, extra_notes: v}))} rows={3} />
+                      <SelectField label="نوعِ جلسه" value={editingPatient.session_type} onChange={v => setEditingPatient(p => ({...p, session_type: v} as any))} options={['offline','online']} />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-4 flex gap-3">
+                  <button onClick={() => setPatientView('detail')}
+                    className="flex-1 py-3 border border-gray-200 rounded-xl text-sm text-gray-500">انصراف</button>
+                  <button onClick={savePatient}
+                    className="flex-1 py-3 bg-brand-600 text-white rounded-xl text-sm font-medium">💾 ذخیره پرونده</button>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* ════════════════════════════════════════════════════════════════
+            TAB: BOOKINGS
+        ════════════════════════════════════════════════════════════════ */}
+        {mainTab === 'bookings' && (
+          <div>
+            {/* صندوقِ تأیید پرداخت‌ها — سه بخش */}
+            {(() => {
+              const childOf = (cn: string) => bookings.find(b => b.case_number === cn)?.child_name || cn
+              const interviewPending = bookings.filter(b => b.flow_status === FLOW.INTERVIEW_PAYMENT_SUBMITTED)
+              const assessmentPending = bookings.filter(b => b.flow_status === FLOW.ASSESSMENT_PAYMENT_SUBMITTED)
+              const pkgAmount = (p: Package) =>
+                (p.child_sessions * (p.child_session_type === 'online' ? PRICING.sessionOnline : PRICING.sessionOffline)) +
+                (p.parent_sessions * (p.parent_session_type === 'online' ? PRICING.sessionOnline : PRICING.sessionOffline))
+              const totalPending = interviewPending.length + assessmentPending.length + pendingPkgs.length + pendingSess.length + pendingRefunds.length
+              const refundAmt = (s: Session) => {
+                const full = s.session_type === 'online' ? PRICING.sessionOnline : PRICING.sessionOffline
+                return Math.round(full * (100 - (s.refund_percent || 50)) / 100)
+              }
+
+              if (loading) return <div className="text-center py-16 text-gray-400">در حال بارگذاری...</div>
+
+              return (
+                <div className="space-y-6">
+                  <p className="text-sm text-gray-500">
+                    {totalPending === 0 ? 'موردِ منتظرِ اقدامی وجود ندارد.' : `${toFarsiNum(totalPending)} مورد منتظر اقدام است.`}
+                  </p>
+
+                  {/* بخش ۱: مصاحبه */}
+                  <PendingSection title="مصاحبه‌ی اولیه" icon="🩺" count={interviewPending.length}>
+                    {interviewPending.map(b => (
+                      <PendingPayCard key={b.id} name={b.child_name} caseNumber={b.case_number}
+                        amount={b.interview_price || PRICING.interview} receipt={b.interview_payment_ref}>
+                        <div className="flex gap-2">
+                          <button onClick={() => confirmStagePayment(b.id, 'interview')}
+                            className="flex-1 py-2 bg-green-600 text-white rounded-lg text-sm">✅ تأیید پرداخت</button>
+                          <button onClick={() => rejectInterview(b.id)}
+                            className="flex-1 py-2 border border-red-200 text-red-500 rounded-lg text-sm">رد</button>
+                        </div>
+                      </PendingPayCard>
+                    ))}
+                  </PendingSection>
+
+                  {/* بخش ۲: ارزیابی */}
+                  <PendingSection title="ارزیابیِ کودک" icon="🧩" count={assessmentPending.length}>
+                    {assessmentPending.map(b => (
+                      <PendingPayCard key={b.id} name={b.child_name} caseNumber={b.case_number}
+                        amount={b.assessment_price || PRICING.assessment} receipt={b.assessment_payment_ref}>
+                        <div className="flex gap-2">
+                          <button onClick={() => confirmStagePayment(b.id, 'assessment')}
+                            className="flex-1 py-2 bg-green-600 text-white rounded-lg text-sm">✅ تأیید پرداخت</button>
+                          <button onClick={() => rejectAssessmentPayment(b.id)}
+                            className="flex-1 py-2 border border-red-200 text-red-500 rounded-lg text-sm">رد</button>
+                        </div>
+                      </PendingPayCard>
+                    ))}
+                  </PendingSection>
+
+                  {/* بخش ۳: پروتکل‌های درمان (و جلسه‌های جایگزین) */}
+                  <PendingSection title="پروتکل درمان" icon="📦" count={pendingPkgs.length + pendingSess.length}>
+                    {pendingPkgs.map(p => (
+                      <PendingPayCard key={p.id} name={childOf(p.case_number)} caseNumber={p.case_number}
+                        amount={pkgAmount(p)} receipt={p.payment_ref}
+                        sub={`${PERSIAN_MONTHS[parseInt(p.month) - 1]} ${p.year} • ${p.child_sessions + p.parent_sessions} جلسه`}>
+                        <div className="flex gap-2">
+                          <button onClick={() => confirmPackagePayment(p.id)}
+                            className="flex-1 py-2 bg-green-600 text-white rounded-lg text-sm">✅ تأیید پرداخت</button>
+                          <button onClick={() => rejectPackagePayment(p.id)}
+                            className="flex-1 py-2 border border-red-200 text-red-500 rounded-lg text-sm">رد</button>
+                        </div>
+                      </PendingPayCard>
+                    ))}
+                    {pendingSess.map(s => (
+                      <PendingPayCard key={s.id} name={childOf(s.case_number)} caseNumber={s.case_number}
+                        amount={s.session_type === 'online' ? PRICING.sessionOnline : PRICING.sessionOffline} receipt={s.payment_ref}
+                        sub="جلسه‌ی جایگزین">
+                        <div className="flex gap-2">
+                          <button onClick={() => confirmSessionPayment(s.id)}
+                            className="flex-1 py-2 bg-green-600 text-white rounded-lg text-sm">✅ تأیید پرداخت</button>
+                          <button onClick={() => rejectSessionPayment(s.id)}
+                            className="flex-1 py-2 border border-red-200 text-red-500 rounded-lg text-sm">رد</button>
+                        </div>
+                      </PendingPayCard>
+                    ))}
+                  </PendingSection>
+
+                  {/* بخش ۴: بازپرداختِ کنسلی‌ها */}
+                  <PendingSection title="بازپرداختِ کنسلی" icon="💸" count={pendingRefunds.length}>
+                    {pendingRefunds.map(s => (
+                      <RefundPendingCard key={s.id} name={childOf(s.case_number)} caseNumber={s.case_number}
+                        card={s.refund_card || ''} amount={refundAmt(s)}
+                        onDone={(ref) => markRefunded(s.id, ref)} />
+                    ))}
+                  </PendingSection>
+                </div>
+              )
+            })()}
+
+            {/* Booking detail modal */}
+            {selectedBooking && (
+              <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50" onClick={e => { if (e.target === e.currentTarget) setSelectedBooking(null) }}>
+                <div className="bg-white rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto p-6 shadow-xl" dir="rtl">
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="font-semibold text-gray-900">{selectedBooking.child_name}</h2>
+                    <button onClick={() => setSelectedBooking(null)} className="text-gray-400 hover:text-gray-600">✕</button>
+                  </div>
+                  <div className="space-y-2 mb-4">
+                    <InfoRow label="شماره پرونده" value={selectedBooking.case_number} />
+                    <InfoRow label="تاریخ" value={selectedBooking.booking_date} />
+                    <InfoRow label="ساعت" value={selectedBooking.booking_time} />
+                    <InfoRow label="نوع جلسه" value={selectedBooking.session_type === 'online' ? 'آنلاین' : `حضوری${selectedBooking.office_location ? ` — ${selectedBooking.office_location}` : ''}`} />
+                    <InfoRow label="مبلغ" value={`${selectedBooking.price?.toLocaleString('en-US')} تومان`} />
+                    <InfoRow label="وضعیت" value={STATUS_LABEL[selectedBooking.status]} />
+                    <InfoRow label="مرحله پرونده" value={FLOW_LABEL[selectedBooking.flow_status || FLOW.INTERVIEW_AWAITING_PAYMENT] || '—'} />
+                    {selectedBooking.interview_date && (
+                      <InfoRow label="وقت مصاحبه" value={`${enTime(selectedBooking.interview_date)} — ${enTime(selectedBooking.interview_time)}`} />
+                    )}
+                    {selectedBooking.interview_payment_ref && (
+                      <InfoRow label="فیش واریزیِ مصاحبه" value={selectedBooking.interview_payment_ref} />
+                    )}
+                    {selectedBooking.assessment_date && (
+                      <InfoRow label="وقت ارزیابی" value={`${enTime(selectedBooking.assessment_date)} — ${enTime(selectedBooking.assessment_time)}`} />
+                    )}
+                    {selectedBooking.assessment_payment_ref && (
+                      <InfoRow label="فیش واریزیِ ارزیابی" value={selectedBooking.assessment_payment_ref} />
+                    )}
+                    {selectedBooking.flow_status === FLOW.INTERVIEW_REJECTED && selectedBooking.reject_reason && (
+                      <InfoRow label="دلیل رد" value={selectedBooking.reject_reason} />
+                    )}
+                  </div>
+                  <div className="mb-4">
+                    <label className="text-xs text-gray-500 mb-1 block">یادداشت دکتر</label>
+                    <textarea value={bookingNotes} onChange={e => setBookingNotes(e.target.value)}
+                      rows={3} className="w-full text-sm px-3 py-2 border border-gray-200 rounded-lg resize-none" />
+                  </div>
+
+                  {/* اکشن‌های مرحله‌ایِ دکتر */}
+                  {(() => {
+                    const fs = selectedBooking.flow_status || FLOW.INTERVIEW_AWAITING_PAYMENT
+                    const id = selectedBooking.id
+
+                    if (fs === FLOW.INTERVIEW_AWAITING_PAYMENT)
+                      return (
+                        <div className="space-y-2">
+                          <div className="text-center text-xs text-amber-700 bg-amber-50 rounded-xl py-2.5 border border-amber-100">💳 منتظر پرداختِ کارت‌به‌کارتِ مصاحبه توسط مراجع</div>
+                          <button onClick={() => rejectInterview(id)} className="w-full py-2 border border-red-200 text-red-500 rounded-xl text-sm">❌ رد پرونده</button>
+                        </div>
+                      )
+
+                    if (fs === FLOW.INTERVIEW_PAYMENT_SUBMITTED)
+                      return (
+                        <div className="space-y-2">
+                          <div className="text-center text-xs text-blue-700 bg-blue-50 rounded-xl py-2 border border-blue-100">مراجع اعلام کرده پرداخت کرده. واریز را بررسی و تأیید کنید.</div>
+                          <div className="flex gap-2">
+                            <button onClick={() => confirmStagePayment(id, 'interview')} className="flex-1 py-2.5 bg-green-600 text-white rounded-xl text-sm">✅ تأیید پرداختِ مصاحبه</button>
+                            <button onClick={() => rejectInterview(id)} className="flex-1 py-2.5 bg-red-500 text-white rounded-xl text-sm">❌ رد</button>
+                          </div>
+                        </div>
+                      )
+
+                    if (fs === FLOW.INTERVIEW_AWAITING_BOOKING)
+                      return <div className="text-center text-sm text-gray-600 bg-gray-50 rounded-xl py-3">پرداخت تأیید شد. منتظرِ گرفتنِ وقتِ مصاحبه توسط مراجع.</div>
+
+                    if (fs === FLOW.INTERVIEW_BOOKED)
+                      return (
+                        <button onClick={() => openAssessmentStage(id)} className="w-full py-2.5 bg-brand-600 text-white rounded-xl text-sm font-medium">
+                          ✅ مصاحبه برگزار شد → فعال‌سازیِ مرحله‌ی ارزیابی
+                        </button>
+                      )
+
+                    if (fs === FLOW.ASSESSMENT_AWAITING_PAYMENT)
+                      return <div className="text-center text-xs text-amber-700 bg-amber-50 rounded-xl py-2.5 border border-amber-100">💳 منتظر پرداختِ کارت‌به‌کارتِ ارزیابی توسط مراجع</div>
+
+                    if (fs === FLOW.ASSESSMENT_PAYMENT_SUBMITTED)
+                      return (
+                        <button onClick={() => confirmStagePayment(id, 'assessment')} className="w-full py-2.5 bg-green-600 text-white rounded-xl text-sm font-medium">
+                          ✅ تأیید پرداختِ ارزیابی
+                        </button>
+                      )
+
+                    if (fs === FLOW.ASSESSMENT_AWAITING_BOOKING)
+                      return <div className="text-center text-sm text-gray-600 bg-gray-50 rounded-xl py-3">پرداختِ ارزیابی تأیید شد. منتظرِ گرفتنِ وقتِ ارزیابی توسط مراجع.</div>
+
+                    if (fs === FLOW.ASSESSMENT_BOOKED)
+                      return <div className="text-center text-sm text-gray-600 bg-gray-50 rounded-xl py-3">ارزیابی رزرو شد. پس از برگزاری، از تبِ «پروتکل‌های درمان»ی پرونده، پروتکلِ درمان را تعریف کنید.</div>
+
+                    return (
+                      <div className="text-center text-sm text-gray-600 bg-gray-50 rounded-xl py-3">
+                        مرحله: <b className="text-gray-800">{FLOW_LABEL[fs] || fs}</b>
+                      </div>
+                    )
+                  })()}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ════════════════════════════════════════════════════════════════
+            TAB: SCHEDULE
+        ════════════════════════════════════════════════════════════════ */}
+        {mainTab === 'schedule' && (
+          <div className="max-w-2xl mx-auto">
+            {/* زیرتب‌ها */}
+            <div className="flex bg-white rounded-xl border border-gray-100 p-1 mb-4">
+              {([['edit', '🗓 تنظیم روزها'], ['agenda', '📋 برنامه‌ی نوبت‌ها']] as const).map(([k, label]) => (
+                <button key={k} onClick={() => setSchedSubTab(k)}
+                  className={`flex-1 text-sm py-2 rounded-lg font-medium transition-all ${schedSubTab === k ? 'bg-brand-600 text-white' : 'text-gray-500'}`}>
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {/* نوار ماه (مشترک) */}
+            <div className="bg-white rounded-2xl border border-gray-100 p-3 mb-4 flex items-center justify-between gap-2">
+              <button onClick={() => changeMonth(-1)} className="px-3 py-1.5 border border-gray-200 rounded-lg text-xs text-gray-600 hover:bg-gray-50 shrink-0">قبلی</button>
+              <h2 className="text-sm sm:text-base font-medium text-gray-800 text-center">{PERSIAN_MONTHS[schedMonth]} {toFarsiNum(schedYear)}</h2>
+              <button onClick={() => changeMonth(1)} className="px-3 py-1.5 border border-gray-200 rounded-lg text-xs text-gray-600 hover:bg-gray-50 shrink-0">بعدی</button>
+            </div>
+
+            {/* ════ نمای تنظیم روزها ════ */}
+            {schedSubTab === 'edit' && (
+              <>
+                {/* راهنمای رنگ‌ها */}
+                <div className="flex items-center justify-center gap-4 text-xs text-gray-500 mb-3">
+                  <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-green-100 border border-green-300" /> روز کاری</span>
+                  <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-amber-400" /> نوبتِ رزروشده</span>
+                </div>
+
+                <div className="bg-white rounded-2xl border border-gray-100 p-5 mb-4">
+                  <div className="grid grid-cols-7 gap-1 mb-2">
+                    {['ش','ی','د','س','چ','پ','ج'].map(d => (
+                      <div key={d} className="text-center text-xs text-gray-400 py-1">{d}</div>
+                    ))}
+                  </div>
+                  <div className="grid grid-cols-7 gap-1">
+                    {Array(2).fill(null).map((_, i) => <div key={i} />)}
+                    {Array(daysInMonth).fill(null).map((_, i) => {
+                      const d = i + 1
+                      const isPast = schedYear === today.year && schedMonth === today.month && d < today.day
+                      const sched = schedForDay(d)
+                      const totalSlots = sched?.available_times?.length || 0
+                      const dateStr = `${schedYear}/${schedMonth + 1}/${d}`
+                      const booked = apptsForDate(dateStr).length
+                      const isSel = selectedDay === d
+                      return (
+                        <div key={d}
+                          onClick={() => { if (!isPast) selectSchedDay(d) }}
+                          className={`relative text-center py-2.5 rounded-lg text-sm transition-all
+                            ${isPast ? 'text-gray-300 cursor-default' : 'cursor-pointer'}
+                            ${isSel ? 'ring-2 ring-brand-500 font-medium' : ''}
+                            ${!isPast && totalSlots > 0 ? 'bg-green-50 text-green-700' : ''}
+                            ${!isPast && totalSlots === 0 ? 'text-gray-600 hover:bg-gray-50' : ''}`}>
+                          {toFarsiNum(d)}
+                          {!isPast && totalSlots > 0 && (
+                            <span className="block text-[10px] mt-0.5 text-green-600">{toFarsiNum(totalSlots)} ساعت</span>
+                          )}
+                          {booked > 0 && (
+                            <span className="absolute top-1 left-1 min-w-4 h-4 px-1 bg-amber-400 text-white text-[10px] rounded-full flex items-center justify-center font-medium">{toFarsiNum(booked)}</span>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                {selectedDay && (
+                  <div className="bg-white rounded-2xl border border-gray-100 p-5">
+                    <h3 className="text-sm font-medium text-gray-800 mb-1">
+                      ساعات کاری — {toFarsiNum(selectedDay)} {PERSIAN_MONTHS[schedMonth]}
+                    </h3>
+                    <p className="text-xs text-gray-400 mb-4">ساعت‌هایی که نوبت می‌دهی را انتخاب کن. اگر هیچ ساعتی انتخاب نکنی، آن روز تعطیل محسوب می‌شود.</p>
+                    {settings.session_modes === 'both' && (
+                      <p className="text-[11px] text-gray-400 mb-3">روی نوعِ هر ساعت بزن تا بینِ 🎥 آنلاین و مطب‌های حضوری جابجا شود. هر ساعت یک نوعِ مشخص دارد.</p>
+                    )}
+                    {settings.session_modes === 'offline' && settings.office_locations.length > 1 && (
+                      <p className="text-[11px] text-gray-400 mb-3">روی هر ساعت بزن تا بینِ مطب‌ها جابجا شود.</p>
+                    )}
+                    <div className="grid grid-cols-3 gap-2 mb-4">
+                      {ALL_TIMES.map(t => {
+                        const dateStr = `${schedYear}/${schedMonth + 1}/${selectedDay}`
+                        const takenBy = apptsForDate(dateStr).find(a => a.time === t)
+                        const slotTs = jalaliDateTimeToTimestamp(dateStr, t)
+                        const isPastTime = slotTs !== null && slotTs <= Date.now()
+                        const selected = selectedTimes.includes(t)
+                        const locked = !!takenBy || isPastTime
+                        const mode = settings.session_modes
+                        const offlineLocs = settings.office_locations
+                        // گزینه‌های ممکن برای این اسلات (بدونِ «هردو» — هر اسلات یک نوعِ مشخص دارد)
+                        type Opt = { kind: 'online' | 'offline'; loc?: string; label: string }
+                        const opts: Opt[] = []
+                        if (mode === 'both' || mode === 'online') opts.push({ kind: 'online', label: '🎥 آنلاین' })
+                        if (mode === 'both' || mode === 'offline') {
+                          if (offlineLocs.length <= 1) opts.push({ kind: 'offline', loc: offlineLocs[0]?.title, label: `🏥 ${offlineLocs[0]?.title || 'حضوری'}` })
+                          else offlineLocs.forEach(l => opts.push({ kind: 'offline', loc: l.title, label: `🏥 ${l.title}` }))
+                        }
+                        const fixed = opts.length === 1
+                        const curKind = slotTypes[t] === 'offline' ? 'offline' : slotTypes[t] === 'online' ? 'online' : ''
+                        const curLoc = slotLocs[t]
+                        let curIdx = opts.findIndex(o => o.kind === curKind && (o.kind !== 'offline' || (o.loc || '') === (curLoc || '')))
+                        if (curIdx < 0) curIdx = 0  // پیش‌فرض: اولین گزینه
+                        const curLabel = opts[curIdx]?.label
+                        const setOpt = (o: Opt) => {
+                          setSlotTypes(prev => ({ ...prev, [t]: o.kind }))
+                          setSlotLocs(prev => { const n = { ...prev }; if (o.kind === 'offline' && o.loc) n[t] = o.loc; else delete n[t]; return n })
+                        }
+                        const cycle = (ev: { stopPropagation: () => void }) => {
+                          ev.stopPropagation()
+                          setOpt(opts[(curIdx + 1) % opts.length])
+                        }
+                        return (
+                          <div key={t}
+                            onClick={() => {
+                              if (locked) return
+                              if (selected) {
+                                setSelectedTimes(prev => prev.filter(x => x !== t))
+                                setSlotTypes(st => { const n = { ...st }; delete n[t]; return n })
+                                setSlotLocs(sl => { const n = { ...sl }; delete n[t]; return n })
+                              } else {
+                                setSelectedTimes(prev => [...prev, t])
+                                setOpt(opts[0])  // پیش‌فرض: اولین گزینه (بدونِ «هردو»)
+                              }
+                            }}
+                            className={`text-center py-2 border rounded-xl text-sm transition-all
+                              ${isPastTime ? 'border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed line-through' :
+                                takenBy ? 'border-amber-200 bg-amber-50 text-amber-700 cursor-not-allowed' :
+                                'cursor-pointer ' + (selected ? 'border-brand-600 bg-brand-50 text-brand-800 font-medium' : 'border-gray-200 text-gray-500 hover:border-gray-300')}`}>
+                            {enTime(t)}
+                            {takenBy && !isPastTime && <span className="block text-[10px] mt-0.5">🔒 {takenBy.name}</span>}
+                            {isPastTime && <span className="block text-[10px] mt-0.5">گذشته</span>}
+                            {selected && !locked && (
+                              fixed
+                                ? <span className="block text-[10px] mt-1 text-brand-600">{opts[0]?.label}</span>
+                                : <button onClick={cycle}
+                                    className="block w-full text-[10px] mt-1 text-brand-700 bg-white/70 border border-brand-200 rounded py-0.5 hover:bg-white truncate">{curLabel}</button>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                    <button onClick={saveSchedule} disabled={schedSaving}
+                      className="w-full py-3 bg-brand-600 text-white rounded-xl text-sm font-medium disabled:opacity-40 hover:bg-brand-800 transition-colors">
+                      {schedSaving ? 'در حال ذخیره...' : schedSaved ? '✅ ذخیره شد!' : '💾 ذخیره برنامه'}
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* ════ نمای برنامه‌ی نوبت‌ها ════ */}
+            {schedSubTab === 'agenda' && (
+              <div className="space-y-3">
+                {/* تاگلِ هفتگی/ماهانه */}
+                <div className="flex bg-white rounded-xl border border-gray-100 p-1">
+                  {([['week', 'هفتگی'], ['month', 'ماهانه']] as const).map(([k, label]) => (
+                    <button key={k} onClick={() => setAgendaMode(k)}
+                      className={`flex-1 text-sm py-1.5 rounded-lg font-medium transition-all ${agendaMode === k ? 'bg-brand-600 text-white' : 'text-gray-500'}`}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+
+                {(() => {
+                  const WEEK = ['شنبه', 'یک‌شنبه', 'دوشنبه', 'سه‌شنبه', 'چهارشنبه', 'پنج‌شنبه', 'جمعه']
+                  // مرزِ هفته‌ها (شنبه‌ها در روزهای ۶، ۱۳، ۲۰، ۲۷ شروع می‌شوند؛ هفته‌ی اول ۱ تا ۵)
+                  const weekStarts = [1, 6, 13, 20, 27].filter(s => s <= daysInMonth)
+                  const wIdx = Math.min(weekIdx, weekStarts.length - 1)
+                  let rangeStart = 1, rangeEnd = daysInMonth
+                  if (agendaMode === 'week') {
+                    rangeStart = weekStarts[wIdx]
+                    rangeEnd = (weekStarts[wIdx + 1] ? weekStarts[wIdx + 1] - 1 : daysInMonth)
+                  }
+
+                  const days = []
+                  for (let d = rangeStart; d <= rangeEnd; d++) {
+                    const dateStr = `${schedYear}/${schedMonth + 1}/${d}`
+                    const sched = schedForDay(d)
+                    const appts = apptsForDate(dateStr)
+                    const slotTimes = sched?.available_times || []
+                    const extra = appts.map(a => a.time).filter(t => !slotTimes.includes(t))
+                    const allTimes = Array.from(new Set([...slotTimes, ...extra])).sort((a, b) => timeKey(a) - timeKey(b))
+                    if (allTimes.length === 0) continue
+                    days.push({ d, dateStr, appts, allTimes, weekday: WEEK[(d + 1) % 7] })
+                  }
+
+                  return (
+                    <>
+                      {agendaMode === 'week' && (
+                        <div className="flex items-center justify-between bg-white rounded-xl border border-gray-100 px-3 py-2 gap-2">
+                          <button onClick={() => setWeekIdx(i => Math.max(0, i - 1))} disabled={wIdx === 0}
+                            className="px-3 py-1.5 border border-gray-200 rounded-lg text-xs text-gray-600 disabled:opacity-30 shrink-0">قبلی</button>
+                          <span className="text-xs text-gray-600 text-center">هفته‌ی {toFarsiNum(wIdx + 1)} — {toFarsiNum(rangeStart)} تا {toFarsiNum(rangeEnd)} {PERSIAN_MONTHS[schedMonth]}</span>
+                          <button onClick={() => setWeekIdx(i => Math.min(weekStarts.length - 1, i + 1))} disabled={wIdx >= weekStarts.length - 1}
+                            className="px-3 py-1.5 border border-gray-200 rounded-lg text-xs text-gray-600 disabled:opacity-30 shrink-0">بعدی</button>
+                        </div>
+                      )}
+
+                      {days.length === 0 ? (
+                        <div className="text-center py-16 text-gray-400 bg-white rounded-2xl border border-gray-100">
+                          {agendaMode === 'week' ? 'برای این هفته روز کاری‌ای تنظیم نشده است.' : 'برای این ماه روز کاری‌ای تنظیم نشده است.'}
+                        </div>
+                      ) : days.map(({ d, appts, allTimes, weekday }) => (
+                        <div key={d} className="bg-white rounded-2xl border border-gray-100 p-4">
+                          <div className="flex items-center justify-between mb-3 pb-2 border-b border-gray-50">
+                            <span className="text-sm font-semibold text-gray-800">{weekday} {toFarsiNum(d)} {PERSIAN_MONTHS[schedMonth]}</span>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-gray-400">{toFarsiNum(appts.length)} از {toFarsiNum(allTimes.length)} رزرو</span>
+                              {appts.length > 0 && (
+                                <button onClick={() => cancelDay(`${schedYear}/${schedMonth + 1}/${d}`, appts)}
+                                  className="text-xs px-2 py-0.5 border border-red-200 text-red-500 rounded-lg hover:bg-red-50">لغو روز</button>
+                              )}
+                            </div>
+                          </div>
+                          <div className="space-y-1.5">
+                            {allTimes.map(t => {
+                              const appt = appts.find(a => a.time === t)
+                              const slotType = schedForDay(d)?.slot_types?.[t]
+                              const slotLoc = schedForDay(d)?.slot_locs?.[t]
+                              const slotTypeLabel = slotType === 'online' ? '🎥 آنلاین' : slotType === 'offline' ? `🏥 ${slotLoc || 'حضوری'}` : 'خالی'
+                              return (
+                                <div key={t} className="flex items-center gap-3 text-sm">
+                                  <span className="font-mono text-xs text-gray-500 w-12 shrink-0">{enTime(t)}</span>
+                                  {appt ? (
+                                    <span className={`flex-1 flex items-center justify-between px-3 py-1.5 rounded-lg border text-xs ${appt.color}`}>
+                                      <span className="font-medium">{appt.mode === 'online' ? '🎥 ' : appt.mode === 'offline' ? '🏥 ' : ''}{appt.name}</span>
+                                      <span className="flex items-center gap-2">
+                                        <span className="opacity-75">{appt.type}{appt.loc ? ` — ${appt.loc}` : ''}</span>
+                                        <button onClick={() => cancelAppointment(appt)}
+                                          className="px-1.5 py-0.5 bg-white/70 border border-gray-200 rounded text-red-500 hover:bg-white">لغو</button>
+                                      </span>
+                                    </span>
+                                  ) : (
+                                    <span className="flex-1 px-3 py-1.5 rounded-lg border border-dashed border-gray-200 text-xs text-gray-300">{slotTypeLabel}</span>
+                                  )}
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      ))}
+                    </>
+                  )
+                })()}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ════════════════════════════════════════════════════════════════
+            TAB: FINANCE (گزارشات مالی)
+        ════════════════════════════════════════════════════════════════ */}
+        {mainTab === 'finance' && (
+          <div className="space-y-4">
+            {!financeLoaded ? (
+              <div className="text-center py-16 text-gray-400">در حال محاسبه‌ی گزارش...</div>
+            ) : !finance ? (
+              <div className="text-center py-16 text-gray-400">داده‌ای برای نمایش نیست</div>
+            ) : (() => {
+              const f = finance
+              const money = (n: number) => n.toLocaleString('en-US') + ' تومان'
+              const cats = [
+                { key: 'interview', label: 'مصاحبه‌ی اولیه', icon: '🗣', amount: f.paid.interview, count: f.paidCount.interview },
+                { key: 'assessment', label: 'ارزیابی', icon: '📋', amount: f.paid.assessment, count: f.paidCount.assessment },
+                { key: 'packages', label: 'پروتکل درمان', icon: '📦', amount: f.paid.packages, count: f.paidCount.packages },
+                { key: 'sessions', label: 'جلسه‌ی جداگانه', icon: '🎯', amount: f.paid.sessions, count: f.paidCount.sessions },
+              ]
+              const maxCat = Math.max(1, ...cats.map(c => c.amount))
+              const maxMonth = Math.max(1, ...f.monthly.map(m => m.amount))
+              const splitTotal = Math.max(1, f.split.online + f.split.offline)
+              const pendCats = [
+                { label: 'مصاحبه', amount: f.pending.interview, count: f.pendingCount.interview },
+                { label: 'ارزیابی', amount: f.pending.assessment, count: f.pendingCount.assessment },
+                { label: 'پروتکل درمان', amount: f.pending.packages, count: f.pendingCount.packages },
+                { label: 'جلسه‌ی جداگانه', amount: f.pending.sessions, count: f.pendingCount.sessions },
+              ].filter(c => c.amount > 0)
+
+              return (
+                <>
+                  {/* عنوان + بازه‌ی زمانی + بروزرسانی */}
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <p className="text-xs text-gray-400">ارقام از پرداخت‌های تأییدشده در بازه‌ی انتخابی محاسبه شده‌اند.</p>
+                    <button onClick={() => { setFinanceLoaded(false); loadFinance() }}
+                      className="text-xs px-3 py-1.5 border border-gray-200 rounded-lg text-gray-500 hover:bg-gray-50">↻ بروزرسانی</button>
+                  </div>
+                  <div className="flex bg-white rounded-xl border border-gray-100 p-1 gap-1">
+                    {([['1m', '۱ ماه'], ['3m', '۳ ماه'], ['6m', '۶ ماه'], ['12m', '۱۲ ماه'], ['all', 'همه']] as const).map(([k, lbl]) => (
+                      <button key={k} onClick={() => { setFinanceRange(k); setFinanceCustomOpen(false); setFinanceLoaded(false); loadFinance(k) }}
+                        className={`flex-1 text-xs py-1.5 rounded-lg font-medium transition-all ${financeRange === k ? 'bg-brand-600 text-white' : 'text-gray-500 hover:bg-gray-50'}`}>
+                        {lbl}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* بازه‌ی دقیقِ جلالی */}
+                  <div className="bg-white rounded-xl border border-gray-100 p-3">
+                    <button onClick={() => setFinanceCustomOpen(o => !o)}
+                      className={`text-xs font-medium ${financeRange === 'custom' ? 'text-brand-700' : 'text-gray-500'}`}>
+                      🗓 بازه‌ی دقیق {financeRange === 'custom' && financeFromIso ? '(فعال)' : ''} {financeCustomOpen ? '▲' : '▼'}
+                    </button>
+                    {financeCustomOpen && (
+                      <div className="mt-3 space-y-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-xs text-gray-500 w-8 shrink-0">از</span>
+                          <JalaliDateSelect value={fromJ} onChange={setFromJ} />
+                        </div>
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-xs text-gray-500 w-8 shrink-0">تا</span>
+                          <JalaliDateSelect value={toJ} onChange={setToJ} />
+                        </div>
+                        <button onClick={applyCustomRange}
+                          className="w-full py-2 bg-brand-600 text-white rounded-lg text-xs font-medium hover:bg-brand-800">اعمالِ بازه</button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* خلاصه */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="bg-white rounded-2xl border border-gray-100 p-5">
+                      <div className="text-xs text-gray-400 mb-1">💰 درآمدِ خالص</div>
+                      <div className="text-2xl font-bold text-brand-700">{money(f.netPaid)}</div>
+                      {f.refundsTotal > 0 && (
+                        <div className="text-[11px] text-gray-400 mt-1">ناخالص {money(f.totalPaid)} − بازپرداخت {money(f.refundsTotal)}</div>
+                      )}
+                    </div>
+                    <div className="bg-white rounded-2xl border border-gray-100 p-5">
+                      <div className="text-xs text-gray-400 mb-1">⏳ در انتظارِ تأیید</div>
+                      <div className="text-2xl font-bold text-amber-600">{money(f.totalPending)}</div>
+                    </div>
+                  </div>
+
+                  {f.refundsTotal > 0 && (
+                    <div className="bg-white rounded-2xl border border-gray-100 p-4 flex items-center justify-between">
+                      <span className="text-sm text-gray-700">💸 بازپرداختِ کنسلی‌ها <span className="text-xs text-gray-400">({toFarsiNum(f.refundsCount)} مورد)</span></span>
+                      <span className="text-sm font-semibold text-red-500">− {money(f.refundsTotal)}</span>
+                    </div>
+                  )}
+
+                  {/* درآمد به تفکیکِ دسته */}
+                  <div className="bg-white rounded-2xl border border-gray-100 p-5">
+                    <h2 className="text-sm font-semibold text-gray-900 mb-4">درآمد به تفکیکِ دسته</h2>
+                    <div className="space-y-3">
+                      {cats.map(c => (
+                        <div key={c.key}>
+                          <div className="flex items-center justify-between text-sm mb-1">
+                            <span className="text-gray-700">{c.icon} {c.label}{' '}
+                              <span className="text-gray-400 text-xs">({toFarsiNum(c.count)} مورد)</span></span>
+                            <span className="font-medium text-gray-800">{money(c.amount)}</span>
+                          </div>
+                          <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                            <div className="h-full bg-brand-400 rounded-full" style={{ width: `${(c.amount / maxCat) * 100}%` }} />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* روندِ ماهانه */}
+                  <div className="bg-white rounded-2xl border border-gray-100 p-5">
+                    <h2 className="text-sm font-semibold text-gray-900 mb-4">روندِ درآمدِ ماهانه</h2>
+                    {f.monthly.length === 0 ? (
+                      <p className="text-xs text-gray-400">هنوز درآمدی ثبت نشده است.</p>
+                    ) : (
+                      <div className="space-y-2.5">
+                        {f.monthly.map(m => {
+                          const [y, mm] = m.month.split('/')
+                          const label = `${PERSIAN_MONTHS[parseInt(mm) - 1]} ${y}`
+                          return (
+                            <div key={m.month}>
+                              <div className="flex justify-between text-xs mb-1">
+                                <span className="text-gray-600">{label}</span>
+                                <span className="text-gray-700 font-medium">{money(m.amount)}</span>
+                              </div>
+                              <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
+                                <div className="h-full bg-brand-600 rounded-full" style={{ width: `${(m.amount / maxMonth) * 100}%` }} />
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* تفکیکِ آنلاین/حضوری */}
+                  <div className="bg-white rounded-2xl border border-gray-100 p-5">
+                    <h2 className="text-sm font-semibold text-gray-900 mb-3">تفکیکِ آنلاین / حضوری (جلسات و پکیج‌ها)</h2>
+                    <div className="flex h-4 rounded-full overflow-hidden mb-2 bg-gray-100">
+                      <div className="bg-brand-400" style={{ width: `${(f.split.online / splitTotal) * 100}%` }} />
+                      <div className="bg-brand-200" style={{ width: `${(f.split.offline / splitTotal) * 100}%` }} />
+                    </div>
+                    <div className="flex justify-between text-xs">
+                      <span className="text-gray-600">🎥 آنلاین: {money(f.split.online)}</span>
+                      <span className="text-gray-600">🏥 حضوری: {money(f.split.offline)}</span>
+                    </div>
+                  </div>
+
+                  {/* در انتظارِ تأیید به تفکیک */}
+                  {pendCats.length > 0 && (
+                    <div className="bg-white rounded-2xl border border-gray-100 p-5">
+                      <h2 className="text-sm font-semibold text-gray-900 mb-3">⏳ در انتظارِ تأییدِ شما</h2>
+                      <div className="space-y-2">
+                        {pendCats.map(c => (
+                          <div key={c.label} className="flex items-center justify-between text-sm">
+                            <span className="text-gray-700">{c.label} <span className="text-xs text-gray-400">({toFarsiNum(c.count)} مورد)</span></span>
+                            <span className="font-medium text-amber-600">{money(c.amount)}</span>
+                          </div>
+                        ))}
+                      </div>
+                      <p className="text-[11px] text-gray-400 mt-3">این مبالغ از طرفِ مراجع اعلام شده ولی هنوز تأیید نشده‌اند. برای تأیید به تبِ «تأیید پرداخت‌ها» بروید.</p>
+                    </div>
+                  )}
+
+                  {/* پرونده‌های برتر */}
+                  <div className="bg-white rounded-2xl border border-gray-100 p-5">
+                    <h2 className="text-sm font-semibold text-gray-900 mb-3">پرونده‌های با بیشترین پرداخت</h2>
+                    {f.topCases.length === 0 ? (
+                      <p className="text-xs text-gray-400">—</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {f.topCases.map((c, i) => (
+                          <div key={c.case_number} className="flex items-center justify-between text-sm">
+                            <span className="text-gray-700">{toFarsiNum(i + 1)}. {c.name}{' '}
+                              <span className="text-xs text-gray-400">({c.case_number})</span></span>
+                            <span className="font-medium text-gray-800">{money(c.amount)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </>
+              )
+            })()}
+          </div>
+        )}
+
+        {/* ════════════════════════════════════════════════════════════════
+            TAB: SETTINGS
+        ════════════════════════════════════════════════════════════════ */}
+        {mainTab === 'settings' && (
+          <div className="space-y-4 pb-24">
+            {!settingsLoaded ? (
+              <div className="text-center py-16 text-gray-400">در حال بارگذاری تنظیمات...</div>
+            ) : (
+            <>
+              {/* ظاهرِ پنل */}
+              <section className="bg-white rounded-2xl border border-gray-100 p-5">
+                <h2 className="text-sm font-semibold text-gray-900 mb-1">🌗 ظاهرِ پنل</h2>
+                <p className="text-xs text-gray-400 mb-4">حالتِ تیره فقط روی همین پنل و فقط روی این دستگاه اعمال می‌شود.</p>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-gray-700">حالتِ تیره (دارک‌مود)</span>
+                  <button onClick={() => toggleDark(!darkMode)}
+                    className={`relative w-12 h-6 rounded-full transition-colors ${darkMode ? 'bg-brand-600' : 'bg-gray-300'}`}>
+                    <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full transition-all ${darkMode ? 'right-0.5' : 'right-6'}`} />
+                  </button>
+                </div>
+              </section>
+
+              {/* پروفایلِ عمومی */}
+              <section className="bg-white rounded-2xl border border-gray-100 p-5">
+                <h2 className="text-sm font-semibold text-gray-900 mb-1">👤 پروفایلِ عمومی</h2>
+                <p className="text-xs text-gray-400 mb-4">این اطلاعات در صفحه‌ی اولِ سایت به مراجع نمایش داده می‌شود.</p>
+
+                <div className="flex items-center gap-4 mb-4">
+                  <div className="w-16 h-16 rounded-full bg-brand-50 border border-brand-100 flex items-center justify-center text-2xl overflow-hidden shrink-0">
+                    {settings.avatar_url
+                      ? <img src={settings.avatar_url} alt="" className="w-full h-full object-cover" />
+                      : '👩‍⚕️'}
+                  </div>
+                  <div className="flex-1">
+                    <label className="text-xs text-gray-500 mb-1 block">لینکِ عکسِ پروفایل</label>
+                    <input value={settings.avatar_url} onChange={e => patchSettings({ avatar_url: e.target.value })}
+                      dir="ltr" placeholder="https://...  (خالی بگذارید تا آیکونِ پیش‌فرض نمایش داده شود)"
+                      className="w-full text-sm px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:border-brand-400" />
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-xs text-gray-500 mb-1 block">نام</label>
+                    <input value={settings.doctor_name} onChange={e => patchSettings({ doctor_name: e.target.value })}
+                      className="w-full text-sm px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:border-brand-400" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500 mb-1 block">عنوان / تخصص</label>
+                    <input value={settings.doctor_title} onChange={e => patchSettings({ doctor_title: e.target.value })}
+                      className="w-full text-sm px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:border-brand-400" />
+                  </div>
+
+                  {/* بَج‌ها */}
+                  <div>
+                    <label className="text-xs text-gray-500 mb-1 block">نشان‌ها (زیرِ پروفایل)</label>
+                    <div className="space-y-2">
+                      {settings.badges.map((b, i) => (
+                        <div key={i} className="flex items-center gap-2">
+                          <input value={b}
+                            onChange={e => {
+                              const next = [...settings.badges]; next[i] = e.target.value; patchSettings({ badges: next })
+                            }}
+                            placeholder="مثلاً: 📍 تهران، ولنجک"
+                            className="flex-1 text-sm px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:border-brand-400" />
+                          <button onClick={() => patchSettings({ badges: settings.badges.filter((_, j) => j !== i) })}
+                            className="text-xs px-2.5 py-2 border border-red-200 text-red-500 rounded-lg shrink-0 hover:bg-red-50">حذف</button>
+                        </div>
+                      ))}
+                    </div>
+                    <button onClick={() => patchSettings({ badges: [...settings.badges, ''] })}
+                      className="mt-2 text-xs px-3 py-1.5 border border-brand-200 text-brand-600 rounded-lg hover:bg-brand-50">+ افزودنِ نشان</button>
+                  </div>
+                </div>
+              </section>
+
+              {/* نوعِ جلسات */}
+              <section className="bg-white rounded-2xl border border-gray-100 p-5">
+                <h2 className="text-sm font-semibold text-gray-900 mb-1">🎥 نوعِ جلساتِ قابلِ ارائه</h2>
+                <p className="text-xs text-gray-400 mb-4">تعیین می‌کند مراجع هنگامِ رزرو چه گزینه‌هایی ببیند.</p>
+                <div className="grid grid-cols-3 gap-2">
+                  {([
+                    ['both', '🎥🏥', 'هردو'],
+                    ['online', '🎥', 'فقط آنلاین'],
+                    ['offline', '🏥', 'فقط حضوری'],
+                  ] as [SessionMode, string, string][]).map(([val, icon, label]) => (
+                    <button key={val} onClick={() => patchSettings({ session_modes: val })}
+                      className={`p-3 rounded-xl border text-center transition-all ${
+                        settings.session_modes === val
+                          ? 'border-brand-600 border-2 bg-brand-50'
+                          : 'border-gray-200 hover:border-gray-300'}`}>
+                      <div className="text-xl mb-1">{icon}</div>
+                      <div className="text-xs font-medium text-gray-800">{label}</div>
+                    </button>
+                  ))}
+                </div>
+              </section>
+
+              {/* مکان‌های حضوری */}
+              <section className="bg-white rounded-2xl border border-gray-100 p-5">
+                <div className="flex items-center justify-between mb-1">
+                  <h2 className="text-sm font-semibold text-gray-900">📍 مکان‌های جلسه‌ی حضوری</h2>
+                </div>
+                <p className="text-xs text-gray-400 mb-4">می‌توانید چند مطب/آدرس تعریف کنید.</p>
+                <div className="space-y-3">
+                  {settings.office_locations.map((loc, i) => (
+                    <div key={loc.id} className="border border-gray-100 rounded-xl p-3 bg-gray-50">
+                      <div className="flex items-center gap-2 mb-2">
+                        <input value={loc.title}
+                          onChange={e => {
+                            const next = [...settings.office_locations]; next[i] = { ...loc, title: e.target.value }
+                            patchSettings({ office_locations: next })
+                          }}
+                          placeholder="نامِ مطب (مثلاً مطب ولنجک)"
+                          className="flex-1 text-sm px-3 py-2 border border-gray-200 rounded-lg bg-white focus:outline-none focus:border-brand-400" />
+                        <button onClick={() => patchSettings({ office_locations: settings.office_locations.filter((_, j) => j !== i) })}
+                          className="text-xs px-2.5 py-2 border border-red-200 text-red-500 rounded-lg shrink-0 hover:bg-red-50">حذف</button>
+                      </div>
+                      <input value={loc.address}
+                        onChange={e => {
+                          const next = [...settings.office_locations]; next[i] = { ...loc, address: e.target.value }
+                          patchSettings({ office_locations: next })
+                        }}
+                        placeholder="آدرسِ کامل"
+                        className="w-full text-sm px-3 py-2 border border-gray-200 rounded-lg bg-white focus:outline-none focus:border-brand-400" />
+                    </div>
+                  ))}
+                </div>
+                <button onClick={() => patchSettings({ office_locations: [...settings.office_locations, { id: genId('loc'), title: '', address: '' }] })}
+                  className="mt-3 text-xs px-3 py-1.5 border border-brand-200 text-brand-600 rounded-lg hover:bg-brand-50">+ افزودنِ مکان</button>
+              </section>
+
+              {/* شماره کارت‌ها */}
+              <section className="bg-white rounded-2xl border border-gray-100 p-5">
+                <h2 className="text-sm font-semibold text-gray-900 mb-1">💳 شماره کارت‌های واریزی</h2>
+                <p className="text-xs text-gray-400 mb-4">این کارت‌ها در صفحه‌ی پرداختِ کارت‌به‌کارت به مراجع نمایش داده می‌شوند.</p>
+                <div className="space-y-3">
+                  {settings.cards.map((c, i) => (
+                    <div key={c.id} className="border border-gray-100 rounded-xl p-3 bg-gray-50 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <input value={c.number}
+                          onChange={e => {
+                            const next = [...settings.cards]; next[i] = { ...c, number: e.target.value }
+                            patchSettings({ cards: next })
+                          }}
+                          dir="ltr" placeholder="6037-9900-0000-0000"
+                          className="flex-1 text-sm px-3 py-2 border border-gray-200 rounded-lg bg-white font-mono tracking-wider focus:outline-none focus:border-brand-400" />
+                        <button onClick={() => patchSettings({ cards: settings.cards.filter((_, j) => j !== i) })}
+                          className="text-xs px-2.5 py-2 border border-red-200 text-red-500 rounded-lg shrink-0 hover:bg-red-50">حذف</button>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <input value={c.holder}
+                          onChange={e => {
+                            const next = [...settings.cards]; next[i] = { ...c, holder: e.target.value }
+                            patchSettings({ cards: next })
+                          }}
+                          placeholder="نامِ صاحبِ کارت"
+                          className="text-sm px-3 py-2 border border-gray-200 rounded-lg bg-white focus:outline-none focus:border-brand-400" />
+                        <input value={c.bank || ''}
+                          onChange={e => {
+                            const next = [...settings.cards]; next[i] = { ...c, bank: e.target.value }
+                            patchSettings({ cards: next })
+                          }}
+                          placeholder="نامِ بانک (اختیاری)"
+                          className="text-sm px-3 py-2 border border-gray-200 rounded-lg bg-white focus:outline-none focus:border-brand-400" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <button onClick={() => patchSettings({ cards: [...settings.cards, { id: genId('card'), number: '', holder: '' }] })}
+                  className="mt-3 text-xs px-3 py-1.5 border border-brand-200 text-brand-600 rounded-lg hover:bg-brand-50">+ افزودنِ کارت</button>
+              </section>
+
+              {/* نوارِ ذخیره (چسبیده به پایین) */}
+              <div className="fixed bottom-0 inset-x-0 z-30 bg-white/95 border-t border-gray-100 backdrop-blur">
+                <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-end gap-3">
+                  {settingsSaved && <span className="text-xs text-brand-600">✓ تنظیمات ذخیره شد</span>}
+                  <button onClick={saveSettings} disabled={settingsSaving}
+                    className="px-6 py-2.5 bg-brand-600 text-white rounded-xl text-sm font-medium disabled:opacity-40 hover:bg-brand-800 transition-colors">
+                    {settingsSaving ? 'در حال ذخیره...' : '💾 ذخیره‌ی تغییرات'}
+                  </button>
+                </div>
+              </div>
+            </>
+            )}
+          </div>
         )}
       </div>
 
-      {/* ── ناوبریِ پایینی ── */}
-      <nav className="fixed bottom-0 inset-x-0 bg-white border-t border-sand" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
-        <div className="max-w-md mx-auto grid grid-cols-5">
-          {([
-            ['home', '🏠', 'خانه'],
-            ['bookings', '📋', 'نوبت‌ها'],
-            ['records', '🗂', 'پرونده‌ها'],
-            ['calendar', '📅', 'تقویم'],
-            ['settings', '⚙️', 'تنظیمات'],
-          ] as [Tab, string, string][]).map(([k, icon, label]) => (
-            <button key={k} onClick={() => { setTab(k); if (k === 'settings') setSettingsView('menu') }}
-              className={`relative py-2.5 flex flex-col items-center gap-0.5 text-[11px]
-                ${tab === k ? 'text-ink font-bold' : 'text-soot'}`}>
-              <span className="text-lg leading-none">{icon}</span>
-              {label}
-              {k === 'bookings' && pendingCount > 0 && (
-                <span className="absolute top-1.5 left-1/2 -translate-x-4 min-w-4 h-4 px-1 rounded-full bg-red-500 text-white text-[9px] flex items-center justify-center tnum">
-                  {toFarsiNum(pendingCount)}
-                </span>
-              )}
-            </button>
-          ))}
+      {/* ── New Package Modal ──────────────────────────────────────────── */}
+      {showNewPackage && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-xl" dir="rtl">
+            <h2 className="font-semibold text-gray-900 mb-4">تعریف پروتکل درمانی جدید</h2>
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-gray-500 mb-1 block">ماه</label>
+                  <select value={newPkg.month} onChange={e => setNewPkg({...newPkg, month: e.target.value})}
+                    className="w-full text-sm px-3 py-2 border border-gray-200 rounded-lg bg-white">
+                    {PERSIAN_MONTHS.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 mb-1 block">سال</label>
+                  <input value={newPkg.year} onChange={e => setNewPkg({...newPkg, year: e.target.value})}
+                    className="w-full text-sm px-3 py-2 border border-gray-200 rounded-lg" placeholder="1404" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-gray-500 mb-1 block">تعداد جلسه کودک</label>
+                  <input type="number" value={newPkg.child_sessions} onChange={e => setNewPkg({...newPkg, child_sessions: parseInt(e.target.value)})}
+                    className="w-full text-sm px-3 py-2 border border-gray-200 rounded-lg" />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 mb-1 block">نوع جلسه کودک</label>
+                  <select value={newPkg.child_session_type} onChange={e => setNewPkg({...newPkg, child_session_type: e.target.value})}
+                    className="w-full text-sm px-3 py-2 border border-gray-200 rounded-lg bg-white">
+                    <option value="offline">حضوری — ۱,۲۰۰,۰۰۰</option>
+                    <option value="online">آنلاین — ۸۵۰,۰۰۰</option>
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-gray-500 mb-1 block">تعداد جلسه والدین</label>
+                  <input type="number" value={newPkg.parent_sessions} onChange={e => setNewPkg({...newPkg, parent_sessions: parseInt(e.target.value)})}
+                    className="w-full text-sm px-3 py-2 border border-gray-200 rounded-lg" />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 mb-1 block">نوع جلسه والدین</label>
+                  <select value={newPkg.parent_session_type} onChange={e => setNewPkg({...newPkg, parent_session_type: e.target.value})}
+                    className="w-full text-sm px-3 py-2 border border-gray-200 rounded-lg bg-white">
+                    <option value="offline">حضوری — ۱,۲۰۰,۰۰۰</option>
+                    <option value="online">آنلاین — ۸۵۰,۰۰۰</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 mb-1 block">توضیحات پروتکل درمان</label>
+                <textarea value={newPkg.notes} onChange={e => setNewPkg({...newPkg, notes: e.target.value})}
+                  rows={3} placeholder="پروتکل درمانی، اهداف کلی..."
+                  className="w-full text-sm px-3 py-2 border border-gray-200 rounded-lg resize-none" />
+              </div>
+              <div className="bg-brand-50 rounded-lg p-3 border border-brand-100">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">مجموع مبلغ پروتکل درمان:</span>
+                  <span className="font-semibold text-brand-600">
+                    {((newPkg.child_sessions * (newPkg.child_session_type === 'online' ? PRICING.sessionOnline : PRICING.sessionOffline)) +
+                      (newPkg.parent_sessions * (newPkg.parent_session_type === 'online' ? PRICING.sessionOnline : PRICING.sessionOffline))).toLocaleString('en-US')} تومان
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-2 mt-4">
+              <button onClick={() => setShowNewPackage(false)}
+                className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-500">انصراف</button>
+              <button onClick={createPackage}
+                className="flex-1 py-2.5 bg-brand-600 text-white rounded-xl text-sm font-medium">ثبت پروتکل درمان</button>
+            </div>
+          </div>
         </div>
-      </nav>
-    </main>
+      )}
+
+      {/* ── New Session Modal ──────────────────────────────────────────── */}
+      {showAddPatient && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50" onClick={e => { if (e.target === e.currentTarget) setShowAddPatient(false) }}>
+          <div className="bg-white rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto p-6 shadow-xl" dir="rtl">
+            <h2 className="font-semibold text-gray-900 mb-1">افزودنِ پرونده‌ی دستی</h2>
+            <p className="text-xs text-gray-400 mb-4">شماره‌ی پرونده خودکار ساخته می‌شود. این پرونده مستقیم در مرحله‌ی درمان قرار می‌گیرد.</p>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs text-gray-500 mb-1 block">نام کودک <span className="text-red-500">*</span></label>
+                <input value={newPatientForm.child_name} onChange={e => setNewPatientForm({ ...newPatientForm, child_name: e.target.value })}
+                  className="w-full text-sm px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:border-brand-400" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-gray-500 mb-1 block">تاریخ تولد</label>
+                  <input value={newPatientForm.birth_date} onChange={e => setNewPatientForm({ ...newPatientForm, birth_date: e.target.value })}
+                    placeholder="1395/03/12" className="w-full text-sm px-3 py-2 border border-gray-200 rounded-lg" />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 mb-1 block">پایه‌ی تحصیلی</label>
+                  <input value={newPatientForm.grade} onChange={e => setNewPatientForm({ ...newPatientForm, grade: e.target.value })}
+                    className="w-full text-sm px-3 py-2 border border-gray-200 rounded-lg" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-gray-500 mb-1 block">نام پدر</label>
+                  <input value={newPatientForm.father_name} onChange={e => setNewPatientForm({ ...newPatientForm, father_name: e.target.value })}
+                    className="w-full text-sm px-3 py-2 border border-gray-200 rounded-lg" />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 mb-1 block">موبایل پدر</label>
+                  <input value={newPatientForm.father_phone} onChange={e => setNewPatientForm({ ...newPatientForm, father_phone: e.target.value })}
+                    dir="ltr" placeholder="0912..." className="w-full text-sm px-3 py-2 border border-gray-200 rounded-lg" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-gray-500 mb-1 block">نام مادر</label>
+                  <input value={newPatientForm.mother_name} onChange={e => setNewPatientForm({ ...newPatientForm, mother_name: e.target.value })}
+                    className="w-full text-sm px-3 py-2 border border-gray-200 rounded-lg" />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 mb-1 block">موبایل مادر</label>
+                  <input value={newPatientForm.mother_phone} onChange={e => setNewPatientForm({ ...newPatientForm, mother_phone: e.target.value })}
+                    dir="ltr" placeholder="0912..." className="w-full text-sm px-3 py-2 border border-gray-200 rounded-lg" />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 mb-1 block">شکایت / علتِ مراجعه</label>
+                <textarea value={newPatientForm.reason} onChange={e => setNewPatientForm({ ...newPatientForm, reason: e.target.value })}
+                  rows={2} className="w-full text-sm px-3 py-2 border border-gray-200 rounded-lg resize-none" />
+              </div>
+              <p className="text-[11px] text-gray-400">حداقل یکی از شماره‌های تماس (پدر یا مادر) لازم است تا مراجع بتواند وارد پنل شود.</p>
+            </div>
+            <div className="flex gap-2 mt-4">
+              <button onClick={() => setShowAddPatient(false)}
+                className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-500">انصراف</button>
+              <button onClick={createPatient} disabled={addPatientSaving}
+                className="flex-1 py-2.5 bg-brand-600 text-white rounded-xl text-sm font-medium disabled:opacity-40">
+                {addPatientSaving ? 'در حال ثبت...' : 'ثبت پرونده'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showNewSession && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-xl" dir="rtl">
+            <h2 className="font-semibold text-gray-900 mb-4">ثبت جلسه جدید</h2>
+            <div className="space-y-3">
+              {/* نوعِ ثبت: پروتکل درمان یا جلسه‌ی جداگانه */}
+              <div className="flex bg-gray-100 rounded-xl p-1 gap-1">
+                {([[false, '📦 از پروتکل درمان'], [true, '🎯 جلسه‌ی جداگانه']] as const).map(([val, lbl]) => (
+                  <button key={String(val)} onClick={() => setNewSess({ ...newSess, standalone: val })}
+                    className={`flex-1 text-xs py-2 rounded-lg font-medium transition-all ${newSess.standalone === val ? 'bg-white text-brand-700 shadow-sm' : 'text-gray-500'}`}>
+                    {lbl}
+                  </button>
+                ))}
+              </div>
+
+              {!newSess.standalone ? (
+                <div>
+                  <label className="text-xs text-gray-500 mb-1 block">پروتکل درمان مربوطه</label>
+                  <select value={newSess.package_id} onChange={e => setNewSess({...newSess, package_id: e.target.value})}
+                    className="w-full text-sm px-3 py-2 border border-gray-200 rounded-lg bg-white">
+                    <option value="">انتخاب پروتکل درمان...</option>
+                    {packages.map(p => (
+                      <option key={p.id} value={p.id}>{PERSIAN_MONTHS[parseInt(p.month) - 1]} {p.year}</option>
+                    ))}
+                  </select>
+                </div>
+              ) : (
+                <p className="text-xs text-gray-400 bg-brand-50 border border-brand-100 rounded-lg p-2.5">
+                  جلسه‌ی جداگانه به هیچ پروتکل درمانی وصل نیست و مستقیم در پرونده‌ی این مراجع ثبت می‌شود.
+                </p>
+              )}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-gray-500 mb-1 block">تاریخ</label>
+                  <input value={newSess.session_date} onChange={e => setNewSess({...newSess, session_date: e.target.value})}
+                    placeholder="1404/04/15" className="w-full text-sm px-3 py-2 border border-gray-200 rounded-lg" />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 mb-1 block">ساعت</label>
+                  <input value={newSess.session_time} onChange={e => setNewSess({...newSess, session_time: e.target.value})}
+                    placeholder="10:00" className="w-full text-sm px-3 py-2 border border-gray-200 rounded-lg" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-gray-500 mb-1 block">نوع جلسه</label>
+                  <select value={newSess.session_type} onChange={e => setNewSess({...newSess, session_type: e.target.value})}
+                    className="w-full text-sm px-3 py-2 border border-gray-200 rounded-lg bg-white">
+                    <option value="offline">🏥 حضوری</option>
+                    <option value="online">🎥 آنلاین</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 mb-1 block">حضور</label>
+                  <select value={newSess.attendee} onChange={e => setNewSess({...newSess, attendee: e.target.value})}
+                    className="w-full text-sm px-3 py-2 border border-gray-200 rounded-lg bg-white">
+                    <option value="child">👧 کودک</option>
+                    <option value="parent">👨‍👩 والدین</option>
+                  </select>
+                </div>
+              </div>
+              {newSess.standalone && (
+                <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                  <input type="checkbox" checked={newSess.paid} onChange={e => setNewSess({ ...newSess, paid: e.target.checked })}
+                    className="w-4 h-4 accent-brand-600" />
+                  این جلسه پرداخت‌شده است (اگر تیک نزنی، مراجع باید در پنل پرداخت کند)
+                </label>
+              )}
+            </div>
+            <div className="flex gap-2 mt-4">
+              <button onClick={() => setShowNewSession(false)}
+                className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-500">انصراف</button>
+              <button onClick={createSession}
+                className="flex-1 py-2.5 bg-brand-600 text-white rounded-xl text-sm font-medium">ثبت جلسه</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Edit Session Modal ─────────────────────────────────────────── */}
+      {editSession && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto p-6 shadow-xl" dir="rtl">
+            <h2 className="font-semibold text-gray-900 mb-4">ویرایش جلسه — {editSession.session_date}</h2>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs text-gray-500 mb-1 block">اهداف جلسه</label>
+                <textarea value={sessForm.session_goals} onChange={e => setSessForm({...sessForm, session_goals: e.target.value})}
+                  rows={3} placeholder="اهداف این جلسه را بنویسید..."
+                  className="w-full text-sm px-3 py-2 border border-gray-200 rounded-lg resize-none" />
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 mb-1 block">شرح جلسه</label>
+                <textarea value={sessForm.session_summary} onChange={e => setSessForm({...sessForm, session_summary: e.target.value})}
+                  rows={4} placeholder="خلاصه و شرح جلسه..."
+                  className="w-full text-sm px-3 py-2 border border-gray-200 rounded-lg resize-none" />
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 mb-1 block">یادداشت خصوصی دکتر</label>
+                <textarea value={sessForm.doctor_notes_private} onChange={e => setSessForm({...sessForm, doctor_notes_private: e.target.value})}
+                  rows={3} placeholder="یادداشت خصوصی..."
+                  className="w-full text-sm px-3 py-2 border border-gray-200 rounded-lg resize-none bg-red-50 border-red-100" />
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 mb-1 block">یادداشت برای مراجع</label>
+                <textarea value={sessForm.doctor_note_for_patient} onChange={e => setSessForm({...sessForm, doctor_note_for_patient: e.target.value})}
+                  rows={3} placeholder="پیام یا تکلیف برای مراجع..."
+                  className="w-full text-sm px-3 py-2 border border-gray-200 rounded-lg resize-none bg-blue-50 border-blue-100" />
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 mb-1 block">وضعیت جلسه</label>
+                <select value={sessForm.status} onChange={e => setSessForm({...sessForm, status: e.target.value})}
+                  className="w-full text-sm px-3 py-2 border border-gray-200 rounded-lg bg-white">
+                  <option value="confirmed">تایید شده</option>
+                  <option value="completed">برگزار شده</option>
+                  <option value="cancelled">کنسل شده</option>
+                </select>
+              </div>
+            </div>
+            <div className="flex gap-2 mt-4">
+              <button onClick={() => setEditSession(null)}
+                className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-500">انصراف</button>
+              <button onClick={saveSession}
+                className="flex-1 py-2.5 bg-brand-600 text-white rounded-xl text-sm font-medium">💾 ذخیره</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   )
 }
 
-// ═══ اسکلتونِ لودینگ ═════════════════════════════════════════════
-function Skeleton() {
+// ─── Helper field components ──────────────────────────────────────────────────
+
+function Field({ label, value, onChange, placeholder, fullWidth }: {
+  label: string; value?: string; onChange: (v: string) => void; placeholder?: string; fullWidth?: boolean
+}) {
   return (
-    <main className="min-h-screen">
-      <div className="h-24 bg-sand animate-pulse" />
-      <div className="max-w-md mx-auto px-5 pt-5 space-y-3">
-        {[0, 1, 2].map(i => <div key={i} className="h-24 rounded-2xl bg-sand animate-pulse" />)}
-      </div>
-    </main>
+    <div className={fullWidth ? 'col-span-2' : ''}>
+      <label className="text-xs text-gray-500 mb-1 block">{label}</label>
+      <input value={value || ''} onChange={e => onChange(e.target.value)} placeholder={placeholder}
+        className="w-full text-sm px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:border-brand-400" />
+    </div>
   )
 }
 
-// ═══ ورود ════════════════════════════════════════════════════════
-function Login({ slug, onSuccess }: { slug: string; onSuccess: () => void }) {
-  const { uiAlert } = useDialog()
+function SelectField({ label, value, onChange, options }: {
+  label: string; value?: string; onChange: (v: string) => void; options: string[]
+}) {
+  return (
+    <div>
+      <label className="text-xs text-gray-500 mb-1 block">{label}</label>
+      <select value={value || ''} onChange={e => onChange(e.target.value)}
+        className="w-full text-sm px-3 py-2 border border-gray-200 rounded-lg bg-white focus:outline-none focus:border-brand-400">
+        <option value="">انتخاب کنید...</option>
+        {options.map(o => <option key={o} value={o}>{o}</option>)}
+      </select>
+    </div>
+  )
+}
+
+function TextareaField({ label, value, onChange, rows, placeholder }: {
+  label: string; value?: string; onChange: (v: string) => void; rows?: number; placeholder?: string
+}) {
+  return (
+    <div>
+      <label className="text-xs text-gray-500 mb-1 block">{label}</label>
+      <textarea value={value || ''} onChange={e => onChange(e.target.value)} rows={rows || 3} placeholder={placeholder}
+        className="w-full text-sm px-3 py-2 border border-gray-200 rounded-lg resize-none focus:outline-none focus:border-brand-400" />
+    </div>
+  )
+}
+// ─── ورودِ دکتر با OTP (جایگزینِ ADMIN_SECRET؛ کدِ پیامکی به موبایلِ صاحبِ پنل) ───
+function PanelLogin({ slug, onSuccess }: { slug: string; onSuccess: () => void }) {
   const [otpSent, setOtpSent] = useState(false)
   const [devCode, setDevCode] = useState('')
   const [code, setCode] = useState('')
   const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
 
-  async function sendOtp() {
-    setBusy(true)
-    const r = await api(`/api/t/${slug}/panel/login`, 'POST', {})
+  async function send() {
+    setBusy(true); setErr('')
+    const res = await fetch(`/api/t/${slug}/panel/login`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}),
+    })
+    const d = await res.json().catch(() => ({}))
     setBusy(false)
-    if (!r.ok) { uiAlert(r.data.error || 'خطا'); return }
-    setOtpSent(true); setDevCode(r.data.dev_code || '')
+    if (!res.ok) { setErr(d.error || 'خطا'); return }
+    setOtpSent(true); setDevCode(d.dev_code || '')
   }
   async function verify() {
-    setBusy(true)
-    const r = await api(`/api/t/${slug}/panel/login`, 'POST', { code })
+    setBusy(true); setErr('')
+    const res = await fetch(`/api/t/${slug}/panel/login`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code }),
+    })
+    const d = await res.json().catch(() => ({}))
     setBusy(false)
-    if (!r.ok) { uiAlert(r.data.error || 'کد نادرست است'); return }
+    if (!res.ok) { setErr(d.error || 'کد نادرست است'); return }
     onSuccess()
   }
 
   return (
-    <main className="min-h-screen flex items-center justify-center p-6">
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6" dir="rtl">
       <div className="w-full max-w-sm">
         <div className="text-center mb-6">
           <div className="text-4xl mb-3">🔐</div>
-          <h1 className="text-lg font-extrabold">ورود به پنلِ مدیریت</h1>
-          <p className="text-xs text-soot mt-1.5 leading-relaxed">
-            کدِ ورود به شماره‌ی موبایلِ ثبت‌شده‌ی صاحبِ این صفحه فرستاده می‌شود.
+          <h1 className="text-lg font-bold text-gray-900">ورود به پنلِ مدیریت</h1>
+          <p className="text-xs text-gray-500 mt-1.5 leading-relaxed">
+            کدِ ورود به شماره‌ی موبایلِ ثبت‌شده‌ی صاحبِ این پنل فرستاده می‌شود.
           </p>
         </div>
+        {err && <div className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg p-2.5 mb-3 text-center">{err}</div>}
         {!otpSent ? (
-          <button onClick={sendOtp} disabled={busy}
-            className="w-full py-3.5 rounded-2xl bg-ink text-white font-medium disabled:opacity-50">
-            {busy ? 'در حالِ ارسال…' : 'ارسالِ کدِ ورود'}
+          <button onClick={send} disabled={busy}
+            className="w-full py-3 rounded-xl bg-brand-600 text-white font-medium disabled:opacity-50">
+            {busy ? 'در حال ارسال…' : 'ارسالِ کدِ ورود'}
           </button>
         ) : (
           <div className="space-y-3">
             {devCode && (
-              <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-xl p-3 text-center">
-                کدِ تست (تا اتصالِ پیامک): <strong className="tnum text-base">{devCode}</strong>
+              <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-2.5 text-center">
+                کدِ تست (تا اتصالِ پیامک): <strong className="text-base">{devCode}</strong>
               </div>
             )}
             <input value={code} onChange={e => setCode(e.target.value)} dir="ltr" inputMode="numeric" autoFocus
-              placeholder="کدِ ۴ رقمی"
-              className="w-full p-3.5 rounded-2xl border border-sand bg-white text-lg tnum text-center tracking-widest" />
+              placeholder="کد ۴ رقمی"
+              className="w-full p-3 rounded-xl border border-gray-200 text-lg text-center tracking-widest focus:outline-none focus:border-brand-400" />
             <button onClick={verify} disabled={busy || code.trim().length < 4}
-              className="w-full py-3.5 rounded-2xl bg-ink text-white font-medium disabled:opacity-40">
+              className="w-full py-3 rounded-xl bg-brand-600 text-white font-medium disabled:opacity-40">
               ورود
             </button>
           </div>
         )}
       </div>
-    </main>
-  )
-}
-
-// ═══ تبِ خانه ════════════════════════════════════════════════════
-function HomeTab({ ov, goTo }: { ov: Overview; goTo: (t: Tab, sv?: SettingsView) => void }) {
-  const [copied, setCopied] = useState(false)
-  const [url, setUrl] = useState('')
-  useEffect(() => { setUrl(`${window.location.origin}/${ov.slug}`) }, [ov.slug])
-
-  const now = getCurrentJalali()
-  const todayKey = jalaliKey(now.year, now.month, now.day)
-  const today = ov.upcoming.filter(b => b.booking_date === todayKey && ['confirmed', 'payment_submitted'].includes(b.status))
-  const nextUp = ov.upcoming.filter(b => b.status === 'confirmed' && b.booking_date !== todayKey).slice(0, 3)
-
-  // چک‌لیستِ راه‌اندازی — تا کامل نشده، مهم‌ترین چیزِ صفحه است
-  const steps = [
-    { done: !!ov.profile.display_name && !!ov.profile.title, label: 'نام و عنوانِ خود را بنویسید', view: 'profile' as const },
-    { done: (ov.profile.card_number || '').length >= 16, label: 'شماره کارتِ دریافتِ وجه را ثبت کنید', view: 'profile' as const },
-    { done: ov.services.some(s => s.is_active), label: 'اولین سرویس را تعریف کنید', view: 'services' as const },
-    { done: ov.weekly.length > 0, label: 'ساعاتِ کاریِ هفته را مشخص کنید', view: 'schedule' as const },
-  ]
-  const remaining = steps.filter(s => !s.done)
-  const ready = remaining.length === 0
-
-  return (
-    <div className="space-y-4">
-      {/* چک‌لیست */}
-      {!ready && (
-        <section className="rounded-2xl border-2 border-ink bg-white p-4">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="font-extrabold text-sm">راه‌اندازیِ صفحه</h2>
-            <span className="text-[11px] text-soot tnum">{toFarsiNum(steps.length - remaining.length)} از {toFarsiNum(steps.length)}</span>
-          </div>
-          <div className="flex gap-1 mb-4">
-            {steps.map((s, i) => (
-              <div key={i} className={`h-1.5 flex-1 rounded-full ${s.done ? 'bg-accent' : 'bg-sand'}`} />
-            ))}
-          </div>
-          <div className="space-y-2">
-            {steps.map((s, i) => (
-              <button key={i} onClick={() => !s.done && goTo('settings', s.view)} disabled={s.done}
-                className={`w-full flex items-center gap-2.5 p-2.5 rounded-xl text-right text-sm
-                  ${s.done ? 'text-soot/50' : 'bg-paper active:bg-sand'}`}>
-                <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] shrink-0
-                  ${s.done ? 'bg-accent text-white' : 'border-2 border-sand'}`}>
-                  {s.done ? '✓' : ''}
-                </span>
-                <span className={s.done ? 'line-through' : 'font-medium'}>{s.label}</span>
-                {!s.done && <span className="mr-auto text-soot">‹</span>}
-              </button>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* پرداخت‌های منتظر */}
-      {ov.pending.length > 0 && (
-        <button onClick={() => goTo('bookings')}
-          className="w-full rounded-2xl bg-blue-600 text-white p-4 flex items-center justify-between text-right">
-          <span>
-            <span className="block font-bold text-sm">{toFarsiNum(ov.pending.length)} پرداخت منتظرِ تاییدِ شماست</span>
-            <span className="block text-xs opacity-80 mt-0.5">تا تایید نکنید نوبت قطعی نمی‌شود</span>
-          </span>
-          <span className="text-xl">‹</span>
-        </button>
-      )}
-
-      {/* امروز */}
-      <section className="rounded-2xl border border-sand bg-white p-4">
-        <h2 className="text-xs font-bold text-soot mb-3">امروز · {fmtDate(todayKey)}</h2>
-        {today.length === 0 ? (
-          <p className="text-sm text-soot">امروز نوبتی ندارید.</p>
-        ) : (
-          <div className="space-y-2.5">
-            {today.map(b => (
-              <div key={b.id} className="flex items-center gap-3">
-                <div className="w-14 py-1.5 rounded-lg bg-paper text-center text-sm font-bold tnum shrink-0">
-                  {toFarsiNum(b.booking_time)}
-                </div>
-                <div className="min-w-0">
-                  <div className="text-sm font-medium truncate">{b.client_name}</div>
-                  <div className="text-[11px] text-soot truncate">{b.services?.name}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
-
-      {/* نوبت‌های بعدی */}
-      {nextUp.length > 0 && (
-        <section className="rounded-2xl border border-sand bg-white p-4">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-xs font-bold text-soot">نوبت‌های قطعیِ بعدی</h2>
-            <button onClick={() => goTo('bookings')} className="text-[11px] text-soot underline underline-offset-4">همه</button>
-          </div>
-          <div className="space-y-2.5">
-            {nextUp.map(b => (
-              <div key={b.id} className="flex items-center gap-3">
-                <div className="w-20 py-1.5 rounded-lg bg-paper text-center text-[11px] font-bold shrink-0">
-                  {fmtDate(b.booking_date)}<br /><span className="tnum">{toFarsiNum(b.booking_time)}</span>
-                </div>
-                <div className="min-w-0">
-                  <div className="text-sm font-medium truncate">{b.client_name}</div>
-                  <div className="text-[11px] text-soot truncate">{b.services?.name}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* لینکِ من */}
-      <section className="rounded-2xl bg-ink text-white p-4">
-        <h2 className="text-xs font-bold opacity-70 mb-2">لینکِ صفحه‌ی شما</h2>
-        <div className="text-sm font-bold tnum break-all mb-3" dir="ltr">{url}</div>
-        <div className="flex gap-2">
-          <button onClick={async () => { await navigator.clipboard.writeText(url); setCopied(true); setTimeout(() => setCopied(false), 1500) }}
-            className="flex-1 py-2.5 rounded-xl bg-white text-ink text-xs font-bold">
-            {copied ? '✓ کپی شد' : 'کپیِ لینک'}
-          </button>
-          <a href={url} target="_blank" className="flex-1 py-2.5 rounded-xl border border-white/30 text-xs text-center">
-            دیدنِ صفحه
-          </a>
-        </div>
-        <p className="text-[11px] opacity-60 mt-3 leading-relaxed">این لینک را در بایوی اینستاگرام بگذارید — مراجعان از همین‌جا نوبت می‌گیرند.</p>
-      </section>
     </div>
   )
-}
-
-// ═══ کارتِ نوبت (مشترک) ══════════════════════════════════════════
-function BookingCard({ b, slug, reload, uiAlert, uiConfirm, showPayment = false }: {
-  b: Booking; slug: string; reload: () => void
-  uiAlert: (m: string) => Promise<void>; uiConfirm: (m: string) => Promise<boolean>
-  showPayment?: boolean
-}) {
-  const [busy, setBusy] = useState(false)
-
-  async function act(action: string, confirmMsg?: string) {
-    if (confirmMsg && !await uiConfirm(confirmMsg)) return
-    setBusy(true)
-    const r = await api(`/api/t/${slug}/panel/bookings`, 'PATCH', { id: b.id, action })
-    setBusy(false)
-    if (!r.ok) { uiAlert(r.data.error || 'انجام نشد'); return }
-    reload()
-  }
-
-  return (
-    <div className="rounded-2xl border border-sand bg-white p-4">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="font-bold text-sm">{b.client_name}</div>
-          <div className="mt-1 text-xs text-soot">
-            {b.services?.name} · {fmtDate(b.booking_date)} · <span className="tnum">{toFarsiNum(b.booking_time)}</span>
-          </div>
-          <a href={`tel:${b.client_phone}`} className="mt-0.5 inline-block text-xs text-soot tnum underline underline-offset-4" dir="ltr">
-            {toFarsiNum(b.client_phone)}
-          </a>
-          {b.client_note && <p className="mt-2 text-xs text-soot bg-paper rounded-lg p-2">{b.client_note}</p>}
-        </div>
-        <span className={`shrink-0 text-[11px] px-2.5 py-1 rounded-full border ${STATUS_STYLE[b.status] || ''}`}>
-          {BOOKING_STATUS_LABEL[b.status] || b.status}
-        </span>
-      </div>
-
-      {showPayment && (
-        <div className="mt-3 rounded-xl bg-paper p-2.5 text-xs">
-          <span className="text-soot">مبلغ: </span><strong className="tnum">{fmtPrice(b.price_snapshot)} تومان</strong>
-          {b.payment_ref && <><span className="text-soot"> · پیگیری: </span><strong className="tnum" dir="ltr">{toFarsiNum(b.payment_ref)}</strong></>}
-        </div>
-      )}
-
-      <div className="mt-3 flex gap-2">
-        {b.status === 'payment_submitted' && (
-          <>
-            <button onClick={() => act('confirm')} disabled={busy}
-              className="flex-1 py-2.5 rounded-xl bg-green-600 text-white text-xs font-bold disabled:opacity-50">✓ تاییدِ پرداخت</button>
-            <button onClick={() => act('reject', 'پرداخت رد شود؟ مراجع باید دوباره اعلامِ پرداخت کند.')} disabled={busy}
-              className="py-2.5 px-3 rounded-xl border border-red-200 text-red-600 text-xs disabled:opacity-50">رد</button>
-          </>
-        )}
-        {b.status === 'confirmed' && b.booking_ts <= Date.now() && (
-          <>
-            <button onClick={() => act('complete')} disabled={busy}
-              className="flex-1 py-2.5 rounded-xl bg-accent text-white text-xs disabled:opacity-50">برگزار شد</button>
-            <button onClick={() => act('no_show', 'به‌عنوانِ «حاضر نشد» ثبت شود؟')} disabled={busy}
-              className="flex-1 py-2.5 rounded-xl border border-sand text-soot text-xs disabled:opacity-50">حاضر نشد</button>
-          </>
-        )}
-        {['pending_payment', 'payment_submitted', 'confirmed'].includes(b.status) && (
-          <button onClick={() => act('cancel', `نوبتِ ${b.client_name} لغو شود؟`)} disabled={busy}
-            className="py-2.5 px-3 rounded-xl border border-sand text-soot text-xs disabled:opacity-50">لغو</button>
-        )}
-      </div>
-    </div>
-  )
-}
-
-// ═══ تبِ نوبت‌ها ═════════════════════════════════════════════════
-function BookingsTab({ ov, slug, reload, uiAlert, uiConfirm }: {
-  ov: Overview; slug: string; reload: () => void
-  uiAlert: (m: string) => Promise<void>; uiConfirm: (m: string) => Promise<boolean>
-}) {
-  const [seg, setSeg] = useState<'pending' | 'upcoming'>(ov.pending.length > 0 ? 'pending' : 'upcoming')
-  const upcoming = ov.upcoming.filter(b => b.booking_ts > Date.now() - 3600 * 1000)
-
-  return (
-    <div>
-      <div className="flex gap-1.5 mb-4 p-1 rounded-2xl bg-sand">
-        <button onClick={() => setSeg('pending')}
-          className={`flex-1 py-2 rounded-xl text-xs font-bold ${seg === 'pending' ? 'bg-white shadow-sm' : 'text-soot'}`}>
-          منتظرِ تایید {ov.pending.length > 0 && `(${toFarsiNum(ov.pending.length)})`}
-        </button>
-        <button onClick={() => setSeg('upcoming')}
-          className={`flex-1 py-2 rounded-xl text-xs font-bold ${seg === 'upcoming' ? 'bg-white shadow-sm' : 'text-soot'}`}>
-          پیشِ رو {upcoming.length > 0 && `(${toFarsiNum(upcoming.length)})`}
-        </button>
-      </div>
-
-      {seg === 'pending' && (
-        ov.pending.length === 0
-          ? <Empty icon="✓" text="پرداختِ منتظری نیست — همه‌چیز به‌روز است." />
-          : <div className="space-y-3">{ov.pending.map(b =>
-              <BookingCard key={b.id} b={b} slug={slug} reload={reload} uiAlert={uiAlert} uiConfirm={uiConfirm} showPayment />)}</div>
-      )}
-      {seg === 'upcoming' && (
-        upcoming.length === 0
-          ? <Empty icon="🗓" text="نوبتِ آینده‌ای ثبت نشده. لینکِ صفحه را در بایو بگذارید تا رزروها بیایند." />
-          : <div className="space-y-3">{upcoming.map(b =>
-              <BookingCard key={b.id} b={b} slug={slug} reload={reload} uiAlert={uiAlert} uiConfirm={uiConfirm} />)}</div>
-      )}
-    </div>
-  )
-}
-
-function Empty({ icon, text }: { icon: string; text: string }) {
-  return (
-    <div className="rounded-2xl border border-sand bg-white p-8 text-center">
-      <div className="text-3xl mb-2">{icon}</div>
-      <p className="text-xs text-soot leading-relaxed">{text}</p>
-    </div>
-  )
-}
-
-// ═══ تبِ تقویم ═══════════════════════════════════════════════════
-function CalendarTab({ ov, slug, reload, uiAlert, uiConfirm }: {
-  ov: Overview; slug: string; reload: () => void
-  uiAlert: (m: string) => Promise<void>; uiConfirm: (m: string) => Promise<boolean>
-}) {
-  const now = getCurrentJalali()
-  const [calY, setCalY] = useState(now.year)
-  const [calM, setCalM] = useState(now.month)
-  const [detail, setDetail] = useState<{ date: string; bookings: Booking[] } | null>(null)
-
-  // شمارِ نوبت‌های زنده‌ی هر روز از داده‌ی overview (بدونِ درخواستِ اضافه)
-  const countByDate = new Map<string, number>()
-  for (const b of ov.upcoming) countByDate.set(b.booking_date, (countByDate.get(b.booking_date) || 0) + 1)
-
-  async function openDay(dateStr: string) {
-    setDetail({ date: dateStr, bookings: [] })
-    const r = await api(`/api/t/${slug}/panel/bookings?date=${dateStr}`)
-    if (r.ok) setDetail({ date: dateStr, bookings: r.data.bookings || [] })
-  }
-
-  async function toggleClosed(dateStr: string) {
-    const dayOverrides = ov.overrides.filter(o => o.date === dateStr && o.type === 'closed')
-    const activeResources = ov.resources.filter(r => r.is_active)
-    if (dayOverrides.length > 0) {
-      // بازکردن: همه‌ی override های closed این روز حذف شوند
-      for (const ovr of dayOverrides) await api(`/api/t/${slug}/panel/schedule`, 'DELETE', { id: ovr.id })
-    } else {
-      if (!await uiConfirm('این روز برای رزروِ جدید بسته شود؟ نوبت‌های ثبت‌شده سرِ جایشان می‌مانند.')) return
-      // بستن برای همه‌ی منابع (کلِ روز تعطیل)
-      for (const res of activeResources) {
-        const r = await api(`/api/t/${slug}/panel/schedule`, 'POST', { resource_id: res.id, date: dateStr })
-        if (!r.ok) { uiAlert(r.data.error || 'انجام نشد'); return }
-      }
-    }
-    reload()
-  }
-
-  return (
-    <div>
-      <div className="rounded-2xl border border-sand bg-white p-4">
-        <MonthCalendar year={calY} month={calM}
-          onPrev={() => { if (calM === 1) { setCalM(12); setCalY(calY - 1) } else setCalM(calM - 1); setDetail(null) }}
-          onNext={() => { if (calM === 12) { setCalM(1); setCalY(calY + 1) } else setCalM(calM + 1); setDetail(null) }}
-          renderDay={day => {
-            const dateStr = jalaliKey(calY, calM, day)
-            const isClosed = ov.overrides.some(o => o.date === dateStr && o.type === 'closed')
-            const isPicked = detail?.date === dateStr
-            const count = countByDate.get(dateStr) || 0
-            const isToday = dateStr === jalaliKey(now.year, now.month, now.day)
-            return (
-              <button onClick={() => openDay(dateStr)}
-                className={`w-full aspect-square rounded-xl text-sm relative flex flex-col items-center justify-center
-                  ${isPicked ? 'bg-ink text-white font-bold'
-                    : isClosed ? 'bg-red-50 text-red-400'
-                    : isToday ? 'border-2 border-accent bg-white font-bold'
-                    : 'bg-paper'}`}>
-                {toFarsiNum(day)}
-                {count > 0 && !isPicked && (
-                  <span className="absolute bottom-1 w-1.5 h-1.5 rounded-full bg-accent" />
-                )}
-              </button>
-            )
-          }} />
-        <div className="mt-3 flex items-center gap-4 text-[10px] text-soot">
-          <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-accent inline-block" /> نوبت دارد</span>
-          <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-red-50 border border-red-200 inline-block" /> بسته</span>
-        </div>
-      </div>
-
-      {detail && (
-        <div className="mt-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-extrabold">{fmtDate(detail.date)}</h3>
-            <button onClick={() => toggleClosed(detail.date)}
-              className={`text-xs px-3.5 py-2 rounded-xl border font-medium
-                ${ov.overrides.some(o => o.date === detail.date && o.type === 'closed')
-                  ? 'border-green-200 text-green-700 bg-green-50'
-                  : 'border-red-200 text-red-600 bg-red-50'}`}>
-              {ov.overrides.some(o => o.date === detail.date && o.type === 'closed') ? 'بازکردنِ روز' : 'بستنِ روز'}
-            </button>
-          </div>
-          {detail.bookings.length === 0
-            ? <p className="text-xs text-soot">نوبتی در این روز نیست.</p>
-            : detail.bookings.map(b =>
-                <BookingCard key={b.id} b={b} slug={slug} reload={() => { reload(); openDay(detail.date) }}
-                  uiAlert={uiAlert} uiConfirm={uiConfirm} showPayment={b.status === 'payment_submitted'} />)}
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ═══ تبِ تنظیمات ═════════════════════════════════════════════════
-function SettingsTab({ ov, slug, reload, uiAlert, uiConfirm, view, setView }: {
-  ov: Overview; slug: string; reload: () => void
-  uiAlert: (m: string) => Promise<void>; uiConfirm: (m: string) => Promise<boolean>
-  view: SettingsView; setView: (v: SettingsView) => void
-}) {
-  if (view === 'menu') {
-    const items = [
-      { key: 'profile' as const, icon: '🎨', title: 'پروفایل و برند', sub: 'نام، معرفی، رنگ، شماره کارت' },
-      { key: 'services' as const, icon: '🧾', title: 'سرویس‌ها', sub: `${toFarsiNum(ov.services.filter(s => s.is_active).length)} سرویسِ فعال` },
-      { key: 'resources' as const, icon: '👥', title: `${ov.labels.resource}‌ها`, sub: `${toFarsiNum(ov.resources.filter(r => r.is_active).length)} نفرِ فعال` },
-      { key: 'schedule' as const, icon: '⏰', title: 'ساعاتِ کاری', sub: 'برنامه‌ی هفتگیِ رزرو' },
-    ]
-    return (
-      <div className="space-y-3">
-        {items.map(it => (
-          <button key={it.key} onClick={() => setView(it.key)}
-            className="w-full rounded-2xl border border-sand bg-white p-4 flex items-center gap-3 text-right active:bg-paper">
-            <span className="text-2xl">{it.icon}</span>
-            <span className="min-w-0">
-              <span className="block font-bold text-sm">{it.title}</span>
-              <span className="block text-[11px] text-soot mt-0.5">{it.sub}</span>
-            </span>
-            <span className="mr-auto text-soot">‹</span>
-          </button>
-        ))}
-      </div>
-    )
-  }
-
-  const back = (
-    <button onClick={() => setView('menu')} className="text-xs text-soot mb-4">‹ تنظیمات</button>
-  )
-
-  if (view === 'profile') return <div>{back}<ProfileForm ov={ov} slug={slug} reload={reload} uiAlert={uiAlert} /></div>
-  if (view === 'services') return <div>{back}<ServicesForm ov={ov} slug={slug} reload={reload} uiAlert={uiAlert} uiConfirm={uiConfirm} /></div>
-  if (view === 'resources') return <div>{back}<ResourcesForm ov={ov} slug={slug} reload={reload} uiAlert={uiAlert} uiConfirm={uiConfirm} /></div>
-  return <div>{back}<ScheduleForm ov={ov} slug={slug} reload={reload} uiAlert={uiAlert} /></div>
-}
-
-// ─── فرمِ پروفایل ─────────────────────────────────────────────────
-const inputCls = 'w-full p-3 rounded-xl border border-sand bg-white text-sm'
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label className="block">
-      <span className="block text-[11px] font-bold text-soot mb-1.5">{label}</span>
-      {children}
-    </label>
-  )
-}
-
-function ProfileForm({ ov, slug, reload, uiAlert }: {
-  ov: Overview; slug: string; reload: () => void; uiAlert: (m: string) => Promise<void>
-}) {
-  const [p, setP] = useState<Profile>({ ...ov.profile })
-  const [busy, setBusy] = useState(false)
-
-  async function save() {
-    setBusy(true)
-    const r = await api(`/api/t/${slug}/panel/profile`, 'PUT', p)
-    setBusy(false)
-    if (!r.ok) { uiAlert(r.data.error || 'ذخیره نشد'); return }
-    await uiAlert('پروفایل ذخیره شد ✓')
-    reload()
-  }
-
-  return (
-    <div className="space-y-4">
-      <Field label="نامِ نمایشی *">
-        <input value={p.display_name} onChange={e => setP({ ...p, display_name: e.target.value })} className={inputCls} />
-      </Field>
-      <Field label="عنوان (زیرِ اسم نمایش داده می‌شود)">
-        <input value={p.title} onChange={e => setP({ ...p, title: e.target.value })}
-          placeholder="مثلاً: مربیِ تغذیه و تناسبِ اندام" className={inputCls} />
-      </Field>
-      <Field label="معرفیِ کوتاه">
-        <textarea value={p.bio} onChange={e => setP({ ...p, bio: e.target.value })} rows={3} className={inputCls} />
-      </Field>
-      <Field label="لینکِ عکسِ پروفایل">
-        <input value={p.avatar_url || ''} onChange={e => setP({ ...p, avatar_url: e.target.value })} dir="ltr"
-          placeholder="https://…" className={inputCls} />
-      </Field>
-      <Field label="موقعیت">
-        <input value={p.location_text} onChange={e => setP({ ...p, location_text: e.target.value })}
-          placeholder="آنلاین / تهران، ونک" className={inputCls} />
-      </Field>
-      <Field label="آیدیِ اینستاگرام (بدونِ @)">
-        <input value={p.instagram_handle || ''} onChange={e => setP({ ...p, instagram_handle: e.target.value })}
-          dir="ltr" className={inputCls} />
-      </Field>
-
-      <div>
-        <span className="block text-[11px] font-bold text-soot mb-2">رنگِ برندِ صفحه</span>
-        <div className="flex gap-2.5 flex-wrap">
-          {THEME_PRESETS.map(t => (
-            <button key={t.rgb} onClick={() => setP({ ...p, theme_color: t.rgb })} title={t.name}
-              className={`w-10 h-10 rounded-full transition-transform ${p.theme_color === t.rgb ? 'ring-2 ring-offset-2 ring-ink scale-110' : ''}`}
-              style={{ backgroundColor: `rgb(${t.rgb})` }} />
-          ))}
-        </div>
-      </div>
-
-      <div className="pt-4 border-t border-sand space-y-4">
-        <div className="text-xs font-bold">دریافتِ وجه (کارت‌به‌کارت)</div>
-        <Field label="شماره‌ی کارتِ ۱۶ رقمی">
-          <input value={p.card_number} onChange={e => setP({ ...p, card_number: e.target.value })}
-            dir="ltr" inputMode="numeric" className={`${inputCls} tnum`} />
-        </Field>
-        <Field label="نامِ صاحبِ کارت">
-          <input value={p.card_holder_name} onChange={e => setP({ ...p, card_holder_name: e.target.value })} className={inputCls} />
-        </Field>
-      </div>
-
-      <button onClick={save} disabled={busy}
-        className="w-full py-3.5 rounded-2xl bg-ink text-white text-sm font-bold disabled:opacity-50">
-        {busy ? 'در حالِ ذخیره…' : 'ذخیره'}
-      </button>
-    </div>
-  )
-}
-
-// ─── فرمِ سرویس‌ها ────────────────────────────────────────────────
-type EditService = { id: string; name: string; duration_minutes: number; price: number; mode: string; description: string; is_active: boolean; sort_order: number }
-
-function ServicesForm({ ov, slug, reload, uiAlert, uiConfirm }: {
-  ov: Overview; slug: string; reload: () => void
-  uiAlert: (m: string) => Promise<void>; uiConfirm: (m: string) => Promise<boolean>
-}) {
-  const empty: EditService = { id: '', name: '', duration_minutes: 60, price: 0, mode: 'online', description: '', is_active: true, sort_order: 0 }
-  const active = ov.services.filter(s => s.is_active)
-  const [edit, setEdit] = useState<EditService | null>(active.length === 0 ? { ...empty } : null)
-  const [busy, setBusy] = useState(false)
-
-  async function save() {
-    if (!edit) return
-    if (!edit.name.trim()) { uiAlert('نامِ سرویس را بنویسید'); return }
-    setBusy(true)
-    const r = await api(`/api/t/${slug}/panel/services`, edit.id ? 'PATCH' : 'POST', edit)
-    setBusy(false)
-    if (!r.ok) { uiAlert(r.data.error || 'ذخیره نشد'); return }
-    setEdit(null); reload()
-  }
-
-  async function remove(s: Service) {
-    if (!await uiConfirm(`سرویسِ «${s.name}» حذف شود؟ رزروهای قبلی دست‌نخورده می‌مانند.`)) return
-    await api(`/api/t/${slug}/panel/services`, 'DELETE', { id: s.id })
-    reload()
-  }
-
-  return (
-    <div className="space-y-3">
-      {active.map(s => (
-        <div key={s.id} className="rounded-2xl border border-sand bg-white p-4">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <div className="font-bold text-sm">{s.name}</div>
-              <div className="mt-1 text-xs text-soot">
-                {toFarsiNum(s.duration_minutes)} دقیقه · {MODE_LABEL[s.mode]} · <span className="tnum">{fmtPrice(s.price)}</span> تومان
-              </div>
-            </div>
-            <div className="flex gap-1.5 shrink-0 text-xs">
-              <button onClick={() => setEdit({ ...s })} className="px-3 py-1.5 rounded-xl border border-sand text-soot">ویرایش</button>
-              <button onClick={() => remove(s)} className="px-3 py-1.5 rounded-xl border border-red-200 text-red-600">حذف</button>
-            </div>
-          </div>
-        </div>
-      ))}
-
-      {!edit && (
-        <button onClick={() => setEdit({ ...empty })}
-          className="w-full py-3.5 rounded-2xl border-2 border-dashed border-sand text-soot text-sm font-medium">
-          + سرویسِ جدید
-        </button>
-      )}
-
-      {edit && (
-        <div className="rounded-2xl border-2 border-ink bg-white p-4 space-y-3">
-          <div className="text-xs font-bold">{edit.id ? 'ویرایشِ سرویس' : 'سرویسِ جدید'}</div>
-          <input value={edit.name} onChange={e => setEdit({ ...edit, name: e.target.value })}
-            placeholder="نامِ سرویس — مثلاً: مشاوره‌ی فردی" className="w-full p-3 rounded-xl border border-sand text-sm" />
-          <div className="grid grid-cols-2 gap-2">
-            <label className="block">
-              <span className="block text-[10px] text-soot mb-1">مدت (دقیقه)</span>
-              <select value={edit.duration_minutes} onChange={e => setEdit({ ...edit, duration_minutes: parseInt(e.target.value) })}
-                className="w-full p-3 rounded-xl border border-sand bg-white text-sm">
-                {[15, 20, 30, 45, 60, 75, 90, 120].map(d => <option key={d} value={d}>{toFarsiNum(d)}</option>)}
-              </select>
-            </label>
-            <label className="block">
-              <span className="block text-[10px] text-soot mb-1">قیمت (تومان)</span>
-              <input value={edit.price || ''} onChange={e => setEdit({ ...edit, price: parseInt(toLatinNum(e.target.value).replace(/[^0-9]/g, '')) || 0 })}
-                dir="ltr" inputMode="numeric" placeholder="500000"
-                className="w-full p-3 rounded-xl border border-sand text-sm tnum" />
-            </label>
-          </div>
-          {edit.price > 0 && <div className="text-[11px] text-soot">= {fmtPrice(edit.price)} تومان</div>}
-          <div className="flex gap-1.5 text-xs">
-            {(['online', 'in_person', 'both'] as const).map(m => (
-              <button key={m} onClick={() => setEdit({ ...edit, mode: m })}
-                className={`flex-1 py-2.5 rounded-xl border font-medium ${edit.mode === m ? 'bg-ink text-white border-ink' : 'border-sand text-soot'}`}>
-                {MODE_LABEL[m]}
-              </button>
-            ))}
-          </div>
-          <textarea value={edit.description} onChange={e => setEdit({ ...edit, description: e.target.value })} rows={2}
-            placeholder="توضیح (اختیاری)" className="w-full p-3 rounded-xl border border-sand text-sm" />
-          <div className="flex gap-2">
-            <button onClick={save} disabled={busy}
-              className="flex-1 py-3 rounded-xl bg-ink text-white text-sm font-bold disabled:opacity-50">ذخیره</button>
-            <button onClick={() => setEdit(null)} className="px-4 py-3 rounded-xl border border-sand text-soot text-sm">انصراف</button>
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ─── فرمِ ساعاتِ کاری (به‌ازای هر منبع) ───────────────────────────
-function ScheduleForm({ ov, slug, reload, uiAlert }: {
-  ov: Overview; slug: string; reload: () => void; uiAlert: (m: string) => Promise<void>
-}) {
-  const activeResources = ov.resources.filter(r => r.is_active)
-  const [resourceId, setResourceId] = useState<string>(activeResources[0]?.id || '')
-  const [weekly, setWeekly] = useState<WeeklyRow[]>(
-    ov.weekly.filter(w => w.resource_id === (activeResources[0]?.id || ''))
-      .map(w => ({ ...w }))
-  )
-  const [busy, setBusy] = useState(false)
-
-  function switchResource(rid: string) {
-    setResourceId(rid)
-    setWeekly(ov.weekly.filter(w => w.resource_id === rid).map(w => ({ ...w })))
-  }
-
-  async function save() {
-    for (const r of weekly) {
-      if (timeKey(r.start_time) >= timeKey(r.end_time)) {
-        uiAlert(`بازه‌ی ${r.start_time} تا ${r.end_time} نامعتبر است — پایان باید بعد از شروع باشد.`)
-        return
-      }
-    }
-    setBusy(true)
-    const r = await api(`/api/t/${slug}/panel/schedule`, 'PUT', { resource_id: resourceId, weekly })
-    setBusy(false)
-    if (!r.ok) { uiAlert(r.data.error || 'ذخیره نشد'); return }
-    await uiAlert('ساعاتِ کاری ذخیره شد ✓')
-    reload()
-  }
-
-  const timeSelectCls = 'p-2.5 rounded-xl border border-sand bg-white text-xs tnum'
-  const addRange = (wd: number) => setWeekly([...weekly, { resource_id: resourceId, weekday: wd, start_time: '09:00', end_time: '13:00', mode: 'both' }])
-
-  return (
-    <div className="space-y-3">
-      {/* انتخابِ منبع — فقط اگر چند نفر باشند */}
-      {activeResources.length > 1 && (
-        <div className="mb-1">
-          <div className="text-[11px] font-bold text-soot mb-2">ساعاتِ کاریِ کدام {ov.labels.resource}؟</div>
-          <div className="flex gap-2 flex-wrap">
-            {activeResources.map(r => (
-              <button key={r.id} onClick={() => switchResource(r.id)}
-                className={`px-3.5 py-2 rounded-xl text-xs border ${resourceId === r.id ? 'bg-ink text-white border-ink font-bold' : 'bg-white border-sand text-soot'}`}>
-                {r.name}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-      <p className="text-[11px] text-soot leading-relaxed">
-        برای هر روز بازه‌های کاری را مشخص کنید — ساعت‌های قابلِ رزرو از همین‌ها ساخته می‌شوند.
-      </p>
-      {PERSIAN_WEEKDAYS_FULL.map((dayName, wd) => {
-        const rows = weekly.map((r, idx) => ({ ...r, idx })).filter(r => r.weekday === wd)
-        return (
-          <div key={wd} className={`rounded-2xl border bg-white p-3.5 ${rows.length ? 'border-sand' : 'border-sand/60'}`}>
-            <div className="flex items-center justify-between mb-1.5">
-              <span className={`text-sm font-bold ${rows.length ? '' : 'text-soot/60'}`}>{dayName}</span>
-              <button onClick={() => addRange(wd)}
-                className="text-[11px] px-3 py-1.5 rounded-lg bg-paper text-soot font-medium">+ بازه</button>
-            </div>
-            {rows.length === 0 && <div className="text-[11px] text-soot/60">تعطیل</div>}
-            {rows.map(r => (
-              <div key={r.idx} className="flex items-center gap-1.5 mt-2">
-                <select value={r.start_time} onChange={e => setWeekly(weekly.map((w, i) => i === r.idx ? { ...w, start_time: e.target.value } : w))}
-                  className={timeSelectCls}>
-                  {TIME_OPTIONS.map(t => <option key={t} value={t}>{toFarsiNum(t)}</option>)}
-                </select>
-                <span className="text-[11px] text-soot">تا</span>
-                <select value={r.end_time} onChange={e => setWeekly(weekly.map((w, i) => i === r.idx ? { ...w, end_time: e.target.value } : w))}
-                  className={timeSelectCls}>
-                  {TIME_OPTIONS.map(t => <option key={t} value={t}>{toFarsiNum(t)}</option>)}
-                </select>
-                <select value={r.mode} onChange={e => setWeekly(weekly.map((w, i) => i === r.idx ? { ...w, mode: e.target.value } : w))}
-                  className="flex-1 min-w-0 p-2.5 rounded-xl border border-sand bg-white text-xs">
-                  <option value="both">هر دو</option>
-                  <option value="online">آنلاین</option>
-                  <option value="in_person">حضوری</option>
-                </select>
-                <button onClick={() => setWeekly(weekly.filter((_, i) => i !== r.idx))}
-                  className="w-9 h-9 rounded-xl border border-red-200 text-red-500 shrink-0">✕</button>
-              </div>
-            ))}
-          </div>
-        )
-      })}
-      <button onClick={save} disabled={busy || !resourceId}
-        className="w-full py-3.5 rounded-2xl bg-ink text-white text-sm font-bold disabled:opacity-50">
-        {busy ? 'در حالِ ذخیره…' : 'ذخیره‌ی ساعاتِ کاری'}
-      </button>
-    </div>
-  )
-}
-
-// ═══ تبِ پرونده‌ها ═══════════════════════════════════════════════
-// جست‌وجو با شماره → نمایش/ویرایشِ پرونده با فیلدهای نیچ + تاریخچه‌ی نوبت‌ها
-function RecordsTab({ ov, slug, uiAlert }: {
-  ov: Overview; slug: string; uiAlert: (m: string) => Promise<void>
-}) {
-  const [phone, setPhone] = useState('')
-  const [loaded, setLoaded] = useState<{ record: any; history: any[] } | null>(null)
-  const [name, setName] = useState('')
-  const [data, setData] = useState<Record<string, string>>({})
-  const [busy, setBusy] = useState(false)
-
-  async function search() {
-    const p = toLatinNum(phone).replace(/[^0-9]/g, '')
-    if (!/^09\d{9}$/.test(p)) { uiAlert('شماره‌ی موبایل را درست وارد کنید'); return }
-    setBusy(true)
-    const r = await api(`/api/t/${slug}/panel/records?phone=${p}`)
-    setBusy(false)
-    if (!r.ok) { uiAlert(r.data.error || 'خطا'); return }
-    setLoaded({ record: r.data.record, history: r.data.history || [] })
-    setName(r.data.record?.client_name || '')
-    setData(r.data.record?.data || {})
-  }
-
-  async function save() {
-    const p = toLatinNum(phone).replace(/[^0-9]/g, '')
-    setBusy(true)
-    const r = await api(`/api/t/${slug}/panel/records`, 'PUT', { phone: p, name, data })
-    setBusy(false)
-    if (!r.ok) { uiAlert(r.data.error || 'ذخیره نشد'); return }
-    await uiAlert('پرونده ذخیره شد ✓')
-  }
-
-  return (
-    <div className="space-y-4">
-      <div>
-        <div className="text-xs font-bold text-soot mb-2">جست‌وجوی پرونده‌ی {ov.labels.client}</div>
-        <div className="flex gap-2">
-          <input value={phone} onChange={e => setPhone(e.target.value)} dir="ltr" inputMode="tel"
-            placeholder="09…" className="flex-1 p-3 rounded-xl border border-sand bg-white text-sm tnum" />
-          <button onClick={search} disabled={busy}
-            className="px-5 rounded-xl bg-ink text-white text-sm font-medium disabled:opacity-50">جست‌وجو</button>
-        </div>
-      </div>
-
-      {loaded && (
-        <>
-          {!loaded.record && (
-            <p className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-xl p-3">
-              پرونده‌ای برای این شماره نیست؛ می‌توانید همین‌جا بسازید.
-            </p>
-          )}
-          <div className="rounded-2xl border border-sand bg-white p-4 space-y-3">
-            <Field label={`نامِ ${ov.labels.client}`}>
-              <input value={name} onChange={e => setName(e.target.value)} className={inputCls} />
-            </Field>
-            {ov.record_fields.map(f => (
-              <Field key={f.key} label={f.label}>
-                {f.type === 'textarea'
-                  ? <textarea value={data[f.key] || ''} onChange={e => setData({ ...data, [f.key]: e.target.value })} rows={2} className={inputCls} />
-                  : <input type={f.type === 'number' ? 'text' : 'text'} inputMode={f.type === 'number' ? 'numeric' : undefined}
-                      value={data[f.key] || ''} onChange={e => setData({ ...data, [f.key]: e.target.value })} className={inputCls} />}
-              </Field>
-            ))}
-            <button onClick={save} disabled={busy}
-              className="w-full py-3 rounded-2xl bg-ink text-white text-sm font-bold disabled:opacity-50">ذخیره‌ی پرونده</button>
-          </div>
-
-          {loaded.history.length > 0 && (
-            <div className="rounded-2xl border border-sand bg-white p-4">
-              <div className="text-xs font-bold text-soot mb-3">تاریخچه‌ی {ov.labels.booking}‌ها</div>
-              <div className="space-y-2">
-                {loaded.history.map((h: any) => (
-                  <div key={h.id} className="flex items-center justify-between text-xs">
-                    <span>{h.services?.name} · {fmtDate(h.booking_date)} · <span className="tnum">{toFarsiNum(h.booking_time)}</span></span>
-                    <span className="text-soot">{BOOKING_STATUS_LABEL[h.status] || h.status}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </>
-      )}
-    </div>
-  )
-}
-
-// ─── فرمِ منابع (پرسنل) ───────────────────────────────────────────
-function ResourcesForm({ ov, slug, reload, uiAlert, uiConfirm }: {
-  ov: Overview; slug: string; reload: () => void
-  uiAlert: (m: string) => Promise<void>; uiConfirm: (m: string) => Promise<boolean>
-}) {
-  const empty = { id: '', name: '', title: '', avatar_url: '', is_selectable: true, is_active: true, sort_order: 0 }
-  const active = ov.resources.filter(r => r.is_active)
-  const [edit, setEdit] = useState<typeof empty | null>(null)
-  const [busy, setBusy] = useState(false)
-
-  async function save() {
-    if (!edit) return
-    if (!edit.name.trim()) { uiAlert('نام لازم است'); return }
-    setBusy(true)
-    const r = await api(`/api/t/${slug}/panel/resources`, edit.id ? 'PATCH' : 'POST', edit)
-    setBusy(false)
-    if (!r.ok) { uiAlert(r.data.error || 'ذخیره نشد'); return }
-    setEdit(null); reload()
-  }
-
-  async function remove(r: Resource) {
-    if (!await uiConfirm(`«${r.name}» حذف شود؟ رزروهای قبلی دست‌نخورده می‌مانند.`)) return
-    const res = await api(`/api/t/${slug}/panel/resources`, 'DELETE', { id: r.id })
-    if (!res.ok) { uiAlert(res.data.error || 'حذف نشد'); return }
-    reload()
-  }
-
-  return (
-    <div className="space-y-3">
-      <p className="text-[11px] text-soot leading-relaxed">
-        هر {ov.labels.resource} برنامه‌ی کاریِ جداگانه دارد. {ov.labels.client} می‌تواند هنگامِ رزرو یکی را انتخاب کند.
-      </p>
-      {active.map(r => (
-        <div key={r.id} className="rounded-2xl border border-sand bg-white p-4 flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <div className="font-bold text-sm">{r.name}</div>
-            {r.title && <div className="mt-0.5 text-xs text-soot">{r.title}</div>}
-            {!r.is_selectable && <div className="mt-1 text-[10px] text-soot">فقط تخصیصِ خودکار (قابلِ انتخاب توسطِ {ov.labels.client} نیست)</div>}
-          </div>
-          <div className="flex gap-1.5 shrink-0 text-xs">
-            <button onClick={() => setEdit({ ...r, avatar_url: r.avatar_url || '' })} className="px-3 py-1.5 rounded-xl border border-sand text-soot">ویرایش</button>
-            <button onClick={() => remove(r)} className="px-3 py-1.5 rounded-xl border border-red-200 text-red-600">حذف</button>
-          </div>
-        </div>
-      ))}
-
-      {!edit && (
-        <button onClick={() => setEdit({ ...empty })}
-          className="w-full py-3.5 rounded-2xl border-2 border-dashed border-sand text-soot text-sm font-medium">
-          + {ov.labels.resource}ِ جدید
-        </button>
-      )}
-
-      {edit && (
-        <div className="rounded-2xl border-2 border-ink bg-white p-4 space-y-3">
-          <div className="text-xs font-bold">{edit.id ? 'ویرایش' : `${ov.labels.resource}ِ جدید`}</div>
-          <input value={edit.name} onChange={e => setEdit({ ...edit, name: e.target.value })}
-            placeholder="نام" className="w-full p-3 rounded-xl border border-sand text-sm" />
-          <input value={edit.title} onChange={e => setEdit({ ...edit, title: e.target.value })}
-            placeholder="تخصص / عنوان (اختیاری)" className="w-full p-3 rounded-xl border border-sand text-sm" />
-          <label className="flex items-center gap-2.5 text-sm cursor-pointer">
-            <input type="checkbox" checked={edit.is_selectable}
-              onChange={e => setEdit({ ...edit, is_selectable: e.target.checked })} className="w-4 h-4" />
-            <span>{ov.labels.client} بتواند این {ov.labels.resource} را مستقیم انتخاب کند</span>
-          </label>
-          <div className="flex gap-2">
-            <button onClick={save} disabled={busy}
-              className="flex-1 py-3 rounded-xl bg-ink text-white text-sm font-bold disabled:opacity-50">ذخیره</button>
-            <button onClick={() => setEdit(null)} className="px-4 py-3 rounded-xl border border-sand text-soot text-sm">انصراف</button>
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
-export default function Page() {
-  return <DialogProvider><Panel /></DialogProvider>
 }

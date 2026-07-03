@@ -24,3 +24,7 @@ export const MODE_LABEL: Record<string, string> = {
   in_person: 'حضوری',
   both: 'آنلاین یا حضوری',
 }
+
+// ── قیمت‌گذاریِ نیچِ روانشناسی (سازگاری با پنلِ منتقل‌شده) ──────
+// منبعِ اصلی PSY_PRICING در psy.ts است؛ این‌جا برای importهای قدیمیِ پنل می‌آید.
+export { PSY_PRICING as PRICING, PSY_CANCEL as CANCEL, PSY_BOOKING as BOOKING } from './psy'
