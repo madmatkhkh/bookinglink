@@ -251,3 +251,135 @@ insert into niches (key, display_name, tagline, icon, client_label, resource_lab
   ]'::jsonb,
   0, 2
 );
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- بخش ۹ — جدول‌های تخصصیِ نیچِ روانشناسی (از psych-booking، حالا multi-tenant)
+--
+-- این‌ها فقط برای tenantهای نیچِ روانشناسی استفاده می‌شوند. نیچ‌های دیگر
+-- (سالن و…) این جدول‌ها را نادیده می‌گیرند و از جدول‌های عمومیِ بالا استفاده
+-- می‌کنند. اصلِ «ساختار=کد، محتوا=دیتا» حفظ می‌شود: این‌ها ساختارِ خاصِ فلوی
+-- سه‌مرحله‌ای روانشناسیِ کودک‌اند که یک نیچ به آن نیاز دارد.
+-- ═══════════════════════════════════════════════════════════════════════════
+
+-- ── پرونده و رزروِ تخصصیِ روانشناسی ─────────────────────────────────────────
+-- معادلِ bookings در psych-booking، ولی با tenant_id. کلیدِ منطقی: case_number
+-- (یکتا در هر tenant). فلوی سه‌مرحله‌ای روی flow_status.
+create table psy_cases (
+  id uuid primary key default uuid_generate_v4(),
+  tenant_id uuid not null references tenants(id) on delete cascade,
+  case_number text not null,
+  -- هویتِ کودک و خانواده (پرونده‌ی کامل؛ فرمِ مصاحبه این‌ها را پر می‌کند)
+  child_name text not null default '',
+  child_name_en text,
+  birth_date text,
+  parent_name text,
+  phone text,
+  father_name text, father_phone text,
+  mother_name text, mother_phone text,
+  reason text,
+  session_type text,           -- 'online' | 'offline'
+  office_location text,
+  -- کلِ فیلدهای تفصیلیِ پرونده در یک jsonb (تا افزودن/حذفِ فیلد نیازی به migration نداشته باشد)
+  -- فرمِ مصاحبه و تبِ پرونده می‌توانند این را برای نیچ‌های مختلف (کودک/بزرگسال) متفاوت پر کنند.
+  details jsonb not null default '{}',
+  -- فلوی سه‌مرحله‌ای
+  flow_status text not null default 'interview_awaiting_payment',
+  reject_reason text,
+  -- مرحله‌ی ۱: مصاحبه
+  interview_date text, interview_time text,
+  interview_paid boolean default false,
+  interview_payment_ref text,
+  interview_payment_submitted boolean default false,
+  interview_price bigint default 0,
+  interview_held boolean default false,
+  interview_notes text,
+  -- مرحله‌ی ۲: ارزیابی
+  assessment_date text, assessment_time text,
+  assessment_paid boolean default false,
+  assessment_payment_ref text,
+  assessment_payment_submitted boolean default false,
+  assessment_price bigint default 0,
+  assessment_held boolean default false,
+  assessment_notes text,
+  -- یادداشتِ کلیِ دکتر
+  doctor_notes text,
+  status text not null default 'pending',
+  created_at timestamptz not null default now(),
+  unique (tenant_id, case_number)
+);
+create index on psy_cases (tenant_id);
+create index on psy_cases (tenant_id, flow_status);
+create index on psy_cases (tenant_id, phone);
+
+-- ── جلسه‌های پروتکلِ درمان (مرحله‌ی ۳) ──────────────────────────────────────
+create table psy_sessions (
+  id uuid primary key default uuid_generate_v4(),
+  tenant_id uuid not null references tenants(id) on delete cascade,
+  case_number text not null,
+  session_number int not null default 1,
+  session_date text not null default '',
+  session_time text not null default '',
+  session_type text,           -- 'online' | 'offline'
+  attendee text,               -- چه کسی حاضر می‌شود
+  price bigint default 0,
+  paid boolean default false,
+  payment_submitted boolean default false,
+  payment_ref text,
+  status text not null default 'confirmed',
+  -- کنسلی و بازپرداخت
+  refund_status text,          -- null | 'pending' | 'done'
+  refund_amount bigint default 0,
+  notes text,
+  created_at timestamptz not null default now()
+);
+create index on psy_sessions (tenant_id, case_number);
+create index on psy_sessions (tenant_id, session_date);
+
+-- ── پکیج‌های درمان ──────────────────────────────────────────────────────────
+create table psy_packages (
+  id uuid primary key default uuid_generate_v4(),
+  tenant_id uuid not null references tenants(id) on delete cascade,
+  case_number text not null,
+  title text not null default '',
+  session_count int not null default 1,
+  price bigint not null default 0,
+  paid boolean default false,
+  payment_submitted boolean default false,
+  payment_ref text,
+  notes text,
+  created_at timestamptz not null default now()
+);
+create index on psy_packages (tenant_id, case_number);
+
+-- ── تنظیماتِ کلینیک (معادلِ clinic_settings، حالا per-tenant) ───────────────
+-- تک‌ردیف به‌ازای هر tenant روانشناسی. session_modes/آدرس‌ها/کارت‌ها.
+create table psy_clinic_settings (
+  tenant_id uuid primary key references tenants(id) on delete cascade,
+  doctor_name text not null default '',
+  doctor_title text not null default '',
+  avatar_url text not null default '',
+  badges jsonb not null default '[]',
+  session_modes text not null default 'both',  -- 'both' | 'online' | 'offline'
+  office_locations jsonb not null default '[]',
+  cards jsonb not null default '[]',
+  updated_at timestamptz not null default now()
+);
+
+-- ── برنامه‌ی کاریِ روانشناسی (روزمحور، سبکِ psych-booking) ──────────────────
+-- psych-booking برنامه را روزبه‌روز نگه می‌دارد (نه الگوی هفتگی). همان مدل حفظ شد.
+create table psy_schedules (
+  id uuid primary key default uuid_generate_v4(),
+  tenant_id uuid not null references tenants(id) on delete cascade,
+  date text not null,           -- '1405/04/15'
+  available_times jsonb not null default '[]',
+  is_off boolean not null default false,
+  created_at timestamptz not null default now(),
+  unique (tenant_id, date)
+);
+create index on psy_schedules (tenant_id);
+
+alter table psy_cases enable row level security;
+alter table psy_sessions enable row level security;
+alter table psy_packages enable row level security;
+alter table psy_clinic_settings enable row level security;
+alter table psy_schedules enable row level security;
