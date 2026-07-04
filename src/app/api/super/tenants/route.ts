@@ -63,6 +63,16 @@ export async function POST(req: NextRequest) {
       }))
     )
   }
+  // نیچِ روانشناسی: تنظیماتِ کلینیک با badgeِ نمونه (قابلِ ویرایش از پنل → تنظیمات)
+  if (nicheKey === 'psychology') {
+    await sb().from('psy_clinic_settings').insert({
+      tenant_id: tenant.id,
+      doctor_name: displayName || '',
+      doctor_title: '',
+      badges: ['📍 شهر و منطقه‌ی خودتان', '⏱ پاسخ در ۲ ساعت', '⭐ ۴.۹ از ۵'],
+      session_modes: 'both',
+    })
+  }
   return NextResponse.json({ tenant })
 }
 
