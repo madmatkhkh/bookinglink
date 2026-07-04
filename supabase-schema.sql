@@ -311,11 +311,37 @@ create index on psy_cases (tenant_id);
 create index on psy_cases (tenant_id, flow_status);
 create index on psy_cases (tenant_id, phone);
 
+-- ── پکیج‌های درمان ──────────────────────────────────────────────────────────
+create table psy_packages (
+  id uuid primary key default uuid_generate_v4(),
+  tenant_id uuid not null references tenants(id) on delete cascade,
+  case_number text not null,
+  title text not null default '',
+  month text, year text,  -- دوره‌ی تعلق‌گرفتنِ پکیج (مثلاً ماهِ ۴ سالِ ۱۴۰۵)
+  -- جلسه‌های کودک و والدین جدا شمرده و قیمت‌گذاری می‌شوند
+  child_sessions int not null default 0,
+  child_session_type text default 'offline',   -- 'online' | 'offline'
+  parent_sessions int not null default 0,
+  parent_session_type text default 'offline',
+  price bigint not null default 0,
+  paid boolean default false,
+  payment_submitted boolean default false,
+  payment_ref text,
+  status text not null default 'pending',
+  notes text,
+  created_at timestamptz not null default now()
+);
+create index on psy_packages (tenant_id, case_number);
+
+-- ستون‌های نوعِ اسلات روی برنامه‌ی روزانه (آنلاین/حضوری و مطبِ هر ساعت)
+-- در psy_schedules پایین به‌صورت jsonb نگه داشته می‌شوند.
+
 -- ── جلسه‌های پروتکلِ درمان (مرحله‌ی ۳) ──────────────────────────────────────
 create table psy_sessions (
   id uuid primary key default uuid_generate_v4(),
   tenant_id uuid not null references tenants(id) on delete cascade,
   case_number text not null,
+  package_id uuid references psy_packages(id) on delete set null,
   session_number int not null default 1,
   session_date text not null default '',
   session_time text not null default '',
@@ -326,38 +352,17 @@ create table psy_sessions (
   payment_submitted boolean default false,
   payment_ref text,
   status text not null default 'confirmed',
+  doctor_note_for_patient text, -- یادداشتی که دکتر برای مراجع می‌گذارد (قابلِ‌رویتِ او)
   -- کنسلی و بازپرداخت
   refund_status text,          -- null | 'pending' | 'done'
   refund_percent int default 0,-- درصدی که به مراجع برمی‌گردد
   refund_amount bigint default 0,
+  refund_card text,            -- شماره‌کارتی که مراجع برای بازپرداخت داده
   notes text,
   created_at timestamptz not null default now()
 );
 create index on psy_sessions (tenant_id, case_number);
 create index on psy_sessions (tenant_id, session_date);
-
--- ── پکیج‌های درمان ──────────────────────────────────────────────────────────
-create table psy_packages (
-  id uuid primary key default uuid_generate_v4(),
-  tenant_id uuid not null references tenants(id) on delete cascade,
-  case_number text not null,
-  title text not null default '',
-  -- جلسه‌های کودک و والدین جدا شمرده و قیمت‌گذاری می‌شوند
-  child_sessions int not null default 0,
-  child_session_type text default 'offline',   -- 'online' | 'offline'
-  parent_sessions int not null default 0,
-  parent_session_type text default 'offline',
-  price bigint not null default 0,
-  paid boolean default false,
-  payment_submitted boolean default false,
-  payment_ref text,
-  notes text,
-  created_at timestamptz not null default now()
-);
-create index on psy_packages (tenant_id, case_number);
-
--- ستون‌های نوعِ اسلات روی برنامه‌ی روزانه (آنلاین/حضوری و مطبِ هر ساعت)
--- در psy_schedules پایین به‌صورت jsonb نگه داشته می‌شوند.
 
 -- ── تنظیماتِ کلینیک (معادلِ clinic_settings، حالا per-tenant) ───────────────
 -- تک‌ردیف به‌ازای هر tenant روانشناسی. session_modes/آدرس‌ها/کارت‌ها.
