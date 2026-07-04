@@ -68,5 +68,8 @@ export async function getClinicSettings(tenantId: string): Promise<ClinicSetting
   }
 }
 
+// کلیدهای ماژول‌هایی که مراجع در پنلِ خودش می‌بیند — پیش‌فرض همه روشن
+export const PATIENT_FEATURE_KEYS = ['patient_buy_extra_session', 'patient_self_cancel'] as const
+
 export const onlineAvailable = (m: SessionMode) => m === 'both' || m === 'online'
 export const offlineAvailable = (m: SessionMode) => m === 'both' || m === 'offline'

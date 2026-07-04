@@ -21,7 +21,22 @@ export function usePublicClinic(slug: string): ClinicSettings & { loaded: boolea
   return state
 }
 
-// نمایشِ شماره‌کارت‌ها برای واریزی + دکمه‌ی کپی
+// هوک: ماژول‌های فعال/غیرفعالِ پنلِ مراجع (خریدِ جلسه‌ی جبرانی، کنسلِ خودکار و...)
+export function usePatientFeatures(slug: string): Record<string, boolean> {
+  const [flags, setFlags] = useState<Record<string, boolean>>({
+    patient_buy_extra_session: true, patient_self_cancel: true,
+  })
+  useEffect(() => {
+    let alive = true
+    fetch(`/api/t/${slug}/psy/public`, { cache: 'no-store' })
+      .then(r => r.json())
+      .then(d => { if (alive && d.features) setFlags(d.features) })
+      .catch(() => {})
+    return () => { alive = false }
+  }, [slug])
+  return flags
+}
+
 export function CardChooser({ cards, loaded = true }: { cards: PaymentCardInfo[]; loaded?: boolean }) {
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const list = cards && cards.length ? cards : DEFAULT_CLINIC.cards

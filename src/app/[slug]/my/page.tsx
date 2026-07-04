@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useParams } from 'next/navigation'
 import { PERSIAN_MONTHS, PERSIAN_WEEKDAYS, toFarsiNum, getCurrentJalali, getDaysInJalaliMonth, jalaliDateTimeToTimestamp } from '@/lib/calendar'
 import { PSY_PRICING as PRICING, PSY_CANCEL as CANCEL } from '@/lib/psy'
-import { usePublicClinic, CardChooser } from '@/components/PsyPublic'
+import { usePublicClinic, usePatientFeatures, CardChooser } from '@/components/PsyPublic'
 import { FLOW } from '@/lib/flow'
 import { DialogHost, uiAlert, uiConfirm } from '@/components/ui/Dialog'
 
@@ -554,7 +554,8 @@ function SessionCard({ session: s, num, phone, caseNumber, onUpdate }: {
   }
 
   const hours = hoursUntil()
-  const canCancel = s.status === 'confirmed' && hours !== null && hours > 0
+  const features = usePatientFeatures(slug)
+  const canCancel = features.patient_self_cancel && s.status === 'confirmed' && hours !== null && hours > 0
   // ۱۲ ساعت یا بیشتر مانده → ۵۰٪ بازپرداخت؛ کمتر → کلِ مبلغ سوخت
   const isPartial = hours !== null && hours >= CANCEL.partialHours
   const refundAmount = Math.round(sessionPrice * (100 - CANCEL.partialPercent) / 100)
@@ -651,7 +652,7 @@ function SessionCard({ session: s, num, phone, caseNumber, onUpdate }: {
           </div>
         )
       )}
-      {s.status === 'forfeited' && (
+      {s.status === 'forfeited' && features.patient_buy_extra_session && (
         <button onClick={buyReplacement} disabled={buying}
           className="w-full mt-3 py-2.5 border border-gray-300 text-gray-600 rounded-xl text-sm font-medium hover:bg-gray-50 disabled:opacity-40">
           {buying ? 'در حال ساخت...' : '🔄 خرید جلسه‌ی جایگزین'}
