@@ -150,8 +150,16 @@ export default function Landing() {
       </section>
 
       <footer className="border-t border-sand">
-        <div className="max-w-4xl mx-auto px-6 py-6 flex items-center justify-between text-xs text-soot">
+        <div className="max-w-4xl mx-auto px-6 py-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-soot">
           <span>{PLATFORM_NAME}</span>
+          {/* نمادِ اعتماد الکترونیکی (اینماد) — طبقِ دستورالعملِ خودِ اینماد، این تگ
+              نباید rel="noopener noreferrer" داشته باشد، وگرنه لوگو نمایش داده نمی‌شود. */}
+          <a referrerPolicy="origin" target="_blank"
+            href="https://trustseal.enamad.ir/?id=753950&Code=AcwMyu4tgps3IUpdr2taP5QYaQkTCSyp">
+            <img referrerPolicy="origin"
+              src="https://trustseal.enamad.ir/logo.aspx?id=753950&Code=AcwMyu4tgps3IUpdr2taP5QYaQkTCSyp"
+              alt="نمادِ اعتماد الکترونیکی" style={{ cursor: 'pointer' }} data-code="AcwMyu4tgps3IUpdr2taP5QYaQkTCSyp" />
+          </a>
           <span>© {toFarsiNum(1404)}</span>
         </div>
       </footer>
