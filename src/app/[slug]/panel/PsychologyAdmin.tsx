@@ -500,6 +500,8 @@ export function PsychologyAdmin() {
   const [intakeLoaded, setIntakeLoaded] = useState(false)
   const [intakeSaving, setIntakeSaving] = useState(false)
   const [intakeSaved, setIntakeSaved] = useState(false)
+  // فرم‌بیلدرِ استادو-جزئیات: کدام سوال/بخش الان در پنلِ ویرایش انتخاب شده
+  const [builderSel, setBuilderSel] = useState<{ sIdx: number; fIdx: number | null } | null>(null)
 
   // ── Package / Session forms ────────────────────────────────────
   const [newPkg, setNewPkg] = useState({
@@ -1099,7 +1101,23 @@ export function PsychologyAdmin() {
       if (data.form) setIntakeForm(data.form)
     } catch {}
     setIntakeLoaded(true)
+    setBuilderSel(null)
   }
+
+  // سوال‌هایی که می‌توانند «شرط» یک سوالِ بعدی باشند: فقط تک‌گزینه‌ای/چندگزینه‌ای، و فقط آن‌هایی که قبل از این سوال آمده‌اند
+  function eligibleTriggerFields(sIdx: number, fIdx: number): FormField[] {
+    const result: FormField[] = []
+    for (let si = 0; si < intakeForm.sections.length; si++) {
+      for (let fi = 0; fi < intakeForm.sections[si].fields.length; fi++) {
+        if (si === sIdx && fi === fIdx) return result
+        const fld = intakeForm.sections[si].fields[fi]
+        if ((fld.type === 'select' || fld.type === 'multiselect') && (fld.options || []).length > 0) result.push(fld)
+      }
+    }
+    return result
+  }
+  const fieldTypeIcon = (t: FormFieldType) => t === 'text' ? 'Aa' : t === 'textarea' ? '¶' : t === 'select' ? '◉' : '☑'
+  const fieldTypeLabel = (t: FormFieldType) => t === 'text' ? 'متنِ کوتاه' : t === 'textarea' ? 'متنِ بلند' : t === 'select' ? 'تک‌گزینه‌ای' : 'چندگزینه‌ای'
 
   async function saveIntakeForm() {
     setIntakeSaving(true); setIntakeSaved(false)
@@ -1119,12 +1137,14 @@ export function PsychologyAdmin() {
   function addFormSection() {
     const id = genId('section')
     setIntakeForm(f => ({ sections: [...f.sections, { id, title: 'بخشِ جدید', fields: [] }] }))
+    setBuilderSel({ sIdx: intakeForm.sections.length, fIdx: null })
   }
   function updateFormSection(idx: number, patch: Partial<IntakeForm['sections'][number]>) {
     setIntakeForm(f => ({ sections: f.sections.map((s, i) => i === idx ? { ...s, ...patch } : s) }))
   }
   function removeFormSection(idx: number) {
     setIntakeForm(f => ({ sections: f.sections.filter((_, i) => i !== idx) }))
+    setBuilderSel(sel => (sel && sel.sIdx === idx) ? null : sel)
   }
   function moveFormSection(idx: number, dir: -1 | 1) {
     setIntakeForm(f => {
@@ -1136,9 +1156,11 @@ export function PsychologyAdmin() {
     })
   }
   function addFormField(sIdx: number) {
+    const newIdx = intakeForm.sections[sIdx].fields.length
     updateFormSection(sIdx, {
       fields: [...intakeForm.sections[sIdx].fields, { id: genId('field'), label: 'سوالِ جدید', type: 'text' as FormFieldType, required: false }],
     })
+    setBuilderSel({ sIdx, fIdx: newIdx })
   }
   function updateFormField(sIdx: number, fIdx: number, patch: Partial<FormField>) {
     setIntakeForm(f => ({
@@ -1151,6 +1173,7 @@ export function PsychologyAdmin() {
     setIntakeForm(f => ({
       sections: f.sections.map((s, i) => i !== sIdx ? s : { ...s, fields: s.fields.filter((_, j) => j !== fIdx) }),
     }))
+    setBuilderSel(sel => (sel && sel.sIdx === sIdx && sel.fIdx === fIdx) ? null : sel)
   }
   function moveFormField(sIdx: number, fIdx: number, dir: -1 | 1) {
     setIntakeForm(f => ({
@@ -2667,94 +2690,218 @@ export function PsychologyAdmin() {
                   className="mt-3 text-xs px-3 py-1.5 border border-brand-200 text-brand-600 rounded-lg hover:bg-brand-50">+ افزودنِ کارت</button>
               </section>
 
-              {/* فرمِ رزرو — کاملاً دیتایی، شبیه‌سازیِ زنده‌ی خودِ صفحه‌ی مصاحبه */}
+              {/* فرمِ رزرو — استادو-جزئیات: لیستِ سوال‌ها + پنلِ ویرایشِ متمرکز */}
               <section className="bg-white rounded-2xl border border-gray-100 p-5">
                 <h2 className="text-sm font-semibold text-gray-900 mb-1">📋 فرمِ رزرو</h2>
                 <p className="text-xs text-gray-400 mb-4">
-                  همان‌طور که پایین می‌بینید، این‌ها سوال‌هایی هستند که مراجع در صفحه‌ی مصاحبه پر می‌کند — مستقیم روی هرکدام بزنید تا ویرایش کنید.
-                  نام و شماره‌تماس همیشه ثابت‌اند (برای ورودِ مراجع لازم‌اند) و این‌جا نیستند.
+                  از لیست یه سوال رو انتخاب کن تا تو پنلِ کنارش ویرایشش کنی. نام و شماره‌تماس همیشه ثابت‌اند و این‌جا نیستند.
                 </p>
                 {!intakeLoaded ? (
                   <div className="text-center py-8 text-gray-400 text-sm">در حال بارگذاری فرم...</div>
                 ) : (
-                  <div className="bg-gray-50 rounded-2xl p-4 space-y-5">
-                    {intakeForm.sections.map((section, sIdx) => (
-                      <div key={section.id} className="bg-white rounded-xl border border-gray-100 p-4">
-                        <div className="flex items-center gap-2 mb-3 pb-2 border-b border-gray-100">
-                          <input value={section.title} onChange={e => updateFormSection(sIdx, { title: e.target.value })}
-                            placeholder="عنوانِ بخش"
-                            className="flex-1 min-w-0 text-sm font-medium text-gray-800 bg-transparent focus:outline-none border-b border-dashed border-transparent hover:border-gray-300 focus:border-brand-400" />
-                          <div className="flex items-center gap-0.5 shrink-0">
-                            <button onClick={() => moveFormSection(sIdx, -1)} disabled={sIdx === 0}
-                              className="w-6 h-6 flex items-center justify-center text-gray-300 hover:text-gray-600 disabled:opacity-20">▲</button>
-                            <button onClick={() => moveFormSection(sIdx, 1)} disabled={sIdx === intakeForm.sections.length - 1}
-                              className="w-6 h-6 flex items-center justify-center text-gray-300 hover:text-gray-600 disabled:opacity-20">▼</button>
-                            <button onClick={async () => { if (await uiConfirm(`بخشِ «${section.title}» با همه‌ی سوال‌هایش حذف شود؟`)) removeFormSection(sIdx) }}
-                              className="w-6 h-6 flex items-center justify-center text-gray-300 hover:text-red-500">✕</button>
+                  <div className="grid sm:grid-cols-[260px_1fr] gap-4 items-start">
+                    {/* ── لیست: فقط مرور و انتخاب، بدونِ شلوغی ── */}
+                    <div className="bg-gray-50 rounded-xl p-2 sm:max-h-[560px] sm:overflow-y-auto">
+                      {intakeForm.sections.map((section, sIdx) => (
+                        <div key={section.id} className="mb-1">
+                          <button onClick={() => setBuilderSel({ sIdx, fIdx: null })}
+                            className={`w-full flex items-center justify-between gap-2 px-2.5 py-2 rounded-lg text-right transition-colors ${
+                              builderSel?.sIdx === sIdx && builderSel.fIdx === null ? 'bg-white border border-gray-200 shadow-sm' : 'hover:bg-gray-100'}`}>
+                            <span className="text-xs font-medium text-gray-500 truncate">{section.title || 'بخشِ بی‌نام'}</span>
+                            <span className="text-[10px] text-gray-300 shrink-0">{section.fields.length}</span>
+                          </button>
+                          <div className="mt-0.5 space-y-0.5">
+                            {section.fields.map((field, fIdx) => (
+                              <button key={field.id} onClick={() => setBuilderSel({ sIdx, fIdx })}
+                                className={`w-full flex items-center gap-2 pr-4 pl-2.5 py-2 rounded-lg text-right transition-colors ${
+                                  builderSel?.sIdx === sIdx && builderSel?.fIdx === fIdx ? 'bg-white border border-brand-200 shadow-sm' : 'hover:bg-gray-100'}`}>
+                                <span className="text-[10px] text-gray-300 shrink-0 w-4 text-center">{fieldTypeIcon(field.type)}</span>
+                                <span className="flex-1 min-w-0 truncate text-xs text-gray-700">{field.label || 'بدونِ عنوان'}</span>
+                                {field.showIf && <span title="شرطی" className="text-[10px] text-purple-400 shrink-0">⑂</span>}
+                                {field.required && <span title="اجباری" className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />}
+                              </button>
+                            ))}
+                            <button onClick={() => addFormField(sIdx)}
+                              className="w-full text-[11px] pr-4 pl-2.5 py-1.5 text-gray-400 hover:text-brand-600 text-right">+ سوالِ جدید</button>
                           </div>
                         </div>
+                      ))}
+                      <button onClick={addFormSection}
+                        className="w-full mt-1 text-xs py-2 border border-dashed border-gray-300 text-gray-500 rounded-lg hover:border-brand-300 hover:text-brand-600">+ بخشِ جدید</button>
+                    </div>
 
-                        <div className="space-y-4">
-                          {section.fields.map((field, fIdx) => (
-                            <div key={field.id}>
-                              {/* برچسبِ سوال + نوارِ کوچکِ ابزار */}
-                              <div className="flex items-center gap-1.5 mb-1">
-                                <input value={field.label} onChange={e => updateFormField(sIdx, fIdx, { label: e.target.value })}
-                                  placeholder="متنِ سوال"
-                                  className="flex-1 min-w-0 text-xs text-gray-500 bg-transparent focus:outline-none border-b border-dashed border-transparent hover:border-gray-300 focus:border-brand-400" />
-                                {field.required && <span className="text-red-400 text-xs shrink-0">*</span>}
-                                <select value={field.type} onChange={e => updateFormField(sIdx, fIdx, { type: e.target.value as FormFieldType })}
-                                  className="text-[10px] px-1.5 py-1 border border-gray-200 rounded-md bg-white text-gray-500 shrink-0">
-                                  <option value="text">متنِ کوتاه</option>
-                                  <option value="textarea">متنِ بلند</option>
-                                  <option value="select">تک‌گزینه</option>
-                                  <option value="multiselect">چندگزینه</option>
-                                </select>
-                                <button onClick={() => updateFormField(sIdx, fIdx, { required: !field.required })}
-                                  title="اجباری/اختیاری"
-                                  className={`text-xs shrink-0 w-6 h-6 rounded-md border flex items-center justify-center ${field.required ? 'border-amber-300 text-amber-500 bg-amber-50' : 'border-gray-200 text-gray-300'}`}>*</button>
-                                <button onClick={() => moveFormField(sIdx, fIdx, -1)} disabled={fIdx === 0}
-                                  className="w-6 h-6 flex items-center justify-center text-gray-300 hover:text-gray-600 disabled:opacity-20 shrink-0">▲</button>
-                                <button onClick={() => moveFormField(sIdx, fIdx, 1)} disabled={fIdx === section.fields.length - 1}
-                                  className="w-6 h-6 flex items-center justify-center text-gray-300 hover:text-gray-600 disabled:opacity-20 shrink-0">▼</button>
-                                <button onClick={() => removeFormField(sIdx, fIdx)}
-                                  className="w-6 h-6 flex items-center justify-center text-gray-300 hover:text-red-500 shrink-0">✕</button>
+                    {/* ── پنلِ ویرایشِ متمرکز ── */}
+                    <div>
+                      {!builderSel ? (
+                        <div className="h-full min-h-[240px] flex items-center justify-center text-center text-sm text-gray-400 bg-gray-50 rounded-xl p-8">
+                          یه سوال یا بخش رو از لیست انتخاب کن تا اینجا ویرایشش کنی
+                        </div>
+                      ) : builderSel.fIdx === null ? (
+                        // ── ویرایشِ بخش ──
+                        (() => {
+                          const sIdx = builderSel.sIdx
+                          const section = intakeForm.sections[sIdx]
+                          if (!section) return null
+                          return (
+                            <div className="bg-gray-50 rounded-xl p-5">
+                              <div className="flex items-center justify-between mb-4">
+                                <span className="text-xs text-gray-400">ویرایشِ بخش</span>
+                                <div className="flex items-center gap-1">
+                                  <button onClick={() => moveFormSection(sIdx, -1)} disabled={sIdx === 0}
+                                    className="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-gray-700 disabled:opacity-20">▲</button>
+                                  <button onClick={() => moveFormSection(sIdx, 1)} disabled={sIdx === intakeForm.sections.length - 1}
+                                    className="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-gray-700 disabled:opacity-20">▼</button>
+                                  <button onClick={async () => { if (await uiConfirm(`بخشِ «${section.title}» با همه‌ی سوال‌هایش حذف شود؟`)) removeFormSection(sIdx) }}
+                                    className="text-xs px-2.5 py-1.5 border border-red-200 text-red-500 rounded-lg hover:bg-red-50">حذفِ بخش</button>
+                                </div>
+                              </div>
+                              <label className="text-xs text-gray-500 mb-1 block">عنوانِ بخش</label>
+                              <input value={section.title} onChange={e => updateFormSection(sIdx, { title: e.target.value })}
+                                className="w-full text-base font-medium px-3 py-2.5 border border-gray-200 rounded-lg bg-white focus:outline-none focus:border-brand-400" />
+                            </div>
+                          )
+                        })()
+                      ) : (
+                        // ── ویرایشِ سوال ──
+                        (() => {
+                          const { sIdx, fIdx } = builderSel
+                          const section = intakeForm.sections[sIdx]
+                          const field = section?.fields[fIdx]
+                          if (!field) return null
+                          const triggers = eligibleTriggerFields(sIdx, fIdx)
+                          const triggerField = field.showIf ? triggers.find(t => t.id === field.showIf!.fieldId) : undefined
+                          return (
+                            <div className="bg-gray-50 rounded-xl p-5 space-y-5">
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs text-gray-400">ویرایشِ سوال</span>
+                                <div className="flex items-center gap-1">
+                                  <button onClick={() => moveFormField(sIdx, fIdx, -1)} disabled={fIdx === 0}
+                                    className="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-gray-700 disabled:opacity-20">▲</button>
+                                  <button onClick={() => moveFormField(sIdx, fIdx, 1)} disabled={fIdx === section.fields.length - 1}
+                                    className="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-gray-700 disabled:opacity-20">▼</button>
+                                  <button onClick={() => removeFormField(sIdx, fIdx)}
+                                    className="text-xs px-2.5 py-1.5 border border-red-200 text-red-500 rounded-lg hover:bg-red-50">حذفِ سوال</button>
+                                </div>
                               </div>
 
-                              {/* نمایشِ زنده — دقیقاً مثلِ چیزی که مراجع می‌بیند */}
-                              {field.type === 'text' && (
-                                <input disabled placeholder={field.placeholder} className="w-full text-sm px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-gray-400" />
-                              )}
-                              {field.type === 'textarea' && (
-                                <textarea disabled rows={2} placeholder={field.placeholder} className="w-full text-sm px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-gray-400 resize-none" />
-                              )}
-                              {(field.type === 'select' || field.type === 'multiselect') && (
-                                <div>
-                                  <div className="flex gap-2 flex-wrap mb-1.5">
-                                    {(field.options || []).length === 0 && <span className="text-xs text-gray-300">هنوز گزینه‌ای اضافه نشده</span>}
+                              {/* پیش‌نمایشِ زنده */}
+                              <div className="bg-white rounded-xl border border-gray-100 p-4">
+                                <p className="text-[10px] text-gray-400 mb-2">این‌طوری مراجع می‌بیند:</p>
+                                <div className="flex items-center gap-1 mb-1.5">
+                                  <span className="text-xs text-gray-600">{field.label || 'بدونِ عنوان'}</span>
+                                  {field.required && <span className="text-red-400 text-xs">*</span>}
+                                </div>
+                                {field.type === 'text' && (
+                                  <input disabled placeholder={field.placeholder} className="w-full text-sm px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-gray-400" />
+                                )}
+                                {field.type === 'textarea' && (
+                                  <textarea disabled rows={2} placeholder={field.placeholder} className="w-full text-sm px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-gray-400 resize-none" />
+                                )}
+                                {(field.type === 'select' || field.type === 'multiselect') && (
+                                  <div className="flex gap-2 flex-wrap">
+                                    {(field.options || []).length === 0 && <span className="text-xs text-gray-300">هنوز گزینه‌ای نیست</span>}
                                     {(field.options || []).map((o, oi) => (
-                                      field.type === 'select' ? (
-                                        <span key={oi} className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 text-gray-400 bg-white">{o}</span>
-                                      ) : (
-                                        <span key={oi} className="text-xs px-3 py-1.5 rounded-full border border-gray-200 text-gray-400 bg-white">{o}</span>
-                                      )
+                                      <span key={oi} className={`text-xs px-3 py-1.5 border border-gray-200 text-gray-400 bg-gray-50 ${field.type === 'select' ? 'rounded-lg' : 'rounded-full'}`}>{o}</span>
                                     ))}
                                   </div>
-                                  <input value={(field.options || []).join('، ')}
-                                    onChange={e => updateFormField(sIdx, fIdx, { options: e.target.value.split(/[,،]/).map(s => s.trim()).filter(Boolean) })}
-                                    placeholder="گزینه‌ها را با کاما جدا کنید — مثلاً: بله، خیر"
-                                    className="w-full text-xs px-2.5 py-1.5 border border-dashed border-gray-300 rounded-lg bg-white focus:outline-none focus:border-brand-400 text-gray-500" />
+                                )}
+                              </div>
+
+                              <div>
+                                <label className="text-xs text-gray-500 mb-1 block">متنِ سوال</label>
+                                <input value={field.label} onChange={e => updateFormField(sIdx, fIdx, { label: e.target.value })}
+                                  className="w-full text-base px-3 py-2.5 border border-gray-200 rounded-lg bg-white focus:outline-none focus:border-brand-400" />
+                              </div>
+
+                              <div>
+                                <label className="text-xs text-gray-500 mb-2 block">نوعِ پاسخ</label>
+                                <div className="grid grid-cols-4 gap-2">
+                                  {(['text', 'textarea', 'select', 'multiselect'] as FormFieldType[]).map(t => (
+                                    <button key={t} onClick={() => updateFormField(sIdx, fIdx, { type: t })}
+                                      className={`py-2.5 rounded-xl border text-center transition-all ${field.type === t ? 'border-brand-600 border-2 bg-brand-50 text-brand-700' : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300'}`}>
+                                      <div className="text-sm mb-0.5">{fieldTypeIcon(t)}</div>
+                                      <div className="text-[10px]">{fieldTypeLabel(t)}</div>
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+
+                              {(field.type === 'select' || field.type === 'multiselect') && (
+                                <div>
+                                  <label className="text-xs text-gray-500 mb-2 block">گزینه‌ها</label>
+                                  <div className="space-y-1.5">
+                                    {(field.options || []).map((o, oi) => (
+                                      <div key={oi} className="flex items-center gap-2">
+                                        <span className="text-[10px] text-gray-300 w-4 text-center shrink-0">{toFarsiNum(oi + 1)}</span>
+                                        <input value={o}
+                                          onChange={e => { const next = [...(field.options || [])]; next[oi] = e.target.value; updateFormField(sIdx, fIdx, { options: next }) }}
+                                          className="flex-1 text-sm px-3 py-1.5 border border-gray-200 rounded-lg bg-white focus:outline-none focus:border-brand-400" />
+                                        <button onClick={() => updateFormField(sIdx, fIdx, { options: (field.options || []).filter((_, j) => j !== oi) })}
+                                          className="w-6 h-6 flex items-center justify-center text-gray-300 hover:text-red-500 shrink-0">×</button>
+                                      </div>
+                                    ))}
+                                  </div>
+                                  <button onClick={() => updateFormField(sIdx, fIdx, { options: [...(field.options || []), ''] })}
+                                    className="mt-2 text-xs px-3 py-1.5 border border-dashed border-gray-300 text-gray-400 rounded-lg hover:border-brand-300 hover:text-brand-500">+ افزودنِ گزینه</button>
                                 </div>
                               )}
+
+                              <label className="flex items-center justify-between p-3 rounded-xl border border-gray-100 bg-white cursor-pointer">
+                                <span className="text-sm text-gray-700">پاسخ به این سوال اجباری باشد</span>
+                                <input type="checkbox" checked={field.required}
+                                  onChange={e => updateFormField(sIdx, fIdx, { required: e.target.checked })}
+                                  className="w-5 h-5 accent-brand-600" />
+                              </label>
+
+                              {/* منطقِ شرطی */}
+                              <div>
+                                <label className="flex items-center justify-between p-3 rounded-xl border border-gray-100 bg-white cursor-pointer mb-2">
+                                  <div>
+                                    <span className="text-sm text-gray-700 block">فقط شرطی نشان داده شود</span>
+                                    <span className="text-[11px] text-gray-400">مثلاً «سن و تحصیلاتِ خواهر/برادر» فقط اگر جوابِ سوالِ قبلی «بله» بود</span>
+                                  </div>
+                                  <input type="checkbox" checked={!!field.showIf} disabled={triggers.length === 0}
+                                    onChange={e => {
+                                      if (e.target.checked) {
+                                        const t = triggers[0]
+                                        if (t) updateFormField(sIdx, fIdx, { showIf: { fieldId: t.id, value: (t.options || [])[0] || '' } })
+                                      } else updateFormField(sIdx, fIdx, { showIf: undefined })
+                                    }}
+                                    className="w-5 h-5 accent-brand-600 shrink-0" />
+                                </label>
+                                {triggers.length === 0 && (
+                                  <p className="text-[11px] text-gray-400 px-1">برای شرطی‌کردن، اول باید یه سوالِ تک‌گزینه‌ای/چندگزینه‌ای قبلِ این سوال داشته باشی.</p>
+                                )}
+                                {field.showIf && (
+                                  <div className="p-3 rounded-xl bg-white border border-gray-100 space-y-2">
+                                    <div className="flex items-center gap-2 text-xs text-gray-500">
+                                      <span className="shrink-0">اگه پاسخِ</span>
+                                      <select value={field.showIf.fieldId}
+                                        onChange={e => {
+                                          const t = triggers.find(x => x.id === e.target.value)
+                                          updateFormField(sIdx, fIdx, { showIf: { fieldId: e.target.value, value: (t?.options || [])[0] || '' } })
+                                        }}
+                                        className="flex-1 min-w-0 px-2 py-1.5 border border-gray-200 rounded-lg bg-gray-50 text-xs">
+                                        {triggers.map(tf => <option key={tf.id} value={tf.id}>{tf.label}</option>)}
+                                      </select>
+                                    </div>
+                                    <div className="flex items-center gap-2 text-xs text-gray-500">
+                                      <span className="shrink-0">برابرِ</span>
+                                      <select value={field.showIf.value}
+                                        onChange={e => updateFormField(sIdx, fIdx, { showIf: { fieldId: field.showIf!.fieldId, value: e.target.value } })}
+                                        className="flex-1 min-w-0 px-2 py-1.5 border border-gray-200 rounded-lg bg-gray-50 text-xs">
+                                        {(triggerField?.options || []).map(o => <option key={o} value={o}>{o}</option>)}
+                                      </select>
+                                      <span className="shrink-0">باشد</span>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
                             </div>
-                          ))}
-                          <button onClick={() => addFormField(sIdx)}
-                            className="w-full text-xs py-2 border border-dashed border-brand-200 text-brand-600 rounded-lg hover:bg-brand-50">+ افزودنِ سوال</button>
-                        </div>
-                      </div>
-                    ))}
-                    <button onClick={addFormSection}
-                      className="w-full text-sm py-2.5 border border-dashed border-gray-300 text-gray-500 rounded-xl hover:bg-white bg-white/50">+ افزودنِ بخشِ جدید</button>
+                          )
+                        })()
+                      )}
+                    </div>
                   </div>
                 )}
               </section>

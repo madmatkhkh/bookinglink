@@ -139,6 +139,10 @@ export type FormField = {
   required: boolean
   options?: string[]   // برای select/multiselect
   placeholder?: string
+  // منطقِ شرطی: این سوال فقط وقتی نشان داده می‌شود که پاسخِ سوالِ دیگری مقدارِ
+  // مشخصی داشته باشد — مثلاً «سن و تحصیلاتِ خواهر/برادر» فقط اگر «آیا خواهر/برادر
+  // دارید» = «بله» بود. برای select برابری چک می‌شود، برای multiselect وجودِ مقدار.
+  showIf?: { fieldId: string; value: string }
 }
 
 export type FormSection = {
@@ -182,9 +186,9 @@ export const DEFAULT_INTAKE_FORM: IntakeForm = {
     ]},
     { id: 'family', title: 'خواهر/برادر و محلِ زندگی', fields: [
       { id: 'has_siblings', label: 'آیا خواهر یا برادر دارد؟', type: 'select', required: true, options: ['بله', 'خیر'] },
-      { id: 'siblings_info', label: 'سن و تحصیلاتِ هر خواهر/برادر', type: 'textarea', required: false, placeholder: 'مثلاً: خواهر ۱۰ ساله کلاس چهارم' },
+      { id: 'siblings_info', label: 'سن و تحصیلاتِ هر خواهر/برادر', type: 'textarea', required: true, placeholder: 'مثلاً: خواهر ۱۰ ساله کلاس چهارم', showIf: { fieldId: 'has_siblings', value: 'بله' } },
       { id: 'other_residents', label: 'آیا عضوِ دیگری غیر از اعضای اصلیِ خانواده با شما زندگی می‌کند؟', type: 'select', required: true, options: ['بله', 'خیر'] },
-      { id: 'other_residents_info', label: 'چه کسی؟', type: 'text', required: false, placeholder: 'مثلاً: پدربزرگ' },
+      { id: 'other_residents_info', label: 'چه کسی؟', type: 'text', required: true, placeholder: 'مثلاً: پدربزرگ', showIf: { fieldId: 'other_residents', value: 'بله' } },
       { id: 'home_address', label: 'آدرسِ خانه', type: 'textarea', required: true, placeholder: 'آدرسِ کاملِ محلِ سکونت...' },
     ]},
     { id: 'family_status', title: 'وضعیتِ خانوادگی', fields: [
@@ -207,9 +211,9 @@ export const DEFAULT_INTAKE_FORM: IntakeForm = {
     ]},
     { id: 'growth', title: 'رشد و تکامل', fields: [
       { id: 'growth_crawl', label: 'سینه‌خیز رفته؟', type: 'select', required: true, options: ['بله', 'خیر'] },
-      { id: 'growth_crawl_duration', label: 'چه مدت؟', type: 'text', required: false },
+      { id: 'growth_crawl_duration', label: 'چه مدت؟', type: 'text', required: false, showIf: { fieldId: 'growth_crawl', value: 'بله' } },
       { id: 'growth_walk4', label: 'چهار دست و پا رفته؟', type: 'select', required: true, options: ['بله', 'خیر'] },
-      { id: 'growth_walk4_duration', label: 'چه مدت؟', type: 'text', required: false },
+      { id: 'growth_walk4_duration', label: 'چه مدت؟', type: 'text', required: false, showIf: { fieldId: 'growth_walk4', value: 'بله' } },
       { id: 'growth_walk_age', label: 'سنِ راه رفتن', type: 'text', required: true, placeholder: '۱۲ ماه' },
       { id: 'growth_talk_age', label: 'سنِ اولین کلمه', type: 'text', required: true, placeholder: '۱۸ ماه' },
       { id: 'growth_issues', label: 'مشکلِ خاص در مراحلِ رشد', type: 'textarea', required: false, placeholder: 'در صورتِ وجود توضیح دهید...' },
@@ -250,6 +254,7 @@ export function mergeIntakeForm(raw: unknown): IntakeForm {
       required: !!f?.required,
       options: Array.isArray(f?.options) ? f.options.map(String) : undefined,
       placeholder: f?.placeholder ? String(f.placeholder) : undefined,
+      showIf: f?.showIf && f.showIf.fieldId ? { fieldId: String(f.showIf.fieldId), value: String(f.showIf.value ?? '') } : undefined,
     })) : [],
   }))
   return { sections }
@@ -264,12 +269,22 @@ export async function getIntakeForm(resourceId: string): Promise<IntakeForm> {
   }
 }
 
+// آیا این فیلد الان باید نشان داده شود؟ (طبقِ showIf، اگر تعریف شده باشد)
+export function fieldVisible(field: FormField, answers: Record<string, unknown>): boolean {
+  if (!field.showIf) return true
+  const target = answers[field.showIf.fieldId]
+  if (Array.isArray(target)) return target.includes(field.showIf.value)
+  return String(target ?? '') === field.showIf.value
+}
+
 // همه‌ی فیلدهای اجباریِ یک فرم مقدار دارند؟ برچسبِ فیلدهای ناقص را برمی‌گرداند
+// (فیلدهایی که طبقِ showIf الان مخفی‌اند، اجباری حساب نمی‌شوند)
 export function missingIntakeFields(form: IntakeForm, answers: Record<string, unknown>): string[] {
   const missing: string[] = []
   for (const section of form.sections) {
     for (const f of section.fields) {
       if (!f.required) continue
+      if (!fieldVisible(f, answers)) continue
       const v = answers[f.id]
       const empty = f.type === 'multiselect' ? !Array.isArray(v) || v.length === 0 : !String(v ?? '').trim()
       if (empty) missing.push(f.label)

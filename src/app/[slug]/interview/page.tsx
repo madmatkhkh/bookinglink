@@ -4,7 +4,7 @@ import { useParams } from 'next/navigation'
 import { PERSIAN_MONTHS, PERSIAN_WEEKDAYS, toFarsiNum, getCurrentJalali, getDaysInJalaliMonth } from '@/lib/calendar'
 import { PSY_PRICING as PRICING } from '@/lib/psy'
 import { usePublicClinic, CardChooser } from '@/components/PsyPublic'
-import { onlineAvailable, offlineAvailable } from '@/lib/psy'
+import { onlineAvailable, offlineAvailable, fieldVisible, missingIntakeFields } from '@/lib/psy'
 import type { PaymentCardInfo, IntakeForm, FormField } from '@/lib/psy'
 import { DialogHost, uiAlert, uiConfirm, uiPrompt } from '@/components/ui/Dialog'
 
@@ -128,19 +128,12 @@ export default function InterviewPage() {
   }
 
   // اعتبارسنجی: نام/تماس همیشه اجباری + هرچه در فرمِ این دکتر اجباری علامت خورده
+  // (طبقِ همان تابعِ مشترکی که سمتِ سرور هم استفاده می‌شود — فیلدهای مخفیِ شرطی حساب نمی‌شوند)
   function missingFields(): string[] {
     const miss: string[] = []
     if (!childName.trim()) miss.push('نام')
     if (!fatherPhone.trim()) miss.push('شماره تماس')
-    for (const section of intakeForm.sections) {
-      for (const f of section.fields) {
-        if (!f.required) continue
-        const v = answers[f.id]
-        const empty = f.type === 'multiselect' ? !Array.isArray(v) || v.length === 0 : !String(v ?? '').trim()
-        if (empty) miss.push(f.label)
-      }
-    }
-    return miss
+    return [...miss, ...missingIntakeFields(intakeForm, answers)]
   }
 
   async function handleSubmit() {
@@ -371,16 +364,20 @@ export default function InterviewPage() {
                   </div>
                 </Section>
 
-                {intakeForm.sections.map(section => (
-                  <Section key={section.id} title={section.title}>
-                    <div className="space-y-3">
-                      {section.fields.map(f => (
-                        <DynamicField key={f.id} field={f} value={answers[f.id]}
-                          onChange={v => setAnswer(f.id, v)} onToggle={o => toggleMulti(f.id, o)} />
-                      ))}
-                    </div>
-                  </Section>
-                ))}
+                {intakeForm.sections.map(section => {
+                  const visibleFields = section.fields.filter(f => fieldVisible(f, answers))
+                  if (visibleFields.length === 0) return null
+                  return (
+                    <Section key={section.id} title={section.title}>
+                      <div className="space-y-3">
+                        {visibleFields.map(f => (
+                          <DynamicField key={f.id} field={f} value={answers[f.id]}
+                            onChange={v => setAnswer(f.id, v)} onToggle={o => toggleMulti(f.id, o)} />
+                        ))}
+                      </div>
+                    </Section>
+                  )
+                })}
               </>
             )}
 
