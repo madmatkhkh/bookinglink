@@ -580,7 +580,7 @@ export function PsychologyAdmin() {
   }
 
   async function deactivateStaffMember(id: string) {
-    const ok = await uiConfirm('این کارمند غیرفعال شود؟ پرونده‌های قبلی‌اش دست‌نخورده می‌ماند.')
+    const ok = await uiConfirm('این درمانگر غیرفعال شود؟ پرونده‌های قبلی‌اش دست‌نخورده می‌ماند.')
     if (!ok) return
     const res = await fetch(panelApi('/resources'), {
       method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }),
@@ -1516,7 +1516,7 @@ export function PsychologyAdmin() {
           <div className="text-sm font-semibold text-gray-900">پنل مدیریت</div>
           <div className="text-xs text-gray-400 truncate mt-0.5">
             {profile.name || me?.resourceName || 'دکتر'}{profile.title ? ` — ${profile.title}` : ''}
-            {me && !me.isOwner && <span className="text-brand-500"> (کارمند)</span>}
+            {me && !me.isOwner && <span className="text-brand-500"> (درمانگر)</span>}
           </div>
         </div>
         <NavList />
@@ -1551,7 +1551,7 @@ export function PsychologyAdmin() {
                 <div className="text-sm font-semibold text-gray-900">پنل مدیریت</div>
                 <div className="text-xs text-gray-400 truncate mt-0.5">
                   {profile.name || me?.resourceName || 'دکتر'}{profile.title ? ` — ${profile.title}` : ''}
-                  {me && !me.isOwner && <span className="text-brand-500"> (کارمند)</span>}
+                  {me && !me.isOwner && <span className="text-brand-500"> (درمانگر)</span>}
                 </div>
               </div>
               <button onClick={() => setSidebarOpen(false)} className="text-gray-400 text-xl w-8 h-8 shrink-0">✕</button>
@@ -3407,7 +3407,7 @@ export function PsychologyAdmin() {
       {mainTab === 'staff' && me?.isOwner && (
         <div className="max-w-lg mx-auto pb-24">
           <div className="bg-white rounded-2xl border border-gray-100 p-5 mb-4">
-            <h2 className="text-sm font-bold text-gray-900 mb-1">👥 کارمندها</h2>
+            <h2 className="text-sm font-bold text-gray-900 mb-1">👥 درمانگرها</h2>
             <p className="text-xs text-gray-400 leading-relaxed">
               هر نفر یک «منبع» است: پرونده‌ها/برنامه‌ی کاری/پروفایلِ خودش را دارد.
               اگر شماره‌ی موبایل بدهید، آن نفر می‌تواند مستقل با شماره‌ی خودش وارد این پنل شود
@@ -3448,13 +3448,13 @@ export function PsychologyAdmin() {
 
           <button onClick={openNewStaffForm}
             className="w-full py-2.5 border border-brand-200 text-brand-600 rounded-xl text-sm hover:bg-brand-50">
-            ➕ افزودنِ کارمندِ تازه
+            ➕ افزودنِ درمانگرِ تازه
           </button>
 
           {staffFormOpen && (
             <div className="fixed inset-0 z-40 flex items-end sm:items-center justify-center bg-black/30" onClick={() => setStaffFormOpen(false)}>
               <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full sm:max-w-sm p-5" onClick={e => e.stopPropagation()}>
-                <h3 className="text-sm font-bold text-gray-900 mb-4">{staffForm.id ? 'ویرایشِ کارمند' : 'افزودنِ کارمند'}</h3>
+                <h3 className="text-sm font-bold text-gray-900 mb-4">{staffForm.id ? 'ویرایشِ درمانگر' : 'افزودنِ درمانگر'}</h3>
                 <div className="space-y-3">
                   <div>
                     <label className="text-xs text-gray-500 mb-1 block">نام</label>
@@ -3511,15 +3511,9 @@ export function PsychologyAdmin() {
                       onChange={e => togglePatientFeature('patient_buy_extra_session', e.target.checked)}
                       className="w-5 h-5 accent-brand-600 shrink-0" />
                   </label>
-                  <label className="flex items-center justify-between gap-3 p-3.5 rounded-xl border border-gray-100 cursor-pointer">
-                    <div>
-                      <div className="text-sm font-medium text-gray-800">کنسلِ خودکارِ جلسه</div>
-                      <div className="text-[11px] text-gray-400 mt-0.5">مراجع بتواند خودش جلسه را کنسل کند (طبقِ قانونِ بازپرداخت)</div>
-                    </div>
-                    <input type="checkbox" checked={!!patientFeatures.patient_self_cancel}
-                      onChange={e => togglePatientFeature('patient_self_cancel', e.target.checked)}
-                      className="w-5 h-5 accent-brand-600 shrink-0" />
-                  </label>
+                  <p className="text-[11px] text-gray-400 px-1">
+                    اجازه‌ی کنسل‌کردنِ خودکار پایینِ همین صفحه، کنارِ سیاستِ کنسلی، تنظیم می‌شود.
+                  </p>
                 </div>
               )}
             </div>
@@ -3533,7 +3527,7 @@ export function PsychologyAdmin() {
                     <span className="text-sm font-medium text-gray-800">جلسه‌ی ۳</span>
                     <span className="text-xs text-gray-400">۱۴۰۵/۰۴/۱۰ — ۱۶:۰۰ | 🎥 آنلاین</span>
                   </div>
-                  {patientFeatures.patient_self_cancel && (
+                  {profile.cancellation_policy.enabled && (
                     <button disabled className="text-xs px-2.5 py-1 border border-red-200 text-red-500 rounded-lg mt-1">کنسل</button>
                   )}
                 </div>
@@ -3546,7 +3540,7 @@ export function PsychologyAdmin() {
                     <button disabled className="w-full mt-2 py-2 border border-gray-300 text-gray-600 rounded-xl text-xs">🔄 خریدِ جلسه‌ی جایگزین</button>
                   )}
                 </div>
-                {!patientFeatures.patient_self_cancel && !patientFeatures.patient_buy_extra_session && (
+                {!profile.cancellation_policy.enabled && !patientFeatures.patient_buy_extra_session && (
                   <p className="text-[11px] text-gray-400 text-center py-2">هر دو قابلیت خاموش‌اند — مراجع فقط وضعیت را می‌بیند.</p>
                 )}
               </div>
@@ -3707,7 +3701,7 @@ function PanelLogin({ slug, onSuccess }: { slug: string; onSuccess: () => void }
           <p className="text-xs text-gray-500 mt-1.5 leading-relaxed">
             {mode === 'owner'
               ? 'کدِ ورود به شماره‌ی موبایلِ ثبت‌شده‌ی صاحبِ این مجموعه فرستاده می‌شود.'
-              : 'اگر عضوِ تیمِ این مجموعه‌اید، شماره‌ی موبایلِ خودتان را وارد کنید.'}
+              : 'اگر درمانگرِ این مجموعه‌اید، شماره‌ی موبایلِ خودتان را وارد کنید.'}
           </p>
         </div>
 
@@ -3719,7 +3713,7 @@ function PanelLogin({ slug, onSuccess }: { slug: string; onSuccess: () => void }
           </button>
           <button onClick={() => switchMode('staff')}
             className={`py-2 rounded-lg text-xs font-medium transition-colors ${mode === 'staff' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500'}`}>
-            عضوِ تیمم
+            درمانگرم
           </button>
         </div>
 

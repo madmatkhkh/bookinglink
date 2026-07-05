@@ -595,7 +595,7 @@ function SessionCard({ session: s, num, phone, caseNumber, onUpdate }: {
   const hours = hoursUntil()
   const features = usePatientFeatures(slug)
   const policy = settings.doctors.find(d => d.id === s.resource_id)?.cancellation_policy || DEFAULT_CANCELLATION_POLICY
-  const canCancel = features.patient_self_cancel && policy.enabled && s.status === 'confirmed' && hours !== null && hours > 0
+  const canCancel = policy.enabled && s.status === 'confirmed' && hours !== null && hours > 0
   // ≥ threshold_hours مانده → early_refund_percent٪ برمی‌گردد؛ کمتر → late_refund_percent٪
   const isPartial = hours !== null && hours >= policy.threshold_hours
   const refundPercent = isPartial ? policy.early_refund_percent : policy.late_refund_percent

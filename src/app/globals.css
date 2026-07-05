@@ -10,33 +10,121 @@ body { @apply bg-paper text-ink; }
 /* اعدادِ جدولی برای هم‌ترازیِ ساعت‌ها و قیمت‌ها */
 .tnum { font-feature-settings: 'tnum'; }
 
-/* ── حالتِ تیره: فقط داخلِ پنل ادمین (.pb-admin-dark) ───────────────── */
+/* ══════════════════════════════════════════════════════════════════════════
+   حالتِ تیره — فقط داخلِ پنل ادمین (.pb-admin-dark)
+   یک پالتِ خاکستریِ گرم برای زمینه/متن + نسخه‌های کم‌رنگ‌ و غیرِ زننده از هر
+   رنگِ لهجه‌ای (brand/red/amber/purple/blue/green) که در کدِ پنل استفاده شده.
+   ══════════════════════════════════════════════════════════════════════════ */
 .pb-admin-dark { background: #0f1115 !important; color: #e8eaed; }
-.pb-admin-dark .bg-gray-50 { background: #0f1115 !important; }
-.pb-admin-dark .bg-white { background: #1a1d24 !important; }
-.pb-admin-dark .bg-gray-100 { background: #222630 !important; }
-.pb-admin-dark .bg-black\/50 { background: rgba(0,0,0,0.7) !important; }
-.pb-admin-dark .bg-white\/95 { background: rgba(26,29,36,0.95) !important; }
 
+/* زمینه‌های خنثی */
+.pb-admin-dark .bg-gray-50 { background: #0f1115 !important; }
+.pb-admin-dark .bg-gray-50\/50 { background: rgba(255,255,255,0.03) !important; }
+.pb-admin-dark .bg-white { background: #1a1d24 !important; }
+.pb-admin-dark .bg-white\/60 { background: rgba(26,29,36,0.6) !important; }
+.pb-admin-dark .bg-white\/95 { background: rgba(26,29,36,0.95) !important; }
+.pb-admin-dark .bg-gray-100 { background: #222630 !important; }
+.pb-admin-dark .bg-gray-200 { background: #2a303c !important; }
+.pb-admin-dark .bg-gray-200\/70 { background: rgba(42,48,60,0.7) !important; }
+.pb-admin-dark .bg-black\/50 { background: rgba(0,0,0,0.7) !important; }
+.pb-admin-dark .hover\:bg-gray-50:hover { background: #232833 !important; }
+.pb-admin-dark .hover\:bg-gray-100:hover { background: #262b34 !important; }
+.pb-admin-dark .hover\:bg-gray-200:hover { background: #2f3542 !important; }
+
+/* متن‌های خنثی */
 .pb-admin-dark .text-gray-900 { color: #e8eaed !important; }
 .pb-admin-dark .text-gray-800 { color: #dfe1e6 !important; }
 .pb-admin-dark .text-gray-700 { color: #c6cad3 !important; }
 .pb-admin-dark .text-gray-600 { color: #aab0bb !important; }
 .pb-admin-dark .text-gray-500 { color: #9aa0ab !important; }
 .pb-admin-dark .text-gray-400 { color: #757c88 !important; }
+.pb-admin-dark .text-gray-300 { color: #5b6270 !important; }
+.pb-admin-dark .hover\:text-gray-600:hover { color: #aab0bb !important; }
+.pb-admin-dark .hover\:text-gray-800:hover { color: #dfe1e6 !important; }
 
+/* حاشیه‌های خنثی */
+.pb-admin-dark .border-gray-50 { border-color: #1c2029 !important; }
 .pb-admin-dark .border-gray-100 { border-color: #262b34 !important; }
 .pb-admin-dark .border-gray-200 { border-color: #313845 !important; }
+.pb-admin-dark .border-gray-300 { border-color: #3a4150 !important; }
+.pb-admin-dark .border-gray-400 { border-color: #454d5e !important; }
+.pb-admin-dark .hover\:border-gray-300:hover { border-color: #3a4150 !important; }
+.pb-admin-dark .hover\:border-gray-400:hover { border-color: #454d5e !important; }
+.pb-admin-dark .ring-gray-300 { --tw-ring-color: #3a4150 !important; }
 
+/* برند (سبز) */
 .pb-admin-dark .bg-brand-50 { background: #1c2913 !important; }
+.pb-admin-dark .bg-brand-100 { background: #23331a !important; }
+.pb-admin-dark .hover\:bg-brand-50:hover { background: #23331a !important; }
+.pb-admin-dark .hover\:bg-brand-700:hover { background: #325c0e !important; }
+.pb-admin-dark .hover\:bg-brand-800:hover { background: #26480a !important; }
 .pb-admin-dark .border-brand-100 { border-color: #2c3f1c !important; }
-.pb-admin-dark .text-brand-700 { color: #97C459 !important; }
+.pb-admin-dark .border-brand-200 { border-color: #3a5424 !important; }
+.pb-admin-dark .border-brand-300 { border-color: #48692e !important; }
+.pb-admin-dark .border-brand-400 { border-color: #5c8a3c !important; }
+.pb-admin-dark .border-brand-500 { border-color: #6fa347 !important; }
+.pb-admin-dark .hover\:border-brand-200:hover { border-color: #3a5424 !important; }
+.pb-admin-dark .hover\:border-brand-300:hover { border-color: #48692e !important; }
+.pb-admin-dark .text-brand-400 { color: #97C459 !important; }
+.pb-admin-dark .text-brand-500 { color: #a8d472 !important; }
+.pb-admin-dark .text-brand-600 { color: #b4d98a !important; }
+.pb-admin-dark .text-brand-700 { color: #c0e097 !important; }
+.pb-admin-dark .text-brand-800 { color: #cde6a8 !important; }
+.pb-admin-dark .hover\:text-brand-500:hover { color: #a8d472 !important; }
+.pb-admin-dark .hover\:text-brand-600:hover { color: #b4d98a !important; }
+.pb-admin-dark .ring-brand-500 { --tw-ring-color: #6fa347 !important; }
 
+/* قرمز (خطر/حذف) */
+.pb-admin-dark .bg-red-50 { background: #2a1416 !important; }
+.pb-admin-dark .hover\:bg-red-50:hover { background: #351a1d !important; }
+.pb-admin-dark .border-red-100 { border-color: #3a1c1f !important; }
+.pb-admin-dark .border-red-200 { border-color: #4a2328 !important; }
+.pb-admin-dark .text-red-400 { color: #e9938f !important; }
+.pb-admin-dark .text-red-500 { color: #e57a75 !important; }
+.pb-admin-dark .text-red-600 { color: #ef5350 !important; }
+.pb-admin-dark .text-red-700 { color: #f28b82 !important; }
+.pb-admin-dark .hover\:text-red-400:hover { color: #e9938f !important; }
+.pb-admin-dark .hover\:text-red-500:hover { color: #e57a75 !important; }
+
+/* کهربایی (اجباری/هشدار) */
+.pb-admin-dark .bg-amber-50 { background: #2b2410 !important; }
+.pb-admin-dark .bg-amber-100 { background: #332c14 !important; }
+.pb-admin-dark .border-amber-100 { border-color: #3d331a !important; }
+.pb-admin-dark .border-amber-200 { border-color: #4d3f1f !important; }
+.pb-admin-dark .border-amber-300 { border-color: #5e4d26 !important; }
+.pb-admin-dark .text-amber-600 { color: #d9a441 !important; }
+.pb-admin-dark .text-amber-700 { color: #e8b854 !important; }
+
+/* بنفش (سوال‌های شرطی) */
+.pb-admin-dark .bg-purple-50 { background: #1f1a2b !important; }
+.pb-admin-dark .bg-purple-50\/60 { background: rgba(31,26,43,0.6) !important; }
+.pb-admin-dark .hover\:bg-purple-50:hover { background: #251f34 !important; }
+.pb-admin-dark .border-purple-100 { border-color: #2e2740 !important; }
+.pb-admin-dark .text-purple-300 { color: #a48fd6 !important; }
+.pb-admin-dark .text-purple-400 { color: #b39fe0 !important; }
+.pb-admin-dark .text-purple-700 { color: #c7b6ea !important; }
+.pb-admin-dark .text-purple-800 { color: #d3c5ef !important; }
+
+/* آبی (در انتظار/اطلاعات) */
+.pb-admin-dark .bg-blue-50 { background: #12212e !important; }
+.pb-admin-dark .border-blue-100 { border-color: #1a2f40 !important; }
+.pb-admin-dark .border-blue-200 { border-color: #223e52 !important; }
+.pb-admin-dark .text-blue-600 { color: #5b9bd5 !important; }
+.pb-admin-dark .text-blue-700 { color: #7bafdd !important; }
+
+/* سبزِ موفقیت (جدا از برند) */
+.pb-admin-dark .bg-green-50 { background: #142a1a !important; }
+.pb-admin-dark .bg-green-100 { background: #1a3321 !important; }
+.pb-admin-dark .border-green-100 { border-color: #1f3d27 !important; }
+.pb-admin-dark .border-green-200 { border-color: #294d33 !important; }
+.pb-admin-dark .border-green-300 { border-color: #345f3f !important; }
+.pb-admin-dark .text-green-600 { color: #5cb86e !important; }
+.pb-admin-dark .text-green-700 { color: #7bc98a !important; }
+
+/* فیلدهای فرم */
 .pb-admin-dark input, .pb-admin-dark textarea, .pb-admin-dark select {
   background: #14171d !important; color: #e8eaed !important; border-color: #313845 !important;
 }
 .pb-admin-dark input::placeholder, .pb-admin-dark textarea::placeholder { color: #6b7280 !important; }
-.pb-admin-dark .hover\:bg-gray-50:hover { background: #232833 !important; }
-.pb-admin-dark .bg-red-50 { background: #2a1416 !important; }
 
 /* مخفی‌کردنِ اسکرول‌بار برای نوارهای افقی (موبایل) */
