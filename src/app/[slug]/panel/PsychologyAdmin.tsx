@@ -5,7 +5,7 @@ import { PERSIAN_MONTHS, toLatinNum, getCurrentJalali, getDaysInJalaliMonth, jal
 import { FLOW, FLOW_LABEL as FLOW_LABEL_SHARED } from '@/lib/flow'
 import { PRICING } from '@/lib/config'
 import { ClinicSettings, DEFAULT_SETTINGS, SessionMode, OfficeLocation, PaymentCardInfo } from '@/lib/settings'
-import { IntakeForm, FormField, FormFieldType, DEFAULT_INTAKE_FORM, LEGACY_DETAIL_LABELS } from '@/lib/psy'
+import { IntakeForm, FormField, FormFieldType, DEFAULT_INTAKE_FORM, LEGACY_DETAIL_LABELS, CancellationPolicy, PaymentMethods } from '@/lib/psy'
 import { DialogHost, uiAlert, uiConfirm, uiPrompt } from '@/components/ui/Dialog'
 
 // در پنلِ ادمین همه‌ی ارقام لاتین نمایش داده می‌شوند (فقط نمایش؛ فرمتِ ذخیره دست‌نخورده)
@@ -206,10 +206,14 @@ type ResourceProfileView = {
   badges: string[]
   session_modes: SessionMode
   cards: PaymentCardInfo[]
+  cancellation_policy: CancellationPolicy
+  payment_methods: PaymentMethods
 }
 
 const DEFAULT_PROFILE: ResourceProfileView = {
   resource_id: '', name: '', title: '', avatar_url: '', badges: [], session_modes: 'both', cards: [],
+  cancellation_policy: { enabled: true, threshold_hours: 12, early_refund_percent: 50, late_refund_percent: 0 },
+  payment_methods: { card_to_card: true, online: false },
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -1107,6 +1111,7 @@ export function PsychologyAdmin() {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
       })
       if (res.status === 401) { setNeedsLogin(true); return }
+      if (!res.ok) { const d = await res.json().catch(() => ({})); uiAlert(d.error || 'ذخیره نشد'); setProfileSaving(false); return }
       setProfileSnapshot(JSON.stringify(profile))
       setProfileSaved(true)
       setTimeout(() => setProfileSaved(false), 2500)
@@ -2012,7 +2017,7 @@ export function PsychologyAdmin() {
               const totalPending = interviewPending.length + assessmentPending.length + pendingPkgs.length + pendingSess.length + pendingRefunds.length
               const refundAmt = (s: Session) => {
                 const full = s.session_type === 'online' ? PRICING.sessionOnline : PRICING.sessionOffline
-                return Math.round(full * (100 - (s.refund_percent || 50)) / 100)
+                return Math.round(full * (s.refund_percent || 50) / 100)
               }
 
               if (loading) return <div className="text-center py-16 text-gray-400">در حال بارگذاری...</div>
@@ -2707,6 +2712,75 @@ export function PsychologyAdmin() {
                     </button>
                   ))}
                 </div>
+              </section>
+
+              {/* روش‌های پرداخت — per-resource؛ حداقل یکی باید روشن بماند */}
+              <section className="bg-white rounded-2xl border border-gray-100 p-5">
+                <h2 className="text-sm font-semibold text-gray-900 mb-1">💳 روش‌های پرداخت</h2>
+                <p className="text-xs text-gray-400 mb-4">
+                  آنلاین یعنی مراجع بلافاصله بعدِ پرداخت می‌تواند ادامه دهد (بدونِ نیاز به تاییدِ شما).
+                  کارت‌به‌کارت مثلِ قبل: مراجع فیشش را می‌فرستد و شما تایید می‌کنید.
+                </p>
+                <div className="space-y-2">
+                  <label className="flex items-center justify-between p-3 rounded-xl border border-gray-100 cursor-pointer">
+                    <div>
+                      <span className="text-sm text-gray-700 block">کارت‌به‌کارت</span>
+                      <span className="text-[11px] text-gray-400">نیاز به تاییدِ دستیِ شما دارد</span>
+                    </div>
+                    <input type="checkbox" checked={profile.payment_methods.card_to_card}
+                      onChange={e => patchProfile({ payment_methods: { ...profile.payment_methods, card_to_card: e.target.checked } })}
+                      className="w-5 h-5 accent-brand-600" />
+                  </label>
+                  <label className="flex items-center justify-between p-3 rounded-xl border border-gray-100 cursor-pointer">
+                    <div>
+                      <span className="text-sm text-gray-700 block">پرداختِ آنلاین (زرین‌پال)</span>
+                      <span className="text-[11px] text-gray-400">تاییدِ خودکار — مراجع بلافاصله می‌تواند نوبت بگیرد</span>
+                    </div>
+                    <input type="checkbox" checked={profile.payment_methods.online}
+                      onChange={e => patchProfile({ payment_methods: { ...profile.payment_methods, online: e.target.checked } })}
+                      className="w-5 h-5 accent-brand-600" />
+                  </label>
+                  {!profile.payment_methods.card_to_card && !profile.payment_methods.online && (
+                    <p className="text-[11px] text-red-500 px-1">حداقل یک روش باید فعال بماند.</p>
+                  )}
+                </div>
+              </section>
+
+              {/* سیاستِ کنسلی — per-resource */}
+              <section className="bg-white rounded-2xl border border-gray-100 p-5">
+                <h2 className="text-sm font-semibold text-gray-900 mb-1">📋 سیاستِ کنسلیِ جلسه</h2>
+                <p className="text-xs text-gray-400 mb-4">وقتی مراجع خودش یک جلسه را کنسل می‌کند، طبقِ همین قانون بازپرداخت محاسبه می‌شود.</p>
+                <label className="flex items-center justify-between p-3 rounded-xl border border-gray-100 cursor-pointer mb-3">
+                  <span className="text-sm text-gray-700">مراجع اجازه‌ی کنسل‌کردنِ خودکار داشته باشد</span>
+                  <input type="checkbox" checked={profile.cancellation_policy.enabled}
+                    onChange={e => patchProfile({ cancellation_policy: { ...profile.cancellation_policy, enabled: e.target.checked } })}
+                    className="w-5 h-5 accent-brand-600 shrink-0" />
+                </label>
+                {profile.cancellation_policy.enabled && (
+                  <div className="space-y-3 bg-gray-50 rounded-xl p-3.5">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-gray-600 shrink-0">اگه حداقل</span>
+                      <input type="number" min={0} value={profile.cancellation_policy.threshold_hours}
+                        onChange={e => patchProfile({ cancellation_policy: { ...profile.cancellation_policy, threshold_hours: parseInt(e.target.value) || 0 } })}
+                        className="w-16 text-sm px-2 py-1.5 border border-gray-200 rounded-lg bg-white text-center" />
+                      <span className="text-xs text-gray-600 shrink-0">ساعت قبل از جلسه کنسل کرد:</span>
+                    </div>
+                    <div className="flex items-center gap-2 pr-2">
+                      <span className="text-xs text-gray-500 shrink-0">چند درصدِ پول برگردد؟</span>
+                      <input type="number" min={0} max={100} value={profile.cancellation_policy.early_refund_percent}
+                        onChange={e => patchProfile({ cancellation_policy: { ...profile.cancellation_policy, early_refund_percent: Math.min(100, Math.max(0, parseInt(e.target.value) || 0)) } })}
+                        className="w-16 text-sm px-2 py-1.5 border border-gray-200 rounded-lg bg-white text-center" />
+                      <span className="text-xs text-gray-500 shrink-0">٪</span>
+                    </div>
+                    <div className="flex items-center gap-2 pt-2 border-t border-gray-200">
+                      <span className="text-xs text-gray-600 shrink-0">اگه دیرتر از اون (نزدیک‌تر به جلسه) کنسل کرد، چند درصد برگردد؟</span>
+                      <input type="number" min={0} max={100} value={profile.cancellation_policy.late_refund_percent}
+                        onChange={e => patchProfile({ cancellation_policy: { ...profile.cancellation_policy, late_refund_percent: Math.min(100, Math.max(0, parseInt(e.target.value) || 0)) } })}
+                        className="w-16 text-sm px-2 py-1.5 border border-gray-200 rounded-lg bg-white text-center shrink-0" />
+                      <span className="text-xs text-gray-500 shrink-0">٪</span>
+                    </div>
+                  </div>
+                )}
               </section>
 
               {/* مکان‌های حضوری — سطحِ tenant، مشترکِ همه‌ی دکترها؛ فقط owner ویرایش می‌کند */}

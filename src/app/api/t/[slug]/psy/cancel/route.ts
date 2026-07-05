@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { sb } from '@/lib/supabase'
 import { getActiveTenant } from '@/lib/tenant'
 import { jalaliDateTimeToTimestamp } from '@/lib/calendar'
-import { PSY_CANCEL } from '@/lib/psy'
+import { getCancellationPolicy } from '@/lib/psy'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -24,6 +24,10 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   if (session.status !== 'confirmed' || !session.session_date || !session.session_time)
     return NextResponse.json({ error: 'این جلسه قابل کنسل نیست' }, { status: 400 })
 
+  const policy = session.resource_id ? await getCancellationPolicy(session.resource_id) : null
+  if (policy && !policy.enabled)
+    return NextResponse.json({ error: 'کنسلیِ خودکار برای این پرونده غیرفعال است — با دکتر هماهنگ کنید' }, { status: 403 })
+
   const ts = jalaliDateTimeToTimestamp(session.session_date, session.session_time)
   const hours = ts === null ? null : (ts - Date.now()) / (1000 * 60 * 60)
   if (hours === null || hours <= 0) return NextResponse.json({ error: 'زمان این جلسه گذشته است' }, { status: 400 })
@@ -33,19 +37,27 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
     return NextResponse.json({ success: true, outcome: 'unpaid_released' })
   }
 
-  if (hours >= PSY_CANCEL.partialHours) {
+  const thresholdHours = policy?.threshold_hours ?? 12
+  const earlyPercent = policy?.early_refund_percent ?? 50
+  const latePercent = policy?.late_refund_percent ?? 0
+
+  if (hours >= thresholdHours) {
     const card = (refund_card || '').toString().trim()
     await sb().from('psy_sessions').update({
       session_date: '', session_time: '', status: 'forfeited',
-      refund_percent: PSY_CANCEL.partialPercent,
-      refund_card: card || null,
-      refund_status: card ? 'pending' : null,
+      refund_percent: earlyPercent,
+      refund_card: earlyPercent > 0 ? (card || null) : null,
+      refund_status: earlyPercent > 0 && card ? 'pending' : null,
     }).eq('id', session_id)
-    return NextResponse.json({ success: true, outcome: 'partial_refund', refund_percent: PSY_CANCEL.partialPercent })
+    return NextResponse.json({ success: true, outcome: earlyPercent > 0 ? 'partial_refund' : 'forfeited', refund_percent: earlyPercent })
   } else {
+    const card = (refund_card || '').toString().trim()
     await sb().from('psy_sessions').update({
-      session_date: '', session_time: '', status: 'forfeited', refund_percent: 0,
+      session_date: '', session_time: '', status: 'forfeited',
+      refund_percent: latePercent,
+      refund_card: latePercent > 0 ? (card || null) : null,
+      refund_status: latePercent > 0 && card ? 'pending' : null,
     }).eq('id', session_id)
-    return NextResponse.json({ success: true, outcome: 'forfeited' })
+    return NextResponse.json({ success: true, outcome: latePercent > 0 ? 'partial_refund' : 'forfeited', refund_percent: latePercent })
   }
 }

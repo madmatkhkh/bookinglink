@@ -5,7 +5,7 @@ import { PERSIAN_MONTHS, PERSIAN_WEEKDAYS, toFarsiNum, getCurrentJalali, getDays
 import { PSY_PRICING as PRICING } from '@/lib/psy'
 import { usePublicClinic, CardChooser } from '@/components/PsyPublic'
 import { onlineAvailable, offlineAvailable, fieldVisible, missingIntakeFields } from '@/lib/psy'
-import type { PaymentCardInfo, IntakeForm, FormField } from '@/lib/psy'
+import type { PaymentCardInfo, IntakeForm, FormField, PaymentMethods } from '@/lib/psy'
 import { DialogHost, uiAlert, uiConfirm, uiPrompt } from '@/components/ui/Dialog'
 
 type Step = 1 | 2 | 3 | 'pay' | 'done'
@@ -173,7 +173,8 @@ export default function InterviewPage() {
     setLoading(false)
   }
 
-  if (step === 'pay') return <InterviewPayScreen amount={PRICING.interview} cards={settings.cards} loaded={settings.loaded} loading={loading} onPay={submitInterviewPayment} />
+  if (step === 'pay') return <InterviewPayScreen amount={PRICING.interview} cards={settings.cards} loaded={settings.loaded} loading={loading}
+    onPay={submitInterviewPayment} paymentMethods={displayDoctor?.payment_methods} slug={slug} caseNumber={caseNumber} phone={fatherPhone} />
 
   if (step === 'done') return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
@@ -479,8 +480,30 @@ function StepBar({ current }: { current: number }) {
   )
 }
 // صفحه‌ی پرداختِ کارت‌به‌کارتِ مصاحبه‌ی اولیه
-function InterviewPayScreen({ amount, cards, loaded, loading, onPay }: { amount: number; cards: PaymentCardInfo[]; loaded: boolean; loading: boolean; onPay: (ref: string) => void }) {
+function InterviewPayScreen({ amount, cards, loaded, loading, onPay, paymentMethods, slug, caseNumber, phone }: {
+  amount: number; cards: PaymentCardInfo[]; loaded: boolean; loading: boolean; onPay: (ref: string) => void
+  paymentMethods?: PaymentMethods; slug: string; caseNumber: string; phone: string
+}) {
   const [ref, setRef] = useState('')
+  const online = !!paymentMethods?.online
+  const cardToCard = paymentMethods ? paymentMethods.card_to_card : true
+  const [method, setMethod] = useState<'online' | 'card'>(online ? 'online' : 'card')
+  const [onlineLoading, setOnlineLoading] = useState(false)
+  const [onlineError, setOnlineError] = useState('')
+
+  async function payOnline() {
+    setOnlineLoading(true); setOnlineError('')
+    try {
+      const res = await fetch(`/api/t/${slug}/psy/pay-online`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ case_number: caseNumber, phone, purpose: 'interview' }),
+      })
+      const data = await res.json()
+      if (data.url) window.location.href = data.url
+      else { setOnlineError(data.error || 'خطا در اتصال به درگاه'); setOnlineLoading(false) }
+    } catch { setOnlineError('خطا در ارتباط با سرور'); setOnlineLoading(false) }
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4" dir="rtl">
       <DialogHost />
@@ -488,26 +511,53 @@ function InterviewPayScreen({ amount, cards, loaded, loading, onPay }: { amount:
         <div className="text-center mb-4">
           <div className="w-16 h-16 rounded-full bg-brand-50 flex items-center justify-center mx-auto mb-3 text-3xl">💳</div>
           <h1 className="text-lg font-medium text-gray-900">پرداختِ هزینه‌ی مصاحبه</h1>
-          <p className="text-xs text-gray-500 mt-1">مبلغ را کارت‌به‌کارت کنید و سپس «پرداخت کردم» را بزنید.</p>
         </div>
 
         <div className="bg-brand-50 border border-brand-100 rounded-xl p-4 mb-3">
-          <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center justify-between">
             <span className="text-xs text-gray-500">مبلغ قابل پرداخت</span>
             <span className="text-base font-bold text-brand-700">{amount.toLocaleString()} تومان</span>
           </div>
-          <CardChooser cards={cards} loaded={loaded} />
         </div>
 
-        <label className="text-xs text-gray-500 mb-1 block">متن فیش واریزی <span className="text-red-500">*</span></label>
-        <textarea value={ref} onChange={e => setRef(e.target.value)} rows={3} placeholder="اطلاعات فیش واریزی را وارد کنید (کد پیگیری، شماره کارت مبدأ، تاریخ و ساعت واریز...)"
-          className="w-full text-sm px-3 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:border-brand-400 mb-3 resize-none" />
+        {online && cardToCard && (
+          <div className="grid grid-cols-2 gap-2 mb-3 p-1 bg-gray-100 rounded-xl">
+            <button onClick={() => setMethod('online')}
+              className={`py-2 rounded-lg text-xs font-medium transition-colors ${method === 'online' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500'}`}>
+              🌐 پرداختِ آنلاین
+            </button>
+            <button onClick={() => setMethod('card')}
+              className={`py-2 rounded-lg text-xs font-medium transition-colors ${method === 'card' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500'}`}>
+              💳 کارت‌به‌کارت
+            </button>
+          </div>
+        )}
 
-        <button onClick={() => onPay(ref.trim())} disabled={loading || !ref.trim()}
-          className="w-full py-3 bg-brand-600 text-white rounded-xl text-sm font-medium disabled:opacity-40">
-          {loading ? 'در حال ثبت...' : '✅ پرداخت کردم'}
-        </button>
-        <p className="text-[11px] text-gray-400 mt-2 text-center">پس از تأیید پرداخت، از پنل مراجع وقتِ مصاحبه را می‌گیرید.</p>
+        {method === 'online' && online ? (
+          <>
+            <p className="text-xs text-gray-500 mb-3 text-center">بعدِ پرداخت بلافاصله می‌توانید وقتِ مصاحبه را بگیرید.</p>
+            {onlineError && <div className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg p-2.5 mb-3 text-center">{onlineError}</div>}
+            <button onClick={payOnline} disabled={onlineLoading}
+              className="w-full py-3 bg-brand-600 text-white rounded-xl text-sm font-medium disabled:opacity-40">
+              {onlineLoading ? 'در حال اتصال به درگاه...' : '🌐 پرداختِ آنلاین'}
+            </button>
+          </>
+        ) : (
+          <>
+            <p className="text-xs text-gray-500 mb-3">مبلغ را کارت‌به‌کارت کنید و سپس «پرداخت کردم» را بزنید.</p>
+            <div className="bg-brand-50 border border-brand-100 rounded-xl p-3 mb-3">
+              <CardChooser cards={cards} loaded={loaded} />
+            </div>
+            <label className="text-xs text-gray-500 mb-1 block">متن فیش واریزی <span className="text-red-500">*</span></label>
+            <textarea value={ref} onChange={e => setRef(e.target.value)} rows={3} placeholder="اطلاعات فیش واریزی را وارد کنید (کد پیگیری، شماره کارت مبدأ، تاریخ و ساعت واریز...)"
+              className="w-full text-sm px-3 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:border-brand-400 mb-3 resize-none" />
+            <button onClick={() => onPay(ref.trim())} disabled={loading || !ref.trim()}
+              className="w-full py-3 bg-brand-600 text-white rounded-xl text-sm font-medium disabled:opacity-40">
+              {loading ? 'در حال ثبت...' : '✅ پرداخت کردم'}
+            </button>
+            <p className="text-[11px] text-gray-400 mt-2 text-center">پس از تأیید پرداخت، از پنل مراجع وقتِ مصاحبه را می‌گیرید.</p>
+          </>
+        )}
       </div>
     </div>
   )

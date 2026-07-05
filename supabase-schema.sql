@@ -395,8 +395,29 @@ create table psy_resource_profiles (
   badges jsonb not null default '[]',
   session_modes text not null default 'both',  -- 'both' | 'online' | 'offline'
   cards jsonb not null default '[]',
+  -- سیاستِ کنسلیِ خودِ این دکتر: قبل از threshold_hours چند درصد برگردد، بعدش چند درصد
+  cancellation_policy jsonb not null default '{"enabled":true,"threshold_hours":12,"early_refund_percent":50,"late_refund_percent":0}',
+  -- کدام روش‌های پرداخت برای این دکتر فعال است (حداقل یکی باید روشن بماند)
+  payment_methods jsonb not null default '{"card_to_card":true,"online":false}',
   updated_at timestamptz not null default now()
 );
+
+-- ── ردگیریِ پرداختِ آنلاین (زرین‌پال) — یک جدولِ عمومی برای هر نوع پرداخت
+-- (مصاحبه/ارزیابی/پروتکل/جلسه) تا منطقِ درگاه فقط یک‌جا نوشته شود ──────────
+create table psy_payment_intents (
+  id uuid primary key default uuid_generate_v4(),
+  tenant_id uuid not null references tenants(id) on delete cascade,
+  resource_id uuid references resources(id),
+  case_number text not null,
+  phone text not null,
+  purpose text not null,       -- 'interview' | 'assessment' | 'package' | 'session' | 'extra_session'
+  ref_id uuid,                 -- شناسه‌ی session/package (وقتی مصداق دارد)
+  amount int not null,         -- تومان
+  authority text,              -- Authority برگشتی از زرین‌پال
+  status text not null default 'pending',  -- pending | paid | failed
+  created_at timestamptz not null default now()
+);
+create index on psy_payment_intents (tenant_id, authority);
 
 -- ── برنامه‌ی کاریِ روانشناسی (روزمحور، سبکِ psych-booking، حالا per-resource) ─
 -- هر دکتر برنامه‌ی روزمحورِ مستقلِ خودش را دارد.
@@ -431,4 +452,5 @@ alter table psy_sessions enable row level security;
 alter table psy_packages enable row level security;
 alter table psy_clinic_settings enable row level security;
 alter table psy_resource_profiles enable row level security;
+alter table psy_payment_intents enable row level security;
 alter table psy_schedules enable row level security;

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { sb } from '@/lib/supabase'
 import { requirePanelAuth, isPanelAuthResponse } from '@/lib/tenant'
-import { mergeResourceProfile } from '@/lib/psy'
+import { mergeResourceProfile, mergeCancellationPolicy, mergePaymentMethods } from '@/lib/psy'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -35,7 +35,8 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
 
   return NextResponse.json({
     profile: { resource_id: r.id, name: r.name, title: r.title, avatar_url: r.avatar_url, phone: r.phone,
-      badges: prof.badges, session_modes: prof.session_modes, cards: prof.cards },
+      badges: prof.badges, session_modes: prof.session_modes, cards: prof.cards,
+      cancellation_policy: prof.cancellation_policy, payment_methods: prof.payment_methods },
   }, { headers: NO_STORE })
 }
 
@@ -58,6 +59,13 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
 
   const profilePatch: Record<string, unknown> = { resource_id: targetId, updated_at: new Date().toISOString() }
   for (const k of ['badges', 'session_modes', 'cards'] as const) if (k in body) profilePatch[k] = body[k]
+  if ('cancellation_policy' in body) profilePatch.cancellation_policy = mergeCancellationPolicy(body.cancellation_policy)
+  if ('payment_methods' in body) {
+    const pm = mergePaymentMethods(body.payment_methods)
+    if (!pm.card_to_card && !pm.online)
+      return NextResponse.json({ error: 'حداقل یک روشِ پرداخت باید فعال بماند' }, { status: 400 })
+    profilePatch.payment_methods = pm
+  }
   if (Object.keys(profilePatch).length > 2) {
     const { data: existing } = await sb().from('psy_resource_profiles').select('resource_id').eq('resource_id', targetId).maybeSingle()
     const q = existing

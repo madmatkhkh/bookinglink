@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { sb } from '@/lib/supabase'
 import { getActiveTenant } from '@/lib/tenant'
 import { FLOW } from '@/lib/flow'
+import { getPaymentMethods } from '@/lib/psy'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -12,10 +13,15 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   const { case_number, phone, stage, payment_ref } = await req.json()
 
   const { data: c } = await sb().from('psy_cases')
-    .select('id, father_phone, mother_phone, flow_status')
+    .select('id, resource_id, father_phone, mother_phone, flow_status')
     .eq('tenant_id', t.id).eq('case_number', case_number).single()
   if (!c || (c.father_phone !== phone && c.mother_phone !== phone))
     return NextResponse.json({ error: 'دسترسی ندارید' }, { status: 403 })
+
+  if (c.resource_id) {
+    const methods = await getPaymentMethods(c.resource_id)
+    if (!methods.card_to_card) return NextResponse.json({ error: 'پرداختِ کارت‌به‌کارت برای این مجموعه فعال نیست' }, { status: 400 })
+  }
 
   let patch: Record<string, any> = {}
   if (stage === 'interview') {

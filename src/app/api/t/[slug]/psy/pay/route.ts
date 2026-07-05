@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { sb } from '@/lib/supabase'
 import { getActiveTenant } from '@/lib/tenant'
+import { getPaymentMethods } from '@/lib/psy'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -10,10 +11,15 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   if (!t) return NextResponse.json({ error: 'یافت نشد' }, { status: 404 })
   const { package_id, session_id, case_number, phone, payment_ref } = await req.json()
 
-  const { data: booking } = await sb().from('psy_cases').select('father_phone, mother_phone')
+  const { data: booking } = await sb().from('psy_cases').select('resource_id, father_phone, mother_phone')
     .eq('tenant_id', t.id).eq('case_number', case_number).single()
   if (!booking || (booking.father_phone !== phone && booking.mother_phone !== phone))
     return NextResponse.json({ error: 'دسترسی ندارید' }, { status: 403 })
+
+  if (booking.resource_id) {
+    const methods = await getPaymentMethods(booking.resource_id)
+    if (!methods.card_to_card) return NextResponse.json({ error: 'پرداختِ کارت‌به‌کارت برای این مجموعه فعال نیست' }, { status: 400 })
+  }
 
   if (session_id) {
     await sb().from('psy_sessions').update({ payment_submitted: true, payment_ref: payment_ref || null })

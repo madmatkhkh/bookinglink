@@ -48,6 +48,45 @@ export async function getClinicSettings(tenantId: string): Promise<ClinicSetting
   }
 }
 
+// ── سیاستِ کنسلی — قابلِ‌تنظیم توسطِ هر دکتر ──────────────────────────────────
+// اگر مراجع ≥ threshold_hours ساعت مانده کنسل کند: early_refund_percent٪ برمی‌گردد.
+// اگر کمتر از آن مانده باشد: late_refund_percent٪ برمی‌گردد (می‌تواند صفر باشد).
+// enabled=false یعنی مراجع اصلاً نمی‌تواند خودش کنسل کند.
+export type CancellationPolicy = {
+  enabled: boolean
+  threshold_hours: number
+  early_refund_percent: number
+  late_refund_percent: number
+}
+
+// پیش‌فرض دقیقاً همان قانونِ سراسریِ قبلی (PSY_CANCEL) است — تک‌دکترهای فعلی
+// هیچ تغییری در رفتار نمی‌بینند مگر خودشان دستکاری کنند.
+export const DEFAULT_CANCELLATION_POLICY: CancellationPolicy = {
+  enabled: true, threshold_hours: 12, early_refund_percent: 50, late_refund_percent: 0,
+}
+
+export function mergeCancellationPolicy(raw: Partial<CancellationPolicy> | null | undefined): CancellationPolicy {
+  if (!raw) return DEFAULT_CANCELLATION_POLICY
+  return {
+    enabled: raw.enabled !== false,
+    threshold_hours: Number.isFinite(raw.threshold_hours) ? Number(raw.threshold_hours) : DEFAULT_CANCELLATION_POLICY.threshold_hours,
+    early_refund_percent: Number.isFinite(raw.early_refund_percent) ? Number(raw.early_refund_percent) : DEFAULT_CANCELLATION_POLICY.early_refund_percent,
+    late_refund_percent: Number.isFinite(raw.late_refund_percent) ? Number(raw.late_refund_percent) : DEFAULT_CANCELLATION_POLICY.late_refund_percent,
+  }
+}
+
+// ── روش‌های پرداختِ فعال — حداقل یکی باید روشن بماند (سمتِ API هم چک می‌شود) ──
+export type PaymentMethods = { card_to_card: boolean; online: boolean }
+export const DEFAULT_PAYMENT_METHODS: PaymentMethods = { card_to_card: true, online: false }
+
+export function mergePaymentMethods(raw: Partial<PaymentMethods> | null | undefined): PaymentMethods {
+  if (!raw) return DEFAULT_PAYMENT_METHODS
+  const card = raw.card_to_card !== false
+  const online = raw.online === true
+  // هردو خاموش معنی ندارد — کارت‌به‌کارت را روشن نگه می‌داریم
+  return { card_to_card: card || !online, online }
+}
+
 // ── سطحِ resource/شخص: پروفایلِ هرکارمند (دکتر) — نام/عنوان/آواتار از خودِ
 // جدولِ resources می‌آید (اینجا تکرار نشده)؛ این‌ها فقط چیزهایی‌اند که هر دکتر
 // مستقل از بقیه مدیریت می‌کند.
@@ -56,12 +95,16 @@ export type ResourceProfile = {
   badges: string[]
   session_modes: SessionMode
   cards: PaymentCardInfo[]
+  cancellation_policy: CancellationPolicy
+  payment_methods: PaymentMethods
 }
 
 export const DEFAULT_RESOURCE_PROFILE: Omit<ResourceProfile, 'resource_id'> = {
   badges: [],
   session_modes: 'both',
   cards: [],
+  cancellation_policy: DEFAULT_CANCELLATION_POLICY,
+  payment_methods: DEFAULT_PAYMENT_METHODS,
 }
 
 export function mergeResourceProfile(resourceId: string, raw: Partial<ResourceProfile> | null | undefined): ResourceProfile {
@@ -72,6 +115,8 @@ export function mergeResourceProfile(resourceId: string, raw: Partial<ResourcePr
     badges: Array.isArray(raw?.badges) ? raw!.badges : [],
     session_modes: mode,
     cards: Array.isArray(raw?.cards) ? raw!.cards : [],
+    cancellation_policy: mergeCancellationPolicy(raw?.cancellation_policy),
+    payment_methods: mergePaymentMethods(raw?.payment_methods),
   }
 }
 
@@ -85,6 +130,26 @@ export async function getResourceProfile(resourceId: string): Promise<ResourcePr
   }
 }
 
+// سیاستِ کنسلیِ یک دکترِ مشخص (میان‌بر — بدونِ خواندنِ کلِ پروفایل)
+export async function getCancellationPolicy(resourceId: string): Promise<CancellationPolicy> {
+  try {
+    const { data } = await sb().from('psy_resource_profiles').select('cancellation_policy').eq('resource_id', resourceId).maybeSingle()
+    return mergeCancellationPolicy(data?.cancellation_policy)
+  } catch {
+    return DEFAULT_CANCELLATION_POLICY
+  }
+}
+
+// روش‌های پرداختِ فعالِ یک دکترِ مشخص
+export async function getPaymentMethods(resourceId: string): Promise<PaymentMethods> {
+  try {
+    const { data } = await sb().from('psy_resource_profiles').select('payment_methods').eq('resource_id', resourceId).maybeSingle()
+    return mergePaymentMethods(data?.payment_methods)
+  } catch {
+    return DEFAULT_PAYMENT_METHODS
+  }
+}
+
 // لیستِ دکترهای قابل‌انتخابِ یک tenant برای صفحه‌ی عمومی (نام/عنوان/آواتار از
 // resources + بج/مدِ جلسه از پروفایلِ خودشان). تک‌دکترها یک آیتم می‌گیرند.
 export type PublicDoctor = {
@@ -95,6 +160,8 @@ export type PublicDoctor = {
   badges: string[]
   session_modes: SessionMode
   cards: PaymentCardInfo[]
+  payment_methods: PaymentMethods
+  cancellation_policy: CancellationPolicy
 }
 
 export async function listPublicDoctors(tenantId: string): Promise<PublicDoctor[]> {
@@ -108,7 +175,11 @@ export async function listPublicDoctors(tenantId: string): Promise<PublicDoctor[
   const byId = new Map((profiles || []).map(p => [p.resource_id, p]))
   return list.map(r => {
     const prof = mergeResourceProfile(r.id, byId.get(r.id) || null)
-    return { id: r.id, name: r.name, title: r.title, avatar_url: r.avatar_url, badges: prof.badges, session_modes: prof.session_modes, cards: prof.cards }
+    return {
+      id: r.id, name: r.name, title: r.title, avatar_url: r.avatar_url,
+      badges: prof.badges, session_modes: prof.session_modes, cards: prof.cards,
+      payment_methods: prof.payment_methods, cancellation_policy: prof.cancellation_policy,
+    }
   })
 }
 

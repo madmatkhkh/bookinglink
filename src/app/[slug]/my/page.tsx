@@ -1,8 +1,8 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
-import { useParams } from 'next/navigation'
+import { useParams, useSearchParams, useRouter } from 'next/navigation'
 import { PERSIAN_MONTHS, PERSIAN_WEEKDAYS, toFarsiNum, getCurrentJalali, getDaysInJalaliMonth, jalaliDateTimeToTimestamp } from '@/lib/calendar'
-import { PSY_PRICING as PRICING, PSY_CANCEL as CANCEL } from '@/lib/psy'
+import { PSY_PRICING as PRICING, DEFAULT_CANCELLATION_POLICY } from '@/lib/psy'
 import { usePublicClinic, usePatientFeatures, CardChooser } from '@/components/PsyPublic'
 import { FLOW } from '@/lib/flow'
 import { DialogHost, uiAlert, uiConfirm } from '@/components/ui/Dialog'
@@ -21,6 +21,7 @@ type Package = {
   child_sessions: number; parent_sessions: number
   child_session_type: string; parent_session_type: string
   notes: string; paid: boolean; payment_submitted?: boolean; status: string
+  resource_id?: string | null
 }
 type Session = {
   id: string; package_id: string; session_number: number
@@ -35,6 +36,9 @@ type Step = 'login' | 'otp' | 'panel'
 
 export default function PatientPanel() {
   const { slug } = useParams<{ slug: string }>()
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const paymentHandled = useRef(false)
   const settings = usePublicClinic(slug)
   const [step, setStep] = useState<Step>('login')
   const [restoring, setRestoring] = useState(true)  // تا وقتی localStorage چک شود، به‌جای لاگین اسپلش نشان بده
@@ -100,6 +104,22 @@ export default function PatientPanel() {
       })()
     } catch { setRestoring(false) }
   }, [])
+
+  // نتیجه‌ی برگشت از درگاهِ پرداختِ آنلاین (زرین‌پال) — یک بار toast بزن، دیتا را
+  // تازه کن، و پارامترها را از URL پاک کن تا با رفرش دوباره تکرار نشود.
+  useEffect(() => {
+    if (paymentHandled.current) return
+    if (step !== 'panel' || !booking) return
+    const result = searchParams.get('payment')
+    if (!result) return
+    paymentHandled.current = true
+    if (result === 'success') uiAlert('✅ پرداخت با موفقیت انجام شد.')
+    else if (result === 'cancelled') uiAlert('پرداخت لغو شد.')
+    else if (result === 'failed') uiAlert('پرداخت تایید نشد. دوباره تلاش کنید یا از کارت‌به‌کارت استفاده کنید.')
+    else uiAlert('خطایی در پردازشِ پرداخت رخ داد.')
+    loadData(booking.case_number)
+    router.replace(`/${slug}/my`)
+  }, [step, booking, searchParams, slug])
 
   function logout() {
     try { localStorage.removeItem('pb_phone'); localStorage.removeItem('pb_case') } catch {}
@@ -217,8 +237,9 @@ export default function PatientPanel() {
           {fs === FLOW.INTERVIEW_AWAITING_PAYMENT && (
             <StagePayment
               icon="🩺" title="هزینه‌ی مصاحبه‌ی اولیه با والدین"
-              desc="برای شروع، هزینه‌ی مصاحبه‌ی اولیه را کارت‌به‌کارت پرداخت کنید. پس از تأیید پرداخت، می‌توانید وقت مصاحبه را انتخاب کنید."
+              desc="برای شروع، هزینه‌ی مصاحبه‌ی اولیه را پرداخت کنید. پس از تأیید پرداخت، می‌توانید وقت مصاحبه را انتخاب کنید."
               amount={booking.interview_price || PRICING.interview}
+              resourceId={booking.resource_id} caseNumber={booking.case_number} phone={phone} purpose="interview"
               onPaid={async (ref) => {
                 const res = await fetch(`/api/t/${slug}/psy/stage-pay`, {
                   method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -269,8 +290,9 @@ export default function PatientPanel() {
           {fs === FLOW.ASSESSMENT_AWAITING_PAYMENT && (
             <StagePayment
               icon="🧩" title="هزینه‌ی ارزیابیِ کودک"
-              desc="مصاحبه‌ی اولیه برگزار شد. برای ادامه، هزینه‌ی ارزیابیِ کودک را کارت‌به‌کارت پرداخت کنید. پس از تأیید پرداخت، وقت ارزیابی را می‌گیرید."
+              desc="مصاحبه‌ی اولیه برگزار شد. برای ادامه، هزینه‌ی ارزیابیِ کودک را پرداخت کنید. پس از تأیید پرداخت، وقت ارزیابی را می‌گیرید."
               amount={booking.assessment_price || PRICING.assessment}
+              resourceId={booking.resource_id} caseNumber={booking.case_number} phone={phone} purpose="assessment"
               onPaid={async (ref) => {
                 const res = await fetch(`/api/t/${slug}/psy/stage-pay`, {
                   method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -530,6 +552,20 @@ function SessionCard({ session: s, num, phone, caseNumber, onUpdate }: {
     onUpdate()
   }
 
+  const [onlineLoading, setOnlineLoading] = useState(false)
+  async function paySessionOnline() {
+    setOnlineLoading(true)
+    try {
+      const res = await fetch(`/api/t/${slug}/psy/pay-online`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ case_number: caseNumber, phone, purpose: 'session', ref_id: s.id }),
+      })
+      const data = await res.json()
+      if (data.url) window.location.href = data.url
+      else { uiAlert(data.error || 'خطا در اتصال به درگاه'); setOnlineLoading(false) }
+    } catch { uiAlert('خطا در ارتباط با سرور'); setOnlineLoading(false) }
+  }
+
   const STATUS_COLOR: Record<string, string> = {
     confirmed: 'bg-green-50 text-green-700 border-green-200',
     cancelled: 'bg-red-50 text-red-700 border-red-200',
@@ -558,21 +594,24 @@ function SessionCard({ session: s, num, phone, caseNumber, onUpdate }: {
 
   const hours = hoursUntil()
   const features = usePatientFeatures(slug)
-  const canCancel = features.patient_self_cancel && s.status === 'confirmed' && hours !== null && hours > 0
-  // ۱۲ ساعت یا بیشتر مانده → ۵۰٪ بازپرداخت؛ کمتر → کلِ مبلغ سوخت
-  const isPartial = hours !== null && hours >= CANCEL.partialHours
-  const refundAmount = Math.round(sessionPrice * (100 - CANCEL.partialPercent) / 100)
+  const policy = settings.doctors.find(d => d.id === s.resource_id)?.cancellation_policy || DEFAULT_CANCELLATION_POLICY
+  const canCancel = features.patient_self_cancel && policy.enabled && s.status === 'confirmed' && hours !== null && hours > 0
+  // ≥ threshold_hours مانده → early_refund_percent٪ برمی‌گردد؛ کمتر → late_refund_percent٪
+  const isPartial = hours !== null && hours >= policy.threshold_hours
+  const refundPercent = isPartial ? policy.early_refund_percent : policy.late_refund_percent
+  const refundAmount = Math.round(sessionPrice * refundPercent / 100)
+  const needsRefundCard = s.paid && refundPercent > 0
 
   async function cancelSession() {
-    if (s.paid && isPartial && refundCard.replace(/[^0-9]/g, '').length < 16) {
-      uiAlert('برای بازگشتِ ۵۰٪ مبلغ، شماره کارتِ ۱۶ رقمی را کامل وارد کنید.')
+    if (needsRefundCard && refundCard.replace(/[^0-9]/g, '').length < 16) {
+      uiAlert(`برای بازگشتِ ${toFarsiNum(refundPercent)}٪ مبلغ، شماره کارتِ ۱۶ رقمی را کامل وارد کنید.`)
       return
     }
     setCancelling(true)
     const res = await fetch(`/api/t/${slug}/psy/cancel`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ session_id: s.id, case_number: caseNumber, phone, refund_card: s.paid && isPartial ? refundCard.trim() : '' })
+      body: JSON.stringify({ session_id: s.id, case_number: caseNumber, phone, refund_card: needsRefundCard ? refundCard.trim() : '' })
     })
     const data = await res.json().catch(() => ({}))
     setCancelling(false)
@@ -581,7 +620,7 @@ function SessionCard({ session: s, num, phone, caseNumber, onUpdate }: {
     if (data.outcome === 'unpaid_released')
       uiAlert('جلسه کنسل شد. چون هنوز پرداخت نکرده بودید، مبلغی کسر نشد.')
     else if (data.outcome === 'partial_refund')
-      uiAlert(`جلسه کنسل شد. ${CANCEL.partialPercent}٪ مبلغ سوخت و ${refundAmount.toLocaleString()} تومان پس از بررسی به کارتِ شما بازگردانده می‌شود.`)
+      uiAlert(`جلسه کنسل شد. ${toFarsiNum(data.refund_percent ?? refundPercent)}٪ مبلغ (${refundAmount.toLocaleString()} تومان) پس از بررسی به کارتِ شما بازگردانده می‌شود.`)
     else
       uiAlert('جلسه کنسل شد و کلِ مبلغ آن سوخت. می‌توانید جلسه‌ی جدیدی خریداری کنید.')
     onUpdate()
@@ -603,7 +642,7 @@ function SessionCard({ session: s, num, phone, caseNumber, onUpdate }: {
               ? <span className="text-amber-600">منتظر انتخاب زمان</span>
               : (s.status === 'forfeited' || s.status === 'replaced')
                 ? (s.refund_percent && s.refund_percent > 0
-                    ? <span className="text-amber-600">{toFarsiNum(100 - s.refund_percent)}٪ بازپرداخت {s.refund_status === 'done' ? '— واریز شد ✅' : '— در انتظارِ بازپرداخت'}</span>
+                    ? <span className="text-amber-600">{toFarsiNum(s.refund_percent || 0)}٪ بازپرداخت {s.refund_status === 'done' ? '— واریز شد ✅' : '— در انتظارِ بازپرداخت'}</span>
                     : <span className="text-red-500">سوخت شد — مبلغ برنگشت</span>)
                 : <>{s.session_date} — {s.session_time}</>}
             {' | '}{s.session_type === 'online' ? '🎥 آنلاین' : '🏥 حضوری'}
@@ -634,12 +673,25 @@ function SessionCard({ session: s, num, phone, caseNumber, onUpdate }: {
       {needsPayment && s.payment_submitted && (
         <div className="w-full mt-3 py-2.5 text-center text-xs text-blue-600 bg-blue-50 rounded-xl border border-blue-100">⏳ پرداخت ثبت شد — در انتظار تأیید</div>
       )}
-      {needsPayment && !s.payment_submitted && (
-        !payOpen ? (
-          <button onClick={() => setPayOpen(true)}
-            className="w-full mt-3 py-2.5 bg-brand-600 text-white rounded-xl text-sm font-medium">
-            💳 پرداختِ کارت‌به‌کارت {sessionPrice.toLocaleString()} تومان
-          </button>
+      {needsPayment && !s.payment_submitted && (() => {
+        const pm = settings.doctors.find(d => d.id === s.resource_id)?.payment_methods
+        const onlineOn = !!pm?.online
+        const cardOn = pm ? pm.card_to_card : true
+        return !payOpen ? (
+          <div className="mt-3 flex gap-2">
+            {onlineOn && (
+              <button onClick={paySessionOnline} disabled={onlineLoading}
+                className="flex-1 py-2.5 bg-brand-600 text-white rounded-xl text-sm font-medium disabled:opacity-40">
+                {onlineLoading ? 'در حال اتصال...' : `🌐 پرداختِ آنلاین ${sessionPrice.toLocaleString()}`}
+              </button>
+            )}
+            {cardOn && (
+              <button onClick={() => setPayOpen(true)}
+                className={`py-2.5 rounded-xl text-sm font-medium ${onlineOn ? 'flex-1 border border-gray-300 text-gray-600' : 'w-full bg-brand-600 text-white'}`}>
+                💳 {onlineOn ? 'کارت‌به‌کارت' : `پرداختِ کارت‌به‌کارت ${sessionPrice.toLocaleString()} تومان`}
+              </button>
+            )}
+          </div>
         ) : (
           <div className="mt-3 text-right">
             <div className="bg-brand-50 border border-brand-100 rounded-xl p-3 mb-2">
@@ -654,7 +706,7 @@ function SessionCard({ session: s, num, phone, caseNumber, onUpdate }: {
             </button>
           </div>
         )
-      )}
+      })()}
       {s.status === 'forfeited' && features.patient_buy_extra_session && (
         <button onClick={buyReplacement} disabled={buying}
           className="w-full mt-3 py-2.5 border border-gray-300 text-gray-600 rounded-xl text-sm font-medium hover:bg-gray-50 disabled:opacity-40">
@@ -676,12 +728,11 @@ function SessionCard({ session: s, num, phone, caseNumber, onUpdate }: {
             <p className="text-xs text-gray-600 mb-3">
               این جلسه هنوز پرداخت نشده؛ با کنسل‌کردن فقط زمانش آزاد می‌شود و مبلغی کسر نمی‌شود.
             </p>
-          ) : isPartial ? (
+          ) : needsRefundCard ? (
             <>
               <p className="text-xs text-gray-600 mb-3">
-                بیشتر از {toFarsiNum(CANCEL.partialHours)} ساعت تا جلسه مانده. با کنسل‌کردن{' '}
-                <strong>{toFarsiNum(CANCEL.partialPercent)}٪ مبلغ سوخت می‌شود</strong> و{' '}
-                <strong>{refundAmount.toLocaleString()} تومان</strong> پس از بررسی به کارتِ شما بازگردانده می‌شود.
+                {isPartial ? <>بیشتر از {toFarsiNum(policy.threshold_hours)} ساعت تا جلسه مانده.</> : <>کمتر از {toFarsiNum(policy.threshold_hours)} ساعت تا جلسه مانده.</>} با کنسل‌کردن{' '}
+                <strong>{toFarsiNum(refundPercent)}٪ مبلغ ({refundAmount.toLocaleString()} تومان)</strong> پس از بررسی به کارتِ شما بازگردانده می‌شود.
               </p>
               <label className="text-xs text-gray-500 mb-1 block">شماره کارت برای واریزِ بازپرداخت <span className="text-red-500">*</span></label>
               <input value={refundCard} onChange={e => setRefundCard(e.target.value)} dir="ltr"
@@ -690,7 +741,7 @@ function SessionCard({ session: s, num, phone, caseNumber, onUpdate }: {
             </>
           ) : (
             <p className="text-xs text-red-500 mb-3">
-              چون کمتر از {toFarsiNum(CANCEL.partialHours)} ساعت تا جلسه مانده، با کنسل‌کردن{' '}
+              {isPartial ? <>بیشتر از {toFarsiNum(policy.threshold_hours)} ساعت تا جلسه مانده، ولی</> : <>چون کمتر از {toFarsiNum(policy.threshold_hours)} ساعت تا جلسه مانده،</>} با کنسل‌کردن{' '}
               <strong>کل مبلغ این جلسه سوخت می‌شود</strong> و برنمی‌گردد. می‌توانید بعداً جلسه‌ی جدیدی خریداری کنید. مطمئنید؟
             </p>
           )}
@@ -699,7 +750,7 @@ function SessionCard({ session: s, num, phone, caseNumber, onUpdate }: {
               className="flex-1 py-2 border border-gray-200 rounded-lg text-xs text-gray-500">انصراف</button>
             <button onClick={cancelSession} disabled={cancelling}
               className="flex-1 py-2 bg-red-500 text-white rounded-lg text-xs disabled:opacity-40">
-              {cancelling ? 'در حال کنسل...' : !s.paid ? '✅ تایید کنسل' : isPartial ? '✅ تایید و کنسل (۵۰٪ بازپرداخت)' : '✅ تایید و سوختِ مبلغ'}
+              {cancelling ? 'در حال کنسل...' : !s.paid ? '✅ تایید کنسل' : needsRefundCard ? `✅ تایید و کنسل (${toFarsiNum(refundPercent)}٪ بازپرداخت)` : '✅ تایید و سوختِ مبلغ'}
             </button>
           </div>
         </div>
@@ -713,8 +764,12 @@ function PayButton({ pkg, phone, onSuccess, total }: { pkg: Package; phone: stri
   const [open, setOpen] = useState(false)
   const [paying, setPaying] = useState(false)
   const [ref, setRef] = useState('')
+  const [onlineLoading, setOnlineLoading] = useState(false)
   const { slug } = useParams<{ slug: string }>()
   const settings = usePublicClinic(slug)
+  const pm = settings.doctors.find(d => d.id === pkg.resource_id)?.payment_methods
+  const onlineOn = !!pm?.online
+  const cardOn = pm ? pm.card_to_card : true
 
   async function pay() {
     setPaying(true)
@@ -728,11 +783,34 @@ function PayButton({ pkg, phone, onSuccess, total }: { pkg: Package; phone: stri
     onSuccess()
   }
 
+  async function payOnline() {
+    setOnlineLoading(true)
+    try {
+      const res = await fetch(`/api/t/${slug}/psy/pay-online`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ case_number: pkg.case_number, phone, purpose: 'package', ref_id: pkg.id }),
+      })
+      const data = await res.json()
+      if (data.url) window.location.href = data.url
+      else { uiAlert(data.error || 'خطا در اتصال به درگاه'); setOnlineLoading(false) }
+    } catch { uiAlert('خطا در ارتباط با سرور'); setOnlineLoading(false) }
+  }
+
   if (!open) return (
-    <button onClick={() => setOpen(true)}
-      className="w-full py-2.5 bg-brand-600 text-white rounded-xl text-sm font-medium">
-      💳 پرداختِ کارت‌به‌کارت {total.toLocaleString()} تومان
-    </button>
+    <div className="flex gap-2">
+      {onlineOn && (
+        <button onClick={payOnline} disabled={onlineLoading}
+          className="flex-1 py-2.5 bg-brand-600 text-white rounded-xl text-sm font-medium disabled:opacity-40">
+          {onlineLoading ? 'در حال اتصال...' : `🌐 پرداختِ آنلاین ${total.toLocaleString()}`}
+        </button>
+      )}
+      {cardOn && (
+        <button onClick={() => setOpen(true)}
+          className={`py-2.5 rounded-xl text-sm font-medium ${onlineOn ? 'flex-1 border border-gray-300 text-gray-600' : 'w-full bg-brand-600 text-white'}`}>
+          💳 {onlineOn ? 'کارت‌به‌کارت' : `پرداختِ کارت‌به‌کارت ${total.toLocaleString()} تومان`}
+        </button>
+      )}
+    </div>
   )
 
   return (
@@ -1155,14 +1233,20 @@ function StageInfo({ icon, title, desc, date, time, label }: { icon: string; tit
 }
 
 // کارتِ پرداختِ کارت‌به‌کارت — شماره کارت + کد رهگیریِ اختیاری + دکمه‌ی «پرداخت کردم»
-function StagePayment({ icon, title, desc, amount, onPaid, onDone }: {
+function StagePayment({ icon, title, desc, amount, onPaid, onDone, resourceId, caseNumber, phone, purpose }: {
   icon: string; title: string; desc: string; amount: number
   onPaid: (ref: string) => Promise<boolean>; onDone: () => void
+  resourceId?: string | null; caseNumber: string; phone: string; purpose: 'interview' | 'assessment'
 }) {
   const [ref, setRef] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [onlineLoading, setOnlineLoading] = useState(false)
   const { slug } = useParams<{ slug: string }>()
   const settings = usePublicClinic(slug)
+  const pm = settings.doctors.find(d => d.id === resourceId)?.payment_methods
+  const onlineOn = !!pm?.online
+  const cardOn = pm ? pm.card_to_card : true
+  const [method, setMethod] = useState<'online' | 'card'>(onlineOn ? 'online' : 'card')
 
   async function submit() {
     setSubmitting(true)
@@ -1170,6 +1254,19 @@ function StagePayment({ icon, title, desc, amount, onPaid, onDone }: {
     setSubmitting(false)
     if (!ok) { uiAlert('ثبتِ پرداخت ناموفق بود. دوباره تلاش کنید.'); return }
     onDone()
+  }
+
+  async function payOnline() {
+    setOnlineLoading(true)
+    try {
+      const res = await fetch(`/api/t/${slug}/psy/pay-online`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ case_number: caseNumber, phone, purpose }),
+      })
+      const data = await res.json()
+      if (data.url) window.location.href = data.url
+      else { uiAlert(data.error || 'خطا در اتصال به درگاه'); setOnlineLoading(false) }
+    } catch { uiAlert('خطا در ارتباط با سرور'); setOnlineLoading(false) }
   }
 
   return (
@@ -1181,22 +1278,48 @@ function StagePayment({ icon, title, desc, amount, onPaid, onDone }: {
       </div>
 
       <div className="bg-brand-50 border border-brand-100 rounded-xl p-4 mb-3">
-        <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center justify-between">
           <span className="text-xs text-gray-500">مبلغ قابل پرداخت</span>
           <span className="text-base font-bold text-brand-700">{amount.toLocaleString()} تومان</span>
         </div>
-        <CardChooser cards={settings.cards} loaded={settings.loaded} />
       </div>
 
-      <label className="text-xs text-gray-500 mb-1 block">متن فیش واریزی <span className="text-red-500">*</span></label>
-      <textarea value={ref} onChange={e => setRef(e.target.value)} rows={3} placeholder="اطلاعات فیش واریزی را وارد کنید (کد پیگیری، شماره کارت مبدأ، تاریخ و ساعت واریز...)"
-        className="w-full text-sm px-3 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:border-brand-400 mb-3 resize-none" />
+      {onlineOn && cardOn && (
+        <div className="grid grid-cols-2 gap-2 mb-3 p-1 bg-gray-100 rounded-xl">
+          <button onClick={() => setMethod('online')}
+            className={`py-2 rounded-lg text-xs font-medium transition-colors ${method === 'online' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500'}`}>
+            🌐 پرداختِ آنلاین
+          </button>
+          <button onClick={() => setMethod('card')}
+            className={`py-2 rounded-lg text-xs font-medium transition-colors ${method === 'card' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500'}`}>
+            💳 کارت‌به‌کارت
+          </button>
+        </div>
+      )}
 
-      <button onClick={submit} disabled={submitting || !ref.trim()}
-        className="w-full py-3 bg-brand-600 text-white rounded-xl text-sm font-medium disabled:opacity-40">
-        {submitting ? 'در حال ثبت...' : '✅ پرداخت کردم'}
-      </button>
-      <p className="text-[11px] text-gray-400 mt-2 text-center">پس از واریز، متنِ فیش را وارد و «پرداخت کردم» را بزنید تا بررسی و تأیید شود.</p>
+      {method === 'online' && onlineOn ? (
+        <>
+          <p className="text-xs text-gray-500 mb-3 text-center">بعدِ پرداخت بلافاصله می‌توانید ادامه دهید.</p>
+          <button onClick={payOnline} disabled={onlineLoading}
+            className="w-full py-3 bg-brand-600 text-white rounded-xl text-sm font-medium disabled:opacity-40">
+            {onlineLoading ? 'در حال اتصال به درگاه...' : '🌐 پرداختِ آنلاین'}
+          </button>
+        </>
+      ) : (
+        <>
+          <div className="bg-brand-50 border border-brand-100 rounded-xl p-3 mb-3">
+            <CardChooser cards={settings.cards} loaded={settings.loaded} />
+          </div>
+          <label className="text-xs text-gray-500 mb-1 block">متن فیش واریزی <span className="text-red-500">*</span></label>
+          <textarea value={ref} onChange={e => setRef(e.target.value)} rows={3} placeholder="اطلاعات فیش واریزی را وارد کنید (کد پیگیری، شماره کارت مبدأ، تاریخ و ساعت واریز...)"
+            className="w-full text-sm px-3 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:border-brand-400 mb-3 resize-none" />
+          <button onClick={submit} disabled={submitting || !ref.trim()}
+            className="w-full py-3 bg-brand-600 text-white rounded-xl text-sm font-medium disabled:opacity-40">
+            {submitting ? 'در حال ثبت...' : '✅ پرداخت کردم'}
+          </button>
+          <p className="text-[11px] text-gray-400 mt-2 text-center">پس از واریز، متنِ فیش را وارد و «پرداخت کردم» را بزنید تا بررسی و تأیید شود.</p>
+        </>
+      )}
     </div>
   )
 }
