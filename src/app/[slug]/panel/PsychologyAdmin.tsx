@@ -1162,8 +1162,8 @@ export function PsychologyAdmin() {
     }
     return result
   }
-  const fieldTypeIcon = (t: FormFieldType) => t === 'text' ? 'Aa' : t === 'textarea' ? '¶' : t === 'select' ? '◉' : t === 'date' ? '📅' : '☑'
-  const fieldTypeLabel = (t: FormFieldType) => t === 'text' ? 'متنِ کوتاه' : t === 'textarea' ? 'متنِ بلند' : t === 'select' ? 'تک‌گزینه‌ای' : t === 'date' ? 'تاریخ' : 'چندگزینه‌ای'
+  const fieldTypeIcon = (t: FormFieldType) => t === 'text' ? 'Aa' : t === 'textarea' ? '¶' : t === 'select' ? '◉' : t === 'date' ? '📅' : t === 'phone' ? '☎' : '☑'
+  const fieldTypeLabel = (t: FormFieldType) => t === 'text' ? 'متنِ کوتاه' : t === 'textarea' ? 'متنِ بلند' : t === 'select' ? 'تک‌گزینه‌ای' : t === 'date' ? 'تاریخ' : t === 'phone' ? 'شماره‌تماس' : 'چندگزینه‌ای'
 
   async function saveIntakeForm() {
     setIntakeSaving(true); setIntakeSaved(false)
@@ -2999,6 +2999,9 @@ export function PsychologyAdmin() {
                                     <select disabled className="text-sm px-2 py-2 border border-gray-200 rounded-lg bg-gray-50 text-gray-400"><option>سال</option></select>
                                   </div>
                                 )}
+                                {field.type === 'phone' && (
+                                  <input disabled dir="ltr" placeholder="09xxxxxxxxx" className="w-full text-sm px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-gray-400" />
+                                )}
                               </div>
 
                               {/* اگر این سوال خودش وابسته به یه سوالِ قبلیه — فقط نمایشی، ساخته نمی‌شه اینجا */}
@@ -3020,12 +3023,12 @@ export function PsychologyAdmin() {
 
                               <div>
                                 <label className="text-xs text-gray-500 mb-2 block">نوعِ پاسخ</label>
-                                <div className="grid grid-cols-5 gap-2">
-                                  {(['text', 'textarea', 'select', 'multiselect', 'date'] as FormFieldType[]).map(t => (
+                                <div className="grid grid-cols-6 gap-1.5">
+                                  {(['text', 'textarea', 'select', 'multiselect', 'date', 'phone'] as FormFieldType[]).map(t => (
                                     <button key={t} onClick={() => updateFormField(sIdx, fIdx, { type: t })}
-                                      className={`py-2.5 rounded-xl border text-center transition-all ${field.type === t ? 'border-brand-600 border-2 bg-brand-50 text-brand-700' : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300'}`}>
+                                      className={`py-2 rounded-xl border text-center transition-all ${field.type === t ? 'border-brand-600 border-2 bg-brand-50 text-brand-700' : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300'}`}>
                                       <div className="text-sm mb-0.5">{fieldTypeIcon(t)}</div>
-                                      <div className="text-[10px]">{fieldTypeLabel(t)}</div>
+                                      <div className="text-[9px]">{fieldTypeLabel(t)}</div>
                                     </button>
                                   ))}
                                 </div>
@@ -3035,6 +3038,7 @@ export function PsychologyAdmin() {
                                   {field.type === 'select' && 'مراجع فقط یکی از گزینه‌ها را انتخاب می‌کند — مثلِ بله/خیر.'}
                                   {field.type === 'multiselect' && 'مراجع می‌تواند چند گزینه را همزمان انتخاب کند — مثلِ چند علامتِ رفتاری.'}
                                   {field.type === 'date' && 'مراجع از یک تقویمِ شمسی روز/ماه/سال را انتخاب می‌کند — نه تایپِ دستی.'}
+                                  {field.type === 'phone' && 'فقط شماره‌ی موبایلِ معتبر (۱۱ رقم، با ۰۹) قبول می‌شود — نه هر متنی.'}
                                 </p>
                               </div>
 

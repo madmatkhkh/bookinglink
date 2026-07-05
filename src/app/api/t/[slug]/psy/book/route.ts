@@ -18,13 +18,20 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   if (!t) return NextResponse.json({ error: 'یافت نشد' }, { status: 404 })
 
   const b = await req.json()
-  const { childName, fatherPhone, sessionType, officeLocation, resourceId, answers } = b
+  const { fatherPhone, sessionType, officeLocation, resourceId, answers } = b
+  const childName = String(b.childName || '').trim().replace(/\s+/g, ' ')
   const rawAnswers: Record<string, any> = answers && typeof answers === 'object' ? answers : {}
 
   if (!childName || !fatherPhone)
     return NextResponse.json({ error: 'نام و شماره تماس لازم است' }, { status: 400 })
   if (!/^09\d{9}$/.test(String(fatherPhone).replace(/[۰-۹]/g, d => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d))).trim()))
     return NextResponse.json({ error: 'شماره تماس معتبر نیست (باید ۱۱ رقم و با ۰۹ شروع شود)' }, { status: 400 })
+
+  // یک پرونده با همین نام + همین شماره قبلاً ثبت نشده باشد (تغییرِ نام یا شماره
+  // آزاد است — فقط ترکیبِ عینِ یکسان مسدود می‌شود)
+  const { data: dup } = await sb().from('psy_cases').select('id')
+    .eq('tenant_id', t.id).eq('child_name', childName).eq('father_phone', fatherPhone).maybeSingle()
+  if (dup) return NextResponse.json({ error: 'پرونده‌ای با همین نام و شماره‌تماس قبلاً ثبت شده است.' }, { status: 409 })
 
   // فعلاً صفحه‌ی عمومی دکتری را انتخاب نمی‌گیرد مگر بیش از یک دکتر باشد
   let finalResourceId: string | null = null

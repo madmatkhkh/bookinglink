@@ -42,6 +42,12 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   if (!b.child_name?.trim()) return NextResponse.json({ error: 'نام لازم است' }, { status: 400 })
   if (!(b.father_phone?.trim() || b.mother_phone?.trim() || b.phone?.trim()))
     return NextResponse.json({ error: 'حداقل یک شماره تماس لازم است' }, { status: 400 })
+  const phoneRe = /^09\d{9}$/
+  const toLatin = (s: string) => String(s || '').replace(/[۰-۹]/g, d => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d))).trim()
+  for (const key of ['father_phone', 'mother_phone', 'phone'] as const) {
+    if (b[key] && !phoneRe.test(toLatin(b[key])))
+      return NextResponse.json({ error: `شماره‌ی واردشده معتبر نیست (باید ۱۱ رقم و با ۰۹ شروع شود)` }, { status: 400 })
+  }
 
   const resourceId = await resolveResourceForNewCase(a.tenant.id, a.isOwner, a.resourceId, b.resource_id)
 

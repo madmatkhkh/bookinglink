@@ -368,17 +368,28 @@ export default function InterviewPage() {
             if (!currentSection) return []
             const miss: string[] = []
             for (const f of currentSection.fields) {
-              if (!f.required) continue
               const v = answers[f.id]
               const empty = f.type === 'multiselect' ? !Array.isArray(v) || v.length === 0 : !String(v ?? '').trim()
-              if (empty) miss.push(f.label)
+              if (f.required && empty) { miss.push(f.label); continue }
+              if (f.type === 'phone' && !empty && !isValidIranPhone(String(v))) miss.push(`${f.label} (فرمتِ شماره نامعتبر است)`)
             }
             return miss
           }
 
-          function goNext() {
+          async function goNext() {
             const miss = missingOnThisPage()
             if (miss.length) { uiAlert('لطفاً این موارد را کامل کنید:\n• ' + miss.join('\n• ')); return }
+            // قبل از ادامه، مطمئن شو همین نام+شماره از قبل ثبت نشده (تا مراجع کلِ فرم رو الکی پر نکنه)
+            if (safeIdx === 0) {
+              try {
+                const res = await fetch(`/api/t/${slug}/psy/check-existing`, {
+                  method: 'POST', headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ childName, phone: fatherPhone }),
+                })
+                const d = await res.json()
+                if (d.exists) { uiAlert('پرونده‌ای با همین نام و شماره‌تماس قبلاً ثبت شده است. اگر برای فرزندِ دیگری است، نام را متفاوت وارد کنید.'); return }
+              } catch {}
+            }
             if (safeIdx === totalPages - 1) handleSubmit()
             else setPageIdx(safeIdx + 1)
           }
@@ -418,7 +429,7 @@ export default function InterviewPage() {
 
                   {safeIdx === 0 ? (
                     <div className="grid grid-cols-2 gap-3">
-                      <Field label="نام و نام خانوادگی *" value={childName} onChange={setChildName} placeholder="آرین رضایی" />
+                      <Field label="نام و نام خانوادگیِ کودک *" value={childName} onChange={setChildName} placeholder="آرین رضایی" />
                       <Field label="شماره تماس *" value={fatherPhone} onChange={setFatherPhone} placeholder="۰۹۱۲..." dir="ltr" />
                     </div>
                   ) : (
@@ -484,6 +495,9 @@ function DynamicField({ field, value, onChange, onToggle }: {
       <label className="text-xs text-gray-500 mb-1 block">{label}</label>
       <JalaliDatePicker value={value || ''} onChange={onChange} />
     </div>
+  )
+  if (field.type === 'phone') return (
+    <Field label={label} value={value || ''} onChange={onChange} placeholder="۰۹۱۲..." dir="ltr" />
   )
   if (field.type === 'select') return (
     <div>

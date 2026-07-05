@@ -201,7 +201,7 @@ export const offlineAvailable = (m: SessionMode) => m === 'both' || m === 'offli
 // ── فرمِ رزرو — قابلِ‌تنظیم توسطِ هر دکتر (per-resource) ──────────────────────
 // نام/شماره‌تماس بیرونِ این اسکیما و همیشه ثابت‌اند (برای OTP لازم‌اند).
 // هرچه اینجاست کاملاً دیتایی و قابلِ‌ویرایش از پنل → تنظیمات → فرمِ رزرو است.
-export type FormFieldType = 'text' | 'textarea' | 'select' | 'multiselect' | 'date'
+export type FormFieldType = 'text' | 'textarea' | 'select' | 'multiselect' | 'date' | 'phone'
 
 export type FormField = {
   id: string
@@ -253,7 +253,7 @@ export const DEFAULT_INTAKE_FORM: IntakeForm = {
     ]},
     { id: 'mother', title: 'اطلاعاتِ مادر', fields: [
       { id: 'mother_name', label: 'نام', type: 'text', required: true, placeholder: 'مریم' },
-      { id: 'mother_phone', label: 'شماره تماس', type: 'text', required: true, placeholder: '۰۹۱۲...' },
+      { id: 'mother_phone', label: 'شماره تماس', type: 'phone', required: true },
       { id: 'mother_education', label: 'تحصیلات', type: 'text', required: false, placeholder: 'دیپلم' },
       { id: 'mother_job', label: 'شغل', type: 'text', required: false, placeholder: 'خانه‌دار' },
     ]},
@@ -311,7 +311,7 @@ export const DEFAULT_INTAKE_FORM: IntakeForm = {
 }
 
 function isValidFieldType(t: unknown): t is FormFieldType {
-  return t === 'text' || t === 'textarea' || t === 'select' || t === 'multiselect' || t === 'date'
+  return t === 'text' || t === 'textarea' || t === 'select' || t === 'multiselect' || t === 'date' || t === 'phone'
 }
 
 export function mergeIntakeForm(raw: unknown): IntakeForm {
@@ -353,16 +353,25 @@ export function fieldVisible(field: FormField, answers: Record<string, unknown>)
 }
 
 // همه‌ی فیلدهای اجباریِ یک فرم مقدار دارند؟ برچسبِ فیلدهای ناقص را برمی‌گرداند
-// (فیلدهایی که طبقِ showIf الان مخفی‌اند، اجباری حساب نمی‌شوند)
+// (فیلدهایی که طبقِ showIf الان مخفی‌اند، اجباری حساب نمی‌شوند). فیلدهای نوعِ
+// «phone» علاوه‌بر اجباری‌بودن، فرمتِ شماره‌ی موبایلِ ایرانی هم چک می‌شوند —
+// حتی اگر اختیاری باشند، مقدارِ واردشده باید یا خالی یا یک شماره‌ی معتبر باشد.
+function digitsToLatin(s: string): string {
+  return s.replace(/[۰-۹]/g, d => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d)))
+}
+export function isValidIranPhone(v: string): boolean {
+  return /^09\d{9}$/.test(digitsToLatin(String(v || '')).trim())
+}
+
 export function missingIntakeFields(form: IntakeForm, answers: Record<string, unknown>): string[] {
   const missing: string[] = []
   for (const section of form.sections) {
     for (const f of section.fields) {
-      if (!f.required) continue
       if (!fieldVisible(f, answers)) continue
       const v = answers[f.id]
       const empty = f.type === 'multiselect' ? !Array.isArray(v) || v.length === 0 : !String(v ?? '').trim()
-      if (empty) missing.push(f.label)
+      if (f.required && empty) { missing.push(f.label); continue }
+      if (f.type === 'phone' && !empty && !isValidIranPhone(String(v))) missing.push(`${f.label} (فرمتِ شماره نامعتبر است)`)
     }
   }
   return missing
