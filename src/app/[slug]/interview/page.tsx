@@ -36,6 +36,8 @@ export default function InterviewPage() {
   const [intakeLoaded, setIntakeLoaded] = useState(false)
   const [answers, setAnswers] = useState<Record<string, any>>({})
   const setAnswer = (id: string, v: any) => setAnswers(a => ({ ...a, [id]: v }))
+  // فرمِ درازِ قدیمی به یک ویزاردِ چندمرحله‌ای تبدیل شد — مرحله‌ی ۰ = مشخصاتِ تماس، بقیه = هر بخش یک صفحه
+  const [pageIdx, setPageIdx] = useState(0)
 
   const price = sessionType === 'online' ? '۸۵۰,۰۰۰' : '۱,۲۰۰,۰۰۰'
   const daysInMonth = getDaysInJalaliMonth(curYear, curMonth)
@@ -340,59 +342,99 @@ export default function InterviewPage() {
           </div>
         )}
 
-        {/* Step 3 - فرم کامل (کاملاً دیتایی — از فرمِ تنظیم‌شده‌ی همین دکتر) */}
-        {step === 3 && (
-          <div className="bg-white rounded-2xl border border-gray-100 p-5 mb-4 space-y-6">
-            {/* خلاصه */}
-            <div className="bg-brand-50 rounded-xl p-3 text-sm">
-              <div className="flex justify-between text-gray-600 mb-1">
-                <span>نوع جلسه</span><span className="font-medium">{sessionType === 'online' ? 'آنلاین 🎥' : `حضوری 🏥${officeLoc ? ` — ${officeLoc}` : ''}`}</span>
-              </div>
-              <div className="flex justify-between border-t border-brand-100 pt-2 mt-2">
-                <span className="font-medium">هزینه‌ی مصاحبه‌ی اولیه</span><span className="font-medium text-brand-600">{PRICING.interview.toLocaleString()} تومان</span>
-              </div>
-            </div>
+        {/* Step 3 - فرم کامل (کاملاً دیتایی — از فرمِ تنظیم‌شده‌ی همین دکتر)، به‌صورتِ ویزاردِ چندمرحله‌ای */}
+        {step === 3 && (() => {
+          const visibleSections = intakeForm.sections
+            .map(s => ({ ...s, fields: s.fields.filter(f => fieldVisible(f, answers)) }))
+            .filter(s => s.fields.length > 0)
+          const totalPages = 1 + visibleSections.length
+          const safeIdx = Math.min(pageIdx, totalPages - 1)
+          const currentSection = safeIdx === 0 ? null : visibleSections[safeIdx - 1]
 
-            {!intakeLoaded ? (
-              <div className="text-center py-10 text-gray-400 text-sm">در حال بارگذاری فرم...</div>
-            ) : (
-              <>
-                {/* نام و شماره‌تماس — همیشه ثابت، برای ورود به پنلِ مراجع لازم است */}
-                <Section title="مشخصاتِ تماس">
-                  <div className="grid grid-cols-2 gap-3">
-                    <Field label="نام و نام خانوادگی *" value={childName} onChange={setChildName} placeholder="آرین رضایی" />
-                    <Field label="شماره تماس *" value={fatherPhone} onChange={setFatherPhone} placeholder="۰۹۱۲..." dir="ltr" />
+          function missingOnThisPage(): string[] {
+            if (safeIdx === 0) {
+              const miss: string[] = []
+              if (!childName.trim()) miss.push('نام')
+              if (!fatherPhone.trim()) miss.push('شماره تماس')
+              return miss
+            }
+            if (!currentSection) return []
+            const miss: string[] = []
+            for (const f of currentSection.fields) {
+              if (!f.required) continue
+              const v = answers[f.id]
+              const empty = f.type === 'multiselect' ? !Array.isArray(v) || v.length === 0 : !String(v ?? '').trim()
+              if (empty) miss.push(f.label)
+            }
+            return miss
+          }
+
+          function goNext() {
+            const miss = missingOnThisPage()
+            if (miss.length) { uiAlert('لطفاً این موارد را کامل کنید:\n• ' + miss.join('\n• ')); return }
+            if (safeIdx === totalPages - 1) handleSubmit()
+            else setPageIdx(safeIdx + 1)
+          }
+          function goBack() {
+            if (safeIdx === 0) setStep(1)
+            else setPageIdx(safeIdx - 1)
+          }
+
+          return (
+            <div className="bg-white rounded-2xl border border-gray-100 p-5 mb-4">
+              {/* خلاصه — فقط صفحه‌ی اول */}
+              {safeIdx === 0 && (
+                <div className="bg-brand-50 rounded-xl p-3 text-sm mb-5">
+                  <div className="flex justify-between text-gray-600 mb-1">
+                    <span>نوع جلسه</span><span className="font-medium">{sessionType === 'online' ? 'آنلاین 🎥' : `حضوری 🏥${officeLoc ? ` — ${officeLoc}` : ''}`}</span>
                   </div>
-                </Section>
+                  <div className="flex justify-between border-t border-brand-100 pt-2 mt-2">
+                    <span className="font-medium">هزینه‌ی مصاحبه‌ی اولیه</span><span className="font-medium text-brand-600">{PRICING.interview.toLocaleString()} تومان</span>
+                  </div>
+                </div>
+              )}
 
-                {intakeForm.sections.map(section => {
-                  const visibleFields = section.fields.filter(f => fieldVisible(f, answers))
-                  if (visibleFields.length === 0) return null
-                  return (
-                    <Section key={section.id} title={section.title}>
-                      <div className="space-y-3">
-                        {visibleFields.map(f => (
-                          <DynamicField key={f.id} field={f} value={answers[f.id]}
-                            onChange={v => setAnswer(f.id, v)} onToggle={o => toggleMulti(f.id, o)} />
-                        ))}
-                      </div>
-                    </Section>
-                  )
-                })}
-              </>
-            )}
+              {!intakeLoaded ? (
+                <div className="text-center py-10 text-gray-400 text-sm">در حال بارگذاری فرم...</div>
+              ) : (
+                <>
+                  {/* نوارِ پیشرفت */}
+                  <div className="mb-5">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-xs text-gray-400">{safeIdx === 0 ? 'مشخصاتِ تماس' : currentSection?.title}</span>
+                      <span className="text-[11px] text-gray-400">{toFarsiNum(safeIdx + 1)} از {toFarsiNum(totalPages)}</span>
+                    </div>
+                    <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                      <div className="h-full bg-brand-600 rounded-full transition-all" style={{ width: `${((safeIdx + 1) / totalPages) * 100}%` }} />
+                    </div>
+                  </div>
 
-            <div className="flex gap-2 pt-2">
-              <button onClick={() => setStep(1)} className="px-4 py-3 border border-gray-200 rounded-xl text-sm text-gray-500 hover:bg-gray-50">برگشت</button>
-              <button
-                disabled={loading || !intakeLoaded || missingFields().length > 0}
-                onClick={handleSubmit}
-                className="flex-1 py-3 bg-brand-600 text-white rounded-xl text-sm font-medium disabled:opacity-40 hover:bg-brand-800 transition-colors">
-                {loading ? 'در حال ثبت...' : 'ادامه به پرداخت ←'}
-              </button>
+                  {safeIdx === 0 ? (
+                    <div className="grid grid-cols-2 gap-3">
+                      <Field label="نام و نام خانوادگی *" value={childName} onChange={setChildName} placeholder="آرین رضایی" />
+                      <Field label="شماره تماس *" value={fatherPhone} onChange={setFatherPhone} placeholder="۰۹۱۲..." dir="ltr" />
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {currentSection?.fields.map(f => (
+                        <DynamicField key={f.id} field={f} value={answers[f.id]}
+                          onChange={v => setAnswer(f.id, v)} onToggle={o => toggleMulti(f.id, o)} />
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+
+              <div className="flex gap-2 pt-6">
+                <button onClick={goBack} className="px-4 py-3 border border-gray-200 rounded-xl text-sm text-gray-500 hover:bg-gray-50">برگشت</button>
+                <button disabled={loading || !intakeLoaded} onClick={goNext}
+                  className="flex-1 py-3 bg-brand-600 text-white rounded-xl text-sm font-medium disabled:opacity-40 hover:bg-brand-800 transition-colors">
+                  {loading ? 'در حال ثبت...' : safeIdx === totalPages - 1 ? 'ادامه به پرداخت ←' : 'بعدی ←'}
+                </button>
+              </div>
             </div>
-          </div>
-        )}
+          )
+        })()}
       </div>
     </div>
   )

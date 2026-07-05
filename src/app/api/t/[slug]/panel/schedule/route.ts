@@ -57,7 +57,7 @@ export async function PUT(req: NextRequest, { params }: { params: { slug: string
   const oldIds = (before.data || []).map(r => r.id)
   if (rows.length) {
     const { error } = await sb().from('weekly_schedules').insert(rows)
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    if (error) { console.error('src/app/api/t/[slug]/panel/schedule/route.ts error:', error); return NextResponse.json({ error: 'مشکلی پیش آمد. دوباره تلاش کنید.' }, { status: 500 }) }
   }
   if (oldIds.length) await sb().from('weekly_schedules').delete().in('id', oldIds)
   return NextResponse.json({ success: true })
@@ -74,7 +74,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   if (!/^\d{4}\/\d{2}\/\d{2}$/.test(d)) return NextResponse.json({ error: 'تاریخ نامعتبر' }, { status: 400 })
   const { data, error } = await sb().from('schedule_overrides')
     .insert({ tenant_id: t.id, resource_id, date: d, type: 'closed' }).select().single()
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) { console.error('src/app/api/t/[slug]/panel/schedule/route.ts error:', error); return NextResponse.json({ error: 'مشکلی پیش آمد. دوباره تلاش کنید.' }, { status: 500 }) }
   return NextResponse.json({ override: data })
 }
 

@@ -32,6 +32,6 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
     return NextResponse.json({ error: 'این ساعت قبلاً رزرو شده. لطفاً زمان دیگری انتخاب کنید.' }, { status: 409 })
 
   const { error } = await sb().from('psy_sessions').update({ session_date, session_time }).eq('id', session_id)
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) { console.error('src/app/api/t/[slug]/psy/schedule-one/route.ts error:', error); return NextResponse.json({ error: 'مشکلی پیش آمد. دوباره تلاش کنید.' }, { status: 500 }) }
   return NextResponse.json({ success: true })
 }

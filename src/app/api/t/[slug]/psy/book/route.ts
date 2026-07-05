@@ -77,6 +77,9 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
     status: 'pending',
   }]).select().single()
 
-  if (error) return NextResponse.json({ error: `خطا در ذخیره: ${error.message}` }, { status: 500 })
+  if (error) {
+    console.error('psy/book insert error:', error)
+    return NextResponse.json({ error: 'مشکلی در ثبتِ اطلاعات پیش آمد. لطفاً دوباره تلاش کنید؛ اگر باز هم تکرار شد، با مجموعه تماس بگیرید.' }, { status: 500 })
+  }
   return NextResponse.json({ success: true, id: data.id, caseNumber })
 }

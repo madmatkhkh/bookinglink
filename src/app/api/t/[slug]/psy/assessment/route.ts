@@ -32,6 +32,6 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   const { error } = await sb().from('psy_cases')
     .update({ assessment_date, assessment_time, flow_status: FLOW.ASSESSMENT_BOOKED })
     .eq('id', booking.id)
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) { console.error('src/app/api/t/[slug]/psy/assessment/route.ts error:', error); return NextResponse.json({ error: 'مشکلی پیش آمد. دوباره تلاش کنید.' }, { status: 500 }) }
   return NextResponse.json({ success: true })
 }

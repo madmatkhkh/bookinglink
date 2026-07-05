@@ -37,6 +37,6 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   }
 
   const { error } = await sb().from('psy_cases').update(patch).eq('id', c.id).eq('tenant_id', t.id)
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) { console.error('src/app/api/t/[slug]/psy/stage-pay/route.ts error:', error); return NextResponse.json({ error: 'مشکلی پیش آمد. دوباره تلاش کنید.' }, { status: 500 }) }
   return NextResponse.json({ success: true })
 }

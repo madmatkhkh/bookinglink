@@ -49,7 +49,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { slug: stri
   let q = sb().from('psy_packages').update(updates).eq('id', id).eq('tenant_id', a.tenant.id)
   if (!a.isOwner) q = q.eq('resource_id', a.resourceId)
   const { data, error } = await q.select().single()
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) { console.error('src/app/api/t/[slug]/panel/psy/packages/route.ts error:', error); return NextResponse.json({ error: 'مشکلی پیش آمد. دوباره تلاش کنید.' }, { status: 500 }) }
   return NextResponse.json({ package: data })
 }
 

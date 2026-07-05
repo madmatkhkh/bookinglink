@@ -22,7 +22,7 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
     if (filterId) q = q.eq('resource_id', filterId)
   }
   const { data, error } = await q.order('created_at', { ascending: false })
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) { console.error('psy/cases GET error:', error); return NextResponse.json({ error: 'خطا در خواندنِ پرونده‌ها' }, { status: 500 }) }
   return NextResponse.json({ bookings: data })
 }
 
@@ -60,6 +60,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
     case_number: caseNumber,
     child_name: b.child_name.trim(),
     birth_date: b.birth_date || '',
+    grade: b.grade || '',
     reason: b.reason || 'افزوده‌شده به‌صورت دستی',
     father_name: b.father_name || '',
     father_phone: b.father_phone || '',
@@ -67,14 +68,14 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
     mother_phone: b.mother_phone || '',
     parent_name: b.father_name || b.mother_name || '',
     phone: b.father_phone || b.mother_phone || b.phone || '',
-    details: { ...details, grade: b.grade || '', home_address: b.home_address || '', extra_notes: b.extra_notes || '' },
+    details: { ...details, home_address: b.home_address || '', extra_notes: b.extra_notes || '' },
     flow_status: FLOW.PACKAGE_ASSIGNED,
     status: 'confirmed',
     session_type: b.session_type || 'offline',
     booking_date: '', booking_time: '',
   }
   const { data, error } = await sb().from('psy_cases').insert(row).select().single()
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) { console.error('psy/cases POST error:', error); return NextResponse.json({ error: 'مشکلی در ثبتِ پرونده پیش آمد. دوباره تلاش کنید.' }, { status: 500 }) }
   return NextResponse.json({ success: true, booking: data })
 }
 
@@ -111,7 +112,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { slug: stri
   let q = sb().from('psy_cases').update(patch).eq('id', id).eq('tenant_id', a.tenant.id)
   if (!a.isOwner) q = q.eq('resource_id', a.resourceId)
   const { error } = await q
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) { console.error('psy/cases PATCH error:', error); return NextResponse.json({ error: 'مشکلی در ذخیره‌ی تغییرات پیش آمد.' }, { status: 500 }) }
   return NextResponse.json({ success: true })
 }
 
@@ -131,6 +132,6 @@ export async function DELETE(req: NextRequest, { params }: { params: { slug: str
     await sb().from('psy_packages').delete().eq('tenant_id', a.tenant.id).eq('case_number', c.case_number)
   }
   const { error } = await sb().from('psy_cases').delete().eq('id', id).eq('tenant_id', a.tenant.id)
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) { console.error('psy/cases DELETE error:', error); return NextResponse.json({ error: 'مشکلی در حذفِ پرونده پیش آمد.' }, { status: 500 }) }
   return NextResponse.json({ success: true })
 }

@@ -277,6 +277,7 @@ create table psy_cases (
   child_name text not null default '',
   child_name_en text,
   birth_date text,
+  grade text,
   parent_name text,
   phone text,
   father_name text, father_phone text,
@@ -284,6 +285,9 @@ create table psy_cases (
   reason text,
   session_type text,           -- 'online' | 'offline'
   office_location text,
+  -- تاریخ/ساعتِ انتخاب‌شده در همان لحظه‌ی رزرو (پیش از تاییدِ دکتر) — برایِ
+  -- چک‌کردنِ تداخل با بقیه‌ی رزروها همین جا نگه داشته می‌شود
+  booking_date text, booking_time text,
   -- کلِ فیلدهای تفصیلیِ پرونده در یک jsonb (تا افزودن/حذفِ فیلد نیازی به migration نداشته باشد)
   -- فرمِ مصاحبه و تبِ پرونده می‌توانند این را برای نیچ‌های مختلف (کودک/بزرگسال) متفاوت پر کنند.
   details jsonb not null default '{}',

@@ -29,7 +29,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   const { data: resource } = await sb().from('resources').select('id, is_active')
     .eq('tenant_id', t.id).eq('phone', phone).maybeSingle()
   if (!resource || !resource.is_active)
-    return NextResponse.json({ error: 'کارمندی با این شماره در این مجموعه یافت نشد' }, { status: 404 })
+    return NextResponse.json({ error: 'درمانگری با این شماره در این مجموعه یافت نشد' }, { status: 404 })
 
   const res = NextResponse.json({ success: true })
   await createStaffSession(res, t.id, resource.id)

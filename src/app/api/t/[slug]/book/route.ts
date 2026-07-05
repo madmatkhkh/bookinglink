@@ -44,7 +44,8 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   if (error) {
     if (error.code === '23505')
       return NextResponse.json({ error: 'این ساعت همین الان رزرو شد؛ ساعتِ دیگری انتخاب کنید' }, { status: 409 })
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    console.error('book POST error:', error)
+    return NextResponse.json({ error: 'مشکلی در ثبتِ رزرو پیش آمد. دوباره تلاش کنید.' }, { status: 500 })
   }
 
   const { data: profile } = await sb().from('tenant_profiles')

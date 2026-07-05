@@ -27,7 +27,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
     session_date: '', session_time: '', status: 'confirmed', paid: false, price,
     session_number: (count || 0) + 1,
   }]).select().single()
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) { console.error('src/app/api/t/[slug]/psy/buy-session/route.ts error:', error); return NextResponse.json({ error: 'مشکلی پیش آمد. دوباره تلاش کنید.' }, { status: 500 }) }
 
   if (replace_session_id) {
     await sb().from('psy_sessions').update({ status: 'replaced' })

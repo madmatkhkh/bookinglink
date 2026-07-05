@@ -34,6 +34,6 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
     interview_date, interview_time, booking_date: interview_date, booking_time: interview_time,
     flow_status: FLOW.INTERVIEW_BOOKED, status: 'confirmed',
   }).eq('id', booking.id)
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) { console.error('src/app/api/t/[slug]/psy/interview-book/route.ts error:', error); return NextResponse.json({ error: 'مشکلی پیش آمد. دوباره تلاش کنید.' }, { status: 500 }) }
   return NextResponse.json({ success: true })
 }

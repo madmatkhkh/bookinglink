@@ -48,6 +48,6 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
     ? sb().from('psy_intake_forms').update(payload).eq('resource_id', targetId)
     : sb().from('psy_intake_forms').insert(payload)
   const { error } = await q
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) { console.error('src/app/api/t/[slug]/panel/psy/intake-form/route.ts error:', error); return NextResponse.json({ error: 'مشکلی پیش آمد. دوباره تلاش کنید.' }, { status: 500 }) }
   return NextResponse.json({ success: true })
 }

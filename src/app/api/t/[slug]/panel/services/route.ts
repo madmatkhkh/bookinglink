@@ -32,7 +32,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   const s = cleanService(await req.json())
   if (!s.name) return NextResponse.json({ error: 'نامِ سرویس لازم است' }, { status: 400 })
   const { data, error } = await sb().from('services').insert({ ...s, tenant_id: t.id }).select().single()
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) { console.error('src/app/api/t/[slug]/panel/services/route.ts error:', error); return NextResponse.json({ error: 'مشکلی پیش آمد. دوباره تلاش کنید.' }, { status: 500 }) }
   return NextResponse.json({ service: data })
 }
 
@@ -45,7 +45,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { slug: stri
   if (!s.name) return NextResponse.json({ error: 'نامِ سرویس لازم است' }, { status: 400 })
   const { data, error } = await sb().from('services').update(s)
     .eq('id', body.id).eq('tenant_id', t.id).select().single()
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) { console.error('src/app/api/t/[slug]/panel/services/route.ts error:', error); return NextResponse.json({ error: 'مشکلی پیش آمد. دوباره تلاش کنید.' }, { status: 500 }) }
   return NextResponse.json({ service: data })
 }
 

@@ -38,8 +38,9 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   if (!r.name) return NextResponse.json({ error: 'نام لازم است' }, { status: 400 })
   const { data, error } = await sb().from('resources').insert({ ...r, tenant_id: a.tenant.id }).select().single()
   if (error) {
-    if (error.code === '23505') return NextResponse.json({ error: 'این شماره قبلاً برای یک کارمند دیگر ثبت شده' }, { status: 409 })
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    if (error.code === '23505') return NextResponse.json({ error: 'این شماره قبلاً برای یک درمانگرِ دیگر ثبت شده' }, { status: 409 })
+    console.error('src/app/api/t/[slug]/panel/resources/route.ts error:', error)
+    return NextResponse.json({ error: 'مشکلی پیش آمد. دوباره تلاش کنید.' }, { status: 500 })
   }
   // پروفایلِ خالیِ پیش‌فرض برای نیچِ روانشناسی
   await sb().from('psy_resource_profiles').insert({ resource_id: data.id })
@@ -57,8 +58,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { slug: stri
   const { data, error } = await sb().from('resources').update(r)
     .eq('id', body.id).eq('tenant_id', a.tenant.id).select().single()
   if (error) {
-    if (error.code === '23505') return NextResponse.json({ error: 'این شماره قبلاً برای یک کارمند دیگر ثبت شده' }, { status: 409 })
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    if (error.code === '23505') return NextResponse.json({ error: 'این شماره قبلاً برای یک درمانگرِ دیگر ثبت شده' }, { status: 409 })
+    console.error('src/app/api/t/[slug]/panel/resources/route.ts error:', error)
+    return NextResponse.json({ error: 'مشکلی پیش آمد. دوباره تلاش کنید.' }, { status: 500 })
   }
   return NextResponse.json({ resource: data })
 }

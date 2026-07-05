@@ -36,6 +36,6 @@ export async function PUT(req: NextRequest, { params }: { params: { slug: string
   if (!patch.display_name) return NextResponse.json({ error: 'نامِ نمایشی لازم است' }, { status: 400 })
 
   const { error } = await sb().from('tenant_profiles').update(patch).eq('tenant_id', t.id)
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) { console.error('src/app/api/t/[slug]/panel/profile/route.ts error:', error); return NextResponse.json({ error: 'مشکلی پیش آمد. دوباره تلاش کنید.' }, { status: 500 }) }
   return NextResponse.json({ success: true })
 }
