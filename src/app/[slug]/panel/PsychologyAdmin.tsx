@@ -3009,39 +3009,32 @@ export function PsychologyAdmin() {
                               {canBeTrigger && (
                                 <div>
                                   <label className="text-xs text-gray-500 mb-1 block">این سوال کدام سوال‌های بعدی را کنترل می‌کند؟</label>
-                                  <p className="text-[11px] text-gray-400 mb-2">برای هر گزینه، یا یه زیرسوالِ تازه بنویس، یا از سوال‌هایی که قبلاً ساختی یکی رو وصل کن.</p>
+                                  <p className="text-[11px] text-gray-400 mb-2">برای هر گزینه، فقط زیرسوالی که می‌خواهی بنویس — خودش وصل می‌شود.</p>
                                   <div className="space-y-2">
                                     {(field.options || []).filter(o => o.trim()).map(opt => {
                                       const key = `${field.id}:${opt}`
+                                      const linked = downstream.filter(d => d.field.showIf?.fieldId === field.id && d.field.showIf?.value === opt)
                                       return (
                                         <div key={opt} className="p-3 rounded-xl bg-white border border-gray-100">
                                           <p className="text-xs text-gray-600 mb-2">وقتی پاسخ «{opt}» بود:</p>
 
-                                          {downstream.length > 0 && (
-                                            <div className="space-y-1.5 mb-2">
-                                              {downstream.map(d => {
-                                                const isLinked = d.field.showIf?.fieldId === field.id && d.field.showIf?.value === opt
-                                                const linkedElsewhere = d.field.showIf && !isLinked
-                                                return (
-                                                  <label key={d.field.id} className={`flex items-center gap-2 text-xs ${linkedElsewhere ? 'text-gray-300' : 'text-gray-700'}`}>
-                                                    <input type="checkbox" checked={isLinked} disabled={!!linkedElsewhere}
-                                                      onChange={e => {
-                                                        updateFormField(d.sIdx, d.fIdx, { showIf: e.target.checked ? { fieldId: field.id, value: opt } : undefined })
-                                                      }}
-                                                      className="w-4 h-4 accent-brand-600 shrink-0" />
-                                                    {d.field.label || 'بدونِ عنوان'}
-                                                    {linkedElsewhere && <span className="text-[10px]">(وابسته به سوالِ دیگری)</span>}
-                                                  </label>
-                                                )
-                                              })}
+                                          {linked.length > 0 && (
+                                            <div className="flex flex-wrap gap-1.5 mb-2">
+                                              {linked.map(d => (
+                                                <span key={d.field.id} className="text-[11px] pl-1.5 pr-2.5 py-1 bg-brand-50 text-brand-700 rounded-lg flex items-center gap-1">
+                                                  {d.field.label || 'بدونِ عنوان'}
+                                                  <button onClick={() => updateFormField(d.sIdx, d.fIdx, { showIf: undefined })}
+                                                    title="قطعِ این زیرسوال از این گزینه" className="text-brand-400 hover:text-red-500 leading-none">×</button>
+                                                </span>
+                                              ))}
                                             </div>
                                           )}
 
-                                          <div className="flex items-center gap-2 pt-2 border-t border-gray-100">
+                                          <div className="flex items-center gap-2">
                                             <input value={newSubQuestion[key] || ''}
                                               onChange={e => setNewSubQuestion(s => ({ ...s, [key]: e.target.value }))}
                                               onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addSubQuestion(sIdx, fIdx, opt) } }}
-                                              placeholder="یا یه زیرسوالِ تازه بنویس..."
+                                              placeholder="زیرسوالِ تازه بنویس..."
                                               className="flex-1 min-w-0 text-xs px-2.5 py-1.5 border border-dashed border-gray-300 rounded-lg focus:outline-none focus:border-brand-400 focus:border-solid" />
                                             <button onClick={() => addSubQuestion(sIdx, fIdx, opt)} disabled={!(newSubQuestion[key] || '').trim()}
                                               className="text-xs px-2.5 py-1.5 border border-brand-200 text-brand-600 rounded-lg hover:bg-brand-50 disabled:opacity-40 shrink-0">+ افزودن</button>
