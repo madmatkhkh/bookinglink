@@ -502,6 +502,13 @@ export function PsychologyAdmin() {
   const [intakeSaved, setIntakeSaved] = useState(false)
   // فرم‌بیلدرِ استادو-جزئیات: کدام سوال/بخش الان در پنلِ ویرایش انتخاب شده
   const [builderSel, setBuilderSel] = useState<{ sIdx: number; fIdx: number | null } | null>(null)
+  // کدام بخش تو لیست بازه (آکاردئون — فقط یکی هم‌زمان)
+  const [openSection, setOpenSection] = useState<string | null>(null)
+  // درگ‌اند‌دراپِ جابه‌جاییِ سوال/بخش تو لیست
+  const [dragField, setDragField] = useState<{ sIdx: number; fIdx: number } | null>(null)
+  const [dragOverField, setDragOverField] = useState<{ sIdx: number; fIdx: number } | null>(null)
+  const [dragSectionIdx, setDragSectionIdx] = useState<number | null>(null)
+  const [dragOverSectionIdx, setDragOverSectionIdx] = useState<number | null>(null)
 
   // ── Package / Session forms ────────────────────────────────────
   const [newPkg, setNewPkg] = useState({
@@ -1034,12 +1041,23 @@ export function PsychologyAdmin() {
   }
 
   // ── تنظیماتِ سطحِ tenant (فقط آدرس‌های مطب — مشترکِ همه‌ی دکترها) ─
+  // ── ردِ تغییرات: تا دکمه‌ی ذخیره فقط وقتی نشان داده شود که واقعاً چیزی عوض شده ──
+  const [settingsSnapshot, setSettingsSnapshot] = useState('')
+  const [profileSnapshot, setProfileSnapshot] = useState('')
+  const [intakeSnapshot, setIntakeSnapshot] = useState('')
+  const isSettingsDirty = settingsLoaded && JSON.stringify(settings) !== settingsSnapshot
+  const isProfileDirty = profileLoaded && JSON.stringify(profile) !== profileSnapshot
+  const isIntakeDirty = intakeLoaded && JSON.stringify(intakeForm) !== intakeSnapshot
+  const isSettingsTabDirty = isSettingsDirty || isProfileDirty || isIntakeDirty
+
   async function loadSettings() {
     try {
       const res = await fetch(api('/settings'), { cache: 'no-store' })
       if (res.status === 401) { setNeedsLogin(true); return }
       const data = await res.json()
-      if (data.settings) setSettings({ ...DEFAULT_SETTINGS, office_locations: data.settings.office_locations ?? DEFAULT_SETTINGS.office_locations })
+      const next = { ...DEFAULT_SETTINGS, office_locations: data.settings?.office_locations ?? DEFAULT_SETTINGS.office_locations }
+      setSettings(next)
+      setSettingsSnapshot(JSON.stringify(next))
     } catch {}
     setSettingsLoaded(true)
   }
@@ -1053,7 +1071,9 @@ export function PsychologyAdmin() {
       })
       if (res.status === 401) { setNeedsLogin(true); return }
       const data = await res.json()
-      if (data.settings) setSettings({ ...DEFAULT_SETTINGS, ...data.settings })
+      const next = data.settings ? { ...DEFAULT_SETTINGS, ...data.settings } : settings
+      if (data.settings) setSettings(next)
+      setSettingsSnapshot(JSON.stringify(next))
       setSettingsSaved(true)
       setTimeout(() => setSettingsSaved(false), 2500)
     } catch {}
@@ -1069,7 +1089,9 @@ export function PsychologyAdmin() {
       const res = await fetch(url, { cache: 'no-store' })
       if (res.status === 401) { setNeedsLogin(true); return }
       const data = await res.json()
-      if (data.profile) setProfile({ ...DEFAULT_PROFILE, ...data.profile })
+      const next = { ...DEFAULT_PROFILE, ...(data.profile || {}) }
+      setProfile(next)
+      setProfileSnapshot(JSON.stringify(next))
     } catch {}
     setProfileLoaded(true)
   }
@@ -1083,6 +1105,7 @@ export function PsychologyAdmin() {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
       })
       if (res.status === 401) { setNeedsLogin(true); return }
+      setProfileSnapshot(JSON.stringify(profile))
       setProfileSaved(true)
       setTimeout(() => setProfileSaved(false), 2500)
     } catch {}
@@ -1098,10 +1121,13 @@ export function PsychologyAdmin() {
       const res = await fetch(url, { cache: 'no-store' })
       if (res.status === 401) { setNeedsLogin(true); return }
       const data = await res.json()
-      if (data.form) setIntakeForm(data.form)
+      const next = data.form || DEFAULT_INTAKE_FORM
+      setIntakeForm(next)
+      setIntakeSnapshot(JSON.stringify(next))
     } catch {}
     setIntakeLoaded(true)
     setBuilderSel(null)
+    setOpenSection(null)
   }
 
   // سوال‌هایی که می‌توانند «شرط» یک سوالِ بعدی باشند: فقط تک‌گزینه‌ای/چندگزینه‌ای، و فقط آن‌هایی که قبل از این سوال آمده‌اند
@@ -1128,6 +1154,7 @@ export function PsychologyAdmin() {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
       })
       if (res.status === 401) { setNeedsLogin(true); return }
+      setIntakeSnapshot(JSON.stringify(intakeForm))
       setIntakeSaved(true)
       setTimeout(() => setIntakeSaved(false), 2500)
     } catch {}
@@ -1138,6 +1165,7 @@ export function PsychologyAdmin() {
     const id = genId('section')
     setIntakeForm(f => ({ sections: [...f.sections, { id, title: 'بخشِ جدید', fields: [] }] }))
     setBuilderSel({ sIdx: intakeForm.sections.length, fIdx: null })
+    setOpenSection(id)
   }
   function updateFormSection(idx: number, patch: Partial<IntakeForm['sections'][number]>) {
     setIntakeForm(f => ({ sections: f.sections.map((s, i) => i === idx ? { ...s, ...patch } : s) }))
@@ -1155,12 +1183,30 @@ export function PsychologyAdmin() {
       return { sections: next }
     })
   }
+  // جابه‌جاییِ آزاد (برای درگ‌اند‌دراپ) — از هر اندیس به هر اندیسِ دیگر
+  function reorderFormSection(from: number, to: number) {
+    if (from === to) return
+    setIntakeForm(f => {
+      const next = [...f.sections]
+      const [item] = next.splice(from, 1)
+      next.splice(to, 0, item)
+      return { sections: next }
+    })
+    setBuilderSel(sel => {
+      if (!sel) return sel
+      if (sel.sIdx === from) return { ...sel, sIdx: to }
+      if (from < to && sel.sIdx > from && sel.sIdx <= to) return { ...sel, sIdx: sel.sIdx - 1 }
+      if (from > to && sel.sIdx >= to && sel.sIdx < from) return { ...sel, sIdx: sel.sIdx + 1 }
+      return sel
+    })
+  }
   function addFormField(sIdx: number) {
     const newIdx = intakeForm.sections[sIdx].fields.length
     updateFormSection(sIdx, {
       fields: [...intakeForm.sections[sIdx].fields, { id: genId('field'), label: 'سوالِ جدید', type: 'text' as FormFieldType, required: false }],
     })
     setBuilderSel({ sIdx, fIdx: newIdx })
+    setOpenSection(intakeForm.sections[sIdx].id)
   }
   function updateFormField(sIdx: number, fIdx: number, patch: Partial<FormField>) {
     setIntakeForm(f => ({
@@ -1186,6 +1232,26 @@ export function PsychologyAdmin() {
         return { ...s, fields: next }
       }),
     }))
+  }
+  // جابه‌جاییِ آزادِ سوال داخلِ همان بخش (برای درگ‌اند‌دراپ)
+  function reorderFormField(sIdx: number, from: number, to: number) {
+    if (from === to) return
+    setIntakeForm(f => ({
+      sections: f.sections.map((s, i) => {
+        if (i !== sIdx) return s
+        const next = [...s.fields]
+        const [item] = next.splice(from, 1)
+        next.splice(to, 0, item)
+        return { ...s, fields: next }
+      }),
+    }))
+    setBuilderSel(sel => {
+      if (!sel || sel.sIdx !== sIdx || sel.fIdx === null) return sel
+      if (sel.fIdx === from) return { ...sel, fIdx: to }
+      if (from < to && sel.fIdx > from && sel.fIdx <= to) return { ...sel, fIdx: sel.fIdx - 1 }
+      if (from > to && sel.fIdx >= to && sel.fIdx < from) return { ...sel, fIdx: sel.fIdx + 1 }
+      return sel
+    })
   }
 
 
@@ -2700,32 +2766,63 @@ export function PsychologyAdmin() {
                   <div className="text-center py-8 text-gray-400 text-sm">در حال بارگذاری فرم...</div>
                 ) : (
                   <div className="grid sm:grid-cols-[260px_1fr] gap-4 items-start">
-                    {/* ── لیست: فقط مرور و انتخاب، بدونِ شلوغی ── */}
+                    {/* ── لیست: آکاردئون + جابه‌جایی با درگ ── */}
                     <div className="bg-gray-50 rounded-xl p-2 sm:max-h-[560px] sm:overflow-y-auto">
-                      {intakeForm.sections.map((section, sIdx) => (
-                        <div key={section.id} className="mb-1">
-                          <button onClick={() => setBuilderSel({ sIdx, fIdx: null })}
-                            className={`w-full flex items-center justify-between gap-2 px-2.5 py-2 rounded-lg text-right transition-colors ${
-                              builderSel?.sIdx === sIdx && builderSel.fIdx === null ? 'bg-white border border-gray-200 shadow-sm' : 'hover:bg-gray-100'}`}>
-                            <span className="text-xs font-medium text-gray-500 truncate">{section.title || 'بخشِ بی‌نام'}</span>
-                            <span className="text-[10px] text-gray-300 shrink-0">{section.fields.length}</span>
-                          </button>
-                          <div className="mt-0.5 space-y-0.5">
-                            {section.fields.map((field, fIdx) => (
-                              <button key={field.id} onClick={() => setBuilderSel({ sIdx, fIdx })}
-                                className={`w-full flex items-center gap-2 pr-4 pl-2.5 py-2 rounded-lg text-right transition-colors ${
-                                  builderSel?.sIdx === sIdx && builderSel?.fIdx === fIdx ? 'bg-white border border-brand-200 shadow-sm' : 'hover:bg-gray-100'}`}>
-                                <span className="text-[10px] text-gray-300 shrink-0 w-4 text-center">{fieldTypeIcon(field.type)}</span>
-                                <span className="flex-1 min-w-0 truncate text-xs text-gray-700">{field.label || 'بدونِ عنوان'}</span>
-                                {field.showIf && <span title="شرطی" className="text-[10px] text-purple-400 shrink-0">⑂</span>}
-                                {field.required && <span title="اجباری" className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />}
-                              </button>
-                            ))}
-                            <button onClick={() => addFormField(sIdx)}
-                              className="w-full text-[11px] pr-4 pl-2.5 py-1.5 text-gray-400 hover:text-brand-600 text-right">+ سوالِ جدید</button>
+                      {intakeForm.sections.map((section, sIdx) => {
+                        const isOpen = openSection === section.id
+                        return (
+                          <div key={section.id} className="mb-1"
+                            draggable
+                            onDragStart={e => { e.stopPropagation(); setDragSectionIdx(sIdx) }}
+                            onDragOver={e => { e.preventDefault(); e.stopPropagation(); if (dragSectionIdx !== null) setDragOverSectionIdx(sIdx) }}
+                            onDragLeave={() => setDragOverSectionIdx(x => x === sIdx ? null : x)}
+                            onDrop={e => { e.preventDefault(); e.stopPropagation(); if (dragSectionIdx !== null) reorderFormSection(dragSectionIdx, sIdx); setDragSectionIdx(null); setDragOverSectionIdx(null) }}
+                            onDragEnd={() => { setDragSectionIdx(null); setDragOverSectionIdx(null) }}
+                          >
+                            {dragOverSectionIdx === sIdx && dragSectionIdx !== null && dragSectionIdx !== sIdx && (
+                              <div className="h-0.5 bg-brand-400 rounded-full mb-1 mx-2" />
+                            )}
+                            <button
+                              onClick={() => { setOpenSection(x => x === section.id ? null : section.id); setBuilderSel({ sIdx, fIdx: null }) }}
+                              className={`w-full flex items-center gap-1.5 px-2.5 py-2 rounded-lg text-right transition-colors cursor-grab active:cursor-grabbing ${
+                                isOpen ? 'bg-white border border-gray-200 shadow-sm' : 'hover:bg-gray-100'}`}>
+                              <span className="text-gray-300 text-xs shrink-0">⠿</span>
+                              <span className={`text-[9px] text-gray-400 shrink-0 transition-transform ${isOpen ? 'rotate-90' : ''}`}>◂</span>
+                              <span className="flex-1 min-w-0 truncate text-xs font-medium text-gray-600">{section.title || 'بخشِ بی‌نام'}</span>
+                              <span className="text-[10px] text-gray-300 shrink-0">{section.fields.length}</span>
+                            </button>
+                            {isOpen && (
+                              <div className="mt-0.5 space-y-0.5">
+                                {section.fields.map((field, fIdx) => (
+                                  <div key={field.id}
+                                    draggable
+                                    onDragStart={e => { e.stopPropagation(); setDragField({ sIdx, fIdx }) }}
+                                    onDragOver={e => { e.preventDefault(); e.stopPropagation(); if (dragField && dragField.sIdx === sIdx) setDragOverField({ sIdx, fIdx }) }}
+                                    onDragLeave={() => setDragOverField(x => (x && x.sIdx === sIdx && x.fIdx === fIdx) ? null : x)}
+                                    onDrop={e => { e.preventDefault(); e.stopPropagation(); if (dragField && dragField.sIdx === sIdx) reorderFormField(sIdx, dragField.fIdx, fIdx); setDragField(null); setDragOverField(null) }}
+                                    onDragEnd={() => { setDragField(null); setDragOverField(null) }}
+                                  >
+                                    {dragOverField?.sIdx === sIdx && dragOverField.fIdx === fIdx && dragField && dragField.fIdx !== fIdx && (
+                                      <div className="h-0.5 bg-brand-400 rounded-full mb-0.5 mr-4" />
+                                    )}
+                                    <button onClick={() => setBuilderSel({ sIdx, fIdx })}
+                                      className={`w-full flex items-center gap-2 pr-1 pl-2.5 py-2 rounded-lg text-right transition-colors cursor-grab active:cursor-grabbing ${
+                                        builderSel?.sIdx === sIdx && builderSel?.fIdx === fIdx ? 'bg-white border border-brand-200 shadow-sm' : 'hover:bg-gray-100'}`}>
+                                      <span className="text-gray-300 text-xs shrink-0 mr-1">⠿</span>
+                                      <span className="text-[10px] text-gray-300 shrink-0 w-4 text-center">{fieldTypeIcon(field.type)}</span>
+                                      <span className="flex-1 min-w-0 truncate text-xs text-gray-700">{field.label || 'بدونِ عنوان'}</span>
+                                      {field.showIf && <span title="شرطی" className="text-[10px] text-purple-400 shrink-0">⑂</span>}
+                                      {field.required && <span title="اجباری" className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />}
+                                    </button>
+                                  </div>
+                                ))}
+                                <button onClick={() => addFormField(sIdx)}
+                                  className="w-full text-[11px] pr-4 pl-2.5 py-1.5 text-gray-400 hover:text-brand-600 text-right">+ سوالِ جدید</button>
+                              </div>
+                            )}
                           </div>
-                        </div>
-                      ))}
+                        )
+                      })}
                       <button onClick={addFormSection}
                         className="w-full mt-1 text-xs py-2 border border-dashed border-gray-300 text-gray-500 rounded-lg hover:border-brand-300 hover:text-brand-600">+ بخشِ جدید</button>
                     </div>
@@ -2745,15 +2842,9 @@ export function PsychologyAdmin() {
                           return (
                             <div className="bg-gray-50 rounded-xl p-5">
                               <div className="flex items-center justify-between mb-4">
-                                <span className="text-xs text-gray-400">ویرایشِ بخش</span>
-                                <div className="flex items-center gap-1">
-                                  <button onClick={() => moveFormSection(sIdx, -1)} disabled={sIdx === 0}
-                                    className="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-gray-700 disabled:opacity-20">▲</button>
-                                  <button onClick={() => moveFormSection(sIdx, 1)} disabled={sIdx === intakeForm.sections.length - 1}
-                                    className="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-gray-700 disabled:opacity-20">▼</button>
-                                  <button onClick={async () => { if (await uiConfirm(`بخشِ «${section.title}» با همه‌ی سوال‌هایش حذف شود؟`)) removeFormSection(sIdx) }}
-                                    className="text-xs px-2.5 py-1.5 border border-red-200 text-red-500 rounded-lg hover:bg-red-50">حذفِ بخش</button>
-                                </div>
+                                <span className="text-xs text-gray-400">ویرایشِ بخش — برای جابه‌جایی، از لیستِ کنار درگ کن</span>
+                                <button onClick={async () => { if (await uiConfirm(`بخشِ «${section.title}» با همه‌ی سوال‌هایش حذف شود؟`)) removeFormSection(sIdx) }}
+                                  className="text-xs px-2.5 py-1.5 border border-red-200 text-red-500 rounded-lg hover:bg-red-50 shrink-0">حذفِ بخش</button>
                               </div>
                               <label className="text-xs text-gray-500 mb-1 block">عنوانِ بخش</label>
                               <input value={section.title} onChange={e => updateFormSection(sIdx, { title: e.target.value })}
@@ -2773,15 +2864,9 @@ export function PsychologyAdmin() {
                           return (
                             <div className="bg-gray-50 rounded-xl p-5 space-y-5">
                               <div className="flex items-center justify-between">
-                                <span className="text-xs text-gray-400">ویرایشِ سوال</span>
-                                <div className="flex items-center gap-1">
-                                  <button onClick={() => moveFormField(sIdx, fIdx, -1)} disabled={fIdx === 0}
-                                    className="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-gray-700 disabled:opacity-20">▲</button>
-                                  <button onClick={() => moveFormField(sIdx, fIdx, 1)} disabled={fIdx === section.fields.length - 1}
-                                    className="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-gray-700 disabled:opacity-20">▼</button>
-                                  <button onClick={() => removeFormField(sIdx, fIdx)}
-                                    className="text-xs px-2.5 py-1.5 border border-red-200 text-red-500 rounded-lg hover:bg-red-50">حذفِ سوال</button>
-                                </div>
+                                <span className="text-xs text-gray-400">ویرایشِ سوال — برای جابه‌جایی، از لیستِ کنار درگ کن</span>
+                                <button onClick={() => removeFormField(sIdx, fIdx)}
+                                  className="text-xs px-2.5 py-1.5 border border-red-200 text-red-500 rounded-lg hover:bg-red-50 shrink-0">حذفِ سوال</button>
                               </div>
 
                               {/* پیش‌نمایشِ زنده */}
@@ -2906,20 +2991,22 @@ export function PsychologyAdmin() {
                 )}
               </section>
 
-              {/* نوارِ ذخیره (چسبیده به پایین) */}
-              <div className="fixed bottom-0 inset-x-0 z-30 bg-white/95 border-t border-gray-100 backdrop-blur">
-                <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-end gap-3">
-                  {(settingsSaved || profileSaved || intakeSaved) && <span className="text-xs text-brand-600">✓ تنظیمات ذخیره شد</span>}
-                  <button onClick={async () => {
-                      if (me?.isOwner) await Promise.all([saveSettings(), saveProfile(), saveIntakeForm()])
-                      else await Promise.all([saveProfile(), saveIntakeForm()])
-                    }}
-                    disabled={settingsSaving || profileSaving || intakeSaving}
-                    className="px-6 py-2.5 bg-brand-600 text-white rounded-xl text-sm font-medium disabled:opacity-40 hover:bg-brand-800 transition-colors">
-                    {(settingsSaving || profileSaving || intakeSaving) ? 'در حال ذخیره...' : '💾 ذخیره‌ی تغییرات'}
-                  </button>
+              {/* نوارِ ذخیره (چسبیده به پایین) — فقط وقتی چیزی واقعاً عوض شده باشد */}
+              {(isSettingsTabDirty || settingsSaved || profileSaved || intakeSaved) && (
+                <div className="fixed bottom-0 inset-x-0 z-30 bg-white/95 border-t border-gray-100 backdrop-blur">
+                  <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-end gap-3">
+                    {(settingsSaved || profileSaved || intakeSaved) && <span className="text-xs text-brand-600">✓ تنظیمات ذخیره شد</span>}
+                    <button onClick={async () => {
+                        if (me?.isOwner) await Promise.all([saveSettings(), saveProfile(), saveIntakeForm()])
+                        else await Promise.all([saveProfile(), saveIntakeForm()])
+                      }}
+                      disabled={settingsSaving || profileSaving || intakeSaving}
+                      className="px-6 py-2.5 bg-brand-600 text-white rounded-xl text-sm font-medium disabled:opacity-40 hover:bg-brand-800 transition-colors">
+                      {(settingsSaving || profileSaving || intakeSaving) ? 'در حال ذخیره...' : '💾 ذخیره‌ی تغییرات'}
+                    </button>
+                  </div>
                 </div>
-              </div>
+              )}
             </>
 
             )}
