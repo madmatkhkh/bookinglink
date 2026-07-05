@@ -529,22 +529,48 @@ function DynamicField({ field, value, onChange, onToggle }: {
   )
 }
 
-// انتخابگرِ تاریخِ شمسی — یک تقویمِ واقعی (نه سه‌تا select ساده). برای پیداکردنِ
-// سریعِ سال/ماهِ دور (مثلِ تاریخِ تولد)، دو منویِ ماه/سال بالای گرید هست؛ خودِ
-// روزها به‌شکلِ گریدِ واقعی و کلیک‌پذیر نشان داده می‌شوند.
+// انتخابگرِ تاریخِ شمسی — یک تقویمِ واقعی (نه سه‌تا select ساده). به‌جای selectِ
+// بومیِ مرورگر (که لیستش دراز و بی‌سبک است)، ماه/سال با یه دراپ‌داونِ کوچیکِ
+// خودمان (اسکرول‌شونده، هم‌شکلِ بقیه‌ی پنل) انتخاب می‌شوند.
+function MiniDropdown({ value, label, options, onSelect, open, onToggle }: {
+  value: number; label: string; options: { value: number; label: string }[]
+  onSelect: (v: number) => void; open: boolean; onToggle: () => void
+}) {
+  return (
+    <div className="relative flex-1">
+      <button type="button" onClick={onToggle}
+        className="w-full text-xs px-2.5 py-1.5 border border-gray-200 rounded-lg bg-gray-50 flex items-center justify-between hover:border-gray-300 transition-colors">
+        <span className="text-gray-700">{label}</span>
+        <span className="text-gray-400 text-[10px]">▾</span>
+      </button>
+      {open && (
+        <div className="absolute z-40 mt-1 w-full max-h-40 overflow-y-auto bg-white border border-gray-200 rounded-lg shadow-lg py-1">
+          {options.map(o => (
+            <button key={o.value} type="button" onClick={() => onSelect(o.value)}
+              className={`w-full text-right px-3 py-1.5 text-xs transition-colors ${o.value === value ? 'bg-brand-50 text-brand-700 font-medium' : 'text-gray-600 hover:bg-gray-50'}`}>
+              {o.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function JalaliDatePicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const currentYear = getCurrentJalali().year
   const parts = value ? value.split('/').map(s => parseInt(s, 10)) : []
   const selY = parts[0] || 0, selM = parts[1] || 0, selD = parts[2] || 0
 
   const [open, setOpen] = useState(false)
+  const [openWhich, setOpenWhich] = useState<'month' | 'year' | null>(null)
   const [viewYear, setViewYear] = useState(selY || currentYear - 10)
   const [viewMonth, setViewMonth] = useState(selM || 1)
   const wrapRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     function onDocClick(e: MouseEvent) {
-      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false)
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) { setOpen(false); setOpenWhich(null) }
     }
     document.addEventListener('mousedown', onDocClick)
     return () => document.removeEventListener('mousedown', onDocClick)
@@ -565,7 +591,7 @@ function JalaliDatePicker({ value, onChange }: { value: string; onChange: (v: st
 
   return (
     <div className="relative" ref={wrapRef}>
-      <button type="button" onClick={() => setOpen(o => !o)}
+      <button type="button" onClick={() => { setOpen(o => !o); setOpenWhich(null) }}
         className="w-full text-sm px-3 py-2.5 border border-gray-200 rounded-xl bg-white flex items-center justify-between focus:outline-none focus:border-brand-400 hover:border-gray-300 transition-colors">
         <span className={displayValue ? 'text-gray-800' : 'text-gray-400'}>{displayValue || 'انتخابِ تاریخِ تولد'}</span>
         <span className="text-gray-400 text-base">📅</span>
@@ -573,14 +599,14 @@ function JalaliDatePicker({ value, onChange }: { value: string; onChange: (v: st
       {open && (
         <div className="absolute z-30 mt-1.5 w-full min-w-[280px] bg-white border border-gray-200 rounded-2xl shadow-lg p-3">
           <div className="flex items-center gap-2 mb-3">
-            <select value={viewMonth} onChange={e => setViewMonth(+e.target.value)}
-              className="flex-1 text-xs px-2 py-1.5 border border-gray-200 rounded-lg bg-gray-50 focus:outline-none focus:border-brand-400">
-              {PERSIAN_MONTHS.map((mn, i) => <option key={i} value={i + 1}>{mn}</option>)}
-            </select>
-            <select value={viewYear} onChange={e => setViewYear(+e.target.value)}
-              className="flex-1 text-xs px-2 py-1.5 border border-gray-200 rounded-lg bg-gray-50 focus:outline-none focus:border-brand-400">
-              {years.map(y => <option key={y} value={y}>{toFarsiNum(y)}</option>)}
-            </select>
+            <MiniDropdown value={viewMonth} label={PERSIAN_MONTHS[viewMonth - 1]}
+              options={PERSIAN_MONTHS.map((mn, i) => ({ value: i + 1, label: mn }))}
+              onSelect={v => { setViewMonth(v); setOpenWhich(null) }}
+              open={openWhich === 'month'} onToggle={() => setOpenWhich(w => w === 'month' ? null : 'month')} />
+            <MiniDropdown value={viewYear} label={toFarsiNum(viewYear)}
+              options={years.map(y => ({ value: y, label: toFarsiNum(y) }))}
+              onSelect={v => { setViewYear(v); setOpenWhich(null) }}
+              open={openWhich === 'year'} onToggle={() => setOpenWhich(w => w === 'year' ? null : 'year')} />
           </div>
           <div className="flex items-center justify-between mb-2 px-0.5">
             <button type="button" onClick={prevMonth} className="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-brand-600 hover:bg-gray-50 rounded-lg transition-colors">›</button>
