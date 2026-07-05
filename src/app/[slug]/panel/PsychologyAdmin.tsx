@@ -500,6 +500,8 @@ export function PsychologyAdmin() {
   const [intakeLoaded, setIntakeLoaded] = useState(false)
   const [intakeSaving, setIntakeSaving] = useState(false)
   const [intakeSaved, setIntakeSaved] = useState(false)
+  // متنِ زیرسوالِ تازه‌ای که دکتر داره برای هر گزینه می‌نویسه (کلید: fieldId:option)
+  const [newSubQuestion, setNewSubQuestion] = useState<Record<string, string>>({})
   // فرم‌بیلدرِ استادو-جزئیات: کدام سوال/بخش الان در پنلِ ویرایش انتخاب شده
   const [builderSel, setBuilderSel] = useState<{ sIdx: number; fIdx: number | null } | null>(null)
   // کدام بخش تو لیست بازه (آکاردئون — فقط یکی هم‌زمان)
@@ -1219,6 +1221,22 @@ export function PsychologyAdmin() {
     })
     setBuilderSel({ sIdx, fIdx: newIdx })
     setOpenSection(intakeForm.sections[sIdx].id)
+  }
+  // زیرسوالِ تازه که خودِ دکتر متنش رو می‌نویسه — درست بعدِ سوالِ محرک اضافه می‌شه و
+  // به همون گزینه وصل می‌شه (showIf از قبل ست شده، دیگه نیازی به لینک‌کردنِ دستی نیست)
+  function addSubQuestion(sIdx: number, fIdx: number, optionValue: string) {
+    const triggerField = intakeForm.sections[sIdx].fields[fIdx]
+    const key = `${triggerField.id}:${optionValue}`
+    const label = (newSubQuestion[key] || '').trim()
+    if (!label) return
+    const newField: FormField = { id: genId('field'), label, type: 'text', required: false, showIf: { fieldId: triggerField.id, value: optionValue } }
+    setIntakeForm(f => ({
+      sections: f.sections.map((s, i) => i !== sIdx ? s : {
+        ...s, fields: [...s.fields.slice(0, fIdx + 1), newField, ...s.fields.slice(fIdx + 1)],
+      }),
+    }))
+    setNewSubQuestion(s => ({ ...s, [key]: '' }))
+    setBuilderSel({ sIdx, fIdx: fIdx + 1 })
   }
   function updateFormField(sIdx: number, fIdx: number, patch: Partial<FormField>) {
     setIntakeForm(f => ({
@@ -2990,35 +3008,48 @@ export function PsychologyAdmin() {
                               {/* منطقِ شرطی — از اینجا (سوالِ گزینه‌ای) تعیین می‌کنی هر جواب چه سوال‌هایی رو بعدش باز کنه */}
                               {canBeTrigger && (
                                 <div>
-                                  <label className="text-xs text-gray-500 mb-2 block">این سوال کدام سوال‌های بعدی را کنترل می‌کند؟</label>
-                                  {downstream.length === 0 ? (
-                                    <p className="text-[11px] text-gray-400 px-1">هنوز سوالی بعدِ این سوال نساختی.</p>
-                                  ) : (
-                                    <div className="space-y-2">
-                                      {(field.options || []).filter(o => o.trim()).map(opt => (
+                                  <label className="text-xs text-gray-500 mb-1 block">این سوال کدام سوال‌های بعدی را کنترل می‌کند؟</label>
+                                  <p className="text-[11px] text-gray-400 mb-2">برای هر گزینه، یا یه زیرسوالِ تازه بنویس، یا از سوال‌هایی که قبلاً ساختی یکی رو وصل کن.</p>
+                                  <div className="space-y-2">
+                                    {(field.options || []).filter(o => o.trim()).map(opt => {
+                                      const key = `${field.id}:${opt}`
+                                      return (
                                         <div key={opt} className="p-3 rounded-xl bg-white border border-gray-100">
-                                          <p className="text-xs text-gray-600 mb-2">وقتی پاسخ «{opt}» بود، این سوال‌ها نشان داده شوند:</p>
-                                          <div className="space-y-1.5">
-                                            {downstream.map(d => {
-                                              const isLinked = d.field.showIf?.fieldId === field.id && d.field.showIf?.value === opt
-                                              const linkedElsewhere = d.field.showIf && !isLinked
-                                              return (
-                                                <label key={d.field.id} className={`flex items-center gap-2 text-xs ${linkedElsewhere ? 'text-gray-300' : 'text-gray-700'}`}>
-                                                  <input type="checkbox" checked={isLinked} disabled={!!linkedElsewhere}
-                                                    onChange={e => {
-                                                      updateFormField(d.sIdx, d.fIdx, { showIf: e.target.checked ? { fieldId: field.id, value: opt } : undefined })
-                                                    }}
-                                                    className="w-4 h-4 accent-brand-600 shrink-0" />
-                                                  {d.field.label || 'بدونِ عنوان'}
-                                                  {linkedElsewhere && <span className="text-[10px]">(وابسته به سوالِ دیگری)</span>}
-                                                </label>
-                                              )
-                                            })}
+                                          <p className="text-xs text-gray-600 mb-2">وقتی پاسخ «{opt}» بود:</p>
+
+                                          {downstream.length > 0 && (
+                                            <div className="space-y-1.5 mb-2">
+                                              {downstream.map(d => {
+                                                const isLinked = d.field.showIf?.fieldId === field.id && d.field.showIf?.value === opt
+                                                const linkedElsewhere = d.field.showIf && !isLinked
+                                                return (
+                                                  <label key={d.field.id} className={`flex items-center gap-2 text-xs ${linkedElsewhere ? 'text-gray-300' : 'text-gray-700'}`}>
+                                                    <input type="checkbox" checked={isLinked} disabled={!!linkedElsewhere}
+                                                      onChange={e => {
+                                                        updateFormField(d.sIdx, d.fIdx, { showIf: e.target.checked ? { fieldId: field.id, value: opt } : undefined })
+                                                      }}
+                                                      className="w-4 h-4 accent-brand-600 shrink-0" />
+                                                    {d.field.label || 'بدونِ عنوان'}
+                                                    {linkedElsewhere && <span className="text-[10px]">(وابسته به سوالِ دیگری)</span>}
+                                                  </label>
+                                                )
+                                              })}
+                                            </div>
+                                          )}
+
+                                          <div className="flex items-center gap-2 pt-2 border-t border-gray-100">
+                                            <input value={newSubQuestion[key] || ''}
+                                              onChange={e => setNewSubQuestion(s => ({ ...s, [key]: e.target.value }))}
+                                              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addSubQuestion(sIdx, fIdx, opt) } }}
+                                              placeholder="یا یه زیرسوالِ تازه بنویس..."
+                                              className="flex-1 min-w-0 text-xs px-2.5 py-1.5 border border-dashed border-gray-300 rounded-lg focus:outline-none focus:border-brand-400 focus:border-solid" />
+                                            <button onClick={() => addSubQuestion(sIdx, fIdx, opt)} disabled={!(newSubQuestion[key] || '').trim()}
+                                              className="text-xs px-2.5 py-1.5 border border-brand-200 text-brand-600 rounded-lg hover:bg-brand-50 disabled:opacity-40 shrink-0">+ افزودن</button>
                                           </div>
                                         </div>
-                                      ))}
-                                    </div>
-                                  )}
+                                      )
+                                    })}
+                                  </div>
                                 </div>
                               )}
                             </div>
