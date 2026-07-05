@@ -143,6 +143,8 @@ export type FormField = {
   // مشخصی داشته باشد — مثلاً «سن و تحصیلاتِ خواهر/برادر» فقط اگر «آیا خواهر/برادر
   // دارید» = «بله» بود. برای select برابری چک می‌شود، برای multiselect وجودِ مقدار.
   showIf?: { fieldId: string; value: string }
+  // مخفیِ موقت — بدونِ حذفِ کامل. اولویت دارد بر showIf (اگر مخفی است، اصلاً نشان داده نمی‌شود)
+  hidden?: boolean
 }
 
 export type FormSection = {
@@ -255,6 +257,7 @@ export function mergeIntakeForm(raw: unknown): IntakeForm {
       options: Array.isArray(f?.options) ? f.options.map(String) : undefined,
       placeholder: f?.placeholder ? String(f.placeholder) : undefined,
       showIf: f?.showIf && f.showIf.fieldId ? { fieldId: String(f.showIf.fieldId), value: String(f.showIf.value ?? '') } : undefined,
+      hidden: !!f?.hidden,
     })) : [],
   }))
   return { sections }
@@ -269,8 +272,9 @@ export async function getIntakeForm(resourceId: string): Promise<IntakeForm> {
   }
 }
 
-// آیا این فیلد الان باید نشان داده شود؟ (طبقِ showIf، اگر تعریف شده باشد)
+// آیا این فیلد الان باید نشان داده شود؟ (مخفیِ دستی همیشه اولویت دارد؛ بعد از آن showIf)
 export function fieldVisible(field: FormField, answers: Record<string, unknown>): boolean {
+  if (field.hidden) return false
   if (!field.showIf) return true
   const target = answers[field.showIf.fieldId]
   if (Array.isArray(target)) return target.includes(field.showIf.value)

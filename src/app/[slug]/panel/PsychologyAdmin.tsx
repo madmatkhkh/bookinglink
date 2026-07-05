@@ -1142,6 +1142,18 @@ export function PsychologyAdmin() {
     }
     return result
   }
+  // همه‌ی سوال‌هایی که بعدِ این سوال می‌آیند — برای وصل‌کردنِ «این گزینه، کدام سوال‌های بعدی رو نشون بده»
+  function downstreamFields(sIdx: number, fIdx: number): { sIdx: number; fIdx: number; field: FormField }[] {
+    const result: { sIdx: number; fIdx: number; field: FormField }[] = []
+    let started = false
+    for (let si = 0; si < intakeForm.sections.length; si++) {
+      for (let fi = 0; fi < intakeForm.sections[si].fields.length; fi++) {
+        if (si === sIdx && fi === fIdx) { started = true; continue }
+        if (started) result.push({ sIdx: si, fIdx: fi, field: intakeForm.sections[si].fields[fi] })
+      }
+    }
+    return result
+  }
   const fieldTypeIcon = (t: FormFieldType) => t === 'text' ? 'Aa' : t === 'textarea' ? '¶' : t === 'select' ? '◉' : '☑'
   const fieldTypeLabel = (t: FormFieldType) => t === 'text' ? 'متنِ کوتاه' : t === 'textarea' ? 'متنِ بلند' : t === 'select' ? 'تک‌گزینه‌ای' : 'چندگزینه‌ای'
 
@@ -2766,54 +2778,59 @@ export function PsychologyAdmin() {
                   <div className="text-center py-8 text-gray-400 text-sm">در حال بارگذاری فرم...</div>
                 ) : (
                   <div className="grid sm:grid-cols-[260px_1fr] gap-4 items-start">
-                    {/* ── لیست: آکاردئون + جابه‌جایی با درگ ── */}
+                    {/* ── لیست: آکاردئون + جابه‌جایی با درگ (فقط از دستگیره‌ی ⠿) ── */}
                     <div className="bg-gray-50 rounded-xl p-2 sm:max-h-[560px] sm:overflow-y-auto">
                       {intakeForm.sections.map((section, sIdx) => {
                         const isOpen = openSection === section.id
                         return (
                           <div key={section.id} className="mb-1"
-                            draggable
-                            onDragStart={e => { e.stopPropagation(); setDragSectionIdx(sIdx) }}
                             onDragOver={e => { e.preventDefault(); e.stopPropagation(); if (dragSectionIdx !== null) setDragOverSectionIdx(sIdx) }}
                             onDragLeave={() => setDragOverSectionIdx(x => x === sIdx ? null : x)}
                             onDrop={e => { e.preventDefault(); e.stopPropagation(); if (dragSectionIdx !== null) reorderFormSection(dragSectionIdx, sIdx); setDragSectionIdx(null); setDragOverSectionIdx(null) }}
-                            onDragEnd={() => { setDragSectionIdx(null); setDragOverSectionIdx(null) }}
                           >
                             {dragOverSectionIdx === sIdx && dragSectionIdx !== null && dragSectionIdx !== sIdx && (
                               <div className="h-0.5 bg-brand-400 rounded-full mb-1 mx-2" />
                             )}
-                            <button
-                              onClick={() => { setOpenSection(x => x === section.id ? null : section.id); setBuilderSel({ sIdx, fIdx: null }) }}
-                              className={`w-full flex items-center gap-1.5 px-2.5 py-2 rounded-lg text-right transition-colors cursor-grab active:cursor-grabbing ${
+                            <div
+                              className={`w-full flex items-center gap-1.5 px-2.5 py-2 rounded-lg transition-colors ${
                                 isOpen ? 'bg-white border border-gray-200 shadow-sm' : 'hover:bg-gray-100'}`}>
-                              <span className="text-gray-300 text-xs shrink-0">⠿</span>
-                              <span className={`text-[9px] text-gray-400 shrink-0 transition-transform ${isOpen ? 'rotate-90' : ''}`}>◂</span>
-                              <span className="flex-1 min-w-0 truncate text-xs font-medium text-gray-600">{section.title || 'بخشِ بی‌نام'}</span>
-                              <span className="text-[10px] text-gray-300 shrink-0">{section.fields.length}</span>
-                            </button>
+                              <span draggable title="جابه‌جایی"
+                                onDragStart={e => { e.stopPropagation(); setDragSectionIdx(sIdx) }}
+                                onDragEnd={() => { setDragSectionIdx(null); setDragOverSectionIdx(null) }}
+                                className="text-gray-300 text-xs shrink-0 cursor-grab active:cursor-grabbing px-0.5">⠿</span>
+                              <button onClick={() => { setOpenSection(x => x === section.id ? null : section.id); setBuilderSel({ sIdx, fIdx: null }) }}
+                                className="flex-1 min-w-0 flex items-center gap-1.5 text-right">
+                                <span className={`text-[9px] text-gray-400 shrink-0 transition-transform ${isOpen ? 'rotate-90' : ''}`}>◂</span>
+                                <span className="flex-1 min-w-0 truncate text-xs font-medium text-gray-600">{section.title || 'بخشِ بی‌نام'}</span>
+                                <span className="text-[10px] text-gray-300 shrink-0">{section.fields.length}</span>
+                              </button>
+                            </div>
                             {isOpen && (
                               <div className="mt-0.5 space-y-0.5">
                                 {section.fields.map((field, fIdx) => (
                                   <div key={field.id}
-                                    draggable
-                                    onDragStart={e => { e.stopPropagation(); setDragField({ sIdx, fIdx }) }}
                                     onDragOver={e => { e.preventDefault(); e.stopPropagation(); if (dragField && dragField.sIdx === sIdx) setDragOverField({ sIdx, fIdx }) }}
                                     onDragLeave={() => setDragOverField(x => (x && x.sIdx === sIdx && x.fIdx === fIdx) ? null : x)}
                                     onDrop={e => { e.preventDefault(); e.stopPropagation(); if (dragField && dragField.sIdx === sIdx) reorderFormField(sIdx, dragField.fIdx, fIdx); setDragField(null); setDragOverField(null) }}
-                                    onDragEnd={() => { setDragField(null); setDragOverField(null) }}
                                   >
                                     {dragOverField?.sIdx === sIdx && dragOverField.fIdx === fIdx && dragField && dragField.fIdx !== fIdx && (
                                       <div className="h-0.5 bg-brand-400 rounded-full mb-0.5 mr-4" />
                                     )}
-                                    <button onClick={() => setBuilderSel({ sIdx, fIdx })}
-                                      className={`w-full flex items-center gap-2 pr-1 pl-2.5 py-2 rounded-lg text-right transition-colors cursor-grab active:cursor-grabbing ${
-                                        builderSel?.sIdx === sIdx && builderSel?.fIdx === fIdx ? 'bg-white border border-brand-200 shadow-sm' : 'hover:bg-gray-100'}`}>
-                                      <span className="text-gray-300 text-xs shrink-0 mr-1">⠿</span>
-                                      <span className="text-[10px] text-gray-300 shrink-0 w-4 text-center">{fieldTypeIcon(field.type)}</span>
-                                      <span className="flex-1 min-w-0 truncate text-xs text-gray-700">{field.label || 'بدونِ عنوان'}</span>
-                                      {field.showIf && <span title="شرطی" className="text-[10px] text-purple-400 shrink-0">⑂</span>}
-                                      {field.required && <span title="اجباری" className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />}
-                                    </button>
+                                    <div className={`w-full flex items-center gap-1 pr-1 pl-2.5 py-2 rounded-lg transition-colors ${
+                                        builderSel?.sIdx === sIdx && builderSel?.fIdx === fIdx ? 'bg-white border border-brand-200 shadow-sm' : 'hover:bg-gray-100'} ${field.hidden ? 'opacity-40' : ''}`}>
+                                      <span draggable title="جابه‌جایی"
+                                        onDragStart={e => { e.stopPropagation(); setDragField({ sIdx, fIdx }) }}
+                                        onDragEnd={() => { setDragField(null); setDragOverField(null) }}
+                                        className="text-gray-300 text-xs shrink-0 cursor-grab active:cursor-grabbing px-0.5">⠿</span>
+                                      <button onClick={() => setBuilderSel({ sIdx, fIdx })}
+                                        className="flex-1 min-w-0 flex items-center gap-2 text-right">
+                                        <span className="text-[10px] text-gray-300 shrink-0 w-4 text-center">{fieldTypeIcon(field.type)}</span>
+                                        <span className="flex-1 min-w-0 truncate text-xs text-gray-700">{field.label || 'بدونِ عنوان'}</span>
+                                        {field.hidden && <span title="مخفی" className="text-[10px] text-gray-400 shrink-0">🚫</span>}
+                                        {field.showIf && <span title="شرطی" className="text-[10px] text-purple-400 shrink-0">⑂</span>}
+                                        {field.required && <span title="اجباری" className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />}
+                                      </button>
+                                    </div>
                                   </div>
                                 ))}
                                 <button onClick={() => addFormField(sIdx)}
@@ -2861,13 +2878,28 @@ export function PsychologyAdmin() {
                           if (!field) return null
                           const triggers = eligibleTriggerFields(sIdx, fIdx)
                           const triggerField = field.showIf ? triggers.find(t => t.id === field.showIf!.fieldId) : undefined
+                          const downstream = downstreamFields(sIdx, fIdx)
+                          const canBeTrigger = (field.type === 'select' || field.type === 'multiselect') && (field.options || []).some(o => o.trim())
                           return (
                             <div className="bg-gray-50 rounded-xl p-5 space-y-5">
                               <div className="flex items-center justify-between">
                                 <span className="text-xs text-gray-400">ویرایشِ سوال — برای جابه‌جایی، از لیستِ کنار درگ کن</span>
-                                <button onClick={() => removeFormField(sIdx, fIdx)}
-                                  className="text-xs px-2.5 py-1.5 border border-red-200 text-red-500 rounded-lg hover:bg-red-50 shrink-0">حذفِ سوال</button>
+                                <div className="flex items-center gap-1.5 shrink-0">
+                                  <button onClick={() => updateFormField(sIdx, fIdx, { hidden: !field.hidden })}
+                                    title={field.hidden ? 'نمایشِ دوباره' : 'مخفی‌کردنِ موقت (بدونِ حذف)'}
+                                    className={`w-8 h-8 flex items-center justify-center rounded-lg border ${field.hidden ? 'border-amber-300 bg-amber-50 text-amber-600' : 'border-gray-200 bg-white text-gray-400 hover:text-gray-600'}`}>
+                                    {field.hidden ? '🚫' : '👁'}
+                                  </button>
+                                  <button onClick={() => removeFormField(sIdx, fIdx)}
+                                    className="text-xs px-2.5 py-1.5 border border-red-200 text-red-500 rounded-lg hover:bg-red-50">حذفِ سوال</button>
+                                </div>
                               </div>
+
+                              {field.hidden && (
+                                <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-2.5">
+                                  این سوال الان مخفی است — مراجع اصلاً نمی‌بیندش، ولی حذف نشده و هروقت خواستی می‌تونی برش‌گردونی.
+                                </div>
+                              )}
 
                               {/* پیش‌نمایشِ زنده */}
                               <div className="bg-white rounded-xl border border-gray-100 p-4">
@@ -2892,6 +2924,17 @@ export function PsychologyAdmin() {
                                 )}
                               </div>
 
+                              {/* اگر این سوال خودش وابسته به یه سوالِ قبلیه — فقط نمایشی، ساخته نمی‌شه اینجا */}
+                              {field.showIf && (
+                                <div className="flex items-center justify-between gap-2 text-xs bg-purple-50 border border-purple-100 rounded-lg p-3">
+                                  <span className="text-purple-700">
+                                    ⑂ این سوال فقط وقتی نشون داده می‌شه که پاسخِ «{triggerField?.label || '؟'}» برابرِ «{field.showIf.value}» باشد
+                                  </span>
+                                  <button onClick={() => updateFormField(sIdx, fIdx, { showIf: undefined })}
+                                    className="text-purple-400 hover:text-red-500 shrink-0">حذفِ شرط</button>
+                                </div>
+                              )}
+
                               <div>
                                 <label className="text-xs text-gray-500 mb-1 block">متنِ سوال</label>
                                 <input value={field.label} onChange={e => updateFormField(sIdx, fIdx, { label: e.target.value })}
@@ -2909,6 +2952,12 @@ export function PsychologyAdmin() {
                                     </button>
                                   ))}
                                 </div>
+                                <p className="text-[11px] text-gray-400 mt-1.5 px-0.5">
+                                  {field.type === 'text' && 'مراجع یک خط متن کوتاه می‌نویسد — مثلِ اسم یا سن.'}
+                                  {field.type === 'textarea' && 'مراجع چند خط توضیح می‌نویسد — مثلِ دلیلِ مراجعه.'}
+                                  {field.type === 'select' && 'مراجع فقط یکی از گزینه‌ها را انتخاب می‌کند — مثلِ بله/خیر.'}
+                                  {field.type === 'multiselect' && 'مراجع می‌تواند چند گزینه را همزمان انتخاب کند — مثلِ چند علامتِ رفتاری.'}
+                                </p>
                               </div>
 
                               {(field.type === 'select' || field.type === 'multiselect') && (
@@ -2938,50 +2987,40 @@ export function PsychologyAdmin() {
                                   className="w-5 h-5 accent-brand-600" />
                               </label>
 
-                              {/* منطقِ شرطی */}
-                              <div>
-                                <label className="flex items-center justify-between p-3 rounded-xl border border-gray-100 bg-white cursor-pointer mb-2">
-                                  <div>
-                                    <span className="text-sm text-gray-700 block">فقط شرطی نشان داده شود</span>
-                                    <span className="text-[11px] text-gray-400">مثلاً «سن و تحصیلاتِ خواهر/برادر» فقط اگر جوابِ سوالِ قبلی «بله» بود</span>
-                                  </div>
-                                  <input type="checkbox" checked={!!field.showIf} disabled={triggers.length === 0}
-                                    onChange={e => {
-                                      if (e.target.checked) {
-                                        const t = triggers[0]
-                                        if (t) updateFormField(sIdx, fIdx, { showIf: { fieldId: t.id, value: (t.options || [])[0] || '' } })
-                                      } else updateFormField(sIdx, fIdx, { showIf: undefined })
-                                    }}
-                                    className="w-5 h-5 accent-brand-600 shrink-0" />
-                                </label>
-                                {triggers.length === 0 && (
-                                  <p className="text-[11px] text-gray-400 px-1">برای شرطی‌کردن، اول باید یه سوالِ تک‌گزینه‌ای/چندگزینه‌ای قبلِ این سوال داشته باشی.</p>
-                                )}
-                                {field.showIf && (
-                                  <div className="p-3 rounded-xl bg-white border border-gray-100 space-y-2">
-                                    <div className="flex items-center gap-2 text-xs text-gray-500">
-                                      <span className="shrink-0">اگه پاسخِ</span>
-                                      <select value={field.showIf.fieldId}
-                                        onChange={e => {
-                                          const t = triggers.find(x => x.id === e.target.value)
-                                          updateFormField(sIdx, fIdx, { showIf: { fieldId: e.target.value, value: (t?.options || [])[0] || '' } })
-                                        }}
-                                        className="flex-1 min-w-0 px-2 py-1.5 border border-gray-200 rounded-lg bg-gray-50 text-xs">
-                                        {triggers.map(tf => <option key={tf.id} value={tf.id}>{tf.label}</option>)}
-                                      </select>
+                              {/* منطقِ شرطی — از اینجا (سوالِ گزینه‌ای) تعیین می‌کنی هر جواب چه سوال‌هایی رو بعدش باز کنه */}
+                              {canBeTrigger && (
+                                <div>
+                                  <label className="text-xs text-gray-500 mb-2 block">این سوال کدام سوال‌های بعدی را کنترل می‌کند؟</label>
+                                  {downstream.length === 0 ? (
+                                    <p className="text-[11px] text-gray-400 px-1">هنوز سوالی بعدِ این سوال نساختی.</p>
+                                  ) : (
+                                    <div className="space-y-2">
+                                      {(field.options || []).filter(o => o.trim()).map(opt => (
+                                        <div key={opt} className="p-3 rounded-xl bg-white border border-gray-100">
+                                          <p className="text-xs text-gray-600 mb-2">وقتی پاسخ «{opt}» بود، این سوال‌ها نشان داده شوند:</p>
+                                          <div className="space-y-1.5">
+                                            {downstream.map(d => {
+                                              const isLinked = d.field.showIf?.fieldId === field.id && d.field.showIf?.value === opt
+                                              const linkedElsewhere = d.field.showIf && !isLinked
+                                              return (
+                                                <label key={d.field.id} className={`flex items-center gap-2 text-xs ${linkedElsewhere ? 'text-gray-300' : 'text-gray-700'}`}>
+                                                  <input type="checkbox" checked={isLinked} disabled={!!linkedElsewhere}
+                                                    onChange={e => {
+                                                      updateFormField(d.sIdx, d.fIdx, { showIf: e.target.checked ? { fieldId: field.id, value: opt } : undefined })
+                                                    }}
+                                                    className="w-4 h-4 accent-brand-600 shrink-0" />
+                                                  {d.field.label || 'بدونِ عنوان'}
+                                                  {linkedElsewhere && <span className="text-[10px]">(وابسته به سوالِ دیگری)</span>}
+                                                </label>
+                                              )
+                                            })}
+                                          </div>
+                                        </div>
+                                      ))}
                                     </div>
-                                    <div className="flex items-center gap-2 text-xs text-gray-500">
-                                      <span className="shrink-0">برابرِ</span>
-                                      <select value={field.showIf.value}
-                                        onChange={e => updateFormField(sIdx, fIdx, { showIf: { fieldId: field.showIf!.fieldId, value: e.target.value } })}
-                                        className="flex-1 min-w-0 px-2 py-1.5 border border-gray-200 rounded-lg bg-gray-50 text-xs">
-                                        {(triggerField?.options || []).map(o => <option key={o} value={o}>{o}</option>)}
-                                      </select>
-                                      <span className="shrink-0">باشد</span>
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
+                                  )}
+                                </div>
+                              )}
                             </div>
                           )
                         })()
