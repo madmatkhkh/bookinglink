@@ -33,6 +33,9 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   } else {
     saveError = (await sb().from('psy_clinic_settings').insert(patch)).error
   }
-  if (saveError) return NextResponse.json({ error: saveError.message }, { status: 500 })
+  if (saveError) {
+    console.error('panel/psy/settings POST error:', saveError)
+    return NextResponse.json({ error: 'مشکلی در ذخیره‌ی تنظیمات پیش آمد.', detail: `${saveError.code || ''} ${saveError.message || ''}`.trim() }, { status: 500 })
+  }
   return NextResponse.json({ success: true }, { headers: NO_STORE })
 }

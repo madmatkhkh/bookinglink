@@ -1077,7 +1077,8 @@ export function PsychologyAdmin() {
         body: JSON.stringify(settings),
       })
       if (res.status === 401) { setNeedsLogin(true); return }
-      const data = await res.json()
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) { uiAlert((data.error || 'ذخیره‌ی تنظیمات ناموفق بود') + (data.detail ? `\n\n(جزئیاتِ فنی: ${data.detail})` : '')); setSettingsSaving(false); return }
       const next = data.settings ? { ...DEFAULT_SETTINGS, ...data.settings } : settings
       if (data.settings) setSettings(next)
       setSettingsSnapshot(JSON.stringify(next))
@@ -1112,7 +1113,7 @@ export function PsychologyAdmin() {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
       })
       if (res.status === 401) { setNeedsLogin(true); return }
-      if (!res.ok) { const d = await res.json().catch(() => ({})); uiAlert(d.error || 'ذخیره نشد'); setProfileSaving(false); return }
+      if (!res.ok) { const d = await res.json().catch(() => ({})); uiAlert((d.error || 'ذخیره نشد') + (d.detail ? `\n\n(جزئیاتِ فنی: ${d.detail})` : '')); setProfileSaving(false); return }
       setProfileSnapshot(JSON.stringify(profile))
       setProfileSaved(true)
       setTimeout(() => setProfileSaved(false), 2500)
@@ -1174,6 +1175,7 @@ export function PsychologyAdmin() {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
       })
       if (res.status === 401) { setNeedsLogin(true); return }
+      if (!res.ok) { const d = await res.json().catch(() => ({})); uiAlert((d.error || 'ذخیره‌ی فرم ناموفق بود') + (d.detail ? `\n\n(جزئیاتِ فنی: ${d.detail})` : '')); setIntakeSaving(false); return }
       setIntakeSnapshot(JSON.stringify(intakeForm))
       setIntakeSaved(true)
       setTimeout(() => setIntakeSaved(false), 2500)
@@ -2993,10 +2995,9 @@ export function PsychologyAdmin() {
                                   </div>
                                 )}
                                 {field.type === 'date' && (
-                                  <div className="grid grid-cols-3 gap-1.5">
-                                    <select disabled className="text-sm px-2 py-2 border border-gray-200 rounded-lg bg-gray-50 text-gray-400"><option>روز</option></select>
-                                    <select disabled className="text-sm px-2 py-2 border border-gray-200 rounded-lg bg-gray-50 text-gray-400"><option>ماه</option></select>
-                                    <select disabled className="text-sm px-2 py-2 border border-gray-200 rounded-lg bg-gray-50 text-gray-400"><option>سال</option></select>
+                                  <div className="w-full text-sm px-3 py-2.5 border border-gray-200 rounded-xl bg-gray-50 text-gray-400 flex items-center justify-between">
+                                    <span>انتخابِ تاریخ</span>
+                                    <span>📅</span>
                                   </div>
                                 )}
                                 {field.type === 'phone' && (
@@ -3037,7 +3038,7 @@ export function PsychologyAdmin() {
                                   {field.type === 'textarea' && 'مراجع چند خط توضیح می‌نویسد — مثلِ دلیلِ مراجعه.'}
                                   {field.type === 'select' && 'مراجع فقط یکی از گزینه‌ها را انتخاب می‌کند — مثلِ بله/خیر.'}
                                   {field.type === 'multiselect' && 'مراجع می‌تواند چند گزینه را همزمان انتخاب کند — مثلِ چند علامتِ رفتاری.'}
-                                  {field.type === 'date' && 'مراجع از یک تقویمِ شمسی روز/ماه/سال را انتخاب می‌کند — نه تایپِ دستی.'}
+                                  {field.type === 'date' && 'مراجع با یک تقویمِ واقعیِ شمسی (کلیک‌پذیر) تاریخ را انتخاب می‌کند — نه تایپِ دستی.'}
                                   {field.type === 'phone' && 'فقط شماره‌ی موبایلِ معتبر (۱۱ رقم، با ۰۹) قبول می‌شود — نه هر متنی.'}
                                 </p>
                               </div>

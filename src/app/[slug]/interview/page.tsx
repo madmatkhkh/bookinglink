@@ -1,7 +1,7 @@
 'use client'
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useParams } from 'next/navigation'
-import { PERSIAN_MONTHS, PERSIAN_WEEKDAYS, toFarsiNum, toLatinNum, getCurrentJalali, getDaysInJalaliMonth } from '@/lib/calendar'
+import { PERSIAN_MONTHS, PERSIAN_WEEKDAYS, toFarsiNum, toLatinNum, getCurrentJalali, getDaysInJalaliMonth, jalaliWeekday } from '@/lib/calendar'
 import { PSY_PRICING as PRICING } from '@/lib/psy'
 import { usePublicClinic, CardChooser } from '@/components/PsyPublic'
 import { onlineAvailable, offlineAvailable, fieldVisible, missingIntakeFields } from '@/lib/psy'
@@ -529,34 +529,81 @@ function DynamicField({ field, value, onChange, onToggle }: {
   )
 }
 
-// انتخابگرِ تاریخِ شمسی (روز/ماه/سال) — برای تاریخِ تولد و مشابه؛ بازه‌ی سال
-// عمداً گسترده است (۹۰ سالِ اخیر) تا هم برای کودک هم بزرگسال کار کند.
+// انتخابگرِ تاریخِ شمسی — یک تقویمِ واقعی (نه سه‌تا select ساده). برای پیداکردنِ
+// سریعِ سال/ماهِ دور (مثلِ تاریخِ تولد)، دو منویِ ماه/سال بالای گرید هست؛ خودِ
+// روزها به‌شکلِ گریدِ واقعی و کلیک‌پذیر نشان داده می‌شوند.
 function JalaliDatePicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const currentYear = getCurrentJalali().year
   const parts = value ? value.split('/').map(s => parseInt(s, 10)) : []
-  const y = parts[0] || 0, m = parts[1] || 0, d = parts[2] || 0
-  const years = Array.from({ length: 90 }, (_, i) => currentYear - i)
-  const daysInMonth = (y && m) ? getDaysInJalaliMonth(y, m - 1) : 31
+  const selY = parts[0] || 0, selM = parts[1] || 0, selD = parts[2] || 0
 
-  function update(ny: number, nm: number, nd: number) {
-    const maxDay = getDaysInJalaliMonth(ny, nm - 1)
-    onChange(`${ny}/${String(nm).padStart(2, '0')}/${String(Math.min(nd, maxDay)).padStart(2, '0')}`)
+  const [open, setOpen] = useState(false)
+  const [viewYear, setViewYear] = useState(selY || currentYear - 10)
+  const [viewMonth, setViewMonth] = useState(selM || 1)
+  const wrapRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function onDocClick(e: MouseEvent) {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', onDocClick)
+    return () => document.removeEventListener('mousedown', onDocClick)
+  }, [])
+
+  const years = Array.from({ length: 90 }, (_, i) => currentYear - i)
+  const daysInMonth = getDaysInJalaliMonth(viewYear, viewMonth - 1)
+  const offset = jalaliWeekday(viewYear, viewMonth, 1)
+
+  function selectDay(d: number) {
+    onChange(`${viewYear}/${String(viewMonth).padStart(2, '0')}/${String(d).padStart(2, '0')}`)
+    setOpen(false)
   }
-  const cls = "text-sm px-2 py-2.5 border border-gray-200 rounded-lg bg-white focus:outline-none focus:border-brand-400"
+  function prevMonth() { if (viewMonth === 1) { setViewMonth(12); setViewYear(y => y - 1) } else setViewMonth(m => m - 1) }
+  function nextMonth() { if (viewMonth === 12) { setViewMonth(1); setViewYear(y => y + 1) } else setViewMonth(m => m + 1) }
+
+  const displayValue = (selY && selM && selD) ? `${toFarsiNum(selD)} ${PERSIAN_MONTHS[selM - 1]} ${toFarsiNum(selY)}` : ''
+
   return (
-    <div className="grid grid-cols-3 gap-2">
-      <select value={d || ''} onChange={e => update(y || currentYear - 5, m || 1, +e.target.value)} className={cls}>
-        <option value="" disabled>روز</option>
-        {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(dd => <option key={dd} value={dd}>{toFarsiNum(dd)}</option>)}
-      </select>
-      <select value={m || ''} onChange={e => update(y || currentYear - 5, +e.target.value, d || 1)} className={cls}>
-        <option value="" disabled>ماه</option>
-        {PERSIAN_MONTHS.map((mn, i) => <option key={i} value={i + 1}>{mn}</option>)}
-      </select>
-      <select value={y || ''} onChange={e => update(+e.target.value, m || 1, d || 1)} className={cls}>
-        <option value="" disabled>سال</option>
-        {years.map(yy => <option key={yy} value={yy}>{toFarsiNum(yy)}</option>)}
-      </select>
+    <div className="relative" ref={wrapRef}>
+      <button type="button" onClick={() => setOpen(o => !o)}
+        className="w-full text-sm px-3 py-2.5 border border-gray-200 rounded-xl bg-white flex items-center justify-between focus:outline-none focus:border-brand-400 hover:border-gray-300 transition-colors">
+        <span className={displayValue ? 'text-gray-800' : 'text-gray-400'}>{displayValue || 'انتخابِ تاریخِ تولد'}</span>
+        <span className="text-gray-400 text-base">📅</span>
+      </button>
+      {open && (
+        <div className="absolute z-30 mt-1.5 w-full min-w-[280px] bg-white border border-gray-200 rounded-2xl shadow-lg p-3">
+          <div className="flex items-center gap-2 mb-3">
+            <select value={viewMonth} onChange={e => setViewMonth(+e.target.value)}
+              className="flex-1 text-xs px-2 py-1.5 border border-gray-200 rounded-lg bg-gray-50 focus:outline-none focus:border-brand-400">
+              {PERSIAN_MONTHS.map((mn, i) => <option key={i} value={i + 1}>{mn}</option>)}
+            </select>
+            <select value={viewYear} onChange={e => setViewYear(+e.target.value)}
+              className="flex-1 text-xs px-2 py-1.5 border border-gray-200 rounded-lg bg-gray-50 focus:outline-none focus:border-brand-400">
+              {years.map(y => <option key={y} value={y}>{toFarsiNum(y)}</option>)}
+            </select>
+          </div>
+          <div className="flex items-center justify-between mb-2 px-0.5">
+            <button type="button" onClick={prevMonth} className="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-brand-600 hover:bg-gray-50 rounded-lg transition-colors">›</button>
+            <span className="text-xs font-medium text-gray-700">{PERSIAN_MONTHS[viewMonth - 1]} {toFarsiNum(viewYear)}</span>
+            <button type="button" onClick={nextMonth} className="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-brand-600 hover:bg-gray-50 rounded-lg transition-colors">‹</button>
+          </div>
+          <div className="grid grid-cols-7 gap-1 mb-1">
+            {PERSIAN_WEEKDAYS.map(w => <div key={w} className="text-center text-[10px] text-gray-400 py-1">{w}</div>)}
+          </div>
+          <div className="grid grid-cols-7 gap-1">
+            {Array.from({ length: offset }).map((_, i) => <div key={`e${i}`} />)}
+            {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(d => {
+              const isSelected = selY === viewYear && selM === viewMonth && selD === d
+              return (
+                <button key={d} type="button" onClick={() => selectDay(d)}
+                  className={`h-8 rounded-lg text-xs transition-colors ${isSelected ? 'bg-brand-600 text-white font-medium' : 'text-gray-600 hover:bg-brand-50'}`}>
+                  {toFarsiNum(d)}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

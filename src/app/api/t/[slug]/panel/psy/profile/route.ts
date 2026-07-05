@@ -54,7 +54,10 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   for (const k of ['name', 'title', 'avatar_url'] as const) if (k in body) resourcePatch[k] = body[k]
   if (Object.keys(resourcePatch).length) {
     const { error } = await sb().from('resources').update(resourcePatch).eq('id', targetId).eq('tenant_id', a.tenant.id)
-    if (error) { console.error('src/app/api/t/[slug]/panel/psy/profile/route.ts error:', error); return NextResponse.json({ error: 'مشکلی پیش آمد. دوباره تلاش کنید.' }, { status: 500 }) }
+    if (error) {
+      console.error('panel/psy/profile POST (resources) error:', error)
+      return NextResponse.json({ error: 'مشکلی در ذخیره‌ی پروفایل پیش آمد.', detail: `${error.code || ''} ${error.message || ''}`.trim() }, { status: 500 })
+    }
   }
 
   const profilePatch: Record<string, unknown> = { resource_id: targetId, updated_at: new Date().toISOString() }
@@ -72,7 +75,10 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
       ? sb().from('psy_resource_profiles').update(profilePatch).eq('resource_id', targetId)
       : sb().from('psy_resource_profiles').insert(profilePatch)
     const { error } = await q
-    if (error) { console.error('src/app/api/t/[slug]/panel/psy/profile/route.ts error:', error); return NextResponse.json({ error: 'مشکلی پیش آمد. دوباره تلاش کنید.' }, { status: 500 }) }
+    if (error) {
+      console.error('panel/psy/profile POST (psy_resource_profiles) error:', error)
+      return NextResponse.json({ error: 'مشکلی در ذخیره‌ی پروفایل پیش آمد.', detail: `${error.code || ''} ${error.message || ''}`.trim() }, { status: 500 })
+    }
   }
   return NextResponse.json({ success: true }, { headers: NO_STORE })
 }
