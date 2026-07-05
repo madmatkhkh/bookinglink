@@ -2801,7 +2801,7 @@ export function PsychologyAdmin() {
                       {intakeForm.sections.map((section, sIdx) => {
                         const isOpen = openSection === section.id
                         return (
-                          <div key={section.id} className="mb-1"
+                          <div key={section.id} className="mb-1.5"
                             onDragOver={e => { e.preventDefault(); e.stopPropagation(); if (dragSectionIdx !== null) setDragOverSectionIdx(sIdx) }}
                             onDragLeave={() => setDragOverSectionIdx(x => x === sIdx ? null : x)}
                             onDrop={e => { e.preventDefault(); e.stopPropagation(); if (dragSectionIdx !== null) reorderFormSection(dragSectionIdx, sIdx); setDragSectionIdx(null); setDragOverSectionIdx(null) }}
@@ -2809,48 +2809,57 @@ export function PsychologyAdmin() {
                             {dragOverSectionIdx === sIdx && dragSectionIdx !== null && dragSectionIdx !== sIdx && (
                               <div className="h-0.5 bg-brand-400 rounded-full mb-1 mx-2" />
                             )}
+                            {/* ── ردیفِ بخش: پس‌زمینه‌ی پررنگ‌تر + بولد + آیکونِ پوشه، تا کاملاً از سوال‌ها جدا دیده شود ── */}
                             <div
-                              className={`w-full flex items-center gap-1.5 px-2.5 py-2 rounded-lg transition-colors ${
-                                isOpen ? 'bg-white border border-gray-200 shadow-sm' : 'hover:bg-gray-100'}`}>
+                              className={`w-full flex items-center gap-2 px-2.5 py-2.5 rounded-lg transition-colors bg-gray-200/70 ${
+                                isOpen ? 'ring-1 ring-inset ring-gray-300' : 'hover:bg-gray-200'}`}>
                               <span draggable title="جابه‌جایی"
                                 onDragStart={e => { e.stopPropagation(); setDragSectionIdx(sIdx) }}
                                 onDragEnd={() => { setDragSectionIdx(null); setDragOverSectionIdx(null) }}
-                                className="text-gray-300 text-xs shrink-0 cursor-grab active:cursor-grabbing px-0.5">⠿</span>
+                                className="text-gray-400 text-xs shrink-0 cursor-grab active:cursor-grabbing px-0.5">⠿</span>
                               <button onClick={() => { setOpenSection(x => x === section.id ? null : section.id); setBuilderSel({ sIdx, fIdx: null }) }}
-                                className="flex-1 min-w-0 flex items-center gap-1.5 text-right">
-                                <span className={`text-[9px] text-gray-400 shrink-0 transition-transform ${isOpen ? 'rotate-90' : ''}`}>◂</span>
-                                <span className="flex-1 min-w-0 truncate text-xs font-medium text-gray-600">{section.title || 'بخشِ بی‌نام'}</span>
-                                <span className="text-[10px] text-gray-300 shrink-0">{section.fields.length}</span>
+                                className="flex-1 min-w-0 flex items-center gap-2 text-right">
+                                <span className={`text-[9px] text-gray-500 shrink-0 transition-transform ${isOpen ? 'rotate-90' : ''}`}>◂</span>
+                                <span className="text-xs shrink-0">📁</span>
+                                <span className="flex-1 min-w-0 truncate text-sm font-bold text-gray-700">{section.title || 'بخشِ بی‌نام'}</span>
+                                <span className="text-[10px] text-gray-500 shrink-0 bg-white px-1.5 py-0.5 rounded-full">{section.fields.length}</span>
                               </button>
                             </div>
                             {isOpen && (
-                              <div className="mt-0.5 space-y-0.5">
-                                {section.fields.map((field, fIdx) => (
-                                  <div key={field.id}
-                                    onDragOver={e => { e.preventDefault(); e.stopPropagation(); if (dragField && dragField.sIdx === sIdx) setDragOverField({ sIdx, fIdx }) }}
-                                    onDragLeave={() => setDragOverField(x => (x && x.sIdx === sIdx && x.fIdx === fIdx) ? null : x)}
-                                    onDrop={e => { e.preventDefault(); e.stopPropagation(); if (dragField && dragField.sIdx === sIdx) reorderFormField(sIdx, dragField.fIdx, fIdx); setDragField(null); setDragOverField(null) }}
-                                  >
-                                    {dragOverField?.sIdx === sIdx && dragOverField.fIdx === fIdx && dragField && dragField.fIdx !== fIdx && (
-                                      <div className="h-0.5 bg-brand-400 rounded-full mb-0.5 mr-4" />
-                                    )}
-                                    <div className={`w-full flex items-center gap-1 pr-1 pl-2.5 py-2 rounded-lg transition-colors ${
-                                        builderSel?.sIdx === sIdx && builderSel?.fIdx === fIdx ? 'bg-white border border-brand-200 shadow-sm' : 'hover:bg-gray-100'} ${field.hidden ? 'opacity-40' : ''}`}>
-                                      <span draggable title="جابه‌جایی"
-                                        onDragStart={e => { e.stopPropagation(); setDragField({ sIdx, fIdx }) }}
-                                        onDragEnd={() => { setDragField(null); setDragOverField(null) }}
-                                        className="text-gray-300 text-xs shrink-0 cursor-grab active:cursor-grabbing px-0.5">⠿</span>
-                                      <button onClick={() => setBuilderSel({ sIdx, fIdx })}
-                                        className="flex-1 min-w-0 flex items-center gap-2 text-right">
-                                        <span className="text-[10px] text-gray-300 shrink-0 w-4 text-center">{fieldTypeIcon(field.type)}</span>
-                                        <span className="flex-1 min-w-0 truncate text-xs text-gray-700">{field.label || 'بدونِ عنوان'}</span>
-                                        {field.hidden && <span title="مخفی" className="text-[10px] text-gray-400 shrink-0">🚫</span>}
-                                        {field.showIf && <span title="شرطی" className="text-[10px] text-purple-400 shrink-0">⑂</span>}
-                                        {field.required && <span title="اجباری" className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />}
-                                      </button>
+                              <div className="mt-1 space-y-1 pr-2">
+                                {section.fields.map((field, fIdx) => {
+                                  const isConditional = !!field.showIf
+                                  return (
+                                    <div key={field.id}
+                                      className={isConditional ? 'mr-4' : ''}
+                                      onDragOver={e => { e.preventDefault(); e.stopPropagation(); if (dragField && dragField.sIdx === sIdx) setDragOverField({ sIdx, fIdx }) }}
+                                      onDragLeave={() => setDragOverField(x => (x && x.sIdx === sIdx && x.fIdx === fIdx) ? null : x)}
+                                      onDrop={e => { e.preventDefault(); e.stopPropagation(); if (dragField && dragField.sIdx === sIdx) reorderFormField(sIdx, dragField.fIdx, fIdx); setDragField(null); setDragOverField(null) }}
+                                    >
+                                      {dragOverField?.sIdx === sIdx && dragOverField.fIdx === fIdx && dragField && dragField.fIdx !== fIdx && (
+                                        <div className="h-0.5 bg-brand-400 rounded-full mb-0.5 mr-4" />
+                                      )}
+                                      <div className={`w-full flex items-center gap-1 pr-1 pl-2.5 py-2 rounded-lg transition-colors border ${
+                                          builderSel?.sIdx === sIdx && builderSel?.fIdx === fIdx
+                                            ? 'bg-white border-brand-200 shadow-sm'
+                                            : isConditional ? 'bg-purple-50/60 border-purple-100 hover:bg-purple-50' : 'bg-white/60 border-transparent hover:bg-gray-100'
+                                        } ${field.hidden ? 'opacity-40' : ''}`}>
+                                        {isConditional && <span className="text-purple-300 text-xs shrink-0">↳</span>}
+                                        <span draggable title="جابه‌جایی"
+                                          onDragStart={e => { e.stopPropagation(); setDragField({ sIdx, fIdx }) }}
+                                          onDragEnd={() => { setDragField(null); setDragOverField(null) }}
+                                          className="text-gray-300 text-xs shrink-0 cursor-grab active:cursor-grabbing px-0.5">⠿</span>
+                                        <button onClick={() => setBuilderSel({ sIdx, fIdx })}
+                                          className="flex-1 min-w-0 flex items-center gap-2 text-right">
+                                          <span className="text-[10px] text-gray-300 shrink-0 w-4 text-center">{fieldTypeIcon(field.type)}</span>
+                                          <span className={`flex-1 min-w-0 truncate text-xs ${isConditional ? 'text-purple-800' : 'text-gray-700'}`}>{field.label || 'بدونِ عنوان'}</span>
+                                          {field.hidden && <span title="مخفی" className="text-[10px] text-gray-400 shrink-0">🚫</span>}
+                                          {field.required && <span title="اجباری" className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />}
+                                        </button>
+                                      </div>
                                     </div>
-                                  </div>
-                                ))}
+                                  )
+                                })}
                                 <button onClick={() => addFormField(sIdx)}
                                   className="w-full text-[11px] pr-4 pl-2.5 py-1.5 text-gray-400 hover:text-brand-600 text-right">+ سوالِ جدید</button>
                               </div>
