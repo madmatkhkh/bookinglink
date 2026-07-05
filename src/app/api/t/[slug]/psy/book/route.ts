@@ -23,6 +23,8 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
 
   if (!childName || !fatherPhone)
     return NextResponse.json({ error: 'نام و شماره تماس لازم است' }, { status: 400 })
+  if (!/^09\d{9}$/.test(String(fatherPhone).replace(/[۰-۹]/g, d => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d))).trim()))
+    return NextResponse.json({ error: 'شماره تماس معتبر نیست (باید ۱۱ رقم و با ۰۹ شروع شود)' }, { status: 400 })
 
   // فعلاً صفحه‌ی عمومی دکتری را انتخاب نمی‌گیرد مگر بیش از یک دکتر باشد
   let finalResourceId: string | null = null
@@ -79,7 +81,10 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
 
   if (error) {
     console.error('psy/book insert error:', error)
-    return NextResponse.json({ error: 'مشکلی در ثبتِ اطلاعات پیش آمد. لطفاً دوباره تلاش کنید؛ اگر باز هم تکرار شد، با مجموعه تماس بگیرید.' }, { status: 500 })
+    return NextResponse.json({
+      error: 'مشکلی در ثبتِ اطلاعات پیش آمد. لطفاً دوباره تلاش کنید؛ اگر باز هم تکرار شد، با مجموعه تماس بگیرید.',
+      detail: `${error.code || ''} ${error.message || ''}`.trim(),
+    }, { status: 500 })
   }
   return NextResponse.json({ success: true, id: data.id, caseNumber })
 }

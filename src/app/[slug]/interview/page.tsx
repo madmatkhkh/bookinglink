@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect, useMemo } from 'react'
 import { useParams } from 'next/navigation'
-import { PERSIAN_MONTHS, PERSIAN_WEEKDAYS, toFarsiNum, getCurrentJalali, getDaysInJalaliMonth } from '@/lib/calendar'
+import { PERSIAN_MONTHS, PERSIAN_WEEKDAYS, toFarsiNum, toLatinNum, getCurrentJalali, getDaysInJalaliMonth } from '@/lib/calendar'
 import { PSY_PRICING as PRICING } from '@/lib/psy'
 import { usePublicClinic, CardChooser } from '@/components/PsyPublic'
 import { onlineAvailable, offlineAvailable, fieldVisible, missingIntakeFields } from '@/lib/psy'
@@ -129,12 +129,18 @@ export default function InterviewPage() {
     })
   }
 
+  // شماره‌ی موبایلِ ایرانی: دقیقاً ۱۱ رقم، با ۰۹ شروع می‌شود (ارقامِ فارسی هم قبول است)
+  function isValidIranPhone(v: string): boolean {
+    return /^09\d{9}$/.test(toLatinNum(v).trim())
+  }
+
   // اعتبارسنجی: نام/تماس همیشه اجباری + هرچه در فرمِ این دکتر اجباری علامت خورده
   // (طبقِ همان تابعِ مشترکی که سمتِ سرور هم استفاده می‌شود — فیلدهای مخفیِ شرطی حساب نمی‌شوند)
   function missingFields(): string[] {
     const miss: string[] = []
     if (!childName.trim()) miss.push('نام')
     if (!fatherPhone.trim()) miss.push('شماره تماس')
+    else if (!isValidIranPhone(fatherPhone)) miss.push('شماره تماس (باید ۱۱ رقم و با ۰۹ شروع شود)')
     return [...miss, ...missingIntakeFields(intakeForm, answers)]
   }
 
@@ -156,7 +162,7 @@ export default function InterviewPage() {
       })
       const data = await res.json()
       if (data.caseNumber) { setCaseNumber(data.caseNumber); setStep('pay') }
-      else uiAlert(data.error || 'خطا در ثبت اطلاعات')
+      else uiAlert((data.error || 'خطا در ثبت اطلاعات') + (data.detail ? `\n\n(جزئیاتِ فنی برای پشتیبانی: ${data.detail})` : ''))
     } catch { uiAlert('خطا در ارتباط با سرور') }
     setLoading(false)
   }
@@ -356,6 +362,7 @@ export default function InterviewPage() {
               const miss: string[] = []
               if (!childName.trim()) miss.push('نام')
               if (!fatherPhone.trim()) miss.push('شماره تماس')
+              else if (!isValidIranPhone(fatherPhone)) miss.push('شماره تماس (باید ۱۱ رقم و با ۰۹ شروع شود)')
               return miss
             }
             if (!currentSection) return []
@@ -472,6 +479,12 @@ function DynamicField({ field, value, onChange, onToggle }: {
   const label = field.label + (field.required ? ' *' : '')
   if (field.type === 'text') return <Field label={label} value={value || ''} onChange={onChange} placeholder={field.placeholder} />
   if (field.type === 'textarea') return <Field label={label} value={value || ''} onChange={onChange} placeholder={field.placeholder} textarea />
+  if (field.type === 'date') return (
+    <div>
+      <label className="text-xs text-gray-500 mb-1 block">{label}</label>
+      <JalaliDatePicker value={value || ''} onChange={onChange} />
+    </div>
+  )
   if (field.type === 'select') return (
     <div>
       <label className="text-xs text-gray-500 mb-1 block">{label}</label>
@@ -498,6 +511,38 @@ function DynamicField({ field, value, onChange, onToggle }: {
           </button>
         ))}
       </div>
+    </div>
+  )
+}
+
+// انتخابگرِ تاریخِ شمسی (روز/ماه/سال) — برای تاریخِ تولد و مشابه؛ بازه‌ی سال
+// عمداً گسترده است (۹۰ سالِ اخیر) تا هم برای کودک هم بزرگسال کار کند.
+function JalaliDatePicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const currentYear = getCurrentJalali().year
+  const parts = value ? value.split('/').map(s => parseInt(s, 10)) : []
+  const y = parts[0] || 0, m = parts[1] || 0, d = parts[2] || 0
+  const years = Array.from({ length: 90 }, (_, i) => currentYear - i)
+  const daysInMonth = (y && m) ? getDaysInJalaliMonth(y, m - 1) : 31
+
+  function update(ny: number, nm: number, nd: number) {
+    const maxDay = getDaysInJalaliMonth(ny, nm - 1)
+    onChange(`${ny}/${String(nm).padStart(2, '0')}/${String(Math.min(nd, maxDay)).padStart(2, '0')}`)
+  }
+  const cls = "text-sm px-2 py-2.5 border border-gray-200 rounded-lg bg-white focus:outline-none focus:border-brand-400"
+  return (
+    <div className="grid grid-cols-3 gap-2">
+      <select value={d || ''} onChange={e => update(y || currentYear - 5, m || 1, +e.target.value)} className={cls}>
+        <option value="" disabled>روز</option>
+        {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(dd => <option key={dd} value={dd}>{toFarsiNum(dd)}</option>)}
+      </select>
+      <select value={m || ''} onChange={e => update(y || currentYear - 5, +e.target.value, d || 1)} className={cls}>
+        <option value="" disabled>ماه</option>
+        {PERSIAN_MONTHS.map((mn, i) => <option key={i} value={i + 1}>{mn}</option>)}
+      </select>
+      <select value={y || ''} onChange={e => update(+e.target.value, m || 1, d || 1)} className={cls}>
+        <option value="" disabled>سال</option>
+        {years.map(yy => <option key={yy} value={yy}>{toFarsiNum(yy)}</option>)}
+      </select>
     </div>
   )
 }

@@ -201,7 +201,7 @@ export const offlineAvailable = (m: SessionMode) => m === 'both' || m === 'offli
 // ── فرمِ رزرو — قابلِ‌تنظیم توسطِ هر دکتر (per-resource) ──────────────────────
 // نام/شماره‌تماس بیرونِ این اسکیما و همیشه ثابت‌اند (برای OTP لازم‌اند).
 // هرچه اینجاست کاملاً دیتایی و قابلِ‌ویرایش از پنل → تنظیمات → فرمِ رزرو است.
-export type FormFieldType = 'text' | 'textarea' | 'select' | 'multiselect'
+export type FormFieldType = 'text' | 'textarea' | 'select' | 'multiselect' | 'date'
 
 export type FormField = {
   id: string
@@ -241,7 +241,7 @@ const CHILD_CONDITIONS_DEFAULT = [
 export const DEFAULT_INTAKE_FORM: IntakeForm = {
   sections: [
     { id: 'child', title: 'اطلاعاتِ کودک', fields: [
-      { id: 'birth_date', label: 'تاریخ تولد', type: 'text', required: false, placeholder: '۱۳۹۷/۰۴/۱۵' },
+      { id: 'birth_date', label: 'تاریخ تولد', type: 'date', required: false },
       { id: 'grade', label: 'پایه‌ی تحصیلی', type: 'text', required: false, placeholder: 'پیش‌دبستانی' },
       { id: 'reason', label: 'دلیلِ مراجعه', type: 'textarea', required: true, placeholder: 'به طور مختصر...' },
       { id: 'prev_visit', label: 'سابقه‌ی مراجعه‌ی قبلی', type: 'select', required: true, options: ['خیر، اولین بار است', 'بله، قبلاً مراجعه داشتم'] },
@@ -311,7 +311,7 @@ export const DEFAULT_INTAKE_FORM: IntakeForm = {
 }
 
 function isValidFieldType(t: unknown): t is FormFieldType {
-  return t === 'text' || t === 'textarea' || t === 'select' || t === 'multiselect'
+  return t === 'text' || t === 'textarea' || t === 'select' || t === 'multiselect' || t === 'date'
 }
 
 export function mergeIntakeForm(raw: unknown): IntakeForm {

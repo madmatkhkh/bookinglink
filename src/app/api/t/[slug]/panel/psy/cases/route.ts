@@ -75,7 +75,13 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
     booking_date: '', booking_time: '',
   }
   const { data, error } = await sb().from('psy_cases').insert(row).select().single()
-  if (error) { console.error('psy/cases POST error:', error); return NextResponse.json({ error: 'مشکلی در ثبتِ پرونده پیش آمد. دوباره تلاش کنید.' }, { status: 500 }) }
+  if (error) {
+    console.error('psy/cases POST error:', error)
+    return NextResponse.json({
+      error: 'مشکلی در ثبتِ پرونده پیش آمد. دوباره تلاش کنید.',
+      detail: `${error.code || ''} ${error.message || ''}`.trim(),
+    }, { status: 500 })
+  }
   return NextResponse.json({ success: true, booking: data })
 }
 
