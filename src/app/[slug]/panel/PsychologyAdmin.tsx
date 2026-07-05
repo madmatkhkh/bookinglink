@@ -500,7 +500,6 @@ export function PsychologyAdmin() {
   const [intakeLoaded, setIntakeLoaded] = useState(false)
   const [intakeSaving, setIntakeSaving] = useState(false)
   const [intakeSaved, setIntakeSaved] = useState(false)
-  const [expandedSection, setExpandedSection] = useState<string | null>(null)
 
   // ── Package / Session forms ────────────────────────────────────
   const [newPkg, setNewPkg] = useState({
@@ -1120,7 +1119,6 @@ export function PsychologyAdmin() {
   function addFormSection() {
     const id = genId('section')
     setIntakeForm(f => ({ sections: [...f.sections, { id, title: 'بخشِ جدید', fields: [] }] }))
-    setExpandedSection(id)
   }
   function updateFormSection(idx: number, patch: Partial<IntakeForm['sections'][number]>) {
     setIntakeForm(f => ({ sections: f.sections.map((s, i) => i === idx ? { ...s, ...patch } : s) }))
@@ -1397,6 +1395,9 @@ export function PsychologyAdmin() {
             className="block text-right text-xs px-3 py-2 rounded-lg text-gray-500 hover:bg-gray-50">
             🔗 سایتِ من
           </a>
+          <button onClick={() => toggleDark(!darkMode)} className="w-full text-right text-xs px-3 py-2 rounded-lg text-gray-500 hover:bg-gray-50">
+            {darkMode ? '☀️ حالتِ روشن' : '🌙 حالتِ تیره'}
+          </button>
           <button onClick={doLogout} className="w-full text-right text-xs px-3 py-2 rounded-lg text-gray-500 hover:bg-gray-50">
             🚪 خروج
           </button>
@@ -1431,6 +1432,9 @@ export function PsychologyAdmin() {
                 className="block text-right text-xs px-3 py-2 rounded-lg text-gray-500 hover:bg-gray-50">
                 🔗 سایتِ من
               </a>
+              <button onClick={() => toggleDark(!darkMode)} className="w-full text-right text-xs px-3 py-2 rounded-lg text-gray-500 hover:bg-gray-50">
+                {darkMode ? '☀️ حالتِ روشن' : '🌙 حالتِ تیره'}
+              </button>
               <button onClick={doLogout} className="w-full text-right text-xs px-3 py-2 rounded-lg text-gray-500 hover:bg-gray-50">
                 🚪 خروج
               </button>
@@ -2529,69 +2533,37 @@ export function PsychologyAdmin() {
                 </section>
               )}
 
-              {/* ظاهرِ پنل */}
-              <section className="bg-white rounded-2xl border border-gray-100 p-5">
-                <h2 className="text-sm font-semibold text-gray-900 mb-1">🌗 ظاهرِ پنل</h2>
-                <p className="text-xs text-gray-400 mb-4">حالتِ تیره فقط روی همین پنل و فقط روی این دستگاه اعمال می‌شود.</p>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-700">حالتِ تیره (دارک‌مود)</span>
-                  <button onClick={() => toggleDark(!darkMode)}
-                    className={`relative w-12 h-6 rounded-full transition-colors ${darkMode ? 'bg-brand-600' : 'bg-gray-300'}`}>
-                    <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full transition-all ${darkMode ? 'right-0.5' : 'right-6'}`} />
-                  </button>
-                </div>
-              </section>
-
-              {/* پروفایلِ عمومی — حالا per-resource (نام/عنوان/آواتار روی خودِ resources) */}
+              {/* پروفایلِ عمومی — حالا per-resource؛ دقیقاً شبیه‌سازیِ سرِ صفحه‌ی مصاحبه، مستقیم روی خودش ویرایش می‌شود */}
               <section className="bg-white rounded-2xl border border-gray-100 p-5">
                 <h2 className="text-sm font-semibold text-gray-900 mb-1">👤 پروفایلِ عمومی</h2>
-                <p className="text-xs text-gray-400 mb-4">این اطلاعات در صفحه‌ی اولِ سایت به مراجع نمایش داده می‌شود.</p>
+                <p className="text-xs text-gray-400 mb-4">دقیقاً همین‌طور بالای صفحه‌ی مصاحبه به مراجع نمایش داده می‌شود — روی هرکدام بزنید تا ویرایش کنید.</p>
 
-                <div className="flex items-center gap-4 mb-4">
-                  <div className="w-16 h-16 rounded-full bg-brand-50 border border-brand-100 flex items-center justify-center text-2xl overflow-hidden shrink-0">
+                <div className="bg-gray-50 rounded-2xl p-6 text-center">
+                  <div className="relative w-20 h-20 rounded-full bg-brand-50 border border-brand-100 flex items-center justify-center mx-auto mb-3 text-3xl overflow-hidden shrink-0 cursor-pointer group"
+                    onClick={async () => { const url = await uiPrompt('لینکِ عکسِ پروفایل (خالی برای حذف)', { defaultValue: profile.avatar_url }); if (url !== null) patchProfile({ avatar_url: url }) }}>
                     {profile.avatar_url
                       ? <img src={profile.avatar_url} alt="" className="w-full h-full object-cover" />
                       : '👩‍⚕️'}
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white text-[10px] transition-opacity">تغییرِ عکس</div>
                   </div>
-                  <div className="flex-1">
-                    <label className="text-xs text-gray-500 mb-1 block">لینکِ عکسِ پروفایل</label>
-                    <input value={profile.avatar_url} onChange={e => patchProfile({ avatar_url: e.target.value })}
-                      dir="ltr" placeholder="https://...  (خالی بگذارید تا آیکونِ پیش‌فرض نمایش داده شود)"
-                      className="w-full text-sm px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:border-brand-400" />
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  <div>
-                    <label className="text-xs text-gray-500 mb-1 block">نام</label>
-                    <input value={profile.name} onChange={e => patchProfile({ name: e.target.value })}
-                      className="w-full text-sm px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:border-brand-400" />
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-500 mb-1 block">عنوان / تخصص</label>
-                    <input value={profile.title} onChange={e => patchProfile({ title: e.target.value })}
-                      className="w-full text-sm px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:border-brand-400" />
-                  </div>
-
-                  {/* بَج‌ها */}
-                  <div>
-                    <label className="text-xs text-gray-500 mb-1 block">نشان‌ها (زیرِ پروفایل)</label>
-                    <div className="space-y-2">
-                      {profile.badges.map((b, i) => (
-                        <div key={i} className="flex items-center gap-2">
-                          <input value={b}
-                            onChange={e => {
-                              const next = [...profile.badges]; next[i] = e.target.value; patchProfile({ badges: next })
-                            }}
-                            placeholder="مثلاً: 📍 تهران، ولنجک"
-                            className="flex-1 text-sm px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:border-brand-400" />
-                          <button onClick={() => patchProfile({ badges: profile.badges.filter((_, j) => j !== i) })}
-                            className="text-xs px-2.5 py-2 border border-red-200 text-red-500 rounded-lg shrink-0 hover:bg-red-50">حذف</button>
-                        </div>
-                      ))}
-                    </div>
-                    <button onClick={() => patchProfile({ badges: [...profile.badges, ''] })}
-                      className="mt-2 text-xs px-3 py-1.5 border border-brand-200 text-brand-600 rounded-lg hover:bg-brand-50">+ افزودنِ نشان</button>
+                  <input value={profile.name} onChange={e => patchProfile({ name: e.target.value })} placeholder="نام"
+                    className="text-lg font-medium text-gray-900 text-center bg-transparent border-b border-dashed border-gray-300 hover:border-gray-400 focus:outline-none focus:border-brand-500 w-full max-w-[260px] mx-auto block py-0.5" />
+                  <input value={profile.title} onChange={e => patchProfile({ title: e.target.value })} placeholder="عنوان / تخصص"
+                    className="text-sm text-gray-500 text-center bg-transparent border-b border-dashed border-transparent hover:border-gray-300 focus:outline-none focus:border-brand-400 w-full max-w-[260px] mx-auto block mt-1 py-0.5" />
+                  <div className="flex gap-2 justify-center mt-3 flex-wrap">
+                    {profile.badges.map((b, i) => (
+                      <span key={i} className="text-xs pl-1.5 pr-3 py-1 bg-white border border-gray-200 rounded-lg text-gray-500 flex items-center gap-1">
+                        <input value={b} size={Math.max(b.length, 3)}
+                          onChange={e => { const next = [...profile.badges]; next[i] = e.target.value; patchProfile({ badges: next }) }}
+                          className="bg-transparent focus:outline-none text-gray-500" />
+                        <button onClick={() => patchProfile({ badges: profile.badges.filter((_, j) => j !== i) })}
+                          className="text-gray-300 hover:text-red-400 leading-none">×</button>
+                      </span>
+                    ))}
+                    <button onClick={() => patchProfile({ badges: [...profile.badges, 'نشانِ جدید'] })}
+                      className="text-xs px-3 py-1 border border-dashed border-gray-300 rounded-lg text-gray-400 hover:border-brand-300 hover:text-brand-500">
+                      + نشان
+                    </button>
                   </div>
                 </div>
               </section>
@@ -2695,89 +2667,94 @@ export function PsychologyAdmin() {
                   className="mt-3 text-xs px-3 py-1.5 border border-brand-200 text-brand-600 rounded-lg hover:bg-brand-50">+ افزودنِ کارت</button>
               </section>
 
-              {/* فرمِ رزرو — کاملاً دیتایی، مالِ همین دکتر */}
+              {/* فرمِ رزرو — کاملاً دیتایی، شبیه‌سازیِ زنده‌ی خودِ صفحه‌ی مصاحبه */}
               <section className="bg-white rounded-2xl border border-gray-100 p-5">
                 <h2 className="text-sm font-semibold text-gray-900 mb-1">📋 فرمِ رزرو</h2>
                 <p className="text-xs text-gray-400 mb-4">
-                  نام و شماره‌تماس همیشه در فرم هستند (برای ورودِ مراجع به پنلِ خودش لازم است) و اینجا نیستند.
-                  بقیه‌ی سوال‌ها، اجباری‌بودنشان، و نوعشان (متن/چندگزینه‌ای) کاملاً دستِ شماست.
+                  همان‌طور که پایین می‌بینید، این‌ها سوال‌هایی هستند که مراجع در صفحه‌ی مصاحبه پر می‌کند — مستقیم روی هرکدام بزنید تا ویرایش کنید.
+                  نام و شماره‌تماس همیشه ثابت‌اند (برای ورودِ مراجع لازم‌اند) و این‌جا نیستند.
                 </p>
                 {!intakeLoaded ? (
                   <div className="text-center py-8 text-gray-400 text-sm">در حال بارگذاری فرم...</div>
                 ) : (
-                  <div className="space-y-2">
+                  <div className="bg-gray-50 rounded-2xl p-4 space-y-5">
                     {intakeForm.sections.map((section, sIdx) => (
-                      <div key={section.id} className="border border-gray-100 rounded-xl overflow-hidden">
-                        <div className="flex items-center gap-2 p-3 bg-gray-50">
-                          <button onClick={() => setExpandedSection(x => x === section.id ? null : section.id)}
-                            className="flex-1 text-right flex items-center gap-2 min-w-0">
-                            <span className="text-xs text-gray-400 shrink-0">{expandedSection === section.id ? '▾' : '◂'}</span>
-                            <input value={section.title} onClick={e => e.stopPropagation()}
-                              onChange={e => updateFormSection(sIdx, { title: e.target.value })}
-                              className="flex-1 min-w-0 text-sm font-medium bg-transparent focus:outline-none focus:bg-white rounded px-1" />
-                            <span className="text-[10px] text-gray-400 shrink-0">{section.fields.length} سوال</span>
-                          </button>
-                          <div className="flex items-center gap-1 shrink-0">
+                      <div key={section.id} className="bg-white rounded-xl border border-gray-100 p-4">
+                        <div className="flex items-center gap-2 mb-3 pb-2 border-b border-gray-100">
+                          <input value={section.title} onChange={e => updateFormSection(sIdx, { title: e.target.value })}
+                            placeholder="عنوانِ بخش"
+                            className="flex-1 min-w-0 text-sm font-medium text-gray-800 bg-transparent focus:outline-none border-b border-dashed border-transparent hover:border-gray-300 focus:border-brand-400" />
+                          <div className="flex items-center gap-0.5 shrink-0">
                             <button onClick={() => moveFormSection(sIdx, -1)} disabled={sIdx === 0}
-                              className="w-6 h-6 flex items-center justify-center text-gray-400 hover:text-gray-700 disabled:opacity-30">▲</button>
+                              className="w-6 h-6 flex items-center justify-center text-gray-300 hover:text-gray-600 disabled:opacity-20">▲</button>
                             <button onClick={() => moveFormSection(sIdx, 1)} disabled={sIdx === intakeForm.sections.length - 1}
-                              className="w-6 h-6 flex items-center justify-center text-gray-400 hover:text-gray-700 disabled:opacity-30">▼</button>
+                              className="w-6 h-6 flex items-center justify-center text-gray-300 hover:text-gray-600 disabled:opacity-20">▼</button>
                             <button onClick={async () => { if (await uiConfirm(`بخشِ «${section.title}» با همه‌ی سوال‌هایش حذف شود؟`)) removeFormSection(sIdx) }}
-                              className="w-6 h-6 flex items-center justify-center text-red-400 hover:text-red-600">✕</button>
+                              className="w-6 h-6 flex items-center justify-center text-gray-300 hover:text-red-500">✕</button>
                           </div>
                         </div>
-                        {expandedSection === section.id && (
-                          <div className="p-3 space-y-2">
-                            {section.fields.map((field, fIdx) => (
-                              <div key={field.id} className="border border-gray-100 rounded-lg p-2.5 bg-gray-50/50">
-                                <div className="flex items-center gap-2 mb-2">
-                                  <input value={field.label} onChange={e => updateFormField(sIdx, fIdx, { label: e.target.value })}
-                                    placeholder="متنِ سوال"
-                                    className="flex-1 min-w-0 text-sm px-2.5 py-1.5 border border-gray-200 rounded-lg bg-white focus:outline-none focus:border-brand-400" />
-                                  <select value={field.type}
-                                    onChange={e => updateFormField(sIdx, fIdx, { type: e.target.value as FormFieldType })}
-                                    className="text-xs px-2 py-1.5 border border-gray-200 rounded-lg bg-white shrink-0">
-                                    <option value="text">متنِ کوتاه</option>
-                                    <option value="textarea">متنِ بلند</option>
-                                    <option value="select">تک‌گزینه‌ای</option>
-                                    <option value="multiselect">چندگزینه‌ای</option>
-                                  </select>
-                                </div>
-                                {(field.type === 'select' || field.type === 'multiselect') && (
-                                  <div className="mb-2">
-                                    <label className="text-[10px] text-gray-400 mb-1 block">گزینه‌ها (با کاما جدا کنید)</label>
-                                    <input value={(field.options || []).join('، ')}
-                                      onChange={e => updateFormField(sIdx, fIdx, { options: e.target.value.split(/[,،]/).map(s => s.trim()).filter(Boolean) })}
-                                      placeholder="بله، خیر"
-                                      className="w-full text-xs px-2.5 py-1.5 border border-gray-200 rounded-lg bg-white focus:outline-none focus:border-brand-400" />
-                                  </div>
-                                )}
-                                <div className="flex items-center justify-between">
-                                  <label className="flex items-center gap-1.5 text-xs text-gray-600">
-                                    <input type="checkbox" checked={field.required}
-                                      onChange={e => updateFormField(sIdx, fIdx, { required: e.target.checked })}
-                                      className="w-4 h-4 accent-brand-600" />
-                                    اجباری
-                                  </label>
-                                  <div className="flex items-center gap-1">
-                                    <button onClick={() => moveFormField(sIdx, fIdx, -1)} disabled={fIdx === 0}
-                                      className="w-6 h-6 flex items-center justify-center text-gray-400 hover:text-gray-700 disabled:opacity-30">▲</button>
-                                    <button onClick={() => moveFormField(sIdx, fIdx, 1)} disabled={fIdx === section.fields.length - 1}
-                                      className="w-6 h-6 flex items-center justify-center text-gray-400 hover:text-gray-700 disabled:opacity-30">▼</button>
-                                    <button onClick={() => removeFormField(sIdx, fIdx)}
-                                      className="text-[11px] px-2 py-1 border border-red-200 text-red-500 rounded-lg hover:bg-red-50">حذف</button>
-                                  </div>
-                                </div>
+
+                        <div className="space-y-4">
+                          {section.fields.map((field, fIdx) => (
+                            <div key={field.id}>
+                              {/* برچسبِ سوال + نوارِ کوچکِ ابزار */}
+                              <div className="flex items-center gap-1.5 mb-1">
+                                <input value={field.label} onChange={e => updateFormField(sIdx, fIdx, { label: e.target.value })}
+                                  placeholder="متنِ سوال"
+                                  className="flex-1 min-w-0 text-xs text-gray-500 bg-transparent focus:outline-none border-b border-dashed border-transparent hover:border-gray-300 focus:border-brand-400" />
+                                {field.required && <span className="text-red-400 text-xs shrink-0">*</span>}
+                                <select value={field.type} onChange={e => updateFormField(sIdx, fIdx, { type: e.target.value as FormFieldType })}
+                                  className="text-[10px] px-1.5 py-1 border border-gray-200 rounded-md bg-white text-gray-500 shrink-0">
+                                  <option value="text">متنِ کوتاه</option>
+                                  <option value="textarea">متنِ بلند</option>
+                                  <option value="select">تک‌گزینه</option>
+                                  <option value="multiselect">چندگزینه</option>
+                                </select>
+                                <button onClick={() => updateFormField(sIdx, fIdx, { required: !field.required })}
+                                  title="اجباری/اختیاری"
+                                  className={`text-xs shrink-0 w-6 h-6 rounded-md border flex items-center justify-center ${field.required ? 'border-amber-300 text-amber-500 bg-amber-50' : 'border-gray-200 text-gray-300'}`}>*</button>
+                                <button onClick={() => moveFormField(sIdx, fIdx, -1)} disabled={fIdx === 0}
+                                  className="w-6 h-6 flex items-center justify-center text-gray-300 hover:text-gray-600 disabled:opacity-20 shrink-0">▲</button>
+                                <button onClick={() => moveFormField(sIdx, fIdx, 1)} disabled={fIdx === section.fields.length - 1}
+                                  className="w-6 h-6 flex items-center justify-center text-gray-300 hover:text-gray-600 disabled:opacity-20 shrink-0">▼</button>
+                                <button onClick={() => removeFormField(sIdx, fIdx)}
+                                  className="w-6 h-6 flex items-center justify-center text-gray-300 hover:text-red-500 shrink-0">✕</button>
                               </div>
-                            ))}
-                            <button onClick={() => addFormField(sIdx)}
-                              className="w-full text-xs py-2 border border-brand-200 text-brand-600 rounded-lg hover:bg-brand-50">+ افزودنِ سوال</button>
-                          </div>
-                        )}
+
+                              {/* نمایشِ زنده — دقیقاً مثلِ چیزی که مراجع می‌بیند */}
+                              {field.type === 'text' && (
+                                <input disabled placeholder={field.placeholder} className="w-full text-sm px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-gray-400" />
+                              )}
+                              {field.type === 'textarea' && (
+                                <textarea disabled rows={2} placeholder={field.placeholder} className="w-full text-sm px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-gray-400 resize-none" />
+                              )}
+                              {(field.type === 'select' || field.type === 'multiselect') && (
+                                <div>
+                                  <div className="flex gap-2 flex-wrap mb-1.5">
+                                    {(field.options || []).length === 0 && <span className="text-xs text-gray-300">هنوز گزینه‌ای اضافه نشده</span>}
+                                    {(field.options || []).map((o, oi) => (
+                                      field.type === 'select' ? (
+                                        <span key={oi} className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 text-gray-400 bg-white">{o}</span>
+                                      ) : (
+                                        <span key={oi} className="text-xs px-3 py-1.5 rounded-full border border-gray-200 text-gray-400 bg-white">{o}</span>
+                                      )
+                                    ))}
+                                  </div>
+                                  <input value={(field.options || []).join('، ')}
+                                    onChange={e => updateFormField(sIdx, fIdx, { options: e.target.value.split(/[,،]/).map(s => s.trim()).filter(Boolean) })}
+                                    placeholder="گزینه‌ها را با کاما جدا کنید — مثلاً: بله، خیر"
+                                    className="w-full text-xs px-2.5 py-1.5 border border-dashed border-gray-300 rounded-lg bg-white focus:outline-none focus:border-brand-400 text-gray-500" />
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                          <button onClick={() => addFormField(sIdx)}
+                            className="w-full text-xs py-2 border border-dashed border-brand-200 text-brand-600 rounded-lg hover:bg-brand-50">+ افزودنِ سوال</button>
+                        </div>
                       </div>
                     ))}
                     <button onClick={addFormSection}
-                      className="w-full text-sm py-2.5 border border-dashed border-gray-300 text-gray-500 rounded-xl hover:bg-gray-50">+ افزودنِ بخشِ جدید</button>
+                      className="w-full text-sm py-2.5 border border-dashed border-gray-300 text-gray-500 rounded-xl hover:bg-white bg-white/50">+ افزودنِ بخشِ جدید</button>
                   </div>
                 )}
               </section>
@@ -3165,36 +3142,66 @@ export function PsychologyAdmin() {
           TAB: PATIENT PANEL SETTINGS (ماژول‌هایی که مراجع می‌بیند)
       ════════════════════════════════════════════════════════════════ */}
       {mainTab === 'patient_settings' && (
-        <div className="max-w-lg mx-auto">
-          <div className="bg-white rounded-2xl border border-gray-100 p-5">
-            <h2 className="text-sm font-bold text-gray-900 mb-1">تنظیماتِ پنلِ مراجع</h2>
-            <p className="text-xs text-gray-400 mb-5 leading-relaxed">
-              این‌ها قابلیت‌هایی هستند که مراجع پس از ورود به پنلِ خودش (/{slug}/my) می‌بیند.
-            </p>
-            {!patientFeaturesLoaded ? (
-              <div className="text-center py-10 text-gray-400 text-sm">در حال بارگذاری...</div>
-            ) : (
-              <div className="space-y-4">
-                <label className="flex items-center justify-between gap-3 p-3.5 rounded-xl border border-gray-100 cursor-pointer">
-                  <div>
-                    <div className="text-sm font-medium text-gray-800">خریدِ جلسه‌ی جایگزین</div>
-                    <div className="text-[11px] text-gray-400 mt-0.5">مراجع بتواند پس از سوختنِ یک جلسه، خودش جلسه‌ی جدید بخرد</div>
+        <div className="max-w-3xl mx-auto">
+          <div className="grid sm:grid-cols-2 gap-4">
+            <div className="bg-white rounded-2xl border border-gray-100 p-5">
+              <h2 className="text-sm font-bold text-gray-900 mb-1">تنظیماتِ پنلِ مراجع</h2>
+              <p className="text-xs text-gray-400 mb-5 leading-relaxed">
+                این‌ها قابلیت‌هایی هستند که مراجع پس از ورود به پنلِ خودش (/{slug}/my) می‌بیند — پیش‌نمایشِ زنده کنارش است.
+              </p>
+              {!patientFeaturesLoaded ? (
+                <div className="text-center py-10 text-gray-400 text-sm">در حال بارگذاری...</div>
+              ) : (
+                <div className="space-y-4">
+                  <label className="flex items-center justify-between gap-3 p-3.5 rounded-xl border border-gray-100 cursor-pointer">
+                    <div>
+                      <div className="text-sm font-medium text-gray-800">خریدِ جلسه‌ی جایگزین</div>
+                      <div className="text-[11px] text-gray-400 mt-0.5">مراجع بتواند پس از سوختنِ یک جلسه، خودش جلسه‌ی جدید بخرد</div>
+                    </div>
+                    <input type="checkbox" checked={!!patientFeatures.patient_buy_extra_session}
+                      onChange={e => togglePatientFeature('patient_buy_extra_session', e.target.checked)}
+                      className="w-5 h-5 accent-brand-600 shrink-0" />
+                  </label>
+                  <label className="flex items-center justify-between gap-3 p-3.5 rounded-xl border border-gray-100 cursor-pointer">
+                    <div>
+                      <div className="text-sm font-medium text-gray-800">کنسلِ خودکارِ جلسه</div>
+                      <div className="text-[11px] text-gray-400 mt-0.5">مراجع بتواند خودش جلسه را کنسل کند (طبقِ قانونِ بازپرداخت)</div>
+                    </div>
+                    <input type="checkbox" checked={!!patientFeatures.patient_self_cancel}
+                      onChange={e => togglePatientFeature('patient_self_cancel', e.target.checked)}
+                      className="w-5 h-5 accent-brand-600 shrink-0" />
+                  </label>
+                </div>
+              )}
+            </div>
+
+            {/* پیش‌نمایشِ زنده — دقیقاً همان کارتی که مراجع در پنلِ خودش می‌بیند */}
+            <div>
+              <p className="text-xs text-gray-400 mb-2 px-1">👁 پیش‌نمایشِ زنده</p>
+              <div className="bg-gray-50 rounded-2xl p-4 space-y-2">
+                <div className="bg-white rounded-xl border border-gray-100 p-3">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-sm font-medium text-gray-800">جلسه‌ی ۳</span>
+                    <span className="text-xs text-gray-400">۱۴۰۵/۰۴/۱۰ — ۱۶:۰۰ | 🎥 آنلاین</span>
                   </div>
-                  <input type="checkbox" checked={!!patientFeatures.patient_buy_extra_session}
-                    onChange={e => togglePatientFeature('patient_buy_extra_session', e.target.checked)}
-                    className="w-5 h-5 accent-brand-600 shrink-0" />
-                </label>
-                <label className="flex items-center justify-between gap-3 p-3.5 rounded-xl border border-gray-100 cursor-pointer">
-                  <div>
-                    <div className="text-sm font-medium text-gray-800">کنسلِ خودکارِ جلسه</div>
-                    <div className="text-[11px] text-gray-400 mt-0.5">مراجع بتواند خودش جلسه را کنسل کند (طبقِ قانونِ بازپرداخت)</div>
+                  {patientFeatures.patient_self_cancel && (
+                    <button disabled className="text-xs px-2.5 py-1 border border-red-200 text-red-500 rounded-lg mt-1">کنسل</button>
+                  )}
+                </div>
+                <div className="bg-white rounded-xl border border-gray-100 p-3">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-sm font-medium text-gray-800">جلسه‌ی ۲</span>
+                    <span className="text-xs text-red-500">سوخت شد — مبلغ برنگشت</span>
                   </div>
-                  <input type="checkbox" checked={!!patientFeatures.patient_self_cancel}
-                    onChange={e => togglePatientFeature('patient_self_cancel', e.target.checked)}
-                    className="w-5 h-5 accent-brand-600 shrink-0" />
-                </label>
+                  {patientFeatures.patient_buy_extra_session && (
+                    <button disabled className="w-full mt-2 py-2 border border-gray-300 text-gray-600 rounded-xl text-xs">🔄 خریدِ جلسه‌ی جایگزین</button>
+                  )}
+                </div>
+                {!patientFeatures.patient_self_cancel && !patientFeatures.patient_buy_extra_session && (
+                  <p className="text-[11px] text-gray-400 text-center py-2">هر دو قابلیت خاموش‌اند — مراجع فقط وضعیت را می‌بیند.</p>
+                )}
               </div>
-            )}
+            </div>
           </div>
         </div>
       )}
