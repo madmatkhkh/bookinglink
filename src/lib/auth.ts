@@ -99,6 +99,16 @@ export async function getStaffResourceId(req: NextRequest, expectedTenantId: str
   return data.owner_session && safeEqual(data.owner_session, token) ? resourceId : null
 }
 
+/** خروج: نشستِ فعال (owner یا کارمند، هرکدام معتبر بود) را در دیتابیس باطل و کوکی را پاک می‌کند */
+export async function clearPanelSession(req: NextRequest, res: NextResponse, tenantId: string) {
+  const ownerId = await getPanelTenantId(req, tenantId)
+  if (ownerId) await sb().from('tenants').update({ owner_session: null }).eq('id', tenantId)
+  const resourceId = await getStaffResourceId(req, tenantId)
+  if (resourceId) await sb().from('resources').update({ owner_session: null }).eq('id', resourceId)
+  res.cookies.set(PANEL_COOKIE, '', { path: '/', maxAge: 0 })
+  res.cookies.set(STAFF_COOKIE, '', { path: '/', maxAge: 0 })
+}
+
 // ── سوپرادمین ────────────────────────────────────────────────────────────────
 
 export function isSuperAuthed(req: NextRequest): boolean {

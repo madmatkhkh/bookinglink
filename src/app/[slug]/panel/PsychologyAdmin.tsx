@@ -458,6 +458,13 @@ export function PsychologyAdmin() {
   // ── Loading ────────────────────────────────────────────────────
   const [loading, setLoading] = useState(true)
   const [needsLogin, setNeedsLogin] = useState(false)
+  async function doLogout() {
+    const ok = await uiConfirm('از پنل خارج شوید؟')
+    if (!ok) return
+    await fetch(panelApi('/logout'), { method: 'POST' })
+    setMe(null)
+    setNeedsLogin(true)
+  }
 
   // ── Settings (تنظیماتِ کلینیک + ظاهر) ──────────────────────────
   const [settings, setSettings] = useState<ClinicSettings>(DEFAULT_SETTINGS)
@@ -1256,6 +1263,10 @@ export function PsychologyAdmin() {
               className="text-xs px-2.5 sm:px-3 py-1.5 border border-gray-200 rounded-lg text-gray-500 hover:bg-gray-50 whitespace-nowrap">
               🔗 سایتِ من
             </a>
+            <button onClick={doLogout}
+              className="text-xs px-2.5 sm:px-3 py-1.5 border border-gray-200 rounded-lg text-gray-500 hover:bg-gray-50 whitespace-nowrap">
+              🚪 خروج
+            </button>
             <div className="relative">
               <button onClick={() => setMenuOpen(o => !o)}
                 className={`text-xs px-2.5 sm:px-3 py-1.5 border rounded-lg transition-colors whitespace-nowrap flex items-center gap-1 ${
