@@ -5,6 +5,7 @@ import { PERSIAN_MONTHS, toLatinNum, getCurrentJalali, getDaysInJalaliMonth, jal
 import { FLOW, FLOW_LABEL as FLOW_LABEL_SHARED } from '@/lib/flow'
 import { PRICING } from '@/lib/config'
 import { ClinicSettings, DEFAULT_SETTINGS, SessionMode, OfficeLocation, PaymentCardInfo } from '@/lib/settings'
+import { IntakeForm, FormField, FormFieldType, DEFAULT_INTAKE_FORM, LEGACY_DETAIL_LABELS } from '@/lib/psy'
 import { DialogHost, uiAlert, uiConfirm, uiPrompt } from '@/components/ui/Dialog'
 
 // در پنلِ ادمین همه‌ی ارقام لاتین نمایش داده می‌شوند (فقط نمایش؛ فرمتِ ذخیره دست‌نخورده)
@@ -84,6 +85,8 @@ type Patient = {
   session_type?: string        // online | offline
   parent_name?: string
   phone?: string
+  // پاسخ‌های فرمِ رزرو که ستونِ اختصاصی ندارند (کاملاً دیتایی، از فرم‌بیلدر)
+  details?: Record<string, any>
   // وضعیت
   status: string
   booking_date?: string
@@ -404,14 +407,14 @@ export function PsychologyAdmin() {
   const api = (path: string) => `/api/t/${slug}/panel/psy${path}`
   const panelApi = (path: string) => `/api/t/${slug}/panel${path}`
   const [mainTab, setMainTab] = useState<'patients' | 'bookings' | 'schedule' | 'settings' | 'finance' | 'patient_settings' | 'staff'>('patients')
-  const [menuOpen, setMenuOpen] = useState(false)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
 
   // ── Patients state ─────────────────────────────────────────────
   const [patients, setPatients] = useState<Patient[]>([])
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null)
   const [patientView, setPatientView] = useState<'list' | 'detail' | 'edit'>('list')
   const [patientTab, setPatientTab] = useState<'info' | 'payment' | 'packages' | 'sessions'>('info')
-  const [infoSubTab, setInfoSubTab] = useState<'child' | 'family' | 'medical' | 'growth' | 'other'>('child')
+  const [infoSubTab, setInfoSubTab] = useState<'child' | 'family' | 'other'>('child')
   const [packages, setPackages] = useState<Package[]>([])
   const [sessions, setSessions] = useState<Session[]>([])
   const [patientSearch, setPatientSearch] = useState('')
@@ -492,6 +495,12 @@ export function PsychologyAdmin() {
   const [profileLoaded, setProfileLoaded] = useState(false)
   const [profileSaving, setProfileSaving] = useState(false)
   const [profileSaved, setProfileSaved] = useState(false)
+  // فرمِ رزروِ per-resource (بخش‌ها/سوال‌ها/نوع/اجباری‌بودن — کاملاً دیتایی)
+  const [intakeForm, setIntakeForm] = useState<IntakeForm>(DEFAULT_INTAKE_FORM)
+  const [intakeLoaded, setIntakeLoaded] = useState(false)
+  const [intakeSaving, setIntakeSaving] = useState(false)
+  const [intakeSaved, setIntakeSaved] = useState(false)
+  const [expandedSection, setExpandedSection] = useState<string | null>(null)
 
   // ── Package / Session forms ────────────────────────────────────
   const [newPkg, setNewPkg] = useState({
@@ -1005,7 +1014,7 @@ export function PsychologyAdmin() {
   // با ورود به تب برنامه، داده‌های ماه و جلسه‌ها را بارگذاری کن
   useEffect(() => {
     if (mainTab === 'schedule') { loadMonthSchedules(schedMonth, schedYear); loadAllSessions(); refreshBookings(); if (!profileLoaded) loadProfile() }
-    if (mainTab === 'settings') { if (!settingsLoaded) loadSettings(); loadProfile() }
+    if (mainTab === 'settings') { if (!settingsLoaded) loadSettings(); loadProfile(); loadIntakeForm() }
     if (mainTab === 'patient_settings' && !patientFeaturesLoaded) loadPatientFeatures()
     if (mainTab === 'finance') loadFinance()
     if (mainTab === 'staff' && !staffLoaded) loadStaff()
@@ -1081,7 +1090,98 @@ export function PsychologyAdmin() {
 
   const patchProfile = (p: Partial<ResourceProfileView>) => setProfile(s => ({ ...s, ...p }))
 
+  // ── فرمِ رزرو (per-resource) ───────────────────────────────────────────────
+  async function loadIntakeForm() {
+    try {
+      const url = me?.isOwner && viewingResourceId ? api(`/intake-form?resource_id=${viewingResourceId}`) : api('/intake-form')
+      const res = await fetch(url, { cache: 'no-store' })
+      if (res.status === 401) { setNeedsLogin(true); return }
+      const data = await res.json()
+      if (data.form) setIntakeForm(data.form)
+    } catch {}
+    setIntakeLoaded(true)
+  }
+
+  async function saveIntakeForm() {
+    setIntakeSaving(true); setIntakeSaved(false)
+    try {
+      const body: Record<string, any> = { form: intakeForm }
+      if (me?.isOwner && viewingResourceId) body.resource_id = viewingResourceId
+      const res = await fetch(api('/intake-form'), {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+      })
+      if (res.status === 401) { setNeedsLogin(true); return }
+      setIntakeSaved(true)
+      setTimeout(() => setIntakeSaved(false), 2500)
+    } catch {}
+    setIntakeSaving(false)
+  }
+
+  function addFormSection() {
+    const id = genId('section')
+    setIntakeForm(f => ({ sections: [...f.sections, { id, title: 'بخشِ جدید', fields: [] }] }))
+    setExpandedSection(id)
+  }
+  function updateFormSection(idx: number, patch: Partial<IntakeForm['sections'][number]>) {
+    setIntakeForm(f => ({ sections: f.sections.map((s, i) => i === idx ? { ...s, ...patch } : s) }))
+  }
+  function removeFormSection(idx: number) {
+    setIntakeForm(f => ({ sections: f.sections.filter((_, i) => i !== idx) }))
+  }
+  function moveFormSection(idx: number, dir: -1 | 1) {
+    setIntakeForm(f => {
+      const next = [...f.sections]
+      const j = idx + dir
+      if (j < 0 || j >= next.length) return f
+      ;[next[idx], next[j]] = [next[j], next[idx]]
+      return { sections: next }
+    })
+  }
+  function addFormField(sIdx: number) {
+    updateFormSection(sIdx, {
+      fields: [...intakeForm.sections[sIdx].fields, { id: genId('field'), label: 'سوالِ جدید', type: 'text' as FormFieldType, required: false }],
+    })
+  }
+  function updateFormField(sIdx: number, fIdx: number, patch: Partial<FormField>) {
+    setIntakeForm(f => ({
+      sections: f.sections.map((s, i) => i !== sIdx ? s : {
+        ...s, fields: s.fields.map((fl, j) => j === fIdx ? { ...fl, ...patch } : fl),
+      }),
+    }))
+  }
+  function removeFormField(sIdx: number, fIdx: number) {
+    setIntakeForm(f => ({
+      sections: f.sections.map((s, i) => i !== sIdx ? s : { ...s, fields: s.fields.filter((_, j) => j !== fIdx) }),
+    }))
+  }
+  function moveFormField(sIdx: number, fIdx: number, dir: -1 | 1) {
+    setIntakeForm(f => ({
+      sections: f.sections.map((s, i) => {
+        if (i !== sIdx) return s
+        const next = [...s.fields]
+        const j = fIdx + dir
+        if (j < 0 || j >= next.length) return s
+        ;[next[fIdx], next[j]] = [next[j], next[fIdx]]
+        return { ...s, fields: next }
+      }),
+    }))
+  }
+
+
   // helperهای ویرایشِ آرایه‌ها
+  // برچسبِ یک کلیدِ details: اول از فرمِ فعلیِ همین دکتر (اگر چنین فیلدی هنوز هست)، بعد از نقشه‌ی پرونده‌های قدیمی، وگرنه خودِ کلید
+  function detailFieldLabel(key: string): string {
+    for (const s of intakeForm.sections) {
+      const f = s.fields.find(fl => fl.id === key)
+      if (f) return f.label
+    }
+    return LEGACY_DETAIL_LABELS[key] || key
+  }
+  function formatDetailValue(v: unknown): string {
+    if (Array.isArray(v)) return v.join('، ')
+    return String(v ?? '')
+  }
+
   const patchSettings = (p: Partial<ClinicSettings>) => setSettings(s => ({ ...s, ...p }))
   const genId = (prefix: string) => `${prefix}_${Date.now()}_${Math.floor(Math.random() * 1000)}`
 
@@ -1244,97 +1344,100 @@ export function PsychologyAdmin() {
 
   if (needsLogin) return <PanelLogin slug={slug} onSuccess={() => { setNeedsLogin(false); fetchAll() }} />
 
+  const pendingActionCount =
+    bookings.filter(b => b.flow_status === FLOW.INTERVIEW_PAYMENT_SUBMITTED).length +
+    bookings.filter(b => b.flow_status === FLOW.ASSESSMENT_PAYMENT_SUBMITTED).length +
+    pendingPkgs.length + pendingSess.length + pendingRefunds.length
+
+  const navItems = [
+    { key: 'patients' as const, icon: '📁', label: 'پرونده‌ها', badge: 0 },
+    { key: 'bookings' as const, icon: '💳', label: 'تأیید پرداخت‌ها', badge: pendingActionCount },
+    { key: 'schedule' as const, icon: '🗓', label: 'روزهای کاری', badge: 0 },
+    { key: 'finance' as const, icon: '📊', label: 'گزارشاتِ مالی', badge: 0 },
+    { key: 'settings' as const, icon: '🌐', label: 'تنظیماتِ سایت', badge: 0 },
+    ...(me?.isOwner ? [{ key: 'staff' as const, icon: '👥', label: 'کارمندها', badge: 0 }] : []),
+    ...(me?.isOwner !== false ? [{ key: 'patient_settings' as const, icon: '👤', label: 'تنظیماتِ پنلِ مراجع', badge: 0 }] : []),
+  ]
+
+  function NavList({ onNavigate }: { onNavigate?: () => void }) {
+    return (
+      <nav className="flex-1 p-2 space-y-0.5 overflow-y-auto">
+        {navItems.map(item => (
+          <button key={item.key} onClick={() => { setMainTab(item.key); onNavigate?.() }}
+            className={`w-full text-right px-3 py-2.5 rounded-lg text-sm flex items-center justify-between gap-2 transition-colors ${
+              mainTab === item.key ? 'bg-brand-50 text-brand-700 font-medium' : 'text-gray-600 hover:bg-gray-50'}`}>
+            <span className="flex items-center gap-2">{item.icon} {item.label}</span>
+            {item.badge > 0 && (
+              <span className="min-w-5 h-5 px-1.5 bg-red-500 text-white text-[11px] rounded-full flex items-center justify-center font-medium">
+                {toFarsiNum(item.badge)}
+              </span>
+            )}
+          </button>
+        ))}
+      </nav>
+    )
+  }
+
   return (
-    <div className={`min-h-screen bg-gray-50 ${darkMode ? 'pb-admin-dark' : ''}`} dir="rtl">
+    <div className={`min-h-screen bg-gray-50 sm:pr-56 ${darkMode ? 'pb-admin-dark' : ''}`} dir="rtl">
       <DialogHost />
 
-      {/* ── Header ─────────────────────────────────────────────────────── */}
-      <div className="bg-white border-b border-gray-100 sticky top-0 z-20">
-        <div className="max-w-5xl mx-auto px-3 sm:px-4 py-3 flex items-center justify-between gap-2">
-          <div className="min-w-0">
-            <h1 className="text-sm sm:text-base font-semibold text-gray-900">پنل مدیریت</h1>
-            <p className="text-[11px] sm:text-xs text-gray-400 truncate">
-              {profile.name || me?.resourceName || 'دکتر'}{profile.title ? ` — ${profile.title}` : ''}
-              {me && !me.isOwner && <span className="text-brand-500"> (کارمند)</span>}
-            </p>
-          </div>
-          <div className="flex items-center gap-2 shrink-0 relative">
-            <a href={`/${slug}`} target="_blank" rel="noopener noreferrer"
-              className="text-xs px-2.5 sm:px-3 py-1.5 border border-gray-200 rounded-lg text-gray-500 hover:bg-gray-50 whitespace-nowrap">
-              🔗 سایتِ من
-            </a>
-            <button onClick={doLogout}
-              className="text-xs px-2.5 sm:px-3 py-1.5 border border-gray-200 rounded-lg text-gray-500 hover:bg-gray-50 whitespace-nowrap">
-              🚪 خروج
-            </button>
-            <div className="relative">
-              <button onClick={() => setMenuOpen(o => !o)}
-                className={`text-xs px-2.5 sm:px-3 py-1.5 border rounded-lg transition-colors whitespace-nowrap flex items-center gap-1 ${
-                  (mainTab === 'settings' || mainTab === 'patient_settings' || mainTab === 'staff')
-                    ? 'border-brand-600 text-brand-700 bg-brand-50'
-                    : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}>
-                ⚙️ تنظیمات <span className="text-[9px]">▾</span>
-              </button>
-              {menuOpen && (
-                <>
-                  <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
-                  <div className="absolute left-0 top-full mt-1.5 w-56 bg-white border border-gray-200 rounded-xl shadow-lg z-20 overflow-hidden">
-                    <button onClick={() => { setMainTab('settings'); setMenuOpen(false) }}
-                      className="w-full text-right px-4 py-3 text-xs hover:bg-gray-50 border-b border-gray-100">
-                      <div className="font-medium text-gray-800">🌐 تنظیماتِ سایتِ متخصص</div>
-                      <div className="text-[10px] text-gray-400 mt-0.5">نام، تخصص، badge، مطب‌ها و کارت‌ها</div>
-                    </button>
-                    {me?.isOwner && (
-                      <button onClick={() => { setMainTab('staff'); setMenuOpen(false) }}
-                        className="w-full text-right px-4 py-3 text-xs hover:bg-gray-50 border-b border-gray-100">
-                        <div className="font-medium text-gray-800">👥 کارمندها</div>
-                        <div className="text-[10px] text-gray-400 mt-0.5">افزودن/مدیریتِ پرسنل و ورودِ مستقلِ هرکدام</div>
-                      </button>
-                    )}
-                    {me?.isOwner !== false && (
-                      <button onClick={() => { setMainTab('patient_settings'); setMenuOpen(false) }}
-                        className="w-full text-right px-4 py-3 text-xs hover:bg-gray-50">
-                        <div className="font-medium text-gray-800">👤 تنظیماتِ پنلِ مراجع</div>
-                        <div className="text-[10px] text-gray-400 mt-0.5">قابلیت‌هایی که مراجع در پنلِ خودش می‌بیند</div>
-                      </button>
-                    )}
-                  </div>
-                </>
-              )}
-            </div>
+      {/* ── سایدبار (دسکتاپ) ───────────────────────────────────────────── */}
+      <aside className="hidden sm:flex sm:flex-col fixed top-0 right-0 h-full w-56 bg-white border-l border-gray-100 z-20">
+        <div className="p-4 border-b border-gray-100">
+          <div className="text-sm font-semibold text-gray-900">پنل مدیریت</div>
+          <div className="text-xs text-gray-400 truncate mt-0.5">
+            {profile.name || me?.resourceName || 'دکتر'}{profile.title ? ` — ${profile.title}` : ''}
+            {me && !me.isOwner && <span className="text-brand-500"> (کارمند)</span>}
           </div>
         </div>
+        <NavList />
+        <div className="p-2 border-t border-gray-100 space-y-1">
+          <a href={`/${slug}`} target="_blank" rel="noopener noreferrer"
+            className="block text-right text-xs px-3 py-2 rounded-lg text-gray-500 hover:bg-gray-50">
+            🔗 سایتِ من
+          </a>
+          <button onClick={doLogout} className="w-full text-right text-xs px-3 py-2 rounded-lg text-gray-500 hover:bg-gray-50">
+            🚪 خروج
+          </button>
+        </div>
+      </aside>
 
-        {/* Main Tabs */}
-        <div className="max-w-5xl mx-auto px-2 sm:px-4 flex gap-1 pb-0 overflow-x-auto no-scrollbar">
-          {(() => {
-            const pendingActionCount =
-              bookings.filter(b => b.flow_status === FLOW.INTERVIEW_PAYMENT_SUBMITTED).length +
-              bookings.filter(b => b.flow_status === FLOW.ASSESSMENT_PAYMENT_SUBMITTED).length +
-              pendingPkgs.length + pendingSess.length + pendingRefunds.length
-            return ([
-              ['patients', '📁 پرونده‌ها'],
-              ['bookings', '💳 تأیید پرداخت‌ها'],
-              ['schedule', '🗓 روزهای کاری'],
-              ['finance', '📊 گزارشات مالی'],
-            ] as const).map(([k, label]) => (
-              <button key={k} onClick={() => setMainTab(k)}
-                className={`px-3 sm:px-4 py-2.5 text-xs sm:text-sm font-medium border-b-2 transition-all whitespace-nowrap flex items-center gap-1.5 shrink-0 ${
-                  mainTab === k
-                    ? 'border-brand-600 text-brand-700'
-                    : 'border-transparent text-gray-400 hover:text-gray-600'
-                }`}>
-                {label}
-                {k === 'bookings' && pendingActionCount > 0 && (
-                  <span className="min-w-5 h-5 px-1.5 bg-red-500 text-white text-[11px] rounded-full flex items-center justify-center font-medium">
-                    {toFarsiNum(pendingActionCount)}
-                  </span>
-                )}
-              </button>
-            ))
-          })()}
-        </div>
+      {/* ── نوارِ بالا (موبایل) ────────────────────────────────────────── */}
+      <div className="sm:hidden bg-white border-b border-gray-100 sticky top-0 z-20 px-3 py-3 flex items-center justify-between">
+        <button onClick={() => setSidebarOpen(true)} className="text-xl text-gray-600 w-8 h-8 flex items-center justify-center">☰</button>
+        <div className="text-sm font-semibold text-gray-900">پنل مدیریت</div>
+        <div className="w-8" />
       </div>
+
+      {/* ── دراورِ کشویی (موبایل) ──────────────────────────────────────── */}
+      {sidebarOpen && (
+        <>
+          <div className="fixed inset-0 bg-black/30 z-40 sm:hidden" onClick={() => setSidebarOpen(false)} />
+          <aside className="fixed top-0 right-0 h-full w-64 bg-white z-50 sm:hidden flex flex-col">
+            <div className="p-4 border-b border-gray-100 flex items-center justify-between">
+              <div>
+                <div className="text-sm font-semibold text-gray-900">پنل مدیریت</div>
+                <div className="text-xs text-gray-400 truncate mt-0.5">
+                  {profile.name || me?.resourceName || 'دکتر'}{profile.title ? ` — ${profile.title}` : ''}
+                  {me && !me.isOwner && <span className="text-brand-500"> (کارمند)</span>}
+                </div>
+              </div>
+              <button onClick={() => setSidebarOpen(false)} className="text-gray-400 text-xl w-8 h-8 shrink-0">✕</button>
+            </div>
+            <NavList onNavigate={() => setSidebarOpen(false)} />
+            <div className="p-2 border-t border-gray-100 space-y-1">
+              <a href={`/${slug}`} target="_blank" rel="noopener noreferrer"
+                className="block text-right text-xs px-3 py-2 rounded-lg text-gray-500 hover:bg-gray-50">
+                🔗 سایتِ من
+              </a>
+              <button onClick={doLogout} className="w-full text-right text-xs px-3 py-2 rounded-lg text-gray-500 hover:bg-gray-50">
+                🚪 خروج
+              </button>
+            </div>
+          </aside>
+        </>
+      )}
 
       <div className="max-w-5xl mx-auto p-3 sm:p-4">
 
@@ -1479,7 +1582,7 @@ export function PsychologyAdmin() {
                 {patientTab === 'info' && (
                   <div>
                     <div className="flex gap-1 mb-3 overflow-x-auto no-scrollbar">
-                      {([['child', '👤 کودک'], ['family', '👨‍👩‍👧 خانواده'], ['medical', '🏥 پزشکی'], ['growth', '📈 رشد'], ['other', '📝 سایر']] as const).map(([k, label]) => (
+                      {([['child', '👤 کودک'], ['family', '👨‍👩‍👧 خانواده'], ['other', '📝 سایرِ اطلاعاتِ فرم']] as const).map(([k, label]) => (
                         <button key={k} onClick={() => setInfoSubTab(k)}
                           className={`px-3 py-1 text-xs rounded-lg whitespace-nowrap transition-all shrink-0 ${infoSubTab === k ? 'bg-brand-100 text-brand-700 font-medium' : 'bg-white border border-gray-200 text-gray-500'}`}>
                           {label}
@@ -1493,15 +1596,9 @@ export function PsychologyAdmin() {
                           <InfoRow label="نام کودک" value={selectedPatient.child_name} />
                           <InfoRow label="تاریخ تولد" value={enTime(selectedPatient.birth_date)} />
                           <InfoRow label="پایه‌ی تحصیلی" value={selectedPatient.grade} />
-                          <InfoRow label="مدرسه (نام / مؤسسه / پایه / تلفن)" value={selectedPatient.school_info} />
                         </Section>
                         <Section title="شکایت اصلی" icon="💬">
                           <InfoRow label="دلیلِ مراجعه" value={selectedPatient.reason} />
-                          <InfoRow label="مراجعه‌ی قبلی" value={selectedPatient.prev_visit} />
-                          <InfoRow label="ویژگی‌های کودک" value={selectedPatient.child_conditions} />
-                        </Section>
-                        <Section title="ورزش و سرگرمی" icon="⚽">
-                          <InfoRow label="فعالیتِ ورزشی / محدودیت" value={selectedPatient.sports_info} />
                         </Section>
                       </div>
                     )}
@@ -1510,51 +1607,26 @@ export function PsychologyAdmin() {
                       <div className="bg-white rounded-xl border border-gray-100 p-4">
                         <Section title="اطلاعات پدر" icon="👨">
                           <InfoRow label="نام" value={selectedPatient.father_name} />
-                          <InfoRow label="تحصیلات" value={selectedPatient.father_education} />
-                          <InfoRow label="شغل" value={selectedPatient.father_job} />
                           <InfoRow label="تلفن" value={enTime(selectedPatient.father_phone)} />
                         </Section>
                         <Section title="اطلاعات مادر" icon="👩">
                           <InfoRow label="نام" value={selectedPatient.mother_name} />
-                          <InfoRow label="تحصیلات" value={selectedPatient.mother_education} />
-                          <InfoRow label="شغل" value={selectedPatient.mother_job} />
                           <InfoRow label="تلفن" value={enTime(selectedPatient.mother_phone)} />
-                        </Section>
-                        <Section title="وضعیت خانواده" icon="🏠">
-                          <InfoRow label="وضعیتِ والدین" value={selectedPatient.family_status} />
-                          <InfoRow label="خواهر / برادر" value={selectedPatient.siblings_info} />
-                          <InfoRow label="سایرِ ساکنینِ منزل" value={selectedPatient.family_members_info} />
-                          <InfoRow label="آدرسِ منزل" value={selectedPatient.home_address} />
-                          <InfoRow label="نحوه‌ی برخوردِ والدین (پدر / مادر / ناظرِ اصلی)" value={selectedPatient.parent_behavior} />
-                        </Section>
-                      </div>
-                    )}
-
-                    {infoSubTab === 'medical' && (
-                      <div className="bg-white rounded-xl border border-gray-100 p-4">
-                        <Section title="سابقه پزشکی" icon="🏥">
-                          <InfoRow label="غش/تشنج و داروهای مصرفی" value={selectedPatient.medical_info} />
-                        </Section>
-                        <Section title="بارداری و تولد" icon="👶">
-                          <InfoRow label="شرایطِ بارداری" value={selectedPatient.pregnancy_info} />
-                          <InfoRow label="نوعِ زایمان" value={selectedPatient.birth_type} />
-                          <InfoRow label="وزنِ هنگامِ تولد" value={selectedPatient.birth_weight} />
-                        </Section>
-                      </div>
-                    )}
-
-                    {infoSubTab === 'growth' && (
-                      <div className="bg-white rounded-xl border border-gray-100 p-4">
-                        <Section title="رشد و تکامل" icon="📈">
-                          <InfoRow label="سینه‌خیز / چهاردست‌وپا / راه‌رفتن / حرف‌زدن و مشکلاتِ رشدی" value={selectedPatient.growth_info} />
                         </Section>
                       </div>
                     )}
 
                     {infoSubTab === 'other' && (
                       <div className="bg-white rounded-xl border border-gray-100 p-4">
-                        <Section title="توضیحاتِ تکمیلی" icon="📝">
-                          <InfoRow label="توضیحاتِ اضافه" value={selectedPatient.extra_notes} />
+                        {/* هرچه در details است — چه فیلدهای دیتاییِ فرمِ رزرو، چه پرونده‌های قدیمی‌تر */}
+                        <Section title="پاسخ‌هایِ فرمِ رزرو" icon="📝">
+                          {Object.keys((selectedPatient as any).details || {}).length === 0 ? (
+                            <p className="text-xs text-gray-400">چیزی ثبت نشده.</p>
+                          ) : (
+                            Object.entries((selectedPatient as any).details || {}).map(([key, value]) => (
+                              <InfoRow key={key} label={detailFieldLabel(key)} value={formatDetailValue(value)} />
+                            ))
+                          )}
                         </Section>
                         <Section title="مشخصاتِ نوبت‌دهی" icon="🗓">
                           <InfoRow label="نوعِ جلسه" value={selectedPatient.session_type === 'online' ? '🎥 آنلاین' : selectedPatient.session_type === 'offline' ? '🏥 حضوری' : selectedPatient.session_type} />
@@ -1748,13 +1820,9 @@ export function PsychologyAdmin() {
                       <Field label="نام کودک *" value={editingPatient.child_name} onChange={v => setEditingPatient(p => ({...p, child_name: v}))} />
                       <Field label="تاریخ تولد *" value={editingPatient.birth_date} onChange={v => setEditingPatient(p => ({...p, birth_date: v}))} placeholder="1394/06/15" />
                       <Field label="پایه‌ی تحصیلی" value={editingPatient.grade} onChange={v => setEditingPatient(p => ({...p, grade: v}))} placeholder="سوم ابتدایی" />
-                      <SelectField label="مراجعه‌ی قبلی" value={editingPatient.prev_visit} onChange={v => setEditingPatient(p => ({...p, prev_visit: v}))} options={['ندارد','دارد']} />
                     </div>
                     <div className="mt-3 space-y-3">
-                      <TextareaField label="مدرسه (نام / مؤسسه / پایه / تلفن)" value={editingPatient.school_info} onChange={v => setEditingPatient(p => ({...p, school_info: v}))} rows={2} />
                       <TextareaField label="دلیلِ مراجعه *" value={editingPatient.reason} onChange={v => setEditingPatient(p => ({...p, reason: v}))} rows={3} />
-                      <TextareaField label="ویژگی‌های کودک" value={(editingPatient as any).child_conditions} onChange={v => setEditingPatient(p => ({...p, child_conditions: v} as any))} rows={2} />
-                      <TextareaField label="فعالیتِ ورزشی / محدودیت" value={editingPatient.sports_info} onChange={v => setEditingPatient(p => ({...p, sports_info: v}))} rows={2} />
                     </div>
                   </div>
 
@@ -1764,8 +1832,6 @@ export function PsychologyAdmin() {
                     <div className="grid grid-cols-2 gap-3">
                       <Field label="نام پدر *" value={editingPatient.father_name} onChange={v => setEditingPatient(p => ({...p, father_name: v}))} />
                       <Field label="تلفن پدر *" value={editingPatient.father_phone} onChange={v => setEditingPatient(p => ({...p, father_phone: v}))} placeholder="09xxxxxxxxx" />
-                      <Field label="تحصیلات" value={editingPatient.father_education} onChange={v => setEditingPatient(p => ({...p, father_education: v}))} placeholder="لیسانس" />
-                      <Field label="شغل" value={editingPatient.father_job} onChange={v => setEditingPatient(p => ({...p, father_job: v}))} />
                     </div>
                   </div>
 
@@ -1773,51 +1839,26 @@ export function PsychologyAdmin() {
                   <div className="bg-white rounded-xl border border-gray-100 p-4">
                     <h3 className="text-sm font-semibold text-gray-700 mb-3 pb-2 border-b border-gray-100">👩 اطلاعات مادر</h3>
                     <div className="grid grid-cols-2 gap-3">
-                      <Field label="نام مادر *" value={editingPatient.mother_name} onChange={v => setEditingPatient(p => ({...p, mother_name: v}))} />
-                      <Field label="تلفن مادر *" value={editingPatient.mother_phone} onChange={v => setEditingPatient(p => ({...p, mother_phone: v}))} placeholder="09xxxxxxxxx" />
-                      <Field label="تحصیلات" value={editingPatient.mother_education} onChange={v => setEditingPatient(p => ({...p, mother_education: v}))} placeholder="فوق لیسانس" />
-                      <Field label="شغل" value={editingPatient.mother_job} onChange={v => setEditingPatient(p => ({...p, mother_job: v}))} />
+                      <Field label="نام مادر" value={editingPatient.mother_name} onChange={v => setEditingPatient(p => ({...p, mother_name: v}))} />
+                      <Field label="تلفن مادر" value={editingPatient.mother_phone} onChange={v => setEditingPatient(p => ({...p, mother_phone: v}))} placeholder="09xxxxxxxxx" />
                     </div>
                   </div>
 
-                  {/* وضعیت خانواده */}
+                  {/* سایرِ پاسخ‌های فرمِ رزرو — کاملاً دیتایی، برچسب از فرمِ فعلی یا نگاشتِ پرونده‌های قدیمی */}
                   <div className="bg-white rounded-xl border border-gray-100 p-4">
-                    <h3 className="text-sm font-semibold text-gray-700 mb-3 pb-2 border-b border-gray-100">🏠 وضعیت خانواده</h3>
+                    <h3 className="text-sm font-semibold text-gray-700 mb-3 pb-2 border-b border-gray-100">📝 سایرِ اطلاعاتِ فرم</h3>
                     <div className="space-y-3">
-                      <Field label="وضعیتِ والدین" value={editingPatient.family_status} onChange={v => setEditingPatient(p => ({...p, family_status: v}))} placeholder="با هم زندگی می‌کنند / جدا / ..." fullWidth />
-                      <Field label="خواهر / برادر (سن و تحصیلات)" value={editingPatient.siblings_info} onChange={v => setEditingPatient(p => ({...p, siblings_info: v}))} fullWidth />
-                      <Field label="سایرِ ساکنینِ منزل" value={editingPatient.family_members_info} onChange={v => setEditingPatient(p => ({...p, family_members_info: v}))} fullWidth />
-                      <Field label="آدرسِ منزل" value={editingPatient.home_address} onChange={v => setEditingPatient(p => ({...p, home_address: v}))} fullWidth />
-                      <TextareaField label="نحوه‌ی برخوردِ والدین (پدر / مادر / ناظرِ اصلی)" value={editingPatient.parent_behavior} onChange={v => setEditingPatient(p => ({...p, parent_behavior: v}))} rows={2} />
-                    </div>
-                  </div>
-
-                  {/* سابقه پزشکی و بارداری */}
-                  <div className="bg-white rounded-xl border border-gray-100 p-4">
-                    <h3 className="text-sm font-semibold text-gray-700 mb-3 pb-2 border-b border-gray-100">🏥 پزشکی، بارداری و تولد</h3>
-                    <div className="space-y-3">
-                      <TextareaField label="سابقه‌ی پزشکی (غش/تشنج، داروها)" value={editingPatient.medical_info} onChange={v => setEditingPatient(p => ({...p, medical_info: v}))} rows={2} />
-                      <TextareaField label="شرایطِ بارداری" value={editingPatient.pregnancy_info} onChange={v => setEditingPatient(p => ({...p, pregnancy_info: v}))} rows={2} />
-                      <div className="grid grid-cols-2 gap-3">
-                        <SelectField label="نوعِ زایمان" value={editingPatient.birth_type} onChange={v => setEditingPatient(p => ({...p, birth_type: v}))} options={['طبیعی','سزارین','زودرس']} />
-                        <Field label="وزنِ هنگامِ تولد" value={editingPatient.birth_weight} onChange={v => setEditingPatient(p => ({...p, birth_weight: v}))} placeholder="3.2 کیلوگرم" />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* رشد و تکامل */}
-                  <div className="bg-white rounded-xl border border-gray-100 p-4">
-                    <h3 className="text-sm font-semibold text-gray-700 mb-3 pb-2 border-b border-gray-100">📈 رشد و تکامل</h3>
-                    <TextareaField label="سینه‌خیز / چهاردست‌وپا / راه‌رفتن / حرف‌زدن و مشکلاتِ رشدی" value={editingPatient.growth_info} onChange={v => setEditingPatient(p => ({...p, growth_info: v}))} rows={3} />
-                  </div>
-
-                  {/* سایر */}
-                  <div className="bg-white rounded-xl border border-gray-100 p-4">
-                    <h3 className="text-sm font-semibold text-gray-700 mb-3 pb-2 border-b border-gray-100">📝 سایر</h3>
-                    <div className="space-y-3">
-                      <TextareaField label="توضیحاتِ اضافه" value={editingPatient.extra_notes} onChange={v => setEditingPatient(p => ({...p, extra_notes: v}))} rows={3} />
+                      {Object.keys(editingPatient.details || {}).length === 0 ? (
+                        <p className="text-xs text-gray-400">چیزی ثبت نشده.</p>
+                      ) : (
+                        Object.entries(editingPatient.details || {}).map(([key, value]) => (
+                          <TextareaField key={key} label={detailFieldLabel(key)} value={formatDetailValue(value)} rows={2}
+                            onChange={v => setEditingPatient(p => ({ ...p, details: { ...(p.details || {}), [key]: v } }))} />
+                        ))
+                      )}
                       <SelectField label="نوعِ جلسه" value={editingPatient.session_type} onChange={v => setEditingPatient(p => ({...p, session_type: v} as any))} options={['offline','online']} />
                     </div>
+
                   </div>
                 </div>
 
@@ -2479,7 +2520,7 @@ export function PsychologyAdmin() {
                 <section className="bg-white rounded-2xl border border-gray-100 p-5">
                   <h2 className="text-sm font-semibold text-gray-900 mb-1">👥 پروفایلِ کدام دکتر؟</h2>
                   <p className="text-xs text-gray-400 mb-3">مجموعه‌ی شما چند نفر پرسنل دارد؛ اول انتخاب کنید پروفایل و برنامه‌ی کاریِ کدام‌شان را ویرایش می‌کنید.</p>
-                  <select value={viewingResourceId || staffList.find(r => r.is_active)?.id || ''} onChange={e => { setViewingResourceId(e.target.value); setProfileLoaded(false) }}
+                  <select value={viewingResourceId || staffList.find(r => r.is_active)?.id || ''} onChange={e => { setViewingResourceId(e.target.value); setProfileLoaded(false); setIntakeLoaded(false) }}
                     className="w-full text-sm px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:border-brand-400">
                     {staffList.filter(r => r.is_active).map(r => (
                       <option key={r.id} value={r.id}>{r.name}{r.title ? ` — ${r.title}` : ''}</option>
@@ -2654,18 +2695,109 @@ export function PsychologyAdmin() {
                   className="mt-3 text-xs px-3 py-1.5 border border-brand-200 text-brand-600 rounded-lg hover:bg-brand-50">+ افزودنِ کارت</button>
               </section>
 
+              {/* فرمِ رزرو — کاملاً دیتایی، مالِ همین دکتر */}
+              <section className="bg-white rounded-2xl border border-gray-100 p-5">
+                <h2 className="text-sm font-semibold text-gray-900 mb-1">📋 فرمِ رزرو</h2>
+                <p className="text-xs text-gray-400 mb-4">
+                  نام و شماره‌تماس همیشه در فرم هستند (برای ورودِ مراجع به پنلِ خودش لازم است) و اینجا نیستند.
+                  بقیه‌ی سوال‌ها، اجباری‌بودنشان، و نوعشان (متن/چندگزینه‌ای) کاملاً دستِ شماست.
+                </p>
+                {!intakeLoaded ? (
+                  <div className="text-center py-8 text-gray-400 text-sm">در حال بارگذاری فرم...</div>
+                ) : (
+                  <div className="space-y-2">
+                    {intakeForm.sections.map((section, sIdx) => (
+                      <div key={section.id} className="border border-gray-100 rounded-xl overflow-hidden">
+                        <div className="flex items-center gap-2 p-3 bg-gray-50">
+                          <button onClick={() => setExpandedSection(x => x === section.id ? null : section.id)}
+                            className="flex-1 text-right flex items-center gap-2 min-w-0">
+                            <span className="text-xs text-gray-400 shrink-0">{expandedSection === section.id ? '▾' : '◂'}</span>
+                            <input value={section.title} onClick={e => e.stopPropagation()}
+                              onChange={e => updateFormSection(sIdx, { title: e.target.value })}
+                              className="flex-1 min-w-0 text-sm font-medium bg-transparent focus:outline-none focus:bg-white rounded px-1" />
+                            <span className="text-[10px] text-gray-400 shrink-0">{section.fields.length} سوال</span>
+                          </button>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <button onClick={() => moveFormSection(sIdx, -1)} disabled={sIdx === 0}
+                              className="w-6 h-6 flex items-center justify-center text-gray-400 hover:text-gray-700 disabled:opacity-30">▲</button>
+                            <button onClick={() => moveFormSection(sIdx, 1)} disabled={sIdx === intakeForm.sections.length - 1}
+                              className="w-6 h-6 flex items-center justify-center text-gray-400 hover:text-gray-700 disabled:opacity-30">▼</button>
+                            <button onClick={async () => { if (await uiConfirm(`بخشِ «${section.title}» با همه‌ی سوال‌هایش حذف شود؟`)) removeFormSection(sIdx) }}
+                              className="w-6 h-6 flex items-center justify-center text-red-400 hover:text-red-600">✕</button>
+                          </div>
+                        </div>
+                        {expandedSection === section.id && (
+                          <div className="p-3 space-y-2">
+                            {section.fields.map((field, fIdx) => (
+                              <div key={field.id} className="border border-gray-100 rounded-lg p-2.5 bg-gray-50/50">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <input value={field.label} onChange={e => updateFormField(sIdx, fIdx, { label: e.target.value })}
+                                    placeholder="متنِ سوال"
+                                    className="flex-1 min-w-0 text-sm px-2.5 py-1.5 border border-gray-200 rounded-lg bg-white focus:outline-none focus:border-brand-400" />
+                                  <select value={field.type}
+                                    onChange={e => updateFormField(sIdx, fIdx, { type: e.target.value as FormFieldType })}
+                                    className="text-xs px-2 py-1.5 border border-gray-200 rounded-lg bg-white shrink-0">
+                                    <option value="text">متنِ کوتاه</option>
+                                    <option value="textarea">متنِ بلند</option>
+                                    <option value="select">تک‌گزینه‌ای</option>
+                                    <option value="multiselect">چندگزینه‌ای</option>
+                                  </select>
+                                </div>
+                                {(field.type === 'select' || field.type === 'multiselect') && (
+                                  <div className="mb-2">
+                                    <label className="text-[10px] text-gray-400 mb-1 block">گزینه‌ها (با کاما جدا کنید)</label>
+                                    <input value={(field.options || []).join('، ')}
+                                      onChange={e => updateFormField(sIdx, fIdx, { options: e.target.value.split(/[,،]/).map(s => s.trim()).filter(Boolean) })}
+                                      placeholder="بله، خیر"
+                                      className="w-full text-xs px-2.5 py-1.5 border border-gray-200 rounded-lg bg-white focus:outline-none focus:border-brand-400" />
+                                  </div>
+                                )}
+                                <div className="flex items-center justify-between">
+                                  <label className="flex items-center gap-1.5 text-xs text-gray-600">
+                                    <input type="checkbox" checked={field.required}
+                                      onChange={e => updateFormField(sIdx, fIdx, { required: e.target.checked })}
+                                      className="w-4 h-4 accent-brand-600" />
+                                    اجباری
+                                  </label>
+                                  <div className="flex items-center gap-1">
+                                    <button onClick={() => moveFormField(sIdx, fIdx, -1)} disabled={fIdx === 0}
+                                      className="w-6 h-6 flex items-center justify-center text-gray-400 hover:text-gray-700 disabled:opacity-30">▲</button>
+                                    <button onClick={() => moveFormField(sIdx, fIdx, 1)} disabled={fIdx === section.fields.length - 1}
+                                      className="w-6 h-6 flex items-center justify-center text-gray-400 hover:text-gray-700 disabled:opacity-30">▼</button>
+                                    <button onClick={() => removeFormField(sIdx, fIdx)}
+                                      className="text-[11px] px-2 py-1 border border-red-200 text-red-500 rounded-lg hover:bg-red-50">حذف</button>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                            <button onClick={() => addFormField(sIdx)}
+                              className="w-full text-xs py-2 border border-brand-200 text-brand-600 rounded-lg hover:bg-brand-50">+ افزودنِ سوال</button>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                    <button onClick={addFormSection}
+                      className="w-full text-sm py-2.5 border border-dashed border-gray-300 text-gray-500 rounded-xl hover:bg-gray-50">+ افزودنِ بخشِ جدید</button>
+                  </div>
+                )}
+              </section>
+
               {/* نوارِ ذخیره (چسبیده به پایین) */}
               <div className="fixed bottom-0 inset-x-0 z-30 bg-white/95 border-t border-gray-100 backdrop-blur">
                 <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-end gap-3">
-                  {(settingsSaved || profileSaved) && <span className="text-xs text-brand-600">✓ تنظیمات ذخیره شد</span>}
-                  <button onClick={async () => { if (me?.isOwner) await Promise.all([saveSettings(), saveProfile()]); else await saveProfile() }}
-                    disabled={settingsSaving || profileSaving}
+                  {(settingsSaved || profileSaved || intakeSaved) && <span className="text-xs text-brand-600">✓ تنظیمات ذخیره شد</span>}
+                  <button onClick={async () => {
+                      if (me?.isOwner) await Promise.all([saveSettings(), saveProfile(), saveIntakeForm()])
+                      else await Promise.all([saveProfile(), saveIntakeForm()])
+                    }}
+                    disabled={settingsSaving || profileSaving || intakeSaving}
                     className="px-6 py-2.5 bg-brand-600 text-white rounded-xl text-sm font-medium disabled:opacity-40 hover:bg-brand-800 transition-colors">
-                    {(settingsSaving || profileSaving) ? 'در حال ذخیره...' : '💾 ذخیره‌ی تغییرات'}
+                    {(settingsSaving || profileSaving || intakeSaving) ? 'در حال ذخیره...' : '💾 ذخیره‌ی تغییرات'}
                   </button>
                 </div>
               </div>
             </>
+
             )}
           </div>
         )}

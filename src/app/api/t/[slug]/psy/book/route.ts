@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { sb } from '@/lib/supabase'
 import { getActiveTenant } from '@/lib/tenant'
 import { FLOW } from '@/lib/flow'
-import { PSY_PRICING, getDefaultResourceId } from '@/lib/psy'
+import { PSY_PRICING, getDefaultResourceId, getIntakeForm, missingIntakeFields, INTAKE_KNOWN_COLUMNS } from '@/lib/psy'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -11,38 +11,33 @@ function genCase(): string {
   return `PRV-${Math.floor(1000 + Math.random() * 9000)}`
 }
 
+// نام و یک شماره‌تماس همیشه ثابت‌اند (برای OTP لازم‌اند)؛ بقیه‌ی سوال‌ها کاملاً
+// دیتایی‌اند و از فرمِ تنظیم‌شده‌ی همان دکتر می‌آیند (پنل → تنظیمات → فرمِ رزرو).
 export async function POST(req: NextRequest, { params }: { params: { slug: string } }) {
   const t = await getActiveTenant(params.slug)
   if (!t) return NextResponse.json({ error: 'یافت نشد' }, { status: 404 })
 
   const b = await req.json()
-  const {
-    childName, birthDate, grade, reason, prevVisit,
-    fatherName, fatherEducation, fatherJob, fatherPhone,
-    motherName, motherEducation, motherJob, motherPhone,
-    homeAddress, hasSiblings, siblingsInfo, otherResidents, otherResidentsInfo,
-    familyStatus, childConditions,
-    pregnancyAge, pregnancyCount, pregnancyStress, pregnancyDepression, pregnancyIssues, pregnancyAbortion, pregnancyNone,
-    birthType, birthWeight,
-    growthCrawl, growthCrawlDuration, growthWalk4, growthWalk4Duration, growthWalkAge, growthTalkAge, growthIssues,
-    seizureHistory, currentMeds,
-    schoolName, schoolInstitute, schoolGrade, schoolPhone,
-    sportsActivity, sportsLimit,
-    fatherBehavior, motherBehavior, mainSupervisor,
-    extraNotes, sessionType, paymentRef, officeLocation, resourceId,
-  } = b
+  const { childName, fatherPhone, sessionType, officeLocation, resourceId, answers } = b
+  const rawAnswers: Record<string, any> = answers && typeof answers === 'object' ? answers : {}
 
-  if (!childName || !fatherPhone || !motherPhone)
-    return NextResponse.json({ error: 'اطلاعات ناقص است' }, { status: 400 })
+  if (!childName || !fatherPhone)
+    return NextResponse.json({ error: 'نام و شماره تماس لازم است' }, { status: 400 })
 
-  // فعلاً صفحه‌ی عمومی دکتری را انتخاب نمی‌گیرد (تک‌دکترها خودکار درست کار می‌کند)؛
-  // اگر روزی UIِ انتخابِ دکتر اضافه شد، resourceId از بدنه می‌آید و همینجا اعتبارسنجی می‌شود.
+  // فعلاً صفحه‌ی عمومی دکتری را انتخاب نمی‌گیرد مگر بیش از یک دکتر باشد
   let finalResourceId: string | null = null
   if (resourceId) {
     const { data: r } = await sb().from('resources').select('id').eq('id', resourceId).eq('tenant_id', t.id).maybeSingle()
     finalResourceId = r?.id || null
   }
   if (!finalResourceId) finalResourceId = await getDefaultResourceId(t.id)
+
+  // اعتبارسنجیِ سمتِ سرور — طبقِ همان فرمی که این دکتر تعریف کرده (نه فقط سمتِ کاربر)
+  if (finalResourceId) {
+    const form = await getIntakeForm(finalResourceId)
+    const missing = missingIntakeFields(form, rawAnswers)
+    if (missing.length) return NextResponse.json({ error: 'اطلاعاتِ ناقص: ' + missing.join('، ') }, { status: 400 })
+  }
 
   let caseNumber = genCase()
   for (let i = 0; i < 6; i++) {
@@ -52,44 +47,32 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
     caseNumber = genCase()
   }
 
-  // فیلدهای تفصیلی در details (jsonb) — همان محتوایی که قبلاً ستون‌های جدا بود
-  const details = {
-    grade, prev_visit: prevVisit,
-    father_education: fatherEducation, father_job: fatherJob,
-    mother_education: motherEducation, mother_job: motherJob,
-    home_address: homeAddress,
-    siblings_info: hasSiblings === 'بله' ? siblingsInfo : 'ندارد',
-    family_members_info: otherResidents === 'بله' ? otherResidentsInfo : 'فقط اعضای اصلی خانواده',
-    family_status: familyStatus?.join?.('، ') || '',
-    child_conditions: childConditions?.join?.('، ') || '',
-    pregnancy_info: pregnancyNone
-      ? `سن: ${pregnancyAge}، تعداد: ${pregnancyCount}، موردی نداشت`
-      : `سن: ${pregnancyAge}، تعداد: ${pregnancyCount}، ${[pregnancyStress, pregnancyDepression, pregnancyIssues, pregnancyAbortion].filter(Boolean).join('، ')}`,
-    birth_type: birthType, birth_weight: birthWeight,
-    growth_info: `سینه‌خیز: ${growthCrawl} ${growthCrawlDuration || ''} | چهار دست و پا: ${growthWalk4} ${growthWalk4Duration || ''} | راه رفتن: ${growthWalkAge} | حرف زدن: ${growthTalkAge} | ${growthIssues || ''}`,
-    medical_info: `غش‌تشنج: ${seizureHistory} | داروها: ${currentMeds}`,
-    school_info: `${schoolName} | ${schoolInstitute} | پایه: ${schoolGrade} | تلفن: ${schoolPhone}`,
-    sports_info: `${sportsActivity} | محدودیت: ${sportsLimit}`,
-    parent_behavior: `پدر: ${fatherBehavior} | مادر: ${motherBehavior} | ناظر اصلی: ${mainSupervisor}`,
-    extra_notes: extraNotes,
+  // پاسخ‌هایی که روی ستونِ واقعیِ psy_cases می‌نشینند در همان‌جا؛ بقیه در details
+  const known: Record<string, any> = {}
+  const details: Record<string, any> = {}
+  for (const [key, value] of Object.entries(rawAnswers)) {
+    if ((INTAKE_KNOWN_COLUMNS as readonly string[]).includes(key)) known[key] = value
+    else details[key] = value
   }
 
   const { data, error } = await sb().from('psy_cases').insert([{
     tenant_id: t.id,
     resource_id: finalResourceId,
     case_number: caseNumber,
-    parent_name: fatherName || motherName,
-    phone: fatherPhone || motherPhone,
+    parent_name: known.father_name || known.mother_name || '',
+    phone: fatherPhone,
     child_name: childName,
-    birth_date: birthDate,
-    reason,
-    father_name: fatherName, father_phone: fatherPhone,
-    mother_name: motherName, mother_phone: motherPhone,
+    birth_date: known.birth_date || '',
+    grade: known.grade || '',
+    reason: known.reason || '',
+    father_name: known.father_name || '',
+    father_phone: fatherPhone,
+    mother_name: known.mother_name || '',
+    mother_phone: known.mother_phone || '',
     session_type: sessionType,
     office_location: officeLocation || null,
     details,
     interview_price: PSY_PRICING.interview,
-    interview_payment_ref: paymentRef || null,
     flow_status: FLOW.INTERVIEW_AWAITING_PAYMENT,
     status: 'pending',
   }]).select().single()

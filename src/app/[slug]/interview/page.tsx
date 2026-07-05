@@ -5,17 +5,10 @@ import { PERSIAN_MONTHS, PERSIAN_WEEKDAYS, toFarsiNum, getCurrentJalali, getDays
 import { PSY_PRICING as PRICING } from '@/lib/psy'
 import { usePublicClinic, CardChooser } from '@/components/PsyPublic'
 import { onlineAvailable, offlineAvailable } from '@/lib/psy'
-import type { PaymentCardInfo } from '@/lib/psy'
+import type { PaymentCardInfo, IntakeForm, FormField } from '@/lib/psy'
 import { DialogHost, uiAlert, uiConfirm, uiPrompt } from '@/components/ui/Dialog'
 
 type Step = 1 | 2 | 3 | 'pay' | 'done'
-
-const CHILD_CONDITIONS = [
-  'لکنت','اختلال گویایی','اختلال شنوایی','اختلال بینایی',
-  'زودرنجی','حسادت','لج‌بازی','نافرمانی',
-  'ناخن جویدن','استرس و اضطراب','وسواس','شب‌ادراری',
-  'وابستگی','ترس از پدر یا مادر','عدم اعتماد به نفس'
-]
 
 export default function InterviewPage() {
   const { slug } = useParams<{ slug: string }>()
@@ -35,24 +28,14 @@ export default function InterviewPage() {
   // برنامه‌ی واقعی دکتر از دیتابیس — کلید: شماره روز، مقدار: ساعت‌های خالی
   const [schedule, setSchedule] = useState<Record<string, string[]>>({})
   const [loadingSchedule, setLoadingSchedule] = useState(false)
-  const [form, setForm] = useState({
-    parentName: '', phone: '', childName: '', birthDate: '', grade: '',
-    fatherName: '', fatherEducation: '', fatherJob: '', fatherPhone: '',
-    motherName: '', motherEducation: '', motherJob: '', motherPhone: '',
-    homeAddress: '',
-    hasSiblings: '', siblingsInfo: '',
-    otherResidents: '', otherResidentsInfo: '',
-    familyStatus: [] as string[],
-    childConditions: [] as string[],
-    pregnancyAge: '', pregnancyCount: '', pregnancyStress: '', pregnancyDepression: '', pregnancyIssues: '', pregnancyAbortion: '', pregnancyNone: '',
-    birthType: '', birthWeight: '',
-    growthCrawl: '', growthCrawlDuration: '', growthWalk4: '', growthWalk4Duration: '', growthWalkAge: '', growthTalkAge: '', growthIssues: '',
-    seizureHistory: '', currentMeds: '',
-    schoolName: '', schoolInstitute: '', schoolGrade: '', schoolPhone: '',
-    sportsActivity: '', sportsLimit: '',
-    fatherBehavior: '', motherBehavior: '', mainSupervisor: '',
-    extraNotes: '', reason: '', prevVisit: ''
-  })
+  // نام و شماره‌تماس همیشه ثابت‌اند (برای OTP لازم‌اند)؛ بقیه‌ی سوال‌ها کاملاً
+  // دیتایی‌اند و از فرمِ تنظیم‌شده‌ی همین دکتر می‌آیند.
+  const [childName, setChildName] = useState('')
+  const [fatherPhone, setFatherPhone] = useState('')
+  const [intakeForm, setIntakeForm] = useState<IntakeForm>({ sections: [] })
+  const [intakeLoaded, setIntakeLoaded] = useState(false)
+  const [answers, setAnswers] = useState<Record<string, any>>({})
+  const setAnswer = (id: string, v: any) => setAnswers(a => ({ ...a, [id]: v }))
 
   const price = sessionType === 'online' ? '۸۵۰,۰۰۰' : '۱,۲۰۰,۰۰۰'
   const daysInMonth = getDaysInJalaliMonth(curYear, curMonth)
@@ -103,6 +86,20 @@ export default function InterviewPage() {
 
   const displayDoctor = settings.doctors.find(d => d.id === selectedDoctorId) || settings.doctors[0]
   const needsDoctorPick = settings.doctors.length > 1
+
+  // فرمِ رزروِ همان دکتر را بخوان — وقتی دکتر مشخص شد (تک‌دکترها فوراً، چنددکترها بعدِ انتخاب)
+  useEffect(() => {
+    if (!settings.loaded) return
+    if (needsDoctorPick && !selectedDoctorId) return
+    let cancelled = false
+    const qs = selectedDoctorId ? `?resource_id=${selectedDoctorId}` : ''
+    fetch(`/api/t/${slug}/psy/intake-form${qs}`, { cache: 'no-store' })
+      .then(r => r.json())
+      .then(d => { if (!cancelled && d.form) setIntakeForm(d.form) })
+      .finally(() => { if (!cancelled) setIntakeLoaded(true) })
+    return () => { cancelled = true }
+  }, [settings.loaded, needsDoctorPick, selectedDoctorId, slug])
+
   useEffect(() => {
     if (!settings.loaded) return
     if (sessionOptions.length === 1) {
@@ -120,51 +117,29 @@ export default function InterviewPage() {
     setSelectedDay(null); setSelectedSlot('')
   }
 
-  function toggleCondition(c: string) {
-    setForm(f => {
-      if (c === 'هیچ‌کدام') return { ...f, childConditions: f.childConditions.includes('هیچ‌کدام') ? [] : ['هیچ‌کدام'] }
-      const base = f.childConditions.filter(x => x !== 'هیچ‌کدام')
-      return { ...f, childConditions: base.includes(c) ? base.filter(x => x !== c) : [...base, c] }
+  // toggle عمومی برای فیلدهای چندگزینه‌ای — همان رفتارِ «هیچ‌کدام» منحصربه‌فرد
+  function toggleMulti(fieldId: string, option: string) {
+    setAnswers(a => {
+      const cur: string[] = Array.isArray(a[fieldId]) ? a[fieldId] : []
+      if (option === 'هیچ‌کدام') return { ...a, [fieldId]: cur.includes('هیچ‌کدام') ? [] : ['هیچ‌کدام'] }
+      const base = cur.filter(x => x !== 'هیچ‌کدام')
+      return { ...a, [fieldId]: base.includes(option) ? base.filter(x => x !== option) : [...base, option] }
     })
   }
 
-  function toggleFamilyStatus(c: string) {
-    setForm(f => {
-      if (c === 'هیچ‌کدام') return { ...f, familyStatus: f.familyStatus.includes('هیچ‌کدام') ? [] : ['هیچ‌کدام'] }
-      const base = f.familyStatus.filter(x => x !== 'هیچ‌کدام')
-      return { ...f, familyStatus: base.includes(c) ? base.filter(x => x !== c) : [...base, c] }
-    })
-  }
-
-  // اعتبارسنجی: همه‌ی موارد الزامی هستند (به‌جز «مواردِ دیگر» که اختیاری است)
+  // اعتبارسنجی: نام/تماس همیشه اجباری + هرچه در فرمِ این دکتر اجباری علامت خورده
   function missingFields(): string[] {
-    const f: any = form
     const miss: string[] = []
-    const reqText: [string, string][] = [
-      ['childName', 'نام کودک'], ['birthDate', 'تاریخ تولد'], ['grade', 'پایه تحصیلی'], ['reason', 'دلیل مراجعه'],
-      ['fatherName', 'نام پدر'], ['fatherPhone', 'تماس پدر'], ['fatherEducation', 'تحصیلات پدر'], ['fatherJob', 'شغل پدر'],
-      ['motherName', 'نام مادر'], ['motherPhone', 'تماس مادر'], ['motherEducation', 'تحصیلات مادر'], ['motherJob', 'شغل مادر'],
-      ['homeAddress', 'آدرس خانه'],
-      ['pregnancyAge', 'سن مادر هنگام بارداری'], ['pregnancyCount', 'تعداد بارداری'], ['birthWeight', 'وزن تولد'],
-      ['growthWalkAge', 'سن راه رفتن'], ['growthTalkAge', 'سن اولین کلمه'], ['growthIssues', 'مشکل مراحل رشد'],
-      ['currentMeds', 'داروهای مصرفی'], ['sportsActivity', 'فعالیت ورزشی'], ['sportsLimit', 'محدودیت ورزشی'],
-      ['fatherBehavior', 'رفتار پدر'], ['motherBehavior', 'رفتار مادر'], ['mainSupervisor', 'نظارت‌کننده'],
-    ]
-    for (const [k, label] of reqText) if (!String(f[k] || '').trim()) miss.push(label)
-    const reqSel: [string, string][] = [
-      ['prevVisit', 'سابقه مراجعه'], ['birthType', 'نوع زایمان'], ['growthCrawl', 'سینه‌خیز'],
-      ['growthWalk4', 'چهار دست و پا'], ['seizureHistory', 'سابقه غش‌وتشنج'],
-      ['hasSiblings', 'خواهر/برادر'], ['otherResidents', 'عضو دیگرِ خانواده'],
-    ]
-    for (const [k, label] of reqSel) if (!f[k]) miss.push(label)
-    if (f.hasSiblings === 'بله' && !f.siblingsInfo.trim()) miss.push('سن و تحصیلاتِ خواهر/برادر')
-    if (f.otherResidents === 'بله' && !f.otherResidentsInfo.trim()) miss.push('مشخصاتِ عضوِ دیگر')
-    if (f.growthCrawl === 'بله' && !f.growthCrawlDuration.trim()) miss.push('مدتِ سینه‌خیز')
-    if (f.growthWalk4 === 'بله' && !f.growthWalk4Duration.trim()) miss.push('مدتِ چهار دست و پا')
-    if (f.familyStatus.length === 0) miss.push('وضعیت خانوادگی')
-    if (f.childConditions.length === 0) miss.push('وضعیت جسمی و روحی')
-    if (!(f.pregnancyStress || f.pregnancyDepression || f.pregnancyIssues || f.pregnancyAbortion || f.pregnancyNone))
-      miss.push('موارد دوران بارداری')
+    if (!childName.trim()) miss.push('نام')
+    if (!fatherPhone.trim()) miss.push('شماره تماس')
+    for (const section of intakeForm.sections) {
+      for (const f of section.fields) {
+        if (!f.required) continue
+        const v = answers[f.id]
+        const empty = f.type === 'multiselect' ? !Array.isArray(v) || v.length === 0 : !String(v ?? '').trim()
+        if (empty) miss.push(f.label)
+      }
+    }
     return miss
   }
 
@@ -179,7 +154,10 @@ export default function InterviewPage() {
       const res = await fetch(`/api/t/${slug}/psy/book`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, sessionType, officeLocation: officeLoc, resourceId: selectedDoctorId || undefined })
+        body: JSON.stringify({
+          childName, fatherPhone, sessionType, officeLocation: officeLoc,
+          resourceId: selectedDoctorId || undefined, answers,
+        })
       })
       const data = await res.json()
       if (data.caseNumber) { setCaseNumber(data.caseNumber); setStep('pay') }
@@ -194,7 +172,7 @@ export default function InterviewPage() {
     try {
       const res = await fetch(`/api/t/${slug}/psy/stage-pay`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ case_number: caseNumber, phone: form.fatherPhone || form.motherPhone, stage: 'interview', payment_ref: ref })
+        body: JSON.stringify({ case_number: caseNumber, phone: fatherPhone, stage: 'interview', payment_ref: ref })
       })
       if (res.ok) setStep('done')
       else uiAlert('ثبتِ پرداخت ناموفق بود')
@@ -368,7 +346,7 @@ export default function InterviewPage() {
           </div>
         )}
 
-        {/* Step 3 - فرم کامل */}
+        {/* Step 3 - فرم کامل (کاملاً دیتایی — از فرمِ تنظیم‌شده‌ی همین دکتر) */}
         {step === 3 && (
           <div className="bg-white rounded-2xl border border-gray-100 p-5 mb-4 space-y-6">
             {/* خلاصه */}
@@ -381,221 +359,35 @@ export default function InterviewPage() {
               </div>
             </div>
 
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-700 text-center">
-              لطفاً همه‌ی موارد را کامل کنید — همه‌ی فیلدها الزامی هستند.
-            </div>
-
-            {/* اطلاعات دانش‌آموز */}
-            <Section title="اطلاعات کودک">
-              <div className="grid grid-cols-2 gap-3">
-                <Field label="نام و نام خانوادگی *" value={form.childName} onChange={v => setForm({...form, childName: v})} placeholder="آرین رضایی" />
-                <Field label="تاریخ تولد" value={form.birthDate} onChange={v => setForm({...form, birthDate: v})} placeholder="۱۳۹۷/۰۴/۱۵" />
-                <Field label="پایه تحصیلی" value={form.grade} onChange={v => setForm({...form, grade: v})} placeholder="پیش‌دبستانی" />
-                <Field label="دلیل مراجعه *" value={form.reason} onChange={v => setForm({...form, reason: v})} placeholder="به طور مختصر..." />
-              </div>
-              <div className="mt-3">
-                <label className="text-xs text-gray-500 mb-1 block">سابقه مراجعه قبلی</label>
-                <select value={form.prevVisit} onChange={e => setForm({...form, prevVisit: e.target.value})}
-                  className="w-full text-sm px-3 py-2 border border-gray-200 rounded-lg bg-white">
-                  <option value="">انتخاب کنید</option>
-                  <option>خیر، اولین بار است</option>
-                  <option>بله، قبلاً مراجعه داشتم</option>
-                </select>
-              </div>
-            </Section>
-
-            {/* اطلاعات والدین */}
-            <Section title="اطلاعات والدین">
-              <p className="text-xs text-gray-400 mb-3">پدر</p>
-              <div className="grid grid-cols-2 gap-3 mb-4">
-                <Field label="نام *" value={form.fatherName} onChange={v => setForm({...form, fatherName: v})} placeholder="علی" />
-                <Field label="شماره تماس *" value={form.fatherPhone} onChange={v => setForm({...form, fatherPhone: v})} placeholder="۰۹۱۲..." dir="ltr" />
-                <Field label="تحصیلات" value={form.fatherEducation} onChange={v => setForm({...form, fatherEducation: v})} placeholder="لیسانس" />
-                <Field label="شغل" value={form.fatherJob} onChange={v => setForm({...form, fatherJob: v})} placeholder="مهندس" />
-              </div>
-              <p className="text-xs text-gray-400 mb-3">مادر</p>
-              <div className="grid grid-cols-2 gap-3">
-                <Field label="نام *" value={form.motherName} onChange={v => setForm({...form, motherName: v})} placeholder="مریم" />
-                <Field label="شماره تماس *" value={form.motherPhone} onChange={v => setForm({...form, motherPhone: v})} placeholder="۰۹۱۲..." dir="ltr" />
-                <Field label="تحصیلات" value={form.motherEducation} onChange={v => setForm({...form, motherEducation: v})} placeholder="دیپلم" />
-                <Field label="شغل" value={form.motherJob} onChange={v => setForm({...form, motherJob: v})} placeholder="خانه‌دار" />
-              </div>
-            </Section>
-
-            {/* خواهر/برادر و محل زندگی */}
-            <Section title="خواهر/برادر و محل زندگی">
-              <label className="text-xs text-gray-500 mb-1 block">آیا خواهر یا برادر دارد؟ *</label>
-              <div className="flex gap-2 mb-3">
-                {['بله','خیر'].map(v => (
-                  <button key={v} type="button" onClick={() => setForm({...form, hasSiblings: v, siblingsInfo: v === 'خیر' ? '' : form.siblingsInfo})}
-                    className={`px-4 py-1.5 text-sm rounded-lg border ${form.hasSiblings === v ? 'bg-brand-600 text-white border-brand-600' : 'border-gray-200 text-gray-500'}`}>{v}</button>
-                ))}
-              </div>
-              {form.hasSiblings === 'بله' && (
-                <Field label="سن و تحصیلاتِ هر خواهر/برادر *" value={form.siblingsInfo} onChange={v => setForm({...form, siblingsInfo: v})} placeholder="مثلاً: خواهر ۱۰ ساله کلاس چهارم، برادر ۵ ساله مهدکودک" textarea />
-              )}
-
-              <label className="text-xs text-gray-500 mb-1 block mt-4">آیا عضو دیگری به‌جز اعضای اصلیِ خانواده با شما زندگی می‌کند؟ *</label>
-              <div className="flex gap-2 mb-3">
-                {['بله','خیر'].map(v => (
-                  <button key={v} type="button" onClick={() => setForm({...form, otherResidents: v, otherResidentsInfo: v === 'خیر' ? '' : form.otherResidentsInfo})}
-                    className={`px-4 py-1.5 text-sm rounded-lg border ${form.otherResidents === v ? 'bg-brand-600 text-white border-brand-600' : 'border-gray-200 text-gray-500'}`}>{v}</button>
-                ))}
-              </div>
-              {form.otherResidents === 'بله' && (
-                <Field label="چه کسی؟ (مثلاً پدربزرگ، مادربزرگ) *" value={form.otherResidentsInfo} onChange={v => setForm({...form, otherResidentsInfo: v})} placeholder="مثلاً: پدربزرگ" />
-              )}
-
-              <div className="mt-4">
-                <Field label="آدرس خانه *" value={form.homeAddress} onChange={v => setForm({...form, homeAddress: v})} placeholder="آدرس کامل محل سکونت..." textarea />
-              </div>
-            </Section>
-
-            {/* وضعیت خانوادگی */}
-            <Section title="وضعیت خانوادگی">
-              <div className="flex flex-wrap gap-2">
-                {['فوت پدر','فوت مادر','طلاق','ازدواج مجدد پدر','ازدواج مجدد مادر','بیماری جسمی در خانواده','هیچ‌کدام'].map(c => (
-                  <button key={c} type="button" onClick={() => toggleFamilyStatus(c)}
-                    className={`text-xs px-3 py-1.5 rounded-full border transition-all ${form.familyStatus.includes(c) ? 'bg-brand-600 text-white border-brand-600' : 'border-gray-200 text-gray-500 hover:border-gray-300'}`}>
-                    {c}
-                  </button>
-                ))}
-              </div>
-            </Section>
-
-            {/* وضعیت جسمی و روحی */}
-            <Section title="وضعیت جسمی و روحی کودک">
-              <p className="text-xs text-gray-400 mb-3">موارد موجود را انتخاب کنید</p>
-              <div className="flex flex-wrap gap-2">
-                {[...CHILD_CONDITIONS, 'هیچ‌کدام'].map(c => (
-                  <button key={c} type="button" onClick={() => toggleCondition(c)}
-                    className={`text-xs px-3 py-1.5 rounded-full border transition-all ${form.childConditions.includes(c) ? 'bg-brand-600 text-white border-brand-600' : 'border-gray-200 text-gray-500 hover:border-gray-300'}`}>
-                    {c}
-                  </button>
-                ))}
-              </div>
-            </Section>
-
-            {/* اطلاعات بارداری */}
-            <Section title="دوران بارداری مادر">
-              <div className="grid grid-cols-2 gap-3">
-                <Field label="سن مادر هنگام بارداری" value={form.pregnancyAge} onChange={v => setForm({...form, pregnancyAge: v})} placeholder="۲۸" />
-                <Field label="تعداد دفعات بارداری" value={form.pregnancyCount} onChange={v => setForm({...form, pregnancyCount: v})} placeholder="۲" />
-              </div>
-              <div className="flex flex-wrap gap-2 mt-3">
-                {['استرس','افسردگی','مشکلات خانوادگی','سابقه سقط'].map(c => (
-                  <button key={c} type="button"
-                    onClick={() => {
-                      const key = c === 'استرس' ? 'pregnancyStress' : c === 'افسردگی' ? 'pregnancyDepression' : c === 'مشکلات خانوادگی' ? 'pregnancyIssues' : 'pregnancyAbortion'
-                      setForm(f => ({...f, pregnancyNone: '', [key]: f[key as keyof typeof f] ? '' : c}))
-                    }}
-                    className={`text-xs px-3 py-1.5 rounded-full border transition-all ${
-                      (c === 'استرس' && form.pregnancyStress) || (c === 'افسردگی' && form.pregnancyDepression) ||
-                      (c === 'مشکلات خانوادگی' && form.pregnancyIssues) || (c === 'سابقه سقط' && form.pregnancyAbortion)
-                        ? 'bg-brand-600 text-white border-brand-600' : 'border-gray-200 text-gray-500'}`}>
-                    {c}
-                  </button>
-                ))}
-                <button type="button"
-                  onClick={() => setForm(f => ({...f, pregnancyStress: '', pregnancyDepression: '', pregnancyIssues: '', pregnancyAbortion: '', pregnancyNone: f.pregnancyNone ? '' : 'هیچ‌کدام'}))}
-                  className={`text-xs px-3 py-1.5 rounded-full border transition-all ${form.pregnancyNone ? 'bg-brand-600 text-white border-brand-600' : 'border-gray-200 text-gray-500'}`}>
-                  هیچ‌کدام
-                </button>
-              </div>
-            </Section>
-
-            {/* زایمان */}
-            <Section title="زایمان و تولد">
-              <div className="flex gap-2 mb-3">
-                {['طبیعی','سزارین'].map(t => (
-                  <button key={t} type="button" onClick={() => setForm({...form, birthType: t})}
-                    className={`flex-1 py-2 text-sm rounded-lg border transition-all ${form.birthType === t ? 'bg-brand-600 text-white border-brand-600' : 'border-gray-200 text-gray-500'}`}>
-                    {t}
-                  </button>
-                ))}
-              </div>
-              <Field label="وزن هنگام تولد (گرم)" value={form.birthWeight} onChange={v => setForm({...form, birthWeight: v})} placeholder="۳۲۰۰" />
-            </Section>
-
-            {/* مراحل رشد */}
-            <Section title="مراحل رشد کودک">
-              <div className="space-y-3">
-                <div className="flex items-center gap-3">
-                  <span className="text-sm text-gray-600 w-32">سینه‌خیز رفته؟</span>
-                  <div className="flex gap-2">
-                    {['بله','خیر'].map(v => (
-                      <button key={v} type="button" onClick={() => setForm({...form, growthCrawl: v})}
-                        className={`px-3 py-1 text-xs rounded-lg border ${form.growthCrawl === v ? 'bg-brand-600 text-white border-brand-600' : 'border-gray-200 text-gray-500'}`}>{v}</button>
-                    ))}
+            {!intakeLoaded ? (
+              <div className="text-center py-10 text-gray-400 text-sm">در حال بارگذاری فرم...</div>
+            ) : (
+              <>
+                {/* نام و شماره‌تماس — همیشه ثابت، برای ورود به پنلِ مراجع لازم است */}
+                <Section title="مشخصاتِ تماس">
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field label="نام و نام خانوادگی *" value={childName} onChange={setChildName} placeholder="آرین رضایی" />
+                    <Field label="شماره تماس *" value={fatherPhone} onChange={setFatherPhone} placeholder="۰۹۱۲..." dir="ltr" />
                   </div>
-                  {form.growthCrawl === 'بله' && (
-                    <Field label="" value={form.growthCrawlDuration} onChange={v => setForm({...form, growthCrawlDuration: v})} placeholder="چه مدت؟" />
-                  )}
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-sm text-gray-600 w-32">چهار دست و پا؟</span>
-                  <div className="flex gap-2">
-                    {['بله','خیر'].map(v => (
-                      <button key={v} type="button" onClick={() => setForm({...form, growthWalk4: v})}
-                        className={`px-3 py-1 text-xs rounded-lg border ${form.growthWalk4 === v ? 'bg-brand-600 text-white border-brand-600' : 'border-gray-200 text-gray-500'}`}>{v}</button>
-                    ))}
-                  </div>
-                  {form.growthWalk4 === 'بله' && (
-                    <Field label="" value={form.growthWalk4Duration} onChange={v => setForm({...form, growthWalk4Duration: v})} placeholder="چه مدت؟" />
-                  )}
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <Field label="سن راه رفتن" value={form.growthWalkAge} onChange={v => setForm({...form, growthWalkAge: v})} placeholder="۱۲ ماه" />
-                  <Field label="سن اولین کلمه" value={form.growthTalkAge} onChange={v => setForm({...form, growthTalkAge: v})} placeholder="۱۸ ماه" />
-                </div>
-                <Field label="مشکل خاص در مراحل رشد" value={form.growthIssues} onChange={v => setForm({...form, growthIssues: v})} placeholder="در صورت وجود توضیح دهید..." />
-              </div>
-            </Section>
+                </Section>
 
-            {/* اطلاعات پزشکی */}
-            <Section title="اطلاعات پزشکی">
-              <div className="space-y-3">
-                <div className="flex items-center gap-3">
-                  <span className="text-sm text-gray-600">سابقه غش‌تشنج؟</span>
-                  <div className="flex gap-2">
-                    {['بله','خیر'].map(v => (
-                      <button key={v} type="button" onClick={() => setForm({...form, seizureHistory: v})}
-                        className={`px-3 py-1 text-xs rounded-lg border ${form.seizureHistory === v ? 'bg-brand-600 text-white border-brand-600' : 'border-gray-200 text-gray-500'}`}>{v}</button>
-                    ))}
-                  </div>
-                </div>
-                <Field label="داروهای در حال مصرف" value={form.currentMeds} onChange={v => setForm({...form, currentMeds: v})} placeholder="نام دارو و دوز..." />
-              </div>
-            </Section>
-
-
-
-            {/* ورزش */}
-            <Section title="فعالیت ورزشی">
-              <div className="grid grid-cols-2 gap-3">
-                <Field label="نوع و زمان فعالیت" value={form.sportsActivity} onChange={v => setForm({...form, sportsActivity: v})} placeholder="فوتبال، ۲ روز در هفته" />
-                <Field label="محدودیت ورزشی" value={form.sportsLimit} onChange={v => setForm({...form, sportsLimit: v})} placeholder="در صورت وجود..." />
-              </div>
-            </Section>
-
-            {/* رفتار والدین */}
-            <Section title="رفتار والدین با فرزند">
-              <div className="space-y-3">
-                <Field label="رفتار پدر با فرزند" value={form.fatherBehavior} onChange={v => setForm({...form, fatherBehavior: v})} placeholder="توضیح دهید..." />
-                <Field label="رفتار مادر با فرزند" value={form.motherBehavior} onChange={v => setForm({...form, motherBehavior: v})} placeholder="توضیح دهید..." />
-                <Field label="چه کسی بیشتر نظارت دارد؟" value={form.mainSupervisor} onChange={v => setForm({...form, mainSupervisor: v})} placeholder="پدر / مادر / پدربزرگ..." />
-              </div>
-            </Section>
-
-            {/* توضیحات */}
-            <Section title="موارد دیگر">
-              <Field label="مواردی که می‌خواهید دکتر بداند" value={form.extraNotes} onChange={v => setForm({...form, extraNotes: v})} placeholder="هر نکته‌ای که فکر می‌کنید مهم است..." textarea />
-            </Section>
+                {intakeForm.sections.map(section => (
+                  <Section key={section.id} title={section.title}>
+                    <div className="space-y-3">
+                      {section.fields.map(f => (
+                        <DynamicField key={f.id} field={f} value={answers[f.id]}
+                          onChange={v => setAnswer(f.id, v)} onToggle={o => toggleMulti(f.id, o)} />
+                      ))}
+                    </div>
+                  </Section>
+                ))}
+              </>
+            )}
 
             <div className="flex gap-2 pt-2">
               <button onClick={() => setStep(1)} className="px-4 py-3 border border-gray-200 rounded-xl text-sm text-gray-500 hover:bg-gray-50">برگشت</button>
               <button
-                disabled={loading || missingFields().length > 0}
+                disabled={loading || !intakeLoaded || missingFields().length > 0}
                 onClick={handleSubmit}
                 className="flex-1 py-3 bg-brand-600 text-white rounded-xl text-sm font-medium disabled:opacity-40 hover:bg-brand-800 transition-colors">
                 {loading ? 'در حال ثبت...' : 'ادامه به پرداخت ←'}
@@ -629,6 +421,43 @@ function Field({ label, value, onChange, placeholder, dir, textarea }: {
         ? <textarea value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} rows={3} className={cls + " resize-none"} />
         : <input value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} dir={dir} className={cls} />
       }
+    </div>
+  )
+}
+
+// یک فیلد را طبقِ نوعِ تعریف‌شده‌اش (توسطِ خودِ دکتر) رندر می‌کند
+function DynamicField({ field, value, onChange, onToggle }: {
+  field: FormField; value: any; onChange: (v: string) => void; onToggle: (option: string) => void
+}) {
+  const label = field.label + (field.required ? ' *' : '')
+  if (field.type === 'text') return <Field label={label} value={value || ''} onChange={onChange} placeholder={field.placeholder} />
+  if (field.type === 'textarea') return <Field label={label} value={value || ''} onChange={onChange} placeholder={field.placeholder} textarea />
+  if (field.type === 'select') return (
+    <div>
+      <label className="text-xs text-gray-500 mb-1 block">{label}</label>
+      <div className="flex gap-2 flex-wrap">
+        {(field.options || []).map(o => (
+          <button key={o} type="button" onClick={() => onChange(o)}
+            className={`px-4 py-1.5 text-sm rounded-lg border ${value === o ? 'bg-brand-600 text-white border-brand-600' : 'border-gray-200 text-gray-500'}`}>
+            {o}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+  // multiselect
+  const selected: string[] = Array.isArray(value) ? value : []
+  return (
+    <div>
+      <label className="text-xs text-gray-500 mb-1 block">{label}</label>
+      <div className="flex flex-wrap gap-2">
+        {(field.options || []).map(o => (
+          <button key={o} type="button" onClick={() => onToggle(o)}
+            className={`text-xs px-3 py-1.5 rounded-full border transition-all ${selected.includes(o) ? 'bg-brand-600 text-white border-brand-600' : 'border-gray-200 text-gray-500 hover:border-gray-300'}`}>
+            {o}
+          </button>
+        ))}
+      </div>
     </div>
   )
 }

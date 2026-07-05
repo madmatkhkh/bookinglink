@@ -415,6 +415,17 @@ create table psy_schedules (
 create index on psy_schedules (tenant_id);
 create index on psy_schedules (tenant_id, resource_id);
 
+-- ── فرمِ رزرو، قابلِ‌تنظیم توسطِ هر دکتر (per-resource) ──────────────────────
+-- نام/شماره‌تماس (child_name/father_phone) همیشه ثابت و اجباری‌اند (برای OTP)
+-- و بیرونِ این اسکیما مدیریت می‌شوند. هرچه اینجاست، دکتر خودش تعیین می‌کند:
+-- بخش‌ها، سوال‌ها، نوعِ هرکدام (متن/توضیح/تک‌گزینه/چندگزینه)، اجباری یا اختیاری.
+create table psy_intake_forms (
+  resource_id uuid primary key references resources(id) on delete cascade,
+  schema jsonb not null default '{"sections":[]}',
+  updated_at timestamptz not null default now()
+);
+alter table psy_intake_forms enable row level security;
+
 alter table psy_cases enable row level security;
 alter table psy_sessions enable row level security;
 alter table psy_packages enable row level security;
