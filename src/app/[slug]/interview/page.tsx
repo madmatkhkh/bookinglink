@@ -22,6 +22,7 @@ export default function InterviewPage() {
   const today = getCurrentJalali()
   const settings = usePublicClinic(slug)
   const [step, setStep] = useState<Step>(1)
+  const [selectedDoctorId, setSelectedDoctorId] = useState('')
   const [sessionType, setSessionType] = useState<'online'|'offline'|''>('')
   const [officeLoc, setOfficeLoc] = useState('')   // عنوانِ مکانِ حضوریِ انتخاب‌شده
   const [selKey, setSelKey] = useState('')         // کلیدِ گزینه‌ی انتخاب‌شده (برای های‌لایت)
@@ -92,7 +93,16 @@ export default function InterviewPage() {
     return opts
   }, [settings.session_modes, settings.office_locations])
 
-  // اگر فقط یک گزینه وجود داشت، خودکار انتخاب شود
+  // اگر فقط یک دکتر بود، خودکار انتخاب شود (بدونِ نیاز به انتخابگر)؛ اگر چند دکتر
+  // بود، مراجع باید صریح انتخاب کند — پیشِ‌فرض گذاشتنِ یکی از چند دکتر گمراه‌کننده است.
+  useEffect(() => {
+    if (!settings.loaded) return
+    if (settings.doctors.length === 1) setSelectedDoctorId(settings.doctors[0].id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settings.loaded, settings.doctors.length])
+
+  const displayDoctor = settings.doctors.find(d => d.id === selectedDoctorId) || settings.doctors[0]
+  const needsDoctorPick = settings.doctors.length > 1
   useEffect(() => {
     if (!settings.loaded) return
     if (sessionOptions.length === 1) {
@@ -169,7 +179,7 @@ export default function InterviewPage() {
       const res = await fetch(`/api/t/${slug}/psy/book`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, sessionType, officeLocation: officeLoc })
+        body: JSON.stringify({ ...form, sessionType, officeLocation: officeLoc, resourceId: selectedDoctorId || undefined })
       })
       const data = await res.json()
       if (data.caseNumber) { setCaseNumber(data.caseNumber); setStep('pay') }
@@ -223,16 +233,16 @@ export default function InterviewPage() {
           <div className="w-16 h-16 rounded-full bg-brand-50 border border-brand-100 flex items-center justify-center mx-auto mb-3 text-2xl overflow-hidden">
             {!settings.loaded
               ? <div className="w-full h-full bg-gray-100 animate-pulse" />
-              : settings.avatar_url
-                ? <img src={settings.avatar_url} alt={settings.doctor_name} className="w-full h-full object-cover" />
+              : displayDoctor?.avatar_url
+                ? <img src={displayDoctor.avatar_url} alt={displayDoctor.name} className="w-full h-full object-cover" />
                 : '👩‍⚕️'}
           </div>
           {settings.loaded ? (
             <>
-              <h1 className="text-xl font-medium text-gray-900 mb-1">{settings.doctor_name}</h1>
+              <h1 className="text-xl font-medium text-gray-900 mb-1">{needsDoctorPick && !selectedDoctorId ? 'مصاحبه‌ی اولیه' : (displayDoctor?.name || settings.doctor_name)}</h1>
               <p className="text-sm text-gray-500">مصاحبه‌ی اولیه با والدین</p>
               <div className="flex gap-2 justify-center mt-3 flex-wrap">
-                {settings.badges.map((b, i) => (
+                {(displayDoctor?.badges || settings.badges).map((b, i) => (
                   <span key={i} className="text-xs px-3 py-1 bg-white border border-gray-200 rounded-lg text-gray-500">{b}</span>
                 ))}
               </div>
@@ -254,11 +264,28 @@ export default function InterviewPage() {
         {/* Step 1 */}
         {step === 1 && (
           <div className="bg-white rounded-2xl border border-gray-100 p-5 mb-4">
-            <h2 className="text-base font-medium mb-4 text-gray-800">نوع جلسه را انتخاب کنید</h2>
             {!settings.loaded ? (
               <div className="text-center py-10 text-gray-400 text-sm">در حال بارگذاری...</div>
             ) : (
               <>
+                {needsDoctorPick && (
+                  <div className="mb-5">
+                    <h2 className="text-base font-medium mb-4 text-gray-800">با کدام دکتر مصاحبه می‌خواهید؟</h2>
+                    <div className="grid grid-cols-2 gap-3">
+                      {settings.doctors.map(d => (
+                        <div key={d.id} onClick={() => setSelectedDoctorId(d.id)}
+                          className={`p-3 rounded-xl border cursor-pointer transition-all text-center ${selectedDoctorId === d.id ? 'border-brand-600 border-2 bg-brand-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                          <div className="w-12 h-12 rounded-full bg-brand-50 border border-brand-100 flex items-center justify-center mx-auto mb-2 text-xl overflow-hidden">
+                            {d.avatar_url ? <img src={d.avatar_url} alt={d.name} className="w-full h-full object-cover" /> : '👩‍⚕️'}
+                          </div>
+                          <div className="font-medium text-gray-800 text-sm">{d.name}</div>
+                          {d.title && <div className="text-xs text-gray-500">{d.title}</div>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <h2 className="text-base font-medium mb-4 text-gray-800">نوع جلسه را انتخاب کنید</h2>
                 <div className={`grid gap-3 mb-5 ${sessionOptions.length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
                   {sessionOptions.map(o => (
                     <div key={o.key} onClick={() => { setSelKey(o.key); setSessionType(o.type); setOfficeLoc(o.loc) }}
@@ -270,7 +297,7 @@ export default function InterviewPage() {
                     </div>
                   ))}
                 </div>
-                <button disabled={!selKey} onClick={() => setStep(3)}
+                <button disabled={!selKey || (needsDoctorPick && !selectedDoctorId)} onClick={() => setStep(3)}
                   className="w-full py-3 bg-brand-600 text-white rounded-xl text-sm font-medium disabled:opacity-40 hover:bg-brand-800 transition-colors">
                   ادامه ←
                 </button>

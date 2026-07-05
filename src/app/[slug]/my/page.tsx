@@ -14,6 +14,7 @@ type Booking = {
   flow_status?: string; reject_reason?: string; cancel_notice?: string
   interview_date?: string; interview_time?: string; interview_price?: number
   assessment_date?: string; assessment_time?: string; assessment_price?: number
+  resource_id?: string | null
 }
 type Package = {
   id: string; case_number: string; month: string; year: string
@@ -27,6 +28,7 @@ type Session = {
   attendee: string; status: string; doctor_note_for_patient: string
   paid: boolean; payment_submitted?: boolean
   refund_percent?: number; refund_status?: string; refund_card?: string
+  resource_id?: string | null
 }
 
 type Step = 'login' | 'otp' | 'panel'
@@ -310,7 +312,7 @@ export default function PatientPanel() {
       </div>
 
       {showInterviewSlot && (
-        <SlotPicker phone={phone} caseNumber={booking.case_number} title="انتخاب وقت مصاحبه"
+        <SlotPicker phone={phone} caseNumber={booking.case_number} title="انتخاب وقت مصاحبه" resourceId={booking.resource_id}
           onClose={() => setShowInterviewSlot(false)}
           onDone={() => { setShowInterviewSlot(false); loadData(booking.case_number) }}
           onConfirm={async (date: string, time: string) => {
@@ -324,7 +326,7 @@ export default function PatientPanel() {
       )}
 
       {showAssessment && (
-        <SlotPicker phone={phone} caseNumber={booking.case_number} title="انتخاب وقت ارزیابی"
+        <SlotPicker phone={phone} caseNumber={booking.case_number} title="انتخاب وقت ارزیابی" resourceId={booking.resource_id}
           onClose={() => setShowAssessment(false)}
           onDone={() => { setShowAssessment(false); loadData(booking.case_number) }}
           onConfirm={async (date: string, time: string) => {
@@ -478,6 +480,7 @@ export default function PatientPanel() {
           existingSessions={pkgSessions(selectedPkg.id)}
           phone={phone}
           caseNumber={booking.case_number}
+          resourceId={booking.resource_id}
           onClose={() => setScheduleView(false)}
           onDone={() => { setScheduleView(false); loadData(booking.case_number) }}
         />
@@ -660,7 +663,7 @@ function SessionCard({ session: s, num, phone, caseNumber, onUpdate }: {
       )}
 
       {showSlot && (
-        <SlotPicker session={s} phone={phone} caseNumber={caseNumber}
+        <SlotPicker session={s} phone={phone} caseNumber={caseNumber} resourceId={s.resource_id}
           onClose={() => setShowSlot(false)}
           onDone={() => { setShowSlot(false); onUpdate() }} />
       )}
@@ -750,9 +753,10 @@ function PayButton({ pkg, phone, onSuccess, total }: { pkg: Package; phone: stri
 }
 
 // ==================== SLOT PICKER (تک‌جلسه‌ای) ====================
-function SlotPicker({ session, phone, caseNumber, onClose, onDone, title = 'انتخاب زمان جلسه', onConfirm }: {
+function SlotPicker({ session, phone, caseNumber, onClose, onDone, title = 'انتخاب زمان جلسه', onConfirm, resourceId }: {
   session?: Session; phone: string; caseNumber: string; onClose: () => void; onDone: () => void
   title?: string; onConfirm?: (date: string, time: string) => Promise<{ ok: boolean; error?: string }>
+  resourceId?: string | null
 }) {
   const { slug } = useParams<{ slug: string }>()
   const today = getCurrentJalali()
@@ -769,7 +773,8 @@ function SlotPicker({ session, phone, caseNumber, onClose, onDone, title = 'ان
 
   async function loadSchedule(month: number, year: number) {
     setLoadingSched(true)
-    const res = await fetch(`/api/t/${slug}/psy/schedule?year=${year}&month=${month + 1}`, { cache: 'no-store' })
+    const rq = resourceId ? `&resource_id=${resourceId}` : ''
+    const res = await fetch(`/api/t/${slug}/psy/schedule?year=${year}&month=${month + 1}${rq}`, { cache: 'no-store' })
     const data = await res.json()
     const map: Record<string, string[]> = {}
     const types: Record<string, Record<string, string>> = {}
@@ -890,8 +895,9 @@ function SlotPicker({ session, phone, caseNumber, onClose, onDone, title = 'ان
 }
 
 // ==================== SCHEDULE PICKER ====================
-function SchedulePicker({ pkg, existingSessions, phone, caseNumber, onClose, onDone }: {
+function SchedulePicker({ pkg, existingSessions, phone, caseNumber, onClose, onDone, resourceId }: {
   pkg: Package; existingSessions: Session[]; phone: string; caseNumber: string; onClose: () => void; onDone: () => void
+  resourceId?: string | null
 }) {
   const { slug } = useParams<{ slug: string }>()
   const today = getCurrentJalali()
@@ -915,7 +921,8 @@ function SchedulePicker({ pkg, existingSessions, phone, caseNumber, onClose, onD
 
   async function loadSchedule(month: number, year: number) {
     setLoadingSched(true)
-    const res = await fetch(`/api/t/${slug}/psy/schedule?year=${year}&month=${month + 1}`, { cache: 'no-store' })
+    const rq = resourceId ? `&resource_id=${resourceId}` : ''
+    const res = await fetch(`/api/t/${slug}/psy/schedule?year=${year}&month=${month + 1}${rq}`, { cache: 'no-store' })
     const data = await res.json()
     const map: Record<string, string[]> = {}
     const types: Record<string, Record<string, string>> = {}
