@@ -72,9 +72,14 @@ create table resources (
   is_active boolean not null default true,
   is_selectable boolean not null default true,
   sort_order int not null default 0,
+  -- ورودِ کارمند: هر منبع می‌تواند شماره‌ی خودش را داشته باشد و مستقل از
+  -- صاحبِ tenant وارد پنل شود (نقشِ چهارمِ auth، کنارِ مراجع/متخصص/سوپرادمین).
+  phone text,
+  owner_session uuid,
   created_at timestamptz not null default now()
 );
 create index on resources (tenant_id);
+create unique index resources_tenant_phone_key on resources (tenant_id, phone) where phone is not null;
 
 -- ═══════════════════════════════════════════════════════════════════════════
 -- بخش ۴ — سرویس‌ها
@@ -304,12 +309,15 @@ create table psy_cases (
   -- یادداشتِ کلیِ دکتر
   doctor_notes text,
   status text not null default 'pending',
+  -- کدام «منبع» (دکتر) صاحبِ این پرونده است — پایه‌ی چندکارمندی
+  resource_id uuid references resources(id),
   created_at timestamptz not null default now(),
   unique (tenant_id, case_number)
 );
 create index on psy_cases (tenant_id);
 create index on psy_cases (tenant_id, flow_status);
 create index on psy_cases (tenant_id, phone);
+create index on psy_cases (tenant_id, resource_id);
 
 -- ── پکیج‌های درمان ──────────────────────────────────────────────────────────
 create table psy_packages (
@@ -329,9 +337,11 @@ create table psy_packages (
   payment_ref text,
   status text not null default 'pending',
   notes text,
+  resource_id uuid references resources(id),
   created_at timestamptz not null default now()
 );
 create index on psy_packages (tenant_id, case_number);
+create index on psy_packages (tenant_id, resource_id);
 
 -- ستون‌های نوعِ اسلات روی برنامه‌ی روزانه (آنلاین/حضوری و مطبِ هر ساعت)
 -- در psy_schedules پایین به‌صورت jsonb نگه داشته می‌شوند.
@@ -359,42 +369,55 @@ create table psy_sessions (
   refund_amount bigint default 0,
   refund_card text,            -- شماره‌کارتی که مراجع برای بازپرداخت داده
   notes text,
+  resource_id uuid references resources(id),
   created_at timestamptz not null default now()
 );
 create index on psy_sessions (tenant_id, case_number);
 create index on psy_sessions (tenant_id, session_date);
+create index on psy_sessions (tenant_id, resource_id);
 
--- ── تنظیماتِ کلینیک (معادلِ clinic_settings، حالا per-tenant) ───────────────
--- تک‌ردیف به‌ازای هر tenant روانشناسی. session_modes/آدرس‌ها/کارت‌ها.
+-- ── تنظیماتِ کلینیک (سطحِ tenant/برند — مشترکِ همه‌ی دکترهای همان مجموعه) ────
+-- دیگر نامِ دکتر/بج/کارت را نگه نمی‌دارد (این‌ها حالا per-resource‌اند، در
+-- psy_resource_profiles و خودِ جدولِ resources). فقط چیزی که واقعاً مالِ کلِ
+-- مجموعه است اینجا می‌ماند: آدرس‌های مطب/کلینیک که بینِ دکترها مشترک است.
 create table psy_clinic_settings (
   tenant_id uuid primary key references tenants(id) on delete cascade,
-  doctor_name text not null default '',
-  doctor_title text not null default '',
-  avatar_url text not null default '',
+  office_locations jsonb not null default '[]',
+  updated_at timestamptz not null default now()
+);
+
+-- ── پروفایلِ هر دکتر (per-resource) ─────────────────────────────────────────
+-- نام/عنوان/آواتار همان ستون‌های name/title/avatar_url رویِ resources هستند
+-- (تکراری‌شان نکردیم). این‌جا فقط چیزهایی که مختصِ فلوِ روانشناسیِ هر دکتر است:
+-- بج‌های اعتماد، نوعِ جلسه‌ی قابلِ‌ارائه، کارتِ دریافتِ وجه/بازپرداختِ خودش.
+create table psy_resource_profiles (
+  resource_id uuid primary key references resources(id) on delete cascade,
   badges jsonb not null default '[]',
   session_modes text not null default 'both',  -- 'both' | 'online' | 'offline'
-  office_locations jsonb not null default '[]',
   cards jsonb not null default '[]',
   updated_at timestamptz not null default now()
 );
 
--- ── برنامه‌ی کاریِ روانشناسی (روزمحور، سبکِ psych-booking) ──────────────────
--- psych-booking برنامه را روزبه‌روز نگه می‌دارد (نه الگوی هفتگی). همان مدل حفظ شد.
+-- ── برنامه‌ی کاریِ روانشناسی (روزمحور، سبکِ psych-booking، حالا per-resource) ─
+-- هر دکتر برنامه‌ی روزمحورِ مستقلِ خودش را دارد.
 create table psy_schedules (
   id uuid primary key default uuid_generate_v4(),
   tenant_id uuid not null references tenants(id) on delete cascade,
+  resource_id uuid not null references resources(id) on delete cascade,
   date text not null,           -- '1405/04/15'
   available_times jsonb not null default '[]',
   slot_types jsonb not null default '{}',  -- { "10:00": "online" | "offline" }
   slot_locs jsonb not null default '{}',   -- { "10:00": "<office_location_id>" }
   is_off boolean not null default false,
   created_at timestamptz not null default now(),
-  unique (tenant_id, date)
+  unique (tenant_id, resource_id, date)
 );
 create index on psy_schedules (tenant_id);
+create index on psy_schedules (tenant_id, resource_id);
 
 alter table psy_cases enable row level security;
 alter table psy_sessions enable row level security;
 alter table psy_packages enable row level security;
 alter table psy_clinic_settings enable row level security;
+alter table psy_resource_profiles enable row level security;
 alter table psy_schedules enable row level security;

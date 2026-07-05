@@ -11,7 +11,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   if (!t) return NextResponse.json({ error: 'یافت نشد' }, { status: 404 })
   const { case_number, phone, package_id, attendee, session_type, replace_session_id } = await req.json()
 
-  const { data: booking } = await sb().from('psy_cases').select('father_phone, mother_phone')
+  const { data: booking } = await sb().from('psy_cases').select('resource_id, father_phone, mother_phone')
     .eq('tenant_id', t.id).eq('case_number', case_number).single()
   if (!booking || (booking.father_phone !== phone && booking.mother_phone !== phone))
     return NextResponse.json({ error: 'دسترسی ندارید' }, { status: 403 })
@@ -22,7 +22,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   const { count } = await sb().from('psy_sessions').select('id', { count: 'exact' })
     .eq('tenant_id', t.id).eq('case_number', case_number)
   const { data, error } = await sb().from('psy_sessions').insert([{
-    tenant_id: t.id, case_number, package_id: package_id || null,
+    tenant_id: t.id, resource_id: booking.resource_id, case_number, package_id: package_id || null,
     attendee: attendee || 'child', session_type: type,
     session_date: '', session_time: '', status: 'confirmed', paid: false, price,
     session_number: (count || 0) + 1,

@@ -31,7 +31,7 @@ Next.js 14 (App Router) · TypeScript · Tailwind · Supabase (Postgres + RLS)
 5. هر tenant: صفحه‌ی عمومی `/<slug>`، پنلِ متخصص `/<slug>/panel`.
 
 ## ساختارِ دیتابیس (خلاصه)
-`niches` (تمپلیت‌ها) · `tenants` (+custom_domain, niche_key) · `tenant_profiles` · `resources` (پرسنل) · `services` + `service_resources` · `weekly_schedules` + `schedule_overrides` (per-resource) · `bookings` (+resource_id) · `client_records` (پرونده) · `otps` · `tenant_features`
+`niches` (تمپلیت‌ها) · `tenants` (+custom_domain, niche_key) · `tenant_profiles` · `resources` (پرسنل؛ +phone/owner_session برای ورودِ مستقلِ کارمند) · `services` + `service_resources` · `weekly_schedules` + `schedule_overrides` (per-resource) · `bookings` (+resource_id) · `client_records` (پرونده) · `otps` · `tenant_features`
 
 ## نکاتِ فنی
 - اسلات ذخیره نمی‌شود، محاسبه می‌شود: (برنامه‌ی هفتگیِ منبع + استثناها) − رزروهای زنده. ضامنِ همزمانی، unique index روی `(tenant, resource, date, time)`.

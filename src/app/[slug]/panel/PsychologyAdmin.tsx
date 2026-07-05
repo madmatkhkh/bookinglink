@@ -180,6 +180,35 @@ type FinanceData = {
   topCases: { case_number: string; name: string; amount: number }[]
 }
 
+// یک «منبع» = یک کارمند/دکتر. name/title/avatar_url هویتِ نمایشی؛ phone برای
+// ورودِ مستقلِ کارمند به پنل است (اختیاری — خالی یعنی فقط owner برایش کار می‌کند).
+type ResourceRow = {
+  id: string
+  name: string
+  title: string
+  avatar_url: string | null
+  phone: string | null
+  is_active: boolean
+  is_selectable: boolean
+  sort_order: number
+}
+
+// پروفایلِ per-resource که در تبِ تنظیمات ویرایش می‌شود
+type ResourceProfileView = {
+  resource_id: string
+  name: string
+  title: string
+  avatar_url: string
+  phone?: string | null
+  badges: string[]
+  session_modes: SessionMode
+  cards: PaymentCardInfo[]
+}
+
+const DEFAULT_PROFILE: ResourceProfileView = {
+  resource_id: '', name: '', title: '', avatar_url: '', badges: [], session_modes: 'both', cards: [],
+}
+
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const ALL_TIMES = ['۸:۰۰','۹:۰۰','۱۰:۰۰','۱۱:۰۰','۱۲:۰۰','۱۳:۰۰','۱۴:۰۰','۱۵:۰۰','۱۶:۰۰','۱۷:۰۰','۱۸:۰۰']
@@ -373,7 +402,8 @@ export function PsychologyAdmin() {
   const router = useRouter()
   const { slug } = useParams<{ slug: string }>()
   const api = (path: string) => `/api/t/${slug}/panel/psy${path}`
-  const [mainTab, setMainTab] = useState<'patients' | 'bookings' | 'schedule' | 'settings' | 'finance' | 'patient_settings'>('patients')
+  const panelApi = (path: string) => `/api/t/${slug}/panel${path}`
+  const [mainTab, setMainTab] = useState<'patients' | 'bookings' | 'schedule' | 'settings' | 'finance' | 'patient_settings' | 'staff'>('patients')
   const [menuOpen, setMenuOpen] = useState(false)
 
   // ── Patients state ─────────────────────────────────────────────
@@ -444,6 +474,18 @@ export function PsychologyAdmin() {
   const [fromJ, setFromJ] = useState(() => { const t = getCurrentJalali(); return { y: t.year, m: t.month + 1, d: 1 } })
   const [toJ, setToJ] = useState(() => { const t = getCurrentJalali(); return { y: t.year, m: t.month + 1, d: t.day } })
 
+  // ── چندکارمندی: کی وارد شده (صاحبِ مجموعه یا یک کارمندِ مشخص)؟ ──
+  const [me, setMe] = useState<{ isOwner: boolean; resourceId: string | null; resourceName: string | null } | null>(null)
+  const [staffList, setStaffList] = useState<ResourceRow[]>([])
+  const [staffLoaded, setStaffLoaded] = useState(false)
+  // owner: کدام کارمند را می‌بینیم؟ '' = همه (پرونده‌ها) — برنامه/پروفایل همیشه یک نفرِ مشخص لازم دارد
+  const [viewingResourceId, setViewingResourceId] = useState<string>('')
+  // پروفایلِ per-resource (نام/عنوان/آواتار/بج/نوعِ جلسه/کارت) — جایگزینِ فیلدهای قدیمیِ settings
+  const [profile, setProfile] = useState<ResourceProfileView>(DEFAULT_PROFILE)
+  const [profileLoaded, setProfileLoaded] = useState(false)
+  const [profileSaving, setProfileSaving] = useState(false)
+  const [profileSaved, setProfileSaved] = useState(false)
+
   // ── Package / Session forms ────────────────────────────────────
   const [newPkg, setNewPkg] = useState({
     month: '1', year: '1404',
@@ -460,19 +502,78 @@ export function PsychologyAdmin() {
 
   // ─── Data fetching ───────────────────────────────────────────────────────────
 
+  // چه کسی وارد شده؟ (owner یا یک کارمندِ مشخص) — تعیین می‌کند تبِ «کارمندها» و
+  // سوییچرِ منبع نمایش داده شوند یا نه
+  const loadMe = useCallback(async () => {
+    try {
+      const r = await fetch(panelApi('/whoami'), { cache: 'no-store' })
+      if (r.status === 401) { setNeedsLogin(true); return }
+      const d = await r.json()
+      setMe({ isOwner: !!d.isOwner, resourceId: d.resourceId || null, resourceName: d.resourceName || null })
+      if (d.isOwner) loadStaff()
+    } catch {}
+  }, [])
+
+  async function loadStaff() {
+    try {
+      const r = await fetch(panelApi('/resources'), { cache: 'no-store' })
+      if (r.ok) { const d = await r.json(); setStaffList(d.resources || []) }
+    } catch {}
+    setStaffLoaded(true)
+  }
+
+  const [staffForm, setStaffForm] = useState<{ id: string; name: string; title: string; phone: string }>({ id: '', name: '', title: '', phone: '' })
+  const [staffFormOpen, setStaffFormOpen] = useState(false)
+  const [staffSaving, setStaffSaving] = useState(false)
+
+  function openNewStaffForm() { setStaffForm({ id: '', name: '', title: '', phone: '' }); setStaffFormOpen(true) }
+  function openEditStaffForm(r: ResourceRow) { setStaffForm({ id: r.id, name: r.name, title: r.title, phone: r.phone || '' }); setStaffFormOpen(true) }
+
+  async function saveStaffMember() {
+    if (!staffForm.name.trim()) { uiAlert('نام لازم است'); return }
+    setStaffSaving(true)
+    try {
+      const method = staffForm.id ? 'PATCH' : 'POST'
+      const res = await fetch(panelApi('/resources'), {
+        method, headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: staffForm.id || undefined, name: staffForm.name, title: staffForm.title, phone: staffForm.phone }),
+      })
+      const d = await res.json().catch(() => ({}))
+      if (!res.ok) { uiAlert(d.error || 'ذخیره نشد'); setStaffSaving(false); return }
+      setStaffFormOpen(false)
+      await loadStaff()
+    } catch (e: any) {
+      uiAlert('خطای شبکه: ' + (e?.message || e))
+    }
+    setStaffSaving(false)
+  }
+
+  async function deactivateStaffMember(id: string) {
+    const ok = await uiConfirm('این کارمند غیرفعال شود؟ پرونده‌های قبلی‌اش دست‌نخورده می‌ماند.')
+    if (!ok) return
+    const res = await fetch(panelApi('/resources'), {
+      method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }),
+    })
+    const d = await res.json().catch(() => ({}))
+    if (!res.ok) { uiAlert(d.error || 'حذف نشد'); return }
+    await loadStaff()
+  }
+
   const fetchAll = useCallback(async () => {
     setLoading(true)
+    const casesUrl = viewingResourceId ? api(`/cases?resource_id=${viewingResourceId}`) : api('/cases')
     const [pRes, bRes] = await Promise.all([
-      fetch(api('/cases'), { cache: 'no-store' }),
-      fetch(api('/cases'), { cache: 'no-store' }),
+      fetch(casesUrl, { cache: 'no-store' }),
+      fetch(casesUrl, { cache: 'no-store' }),
     ])
     if (pRes.status === 401) { setNeedsLogin(true); return }
     const pData = await pRes.json()
     setPatients(pData.bookings || [])
     setBookings(pData.bookings || [])
     loadPendingPayments()
+    loadMe()
     setLoading(false)
-  }, [router])
+  }, [router, viewingResourceId])
 
   // پرداخت‌های منتظرِ تأیید (پروتکل‌های درمان و جلسه‌های جایگزین) در همه‌ی پرونده‌ها
   async function loadPendingPayments() {
@@ -573,7 +674,7 @@ export function PsychologyAdmin() {
     try {
       const res = await fetch(api('/cases'), {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newPatientForm),
+        body: JSON.stringify({ ...newPatientForm, ...(me?.isOwner && viewingResourceId ? { resource_id: viewingResourceId } : {}) }),
       })
       const data = await res.json().catch(() => ({}))
       setAddPatientSaving(false)
@@ -845,10 +946,13 @@ export function PsychologyAdmin() {
     loadMonthSchedules(m, y)
   }
 
+  // owner با viewingResourceId مشخص می‌کند برنامه‌ی کدام دکتر را می‌بیند/ویرایش می‌کند
+  const scheduleResourceQS = () => (me?.isOwner && viewingResourceId) ? `&resource_id=${viewingResourceId}` : ''
+
   // برنامه‌ی کلِ ماه را بخوان تا روزهای تقویم رنگی شوند
   async function loadMonthSchedules(month: number, year: number) {
     try {
-      const res = await fetch(api(`/schedule?year=${year}&month=${month + 1}`), { cache: 'no-store' })
+      const res = await fetch(api(`/schedule?year=${year}&month=${month + 1}${scheduleResourceQS()}`), { cache: 'no-store' })
       const data = await res.json()
       setMonthSchedules(data.schedules || [])
     } catch {}
@@ -893,12 +997,13 @@ export function PsychologyAdmin() {
 
   // با ورود به تب برنامه، داده‌های ماه و جلسه‌ها را بارگذاری کن
   useEffect(() => {
-    if (mainTab === 'schedule') { loadMonthSchedules(schedMonth, schedYear); loadAllSessions(); refreshBookings(); if (!settingsLoaded) loadSettings() }
-    if (mainTab === 'settings' && !settingsLoaded) loadSettings()
+    if (mainTab === 'schedule') { loadMonthSchedules(schedMonth, schedYear); loadAllSessions(); refreshBookings(); if (!profileLoaded) loadProfile() }
+    if (mainTab === 'settings') { if (!settingsLoaded) loadSettings(); loadProfile() }
     if (mainTab === 'patient_settings' && !patientFeaturesLoaded) loadPatientFeatures()
     if (mainTab === 'finance') loadFinance()
+    if (mainTab === 'staff' && !staffLoaded) loadStaff()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mainTab])
+  }, [mainTab, viewingResourceId])
 
   // ── دارک‌مود: از localStorage بخوان و روی پنل اعمال کن ──────────
   useEffect(() => {
@@ -911,19 +1016,13 @@ export function PsychologyAdmin() {
     try { localStorage.setItem('pb_admin_dark', on ? '1' : '0') } catch {}
   }
 
-  // ── خواندن و ذخیره‌ی تنظیماتِ کلینیک ───────────────────────────
+  // ── تنظیماتِ سطحِ tenant (فقط آدرس‌های مطب — مشترکِ همه‌ی دکترها) ─
   async function loadSettings() {
     try {
       const res = await fetch(api('/settings'), { cache: 'no-store' })
       if (res.status === 401) { setNeedsLogin(true); return }
       const data = await res.json()
-      if (data.settings) {
-        setSettings({ ...DEFAULT_SETTINGS, ...data.settings,
-          badges: data.settings.badges ?? DEFAULT_SETTINGS.badges,
-          office_locations: data.settings.office_locations ?? DEFAULT_SETTINGS.office_locations,
-          cards: data.settings.cards ?? DEFAULT_SETTINGS.cards,
-        })
-      }
+      if (data.settings) setSettings({ ...DEFAULT_SETTINGS, office_locations: data.settings.office_locations ?? DEFAULT_SETTINGS.office_locations })
     } catch {}
     setSettingsLoaded(true)
   }
@@ -943,6 +1042,37 @@ export function PsychologyAdmin() {
     } catch {}
     setSettingsSaving(false)
   }
+
+  // ── پروفایلِ per-resource (نام/عنوان/آواتار/بج/نوعِ جلسه/کارت) ────
+  // owner با viewingResourceId انتخاب می‌کند پروفایلِ کدام دکتر را می‌بیند
+  // (خالی = تنها/اولین دکتر، دقیقاً رفتارِ تک‌دکترهای فعلی)؛ کارمند همیشه پروفایلِ خودش.
+  async function loadProfile() {
+    try {
+      const url = me?.isOwner && viewingResourceId ? api(`/profile?resource_id=${viewingResourceId}`) : api('/profile')
+      const res = await fetch(url, { cache: 'no-store' })
+      if (res.status === 401) { setNeedsLogin(true); return }
+      const data = await res.json()
+      if (data.profile) setProfile({ ...DEFAULT_PROFILE, ...data.profile })
+    } catch {}
+    setProfileLoaded(true)
+  }
+
+  async function saveProfile() {
+    setProfileSaving(true); setProfileSaved(false)
+    try {
+      const body: Record<string, any> = { ...profile }
+      if (me?.isOwner && viewingResourceId) body.resource_id = viewingResourceId
+      const res = await fetch(api('/profile'), {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+      })
+      if (res.status === 401) { setNeedsLogin(true); return }
+      setProfileSaved(true)
+      setTimeout(() => setProfileSaved(false), 2500)
+    } catch {}
+    setProfileSaving(false)
+  }
+
+  const patchProfile = (p: Partial<ResourceProfileView>) => setProfile(s => ({ ...s, ...p }))
 
   // helperهای ویرایشِ آرایه‌ها
   const patchSettings = (p: Partial<ClinicSettings>) => setSettings(s => ({ ...s, ...p }))
@@ -989,7 +1119,7 @@ export function PsychologyAdmin() {
     setSchedSaving(true)
     const date = `${schedYear}/${schedMonth + 1}/${selectedDay}`
     // نوعِ هر اسلات: هر اسلات یک نوعِ مشخص دارد (آنلاین یا یکی از مطب‌ها) — «هردو» حذف شد
-    const mode = settings.session_modes
+    const mode = profile.session_modes
     const offlineLocs = settings.office_locations
     const firstLoc = offlineLocs[0]?.title
     const outTypes: Record<string, string> = {}
@@ -1016,7 +1146,10 @@ export function PsychologyAdmin() {
       const res = await fetch(api('/schedule'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ date, available_times: selectedTimes, is_off: isOff, slot_types: outTypes, slot_locs: outLocs }),
+        body: JSON.stringify({
+          date, available_times: selectedTimes, is_off: isOff, slot_types: outTypes, slot_locs: outLocs,
+          ...(me?.isOwner && viewingResourceId ? { resource_id: viewingResourceId } : {}),
+        }),
       })
       setSchedSaving(false)
       if (res.status === 401) { uiAlert('نشستِ شما منقضی شده. دوباره وارد شوید.'); setNeedsLogin(true); return }
@@ -1054,7 +1187,7 @@ export function PsychologyAdmin() {
     setIsOff(false)
     const date = `${schedYear}/${schedMonth + 1}/${d}`
     try {
-      const res = await fetch(api(`/schedule?date=${date}`), { cache: 'no-store' })
+      const res = await fetch(api(`/schedule?date=${date}${scheduleResourceQS()}`), { cache: 'no-store' })
       const data = await res.json()
       if (data.schedule) {
         setSelectedTimes(data.schedule.available_times || [])
@@ -1114,7 +1247,8 @@ export function PsychologyAdmin() {
           <div className="min-w-0">
             <h1 className="text-sm sm:text-base font-semibold text-gray-900">پنل مدیریت</h1>
             <p className="text-[11px] sm:text-xs text-gray-400 truncate">
-              {settings.doctor_name || 'دکتر'}{settings.doctor_title ? ` — ${settings.doctor_title}` : ''}
+              {profile.name || me?.resourceName || 'دکتر'}{profile.title ? ` — ${profile.title}` : ''}
+              {me && !me.isOwner && <span className="text-brand-500"> (کارمند)</span>}
             </p>
           </div>
           <div className="flex items-center gap-2 shrink-0 relative">
@@ -1125,7 +1259,7 @@ export function PsychologyAdmin() {
             <div className="relative">
               <button onClick={() => setMenuOpen(o => !o)}
                 className={`text-xs px-2.5 sm:px-3 py-1.5 border rounded-lg transition-colors whitespace-nowrap flex items-center gap-1 ${
-                  (mainTab === 'settings' || mainTab === 'patient_settings')
+                  (mainTab === 'settings' || mainTab === 'patient_settings' || mainTab === 'staff')
                     ? 'border-brand-600 text-brand-700 bg-brand-50'
                     : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}>
                 ⚙️ تنظیمات <span className="text-[9px]">▾</span>
@@ -1139,11 +1273,20 @@ export function PsychologyAdmin() {
                       <div className="font-medium text-gray-800">🌐 تنظیماتِ سایتِ متخصص</div>
                       <div className="text-[10px] text-gray-400 mt-0.5">نام، تخصص، badge، مطب‌ها و کارت‌ها</div>
                     </button>
-                    <button onClick={() => { setMainTab('patient_settings'); setMenuOpen(false) }}
-                      className="w-full text-right px-4 py-3 text-xs hover:bg-gray-50">
-                      <div className="font-medium text-gray-800">👤 تنظیماتِ پنلِ مراجع</div>
-                      <div className="text-[10px] text-gray-400 mt-0.5">قابلیت‌هایی که مراجع در پنلِ خودش می‌بیند</div>
-                    </button>
+                    {me?.isOwner && (
+                      <button onClick={() => { setMainTab('staff'); setMenuOpen(false) }}
+                        className="w-full text-right px-4 py-3 text-xs hover:bg-gray-50 border-b border-gray-100">
+                        <div className="font-medium text-gray-800">👥 کارمندها</div>
+                        <div className="text-[10px] text-gray-400 mt-0.5">افزودن/مدیریتِ پرسنل و ورودِ مستقلِ هرکدام</div>
+                      </button>
+                    )}
+                    {me?.isOwner !== false && (
+                      <button onClick={() => { setMainTab('patient_settings'); setMenuOpen(false) }}
+                        className="w-full text-right px-4 py-3 text-xs hover:bg-gray-50">
+                        <div className="font-medium text-gray-800">👤 تنظیماتِ پنلِ مراجع</div>
+                        <div className="text-[10px] text-gray-400 mt-0.5">قابلیت‌هایی که مراجع در پنلِ خودش می‌بیند</div>
+                      </button>
+                    )}
                   </div>
                 </>
               )}
@@ -1192,6 +1335,18 @@ export function PsychologyAdmin() {
             {/* ── Patient List ─────────────────────────────────────────── */}
             {patientView === 'list' && (
               <div>
+                {/* سوییچرِ کارمند — فقط owner و فقط وقتی بیش از یک نفر پرسنل هست */}
+                {me?.isOwner && staffList.filter(r => r.is_active).length > 1 && (
+                  <div className="mb-3">
+                    <select value={viewingResourceId} onChange={e => setViewingResourceId(e.target.value)}
+                      className="text-xs px-3 py-2 border border-gray-200 rounded-lg bg-white focus:outline-none focus:border-brand-400">
+                      <option value="">👥 همه‌ی پرسنل</option>
+                      {staffList.filter(r => r.is_active).map(r => (
+                        <option key={r.id} value={r.id}>{r.name}{r.title ? ` — ${r.title}` : ''}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
                 <div className="flex items-center gap-2 mb-4">
                   <div className="relative flex-1">
                     <input value={patientSearch} onChange={e => setPatientSearch(e.target.value)}
@@ -1937,10 +2092,10 @@ export function PsychologyAdmin() {
                       ساعات کاری — {toFarsiNum(selectedDay)} {PERSIAN_MONTHS[schedMonth]}
                     </h3>
                     <p className="text-xs text-gray-400 mb-4">ساعت‌هایی که نوبت می‌دهی را انتخاب کن. اگر هیچ ساعتی انتخاب نکنی، آن روز تعطیل محسوب می‌شود.</p>
-                    {settings.session_modes === 'both' && (
+                    {profile.session_modes === 'both' && (
                       <p className="text-[11px] text-gray-400 mb-3">روی نوعِ هر ساعت بزن تا بینِ 🎥 آنلاین و مطب‌های حضوری جابجا شود. هر ساعت یک نوعِ مشخص دارد.</p>
                     )}
-                    {settings.session_modes === 'offline' && settings.office_locations.length > 1 && (
+                    {profile.session_modes === 'offline' && settings.office_locations.length > 1 && (
                       <p className="text-[11px] text-gray-400 mb-3">روی هر ساعت بزن تا بینِ مطب‌ها جابجا شود.</p>
                     )}
                     <div className="grid grid-cols-3 gap-2 mb-4">
@@ -1951,7 +2106,7 @@ export function PsychologyAdmin() {
                         const isPastTime = slotTs !== null && slotTs <= Date.now()
                         const selected = selectedTimes.includes(t)
                         const locked = !!takenBy || isPastTime
-                        const mode = settings.session_modes
+                        const mode = profile.session_modes
                         const offlineLocs = settings.office_locations
                         // گزینه‌های ممکن برای این اسلات (بدونِ «هردو» — هر اسلات یک نوعِ مشخص دارد)
                         type Opt = { kind: 'online' | 'offline'; loc?: string; label: string }
@@ -2304,10 +2459,24 @@ export function PsychologyAdmin() {
         ════════════════════════════════════════════════════════════════ */}
         {mainTab === 'settings' && (
           <div className="space-y-4 pb-24">
-            {!settingsLoaded ? (
+            {!settingsLoaded || !profileLoaded ? (
               <div className="text-center py-16 text-gray-400">در حال بارگذاری تنظیمات...</div>
             ) : (
             <>
+              {/* سوییچرِ دکتر — فقط وقتی owner است و بیش از یک نفر پرسنل دارد */}
+              {me?.isOwner && staffList.filter(r => r.is_active).length > 1 && (
+                <section className="bg-white rounded-2xl border border-gray-100 p-5">
+                  <h2 className="text-sm font-semibold text-gray-900 mb-1">👥 پروفایلِ کدام دکتر؟</h2>
+                  <p className="text-xs text-gray-400 mb-3">مجموعه‌ی شما چند نفر پرسنل دارد؛ اول انتخاب کنید پروفایل و برنامه‌ی کاریِ کدام‌شان را ویرایش می‌کنید.</p>
+                  <select value={viewingResourceId || staffList.find(r => r.is_active)?.id || ''} onChange={e => { setViewingResourceId(e.target.value); setProfileLoaded(false) }}
+                    className="w-full text-sm px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:border-brand-400">
+                    {staffList.filter(r => r.is_active).map(r => (
+                      <option key={r.id} value={r.id}>{r.name}{r.title ? ` — ${r.title}` : ''}</option>
+                    ))}
+                  </select>
+                </section>
+              )}
+
               {/* ظاهرِ پنل */}
               <section className="bg-white rounded-2xl border border-gray-100 p-5">
                 <h2 className="text-sm font-semibold text-gray-900 mb-1">🌗 ظاهرِ پنل</h2>
@@ -2321,20 +2490,20 @@ export function PsychologyAdmin() {
                 </div>
               </section>
 
-              {/* پروفایلِ عمومی */}
+              {/* پروفایلِ عمومی — حالا per-resource (نام/عنوان/آواتار روی خودِ resources) */}
               <section className="bg-white rounded-2xl border border-gray-100 p-5">
                 <h2 className="text-sm font-semibold text-gray-900 mb-1">👤 پروفایلِ عمومی</h2>
                 <p className="text-xs text-gray-400 mb-4">این اطلاعات در صفحه‌ی اولِ سایت به مراجع نمایش داده می‌شود.</p>
 
                 <div className="flex items-center gap-4 mb-4">
                   <div className="w-16 h-16 rounded-full bg-brand-50 border border-brand-100 flex items-center justify-center text-2xl overflow-hidden shrink-0">
-                    {settings.avatar_url
-                      ? <img src={settings.avatar_url} alt="" className="w-full h-full object-cover" />
+                    {profile.avatar_url
+                      ? <img src={profile.avatar_url} alt="" className="w-full h-full object-cover" />
                       : '👩‍⚕️'}
                   </div>
                   <div className="flex-1">
                     <label className="text-xs text-gray-500 mb-1 block">لینکِ عکسِ پروفایل</label>
-                    <input value={settings.avatar_url} onChange={e => patchSettings({ avatar_url: e.target.value })}
+                    <input value={profile.avatar_url} onChange={e => patchProfile({ avatar_url: e.target.value })}
                       dir="ltr" placeholder="https://...  (خالی بگذارید تا آیکونِ پیش‌فرض نمایش داده شود)"
                       className="w-full text-sm px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:border-brand-400" />
                   </div>
@@ -2343,12 +2512,12 @@ export function PsychologyAdmin() {
                 <div className="space-y-3">
                   <div>
                     <label className="text-xs text-gray-500 mb-1 block">نام</label>
-                    <input value={settings.doctor_name} onChange={e => patchSettings({ doctor_name: e.target.value })}
+                    <input value={profile.name} onChange={e => patchProfile({ name: e.target.value })}
                       className="w-full text-sm px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:border-brand-400" />
                   </div>
                   <div>
                     <label className="text-xs text-gray-500 mb-1 block">عنوان / تخصص</label>
-                    <input value={settings.doctor_title} onChange={e => patchSettings({ doctor_title: e.target.value })}
+                    <input value={profile.title} onChange={e => patchProfile({ title: e.target.value })}
                       className="w-full text-sm px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:border-brand-400" />
                   </div>
 
@@ -2356,26 +2525,26 @@ export function PsychologyAdmin() {
                   <div>
                     <label className="text-xs text-gray-500 mb-1 block">نشان‌ها (زیرِ پروفایل)</label>
                     <div className="space-y-2">
-                      {settings.badges.map((b, i) => (
+                      {profile.badges.map((b, i) => (
                         <div key={i} className="flex items-center gap-2">
                           <input value={b}
                             onChange={e => {
-                              const next = [...settings.badges]; next[i] = e.target.value; patchSettings({ badges: next })
+                              const next = [...profile.badges]; next[i] = e.target.value; patchProfile({ badges: next })
                             }}
                             placeholder="مثلاً: 📍 تهران، ولنجک"
                             className="flex-1 text-sm px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:border-brand-400" />
-                          <button onClick={() => patchSettings({ badges: settings.badges.filter((_, j) => j !== i) })}
+                          <button onClick={() => patchProfile({ badges: profile.badges.filter((_, j) => j !== i) })}
                             className="text-xs px-2.5 py-2 border border-red-200 text-red-500 rounded-lg shrink-0 hover:bg-red-50">حذف</button>
                         </div>
                       ))}
                     </div>
-                    <button onClick={() => patchSettings({ badges: [...settings.badges, ''] })}
+                    <button onClick={() => patchProfile({ badges: [...profile.badges, ''] })}
                       className="mt-2 text-xs px-3 py-1.5 border border-brand-200 text-brand-600 rounded-lg hover:bg-brand-50">+ افزودنِ نشان</button>
                   </div>
                 </div>
               </section>
 
-              {/* نوعِ جلسات */}
+              {/* نوعِ جلسات — per-resource (هر دکتر مدِ خودش را دارد) */}
               <section className="bg-white rounded-2xl border border-gray-100 p-5">
                 <h2 className="text-sm font-semibold text-gray-900 mb-1">🎥 نوعِ جلساتِ قابلِ ارائه</h2>
                 <p className="text-xs text-gray-400 mb-4">تعیین می‌کند مراجع هنگامِ رزرو چه گزینه‌هایی ببیند.</p>
@@ -2385,9 +2554,9 @@ export function PsychologyAdmin() {
                     ['online', '🎥', 'فقط آنلاین'],
                     ['offline', '🏥', 'فقط حضوری'],
                   ] as [SessionMode, string, string][]).map(([val, icon, label]) => (
-                    <button key={val} onClick={() => patchSettings({ session_modes: val })}
+                    <button key={val} onClick={() => patchProfile({ session_modes: val })}
                       className={`p-3 rounded-xl border text-center transition-all ${
-                        settings.session_modes === val
+                        profile.session_modes === val
                           ? 'border-brand-600 border-2 bg-brand-50'
                           : 'border-gray-200 hover:border-gray-300'}`}>
                       <div className="text-xl mb-1">{icon}</div>
@@ -2397,70 +2566,72 @@ export function PsychologyAdmin() {
                 </div>
               </section>
 
-              {/* مکان‌های حضوری */}
-              <section className="bg-white rounded-2xl border border-gray-100 p-5">
-                <div className="flex items-center justify-between mb-1">
-                  <h2 className="text-sm font-semibold text-gray-900">📍 مکان‌های جلسه‌ی حضوری</h2>
-                </div>
-                <p className="text-xs text-gray-400 mb-4">می‌توانید چند مطب/آدرس تعریف کنید.</p>
-                <div className="space-y-3">
-                  {settings.office_locations.map((loc, i) => (
-                    <div key={loc.id} className="border border-gray-100 rounded-xl p-3 bg-gray-50">
-                      <div className="flex items-center gap-2 mb-2">
-                        <input value={loc.title}
+              {/* مکان‌های حضوری — سطحِ tenant، مشترکِ همه‌ی دکترها؛ فقط owner ویرایش می‌کند */}
+              {me?.isOwner !== false && (
+                <section className="bg-white rounded-2xl border border-gray-100 p-5">
+                  <div className="flex items-center justify-between mb-1">
+                    <h2 className="text-sm font-semibold text-gray-900">📍 مکان‌های جلسه‌ی حضوری</h2>
+                  </div>
+                  <p className="text-xs text-gray-400 mb-4">می‌توانید چند مطب/آدرس تعریف کنید؛ بینِ همه‌ی دکترهای این مجموعه مشترک است.</p>
+                  <div className="space-y-3">
+                    {settings.office_locations.map((loc, i) => (
+                      <div key={loc.id} className="border border-gray-100 rounded-xl p-3 bg-gray-50">
+                        <div className="flex items-center gap-2 mb-2">
+                          <input value={loc.title}
+                            onChange={e => {
+                              const next = [...settings.office_locations]; next[i] = { ...loc, title: e.target.value }
+                              patchSettings({ office_locations: next })
+                            }}
+                            placeholder="نامِ مطب (مثلاً مطب ولنجک)"
+                            className="flex-1 text-sm px-3 py-2 border border-gray-200 rounded-lg bg-white focus:outline-none focus:border-brand-400" />
+                          <button onClick={() => patchSettings({ office_locations: settings.office_locations.filter((_, j) => j !== i) })}
+                            className="text-xs px-2.5 py-2 border border-red-200 text-red-500 rounded-lg shrink-0 hover:bg-red-50">حذف</button>
+                        </div>
+                        <input value={loc.address}
                           onChange={e => {
-                            const next = [...settings.office_locations]; next[i] = { ...loc, title: e.target.value }
+                            const next = [...settings.office_locations]; next[i] = { ...loc, address: e.target.value }
                             patchSettings({ office_locations: next })
                           }}
-                          placeholder="نامِ مطب (مثلاً مطب ولنجک)"
-                          className="flex-1 text-sm px-3 py-2 border border-gray-200 rounded-lg bg-white focus:outline-none focus:border-brand-400" />
-                        <button onClick={() => patchSettings({ office_locations: settings.office_locations.filter((_, j) => j !== i) })}
-                          className="text-xs px-2.5 py-2 border border-red-200 text-red-500 rounded-lg shrink-0 hover:bg-red-50">حذف</button>
+                          placeholder="آدرسِ کامل"
+                          className="w-full text-sm px-3 py-2 border border-gray-200 rounded-lg bg-white focus:outline-none focus:border-brand-400" />
                       </div>
-                      <input value={loc.address}
-                        onChange={e => {
-                          const next = [...settings.office_locations]; next[i] = { ...loc, address: e.target.value }
-                          patchSettings({ office_locations: next })
-                        }}
-                        placeholder="آدرسِ کامل"
-                        className="w-full text-sm px-3 py-2 border border-gray-200 rounded-lg bg-white focus:outline-none focus:border-brand-400" />
-                    </div>
-                  ))}
-                </div>
-                <button onClick={() => patchSettings({ office_locations: [...settings.office_locations, { id: genId('loc'), title: '', address: '' }] })}
-                  className="mt-3 text-xs px-3 py-1.5 border border-brand-200 text-brand-600 rounded-lg hover:bg-brand-50">+ افزودنِ مکان</button>
-              </section>
+                    ))}
+                  </div>
+                  <button onClick={() => patchSettings({ office_locations: [...settings.office_locations, { id: genId('loc'), title: '', address: '' }] })}
+                    className="mt-3 text-xs px-3 py-1.5 border border-brand-200 text-brand-600 rounded-lg hover:bg-brand-50">+ افزودنِ مکان</button>
+                </section>
+              )}
 
-              {/* شماره کارت‌ها */}
+              {/* شماره کارت‌ها — per-resource (کارتِ دریافتِ وجه/بازپرداختِ خودِ هر دکتر) */}
               <section className="bg-white rounded-2xl border border-gray-100 p-5">
                 <h2 className="text-sm font-semibold text-gray-900 mb-1">💳 شماره کارت‌های واریزی</h2>
                 <p className="text-xs text-gray-400 mb-4">این کارت‌ها در صفحه‌ی پرداختِ کارت‌به‌کارت به مراجع نمایش داده می‌شوند.</p>
                 <div className="space-y-3">
-                  {settings.cards.map((c, i) => (
+                  {profile.cards.map((c, i) => (
                     <div key={c.id} className="border border-gray-100 rounded-xl p-3 bg-gray-50 space-y-2">
                       <div className="flex items-center gap-2">
                         <input value={c.number}
                           onChange={e => {
-                            const next = [...settings.cards]; next[i] = { ...c, number: e.target.value }
-                            patchSettings({ cards: next })
+                            const next = [...profile.cards]; next[i] = { ...c, number: e.target.value }
+                            patchProfile({ cards: next })
                           }}
                           dir="ltr" placeholder="6037-9900-0000-0000"
                           className="flex-1 text-sm px-3 py-2 border border-gray-200 rounded-lg bg-white font-mono tracking-wider focus:outline-none focus:border-brand-400" />
-                        <button onClick={() => patchSettings({ cards: settings.cards.filter((_, j) => j !== i) })}
+                        <button onClick={() => patchProfile({ cards: profile.cards.filter((_, j) => j !== i) })}
                           className="text-xs px-2.5 py-2 border border-red-200 text-red-500 rounded-lg shrink-0 hover:bg-red-50">حذف</button>
                       </div>
                       <div className="grid grid-cols-2 gap-2">
                         <input value={c.holder}
                           onChange={e => {
-                            const next = [...settings.cards]; next[i] = { ...c, holder: e.target.value }
-                            patchSettings({ cards: next })
+                            const next = [...profile.cards]; next[i] = { ...c, holder: e.target.value }
+                            patchProfile({ cards: next })
                           }}
                           placeholder="نامِ صاحبِ کارت"
                           className="text-sm px-3 py-2 border border-gray-200 rounded-lg bg-white focus:outline-none focus:border-brand-400" />
                         <input value={c.bank || ''}
                           onChange={e => {
-                            const next = [...settings.cards]; next[i] = { ...c, bank: e.target.value }
-                            patchSettings({ cards: next })
+                            const next = [...profile.cards]; next[i] = { ...c, bank: e.target.value }
+                            patchProfile({ cards: next })
                           }}
                           placeholder="نامِ بانک (اختیاری)"
                           className="text-sm px-3 py-2 border border-gray-200 rounded-lg bg-white focus:outline-none focus:border-brand-400" />
@@ -2468,17 +2639,18 @@ export function PsychologyAdmin() {
                     </div>
                   ))}
                 </div>
-                <button onClick={() => patchSettings({ cards: [...settings.cards, { id: genId('card'), number: '', holder: '' }] })}
+                <button onClick={() => patchProfile({ cards: [...profile.cards, { id: genId('card'), number: '', holder: '' }] })}
                   className="mt-3 text-xs px-3 py-1.5 border border-brand-200 text-brand-600 rounded-lg hover:bg-brand-50">+ افزودنِ کارت</button>
               </section>
 
               {/* نوارِ ذخیره (چسبیده به پایین) */}
               <div className="fixed bottom-0 inset-x-0 z-30 bg-white/95 border-t border-gray-100 backdrop-blur">
                 <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-end gap-3">
-                  {settingsSaved && <span className="text-xs text-brand-600">✓ تنظیمات ذخیره شد</span>}
-                  <button onClick={saveSettings} disabled={settingsSaving}
+                  {(settingsSaved || profileSaved) && <span className="text-xs text-brand-600">✓ تنظیمات ذخیره شد</span>}
+                  <button onClick={async () => { if (me?.isOwner) await Promise.all([saveSettings(), saveProfile()]); else await saveProfile() }}
+                    disabled={settingsSaving || profileSaving}
                     className="px-6 py-2.5 bg-brand-600 text-white rounded-xl text-sm font-medium disabled:opacity-40 hover:bg-brand-800 transition-colors">
-                    {settingsSaving ? 'در حال ذخیره...' : '💾 ذخیره‌ی تغییرات'}
+                    {(settingsSaving || profileSaving) ? 'در حال ذخیره...' : '💾 ذخیره‌ی تغییرات'}
                   </button>
                 </div>
               </div>
@@ -2761,6 +2933,92 @@ export function PsychologyAdmin() {
       )}
 
       {/* ════════════════════════════════════════════════════════════════
+          TAB: STAFF (کارمندها) — فقط owner می‌بیند
+      ════════════════════════════════════════════════════════════════ */}
+      {mainTab === 'staff' && me?.isOwner && (
+        <div className="max-w-lg mx-auto pb-24">
+          <div className="bg-white rounded-2xl border border-gray-100 p-5 mb-4">
+            <h2 className="text-sm font-bold text-gray-900 mb-1">👥 کارمندها</h2>
+            <p className="text-xs text-gray-400 leading-relaxed">
+              هر نفر یک «منبع» است: پرونده‌ها/برنامه‌ی کاری/پروفایلِ خودش را دارد.
+              اگر شماره‌ی موبایل بدهید، آن نفر می‌تواند مستقل با شماره‌ی خودش وارد این پنل شود
+              (بدونِ نیاز به شماره‌ی صاحبِ مجموعه).
+            </p>
+          </div>
+
+          {!staffLoaded ? (
+            <div className="text-center py-16 text-gray-400">در حال بارگذاری...</div>
+          ) : (
+            <div className="space-y-2 mb-4">
+              {staffList.map(r => (
+                <div key={r.id} className={`bg-white rounded-xl border p-4 flex items-center justify-between gap-3 ${r.is_active ? 'border-gray-100' : 'border-gray-100 opacity-50'}`}>
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-10 h-10 rounded-full bg-brand-50 flex items-center justify-center text-brand-600 font-semibold text-sm shrink-0 overflow-hidden">
+                      {r.avatar_url ? <img src={r.avatar_url} alt="" className="w-full h-full object-cover" /> : (r.name?.charAt(0) || '?')}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium text-gray-900 truncate">{r.name}{r.title ? ` — ${r.title}` : ''}</div>
+                      <div className="text-xs text-gray-400 mt-0.5" dir="ltr">
+                        {r.phone ? toFarsiNum(r.phone) : 'بدونِ ورودِ مستقل'}
+                        {!r.is_active && <span className="text-red-400"> · غیرفعال</span>}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex gap-2 shrink-0">
+                    <button onClick={() => openEditStaffForm(r)}
+                      className="text-xs px-2.5 py-1.5 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50">ویرایش</button>
+                    {r.is_active && (
+                      <button onClick={() => deactivateStaffMember(r.id)}
+                        className="text-xs px-2.5 py-1.5 border border-red-200 text-red-500 rounded-lg hover:bg-red-50">غیرفعال</button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <button onClick={openNewStaffForm}
+            className="w-full py-2.5 border border-brand-200 text-brand-600 rounded-xl text-sm hover:bg-brand-50">
+            ➕ افزودنِ کارمندِ تازه
+          </button>
+
+          {staffFormOpen && (
+            <div className="fixed inset-0 z-40 flex items-end sm:items-center justify-center bg-black/30" onClick={() => setStaffFormOpen(false)}>
+              <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full sm:max-w-sm p-5" onClick={e => e.stopPropagation()}>
+                <h3 className="text-sm font-bold text-gray-900 mb-4">{staffForm.id ? 'ویرایشِ کارمند' : 'افزودنِ کارمند'}</h3>
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-xs text-gray-500 mb-1 block">نام</label>
+                    <input value={staffForm.name} onChange={e => setStaffForm(s => ({ ...s, name: e.target.value }))}
+                      className="w-full text-sm px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:border-brand-400" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500 mb-1 block">عنوان / تخصص</label>
+                    <input value={staffForm.title} onChange={e => setStaffForm(s => ({ ...s, title: e.target.value }))}
+                      className="w-full text-sm px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:border-brand-400" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500 mb-1 block">شماره‌ی موبایل (اختیاری — برای ورودِ مستقل)</label>
+                    <input value={staffForm.phone} onChange={e => setStaffForm(s => ({ ...s, phone: e.target.value }))}
+                      dir="ltr" placeholder="09xxxxxxxxx"
+                      className="w-full text-sm px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:border-brand-400" />
+                  </div>
+                </div>
+                <div className="flex gap-2 mt-5">
+                  <button onClick={() => setStaffFormOpen(false)}
+                    className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-500">انصراف</button>
+                  <button onClick={saveStaffMember} disabled={staffSaving}
+                    className="flex-1 py-2.5 bg-brand-600 text-white rounded-xl text-sm font-medium disabled:opacity-50">
+                    {staffSaving ? 'در حال ذخیره...' : '💾 ذخیره'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ════════════════════════════════════════════════════════════════
           TAB: PATIENT PANEL SETTINGS (ماژول‌هایی که مراجع می‌بیند)
       ════════════════════════════════════════════════════════════════ */}
       {mainTab === 'patient_settings' && (
@@ -2843,16 +3101,21 @@ function TextareaField({ label, value, onChange, rows, placeholder }: {
 }
 // ─── ورودِ دکتر با OTP (جایگزینِ ADMIN_SECRET؛ کدِ پیامکی به موبایلِ صاحبِ پنل) ───
 function PanelLogin({ slug, onSuccess }: { slug: string; onSuccess: () => void }) {
+  const [mode, setMode] = useState<'owner' | 'staff'>('owner')
+  const [phone, setPhone] = useState('')
   const [otpSent, setOtpSent] = useState(false)
   const [devCode, setDevCode] = useState('')
   const [code, setCode] = useState('')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
 
+  const loginPath = mode === 'owner' ? `/api/t/${slug}/panel/login` : `/api/t/${slug}/panel/staff-login`
+
   async function send() {
     setBusy(true); setErr('')
-    const res = await fetch(`/api/t/${slug}/panel/login`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}),
+    const body = mode === 'owner' ? {} : { phone }
+    const res = await fetch(loginPath, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
     })
     const d = await res.json().catch(() => ({}))
     setBusy(false)
@@ -2861,13 +3124,18 @@ function PanelLogin({ slug, onSuccess }: { slug: string; onSuccess: () => void }
   }
   async function verify() {
     setBusy(true); setErr('')
-    const res = await fetch(`/api/t/${slug}/panel/login`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code }),
+    const body = mode === 'owner' ? { code } : { phone, code }
+    const res = await fetch(loginPath, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
     })
     const d = await res.json().catch(() => ({}))
     setBusy(false)
     if (!res.ok) { setErr(d.error || 'کد نادرست است'); return }
     onSuccess()
+  }
+
+  function switchMode(next: 'owner' | 'staff') {
+    setMode(next); setOtpSent(false); setCode(''); setDevCode(''); setErr(''); setPhone('')
   }
 
   return (
@@ -2877,15 +3145,38 @@ function PanelLogin({ slug, onSuccess }: { slug: string; onSuccess: () => void }
           <div className="text-4xl mb-3">🔐</div>
           <h1 className="text-lg font-bold text-gray-900">ورود به پنلِ مدیریت</h1>
           <p className="text-xs text-gray-500 mt-1.5 leading-relaxed">
-            کدِ ورود به شماره‌ی موبایلِ ثبت‌شده‌ی صاحبِ این پنل فرستاده می‌شود.
+            {mode === 'owner'
+              ? 'کدِ ورود به شماره‌ی موبایلِ ثبت‌شده‌ی صاحبِ این مجموعه فرستاده می‌شود.'
+              : 'اگر عضوِ تیمِ این مجموعه‌اید، شماره‌ی موبایلِ خودتان را وارد کنید.'}
           </p>
         </div>
-        {err && <div className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg p-2.5 mb-3 text-center">{err}</div>}
-        {!otpSent ? (
-          <button onClick={send} disabled={busy}
-            className="w-full py-3 rounded-xl bg-brand-600 text-white font-medium disabled:opacity-50">
-            {busy ? 'در حال ارسال…' : 'ارسالِ کدِ ورود'}
+
+        {/* سوییچِ صاحبِ مجموعه / کارمند */}
+        <div className="grid grid-cols-2 gap-2 mb-5 p-1 bg-gray-100 rounded-xl">
+          <button onClick={() => switchMode('owner')}
+            className={`py-2 rounded-lg text-xs font-medium transition-colors ${mode === 'owner' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500'}`}>
+            صاحبِ مجموعه‌ام
           </button>
+          <button onClick={() => switchMode('staff')}
+            className={`py-2 rounded-lg text-xs font-medium transition-colors ${mode === 'staff' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500'}`}>
+            عضوِ تیمم
+          </button>
+        </div>
+
+        {err && <div className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg p-2.5 mb-3 text-center">{err}</div>}
+
+        {!otpSent ? (
+          <div className="space-y-3">
+            {mode === 'staff' && (
+              <input value={phone} onChange={e => setPhone(e.target.value)} dir="ltr" inputMode="tel" autoFocus
+                placeholder="09xxxxxxxxx"
+                className="w-full p-3 rounded-xl border border-gray-200 text-center tracking-wide focus:outline-none focus:border-brand-400" />
+            )}
+            <button onClick={send} disabled={busy || (mode === 'staff' && phone.trim().length < 10)}
+              className="w-full py-3 rounded-xl bg-brand-600 text-white font-medium disabled:opacity-50">
+              {busy ? 'در حال ارسال…' : 'ارسالِ کدِ ورود'}
+            </button>
+          </div>
         ) : (
           <div className="space-y-3">
             {devCode && (

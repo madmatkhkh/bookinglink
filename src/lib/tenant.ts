@@ -3,7 +3,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { sb } from './supabase'
 import { NextRequest, NextResponse } from 'next/server'
-import { getPanelTenantId } from './auth'
+import { getPanelTenantId, getStaffResourceId } from './auth'
 
 export type Tenant = {
   id: string; slug: string; status: string; plan: string
@@ -44,5 +44,28 @@ export async function requirePanel(req: NextRequest, slug: string): Promise<Tena
 }
 
 export function isTenantResponse(x: Tenant | NextResponse): x is NextResponse {
+  return x instanceof NextResponse
+}
+
+// ── دسترسیِ چندکارمندی ────────────────────────────────────────────────────────
+// نتیجه‌ی این گارد: یا صاحبِ مجموعه (resourceId=null → همه‌چیز را می‌بیند)
+// یا یک کارمند/منبعِ مشخص (resourceId=<id> → فقط دیتای خودش). هر روتِ پنلی که
+// باید بینِ owner و staff فرق بگذارد، به‌جایِ requirePanel از این استفاده کند.
+export type PanelAuth = { tenant: Tenant; resourceId: string | null; isOwner: boolean }
+
+export async function requirePanelAuth(req: NextRequest, slug: string): Promise<PanelAuth | NextResponse> {
+  const t = await getActiveTenant(slug)
+  if (!t) return NextResponse.json({ error: 'یافت نشد' }, { status: 404 })
+
+  const ownerOk = await getPanelTenantId(req, t.id)
+  if (ownerOk) return { tenant: t, resourceId: null, isOwner: true }
+
+  const resourceId = await getStaffResourceId(req, t.id)
+  if (resourceId) return { tenant: t, resourceId, isOwner: false }
+
+  return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+}
+
+export function isPanelAuthResponse(x: PanelAuth | NextResponse): x is NextResponse {
   return x instanceof NextResponse
 }

@@ -10,7 +10,7 @@ import type { Metadata } from 'next'
 import { sb } from '@/lib/supabase'
 import { toFarsiNum } from '@/lib/calendar'
 import { MODE_LABEL, PLATFORM_NAME } from '@/lib/config'
-import { getClinicSettings } from '@/lib/psy'
+import { getClinicSettings, listPublicDoctors } from '@/lib/psy'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -26,8 +26,9 @@ export async function generateMetadata({ params }: { params: { slug: string } })
   const tenant = await loadTenant(params.slug)
   if (!tenant) return { title: 'یافت نشد' }
   if (tenant.niche_key === 'psychology') {
-    const c = await getClinicSettings(tenant.id)
-    return { title: `${c.doctor_name || 'رزروِ نوبت'} — نوبت‌دهی`, description: c.doctor_title || '' }
+    const [doctors] = await Promise.all([listPublicDoctors(tenant.id)])
+    const primary = doctors[0]
+    return { title: `${primary?.name || 'رزروِ نوبت'} — نوبت‌دهی`, description: primary?.title || '' }
   }
   const { data: profile } = await sb().from('tenant_profiles').select('display_name, title, bio').eq('tenant_id', tenant.id).single()
   return {
@@ -42,7 +43,13 @@ export default async function PublicProfile({ params }: { params: { slug: string
 
   // ── نیچِ روانشناسی: تجربه‌ی مصاحبه/پنلِ مراجع ──
   if (tenant.niche_key === 'psychology') {
-    const c = await getClinicSettings(tenant.id)
+    const [clinic, doctors] = await Promise.all([getClinicSettings(tenant.id), listPublicDoctors(tenant.id)])
+    const primary = doctors[0]
+    const c = {
+      office_locations: clinic.office_locations,
+      doctor_name: primary?.name || '', doctor_title: primary?.title || '',
+      avatar_url: primary?.avatar_url || '', badges: primary?.badges || [],
+    }
     return <PsychologyLanding slug={params.slug} c={c} />
   }
 

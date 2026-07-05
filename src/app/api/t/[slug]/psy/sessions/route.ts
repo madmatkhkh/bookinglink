@@ -12,7 +12,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   if (!sessions?.length) return NextResponse.json({ error: 'ناقص' }, { status: 400 })
 
   const case_number = sessions[0].case_number
-  const { data: booking } = await sb().from('psy_cases').select('father_phone, mother_phone')
+  const { data: booking } = await sb().from('psy_cases').select('resource_id, father_phone, mother_phone')
     .eq('tenant_id', t.id).eq('case_number', case_number).single()
   if (!booking || (booking.father_phone !== phone && booking.mother_phone !== phone))
     return NextResponse.json({ error: 'دسترسی ندارید' }, { status: 403 })
@@ -20,8 +20,8 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   const reqDates = Array.from(new Set(sessions.map((s: any) => s.session_date)))
   const db = sb()
   const [{ data: takenSessions }, { data: takenBookings }] = await Promise.all([
-    db.from('psy_sessions').select('session_date, session_time').eq('tenant_id', t.id).in('session_date', reqDates),
-    db.from('psy_cases').select('booking_date, booking_time, status').eq('tenant_id', t.id).in('booking_date', reqDates),
+    db.from('psy_sessions').select('session_date, session_time').eq('tenant_id', t.id).eq('resource_id', booking.resource_id).in('session_date', reqDates),
+    db.from('psy_cases').select('booking_date, booking_time, status').eq('tenant_id', t.id).eq('resource_id', booking.resource_id).in('booking_date', reqDates),
   ])
   const takenSet = new Set<string>()
   for (const s of takenSessions || []) takenSet.add(`${s.session_date}|${s.session_time}`)
@@ -34,7 +34,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   const { count } = await sb().from('psy_sessions').select('id', { count: 'exact' })
     .eq('tenant_id', t.id).eq('case_number', case_number)
   const toInsert = sessions.map((s: any, i: number) => ({
-    ...s, tenant_id: t.id, session_number: (count || 0) + i + 1, status: 'confirmed', paid: false,
+    ...s, tenant_id: t.id, resource_id: booking.resource_id, session_number: (count || 0) + i + 1, status: 'confirmed', paid: false,
   }))
 
   const { error } = await sb().from('psy_sessions').insert(toInsert)

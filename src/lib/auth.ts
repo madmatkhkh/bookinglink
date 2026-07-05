@@ -1,10 +1,13 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// احرازِ هویت — سه نقش، سه سازوکار، همه در یک‌جا (نه کپی در هر route؛
+// احرازِ هویت — چهار نقش، چهار سازوکار، همه در یک‌جا (نه کپی در هر route؛
 // درسِ حفره‌های isAuthed پراکنده در psych-booking)
 //
 // ۱) مراجع:   کوکیِ امضاشده با HMAC («phone.sig») پس از تاییدِ OTP
-// ۲) متخصص:  توکنِ نشستِ ذخیره‌شده در tenants.owner_session پس از OTP
-// ۳) سوپرادمین: کوکیِ رمزِ ثابت (SUPER_SECRET)
+// ۲) متخصص (صاحبِ مجموعه): توکنِ نشستِ ذخیره‌شده در tenants.owner_session پس از OTP
+// ۳) کارمند (یک «منبع»/پرسنل): توکنِ نشستِ ذخیره‌شده در resources.owner_session —
+//    مستقل از صاحبِ مجموعه؛ برای مجموعه‌هایی با چند نفر پرسنل که هرکدام باید
+//    فقط دیتای خودشان را ببینند (نه فقط روانشناسی؛ هر نیچی که چندکارمندی شد).
+// ۴) سوپرادمین: کوکیِ رمزِ ثابت (SUPER_SECRET)
 // ─────────────────────────────────────────────────────────────────────────────
 import { createHmac, timingSafeEqual, randomUUID } from 'crypto'
 import { NextRequest, NextResponse } from 'next/server'
@@ -14,6 +17,7 @@ const SECRET = () => process.env.AUTH_SECRET || 'dev-secret-change-me'
 
 export const CLIENT_COOKIE = 'client_auth'
 export const PANEL_COOKIE = 'panel_auth'
+export const STAFF_COOKIE = 'staff_auth'
 export const SUPER_COOKIE = 'super_auth'
 
 function sign(value: string): string {
@@ -65,6 +69,34 @@ export async function getPanelTenantId(req: NextRequest, expectedTenantId: strin
   if (tenantId !== expectedTenantId || !token) return null
   const { data } = await sb().from('tenants').select('owner_session').eq('id', tenantId).single()
   return data?.owner_session && safeEqual(data.owner_session, token) ? tenantId : null
+}
+
+// ── کارمند (نشستِ مستقلِ هر «منبع») ───────────────────────────────────────────
+// همان الگوی createPanelSession/getPanelTenantId، ولی روی resources به‌جای
+// tenants — چون در یک مجموعه ممکن است چند نفر هم‌زمان با شماره‌های خودشان
+// وارد شوند. کوکی هم tenantId هم resourceId را حمل می‌کند.
+
+/** ورودِ موفقِ کارمند: توکنِ نشستِ تازه روی همان resource می‌نشیند */
+export async function createStaffSession(res: NextResponse, tenantId: string, resourceId: string) {
+  const token = randomUUID()
+  await sb().from('resources').update({ owner_session: token }).eq('id', resourceId)
+  res.cookies.set(STAFF_COOKIE, `${tenantId}.${resourceId}.${token}`, {
+    httpOnly: true, sameSite: 'lax', secure: true, path: '/', maxAge: 60 * 60 * 24 * 30,
+  })
+}
+
+/** اگر کوکیِ کارمند معتبر و مالِ همین tenant باشد، شناسه‌ی resource را برمی‌گرداند */
+export async function getStaffResourceId(req: NextRequest, expectedTenantId: string): Promise<string | null> {
+  const raw = req.cookies.get(STAFF_COOKIE)?.value
+  if (!raw) return null
+  const parts = raw.split('.')
+  if (parts.length !== 3) return null
+  const [tenantId, resourceId, token] = parts
+  if (tenantId !== expectedTenantId || !resourceId || !token) return null
+  const { data } = await sb().from('resources').select('owner_session, is_active')
+    .eq('id', resourceId).eq('tenant_id', tenantId).maybeSingle()
+  if (!data || !data.is_active) return null
+  return data.owner_session && safeEqual(data.owner_session, token) ? resourceId : null
 }
 
 // ── سوپرادمین ────────────────────────────────────────────────────────────────

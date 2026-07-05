@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { sb } from '@/lib/supabase'
 import { getActiveTenant } from '@/lib/tenant'
 import { FLOW } from '@/lib/flow'
-import { PSY_PRICING } from '@/lib/psy'
+import { PSY_PRICING, getDefaultResourceId } from '@/lib/psy'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -29,11 +29,20 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
     schoolName, schoolInstitute, schoolGrade, schoolPhone,
     sportsActivity, sportsLimit,
     fatherBehavior, motherBehavior, mainSupervisor,
-    extraNotes, sessionType, paymentRef, officeLocation,
+    extraNotes, sessionType, paymentRef, officeLocation, resourceId,
   } = b
 
   if (!childName || !fatherPhone || !motherPhone)
     return NextResponse.json({ error: 'اطلاعات ناقص است' }, { status: 400 })
+
+  // فعلاً صفحه‌ی عمومی دکتری را انتخاب نمی‌گیرد (تک‌دکترها خودکار درست کار می‌کند)؛
+  // اگر روزی UIِ انتخابِ دکتر اضافه شد، resourceId از بدنه می‌آید و همینجا اعتبارسنجی می‌شود.
+  let finalResourceId: string | null = null
+  if (resourceId) {
+    const { data: r } = await sb().from('resources').select('id').eq('id', resourceId).eq('tenant_id', t.id).maybeSingle()
+    finalResourceId = r?.id || null
+  }
+  if (!finalResourceId) finalResourceId = await getDefaultResourceId(t.id)
 
   let caseNumber = genCase()
   for (let i = 0; i < 6; i++) {
@@ -67,6 +76,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
 
   const { data, error } = await sb().from('psy_cases').insert([{
     tenant_id: t.id,
+    resource_id: finalResourceId,
     case_number: caseNumber,
     parent_name: fatherName || motherName,
     phone: fatherPhone || motherPhone,

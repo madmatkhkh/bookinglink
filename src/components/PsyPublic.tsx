@@ -1,21 +1,58 @@
 'use client'
 // ─────────────────────────────────────────────────────────────────────────────
-// کامپوننت‌های عمومیِ سمتِ مراجعِ روانشناسی (نسخه‌ی چندمستاجری).
-// معادلِ PublicSettings.tsx در psych-booking، ولی تنظیمات را per-tenant (با slug) می‌گیرد.
+// کامپوننت‌های عمومیِ سمتِ مراجعِ روانشناسی (نسخه‌ی چندمستاجری + چندکارمندی).
+// تنظیماتِ کلینیک (سطحِ tenant) و پروفایلِ دکترها (سطحِ resource) حالا جدا از
+// هم ذخیره می‌شوند؛ این فایل آن‌ها را برای صفحه‌های عمومی در یک شکلِ ترکیبیِ
+// آشنا (همان چیزی که همیشه بوده: doctor_name/avatar_url/badges/...) ادغام
+// می‌کند تا صفحه‌های موجود (interview، my) نیازی به تغییر نداشته باشند.
+// اگر مجموعه چند دکتر داشت، «doctors» کاملِ لیست را هم برمی‌گرداند.
 // ─────────────────────────────────────────────────────────────────────────────
 import { useEffect, useState } from 'react'
-import type { ClinicSettings, PaymentCardInfo } from '@/lib/psy'
-import { DEFAULT_CLINIC, mergeClinic } from '@/lib/psy'
+import type { OfficeLocation, PaymentCardInfo, SessionMode, PublicDoctor } from '@/lib/psy'
 
-// هوک: تنظیماتِ عمومیِ کلینیکِ یک tenant را در کلاینت می‌گیرد
-export function usePublicClinic(slug: string): ClinicSettings & { loaded: boolean } {
-  const [state, setState] = useState<ClinicSettings & { loaded: boolean }>({ ...DEFAULT_CLINIC, loaded: false })
+export type PublicClinicView = {
+  office_locations: OfficeLocation[]
+  doctor_name: string
+  doctor_title: string
+  avatar_url: string
+  badges: string[]
+  session_modes: SessionMode
+  cards: PaymentCardInfo[]
+}
+
+const EMPTY_VIEW: PublicClinicView = {
+  office_locations: [], doctor_name: '', doctor_title: '', avatar_url: '',
+  badges: [], session_modes: 'both', cards: [],
+}
+
+function buildView(settings: { office_locations?: OfficeLocation[] } | null, doctors: PublicDoctor[]): PublicClinicView {
+  const primary = doctors[0]
+  return {
+    office_locations: Array.isArray(settings?.office_locations) ? settings!.office_locations! : [],
+    doctor_name: primary?.name || '',
+    doctor_title: primary?.title || '',
+    avatar_url: primary?.avatar_url || '',
+    badges: primary?.badges || [],
+    session_modes: primary?.session_modes || 'both',
+    cards: primary?.cards || [],
+  }
+}
+
+// هوک: تنظیماتِ عمومیِ کلینیکِ یک tenant را در کلاینت می‌گیرد (شکلِ ترکیبیِ آشنا)
+export function usePublicClinic(slug: string): PublicClinicView & { loaded: boolean; doctors: PublicDoctor[] } {
+  const [state, setState] = useState<PublicClinicView & { loaded: boolean; doctors: PublicDoctor[] }>({
+    ...EMPTY_VIEW, loaded: false, doctors: [],
+  })
   useEffect(() => {
     let alive = true
     fetch(`/api/t/${slug}/psy/public`, { cache: 'no-store' })
       .then(r => r.json())
-      .then(d => { if (alive) setState({ ...mergeClinic(d.settings), loaded: true }) })
-      .catch(() => { if (alive) setState({ ...DEFAULT_CLINIC, loaded: true }) })
+      .then(d => {
+        if (!alive) return
+        const doctors: PublicDoctor[] = Array.isArray(d.doctors) ? d.doctors : []
+        setState({ ...buildView(d.settings, doctors), loaded: true, doctors })
+      })
+      .catch(() => { if (alive) setState({ ...EMPTY_VIEW, loaded: true, doctors: [] }) })
     return () => { alive = false }
   }, [slug])
   return state
@@ -39,7 +76,7 @@ export function usePatientFeatures(slug: string): Record<string, boolean> {
 
 export function CardChooser({ cards, loaded = true }: { cards: PaymentCardInfo[]; loaded?: boolean }) {
   const [copiedId, setCopiedId] = useState<string | null>(null)
-  const list = cards && cards.length ? cards : DEFAULT_CLINIC.cards
+  const list = cards && cards.length ? cards : []
 
   async function copy(c: PaymentCardInfo) {
     try {

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { sb } from '@/lib/supabase'
-import { requirePanel, isTenantResponse } from '@/lib/tenant'
+import { requirePanelAuth, isPanelAuthResponse } from '@/lib/tenant'
 import { PSY_PRICING } from '@/lib/psy'
 import { FLOW } from '@/lib/flow'
 import { gregorianToJalali } from '@/lib/calendar'
@@ -23,10 +23,14 @@ function jalaliMonthKey(iso?: string): string | null {
 }
 
 export async function GET(req: NextRequest, { params }: { params: { slug: string } }) {
-  const t = await requirePanel(req, params.slug)
-  if (isTenantResponse(t)) return t
+  const a = await requirePanelAuth(req, params.slug)
+  if (isPanelAuthResponse(a)) return a
+  const t = a.tenant
+  // کارمند فقط گزارشِ مالیِ خودش را می‌بیند؛ owner می‌تواند با ?resource_id= فیلتر کند یا همه را ببیند
+  const resourceFilter = a.isOwner ? req.nextUrl.searchParams.get('resource_id') : a.resourceId
 
   const from = req.nextUrl.searchParams.get('from')
+
   const to = req.nextUrl.searchParams.get('to')
   const fromT = from ? new Date(from).getTime() : null
   const toT = to ? new Date(to).getTime() : null
@@ -40,11 +44,11 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
     return true
   }
 
-  const [{ data: cases }, { data: packages }, { data: sessions }] = await Promise.all([
-    sb().from('psy_cases').select('*').eq('tenant_id', t.id),
-    sb().from('psy_packages').select('*').eq('tenant_id', t.id),
-    sb().from('psy_sessions').select('*').eq('tenant_id', t.id),
-  ])
+  let casesQ = sb().from('psy_cases').select('*').eq('tenant_id', t.id)
+  let pkgsQ = sb().from('psy_packages').select('*').eq('tenant_id', t.id)
+  let sessQ = sb().from('psy_sessions').select('*').eq('tenant_id', t.id)
+  if (resourceFilter) { casesQ = casesQ.eq('resource_id', resourceFilter); pkgsQ = pkgsQ.eq('resource_id', resourceFilter); sessQ = sessQ.eq('resource_id', resourceFilter) }
+  const [{ data: cases }, { data: packages }, { data: sessions }] = await Promise.all([casesQ, pkgsQ, sessQ])
 
   const B = (cases || []).filter(x => inRange(x.created_at))
   const P = (packages || []).filter(x => inRange(x.created_at))
