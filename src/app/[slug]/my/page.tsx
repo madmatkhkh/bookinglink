@@ -105,7 +105,7 @@ export default function PatientPanel() {
     } catch { setRestoring(false) }
   }, [])
 
-  // نتیجه‌ی برگشت از درگاهِ پرداختِ آنلاین (زرین‌پال) — یک بار toast بزن، دیتا را
+  // نتیجه‌ی برگشت از درگاهِ پرداختِ آنلاین (زیبال) — یک بار toast بزن، دیتا را
   // تازه کن، و پارامترها را از URL پاک کن تا با رفرش دوباره تکرار نشود.
   useEffect(() => {
     if (paymentHandled.current) return

@@ -2,20 +2,20 @@ import { NextRequest, NextResponse } from 'next/server'
 import { sb } from '@/lib/supabase'
 import { getActiveTenant } from '@/lib/tenant'
 import { FLOW } from '@/lib/flow'
-import { verifyZarinpalPayment } from '@/lib/zarinpal'
+import { verifyZibalPayment } from '@/lib/zibal'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-// زرین‌پال کاربر را با GET و Authority/Status به همین آدرس برمی‌گرداند.
+// زیبال کاربر را با GET و trackId/success به همین آدرس برمی‌گرداند.
 // موفقیت اینجا دقیقاً همان کاری را می‌کند که تاییدِ دستیِ دکتر در پنل می‌کرد —
 // یعنی مرحله بدونِ نیاز به تاییدِ دکتر جلو می‌رود.
 export async function GET(req: NextRequest, { params }: { params: { slug: string } }) {
   const t = await getActiveTenant(params.slug)
   const q = req.nextUrl.searchParams
   const intentId = q.get('intent')
-  const authority = q.get('Authority')
-  const status = q.get('Status')
+  const trackId = q.get('trackId')
+  const success = q.get('success')
   const base = `${req.nextUrl.origin}/${params.slug}/my`
 
   if (!t || !intentId) return NextResponse.redirect(`${base}?payment=error`)
@@ -25,7 +25,7 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
 
   const redirectBase = `${base}?phone=${encodeURIComponent(intent.phone)}&case=${encodeURIComponent(intent.case_number)}`
 
-  if (status !== 'OK' || !authority) {
+  if (success !== '1' || !trackId) {
     await sb().from('psy_payment_intents').update({ status: 'failed' }).eq('id', intentId)
     return NextResponse.redirect(`${redirectBase}&payment=cancelled`)
   }
@@ -34,7 +34,7 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
     return NextResponse.redirect(`${redirectBase}&payment=success`)
   }
 
-  const verify = await verifyZarinpalPayment(intent.amount, authority)
+  const verify = await verifyZibalPayment(trackId)
   if (!verify.ok) {
     await sb().from('psy_payment_intents').update({ status: 'failed' }).eq('id', intentId)
     return NextResponse.redirect(`${redirectBase}&payment=failed`)

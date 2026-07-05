@@ -541,6 +541,7 @@ export function PsychologyAdmin() {
       const d = await r.json()
       setMe({ isOwner: !!d.isOwner, resourceId: d.resourceId || null, resourceName: d.resourceName || null })
       if (d.isOwner) loadStaff()
+      loadProfile()
     } catch {}
   }, [])
 
@@ -1029,7 +1030,7 @@ export function PsychologyAdmin() {
   useEffect(() => {
     if (mainTab === 'schedule') { loadMonthSchedules(schedMonth, schedYear); loadAllSessions(); refreshBookings(); if (!profileLoaded) loadProfile() }
     if (mainTab === 'settings') { if (!settingsLoaded) loadSettings(); loadProfile(); loadIntakeForm() }
-    if (mainTab === 'patient_settings' && !patientFeaturesLoaded) loadPatientFeatures()
+    if (mainTab === 'patient_settings') { if (!patientFeaturesLoaded) loadPatientFeatures(); loadProfile() }
     if (mainTab === 'finance') loadFinance()
     if (mainTab === 'staff' && !staffLoaded) loadStaff()
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1471,14 +1472,19 @@ export function PsychologyAdmin() {
     bookings.filter(b => b.flow_status === FLOW.ASSESSMENT_PAYMENT_SUBMITTED).length +
     pendingPkgs.length + pendingSess.length + pendingRefunds.length
 
+  // تبِ «تأیید پرداخت‌ها» فقط وقتی به‌دردبخور است که کارت‌به‌کارت واقعاً استفاده می‌شود
+  // (وگرنه پرداخت‌ها آنلاین و خودکار تایید می‌شوند) — مگر این‌که از قبل چیزی منتظرِ
+  // رسیدگی مانده باشد (مثلاً یک بازپرداختِ کنسلی که همیشه دستی می‌ماند).
+  const showBookingsTab = profile.payment_methods.card_to_card || pendingActionCount > 0
+
   const navItems = [
     { key: 'patients' as const, icon: '📁', label: 'پرونده‌ها', badge: 0 },
-    { key: 'bookings' as const, icon: '💳', label: 'تأیید پرداخت‌ها', badge: pendingActionCount },
     { key: 'schedule' as const, icon: '🗓', label: 'روزهای کاری', badge: 0 },
+    ...(showBookingsTab ? [{ key: 'bookings' as const, icon: '💳', label: 'تأیید پرداخت‌ها', badge: pendingActionCount }] : []),
     { key: 'finance' as const, icon: '📊', label: 'گزارشاتِ مالی', badge: 0 },
     { key: 'settings' as const, icon: '🌐', label: 'تنظیماتِ سایت', badge: 0 },
-    ...(me?.isOwner ? [{ key: 'staff' as const, icon: '👥', label: 'کارمندها', badge: 0 }] : []),
     ...(me?.isOwner !== false ? [{ key: 'patient_settings' as const, icon: '👤', label: 'تنظیماتِ پنلِ مراجع', badge: 0 }] : []),
+    ...(me?.isOwner ? [{ key: 'staff' as const, icon: '👥', label: 'درمانگر', badge: 0 }] : []),
   ]
 
   function NavList({ onNavigate }: { onNavigate?: () => void }) {
@@ -2733,7 +2739,7 @@ export function PsychologyAdmin() {
                   </label>
                   <label className="flex items-center justify-between p-3 rounded-xl border border-gray-100 cursor-pointer">
                     <div>
-                      <span className="text-sm text-gray-700 block">پرداختِ آنلاین (زرین‌پال)</span>
+                      <span className="text-sm text-gray-700 block">پرداختِ آنلاین (زیبال)</span>
                       <span className="text-[11px] text-gray-400">تاییدِ خودکار — مراجع بلافاصله می‌تواند نوبت بگیرد</span>
                     </div>
                     <input type="checkbox" checked={profile.payment_methods.online}
@@ -2744,43 +2750,6 @@ export function PsychologyAdmin() {
                     <p className="text-[11px] text-red-500 px-1">حداقل یک روش باید فعال بماند.</p>
                   )}
                 </div>
-              </section>
-
-              {/* سیاستِ کنسلی — per-resource */}
-              <section className="bg-white rounded-2xl border border-gray-100 p-5">
-                <h2 className="text-sm font-semibold text-gray-900 mb-1">📋 سیاستِ کنسلیِ جلسه</h2>
-                <p className="text-xs text-gray-400 mb-4">وقتی مراجع خودش یک جلسه را کنسل می‌کند، طبقِ همین قانون بازپرداخت محاسبه می‌شود.</p>
-                <label className="flex items-center justify-between p-3 rounded-xl border border-gray-100 cursor-pointer mb-3">
-                  <span className="text-sm text-gray-700">مراجع اجازه‌ی کنسل‌کردنِ خودکار داشته باشد</span>
-                  <input type="checkbox" checked={profile.cancellation_policy.enabled}
-                    onChange={e => patchProfile({ cancellation_policy: { ...profile.cancellation_policy, enabled: e.target.checked } })}
-                    className="w-5 h-5 accent-brand-600 shrink-0" />
-                </label>
-                {profile.cancellation_policy.enabled && (
-                  <div className="space-y-3 bg-gray-50 rounded-xl p-3.5">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-gray-600 shrink-0">اگه حداقل</span>
-                      <input type="number" min={0} value={profile.cancellation_policy.threshold_hours}
-                        onChange={e => patchProfile({ cancellation_policy: { ...profile.cancellation_policy, threshold_hours: parseInt(e.target.value) || 0 } })}
-                        className="w-16 text-sm px-2 py-1.5 border border-gray-200 rounded-lg bg-white text-center" />
-                      <span className="text-xs text-gray-600 shrink-0">ساعت قبل از جلسه کنسل کرد:</span>
-                    </div>
-                    <div className="flex items-center gap-2 pr-2">
-                      <span className="text-xs text-gray-500 shrink-0">چند درصدِ پول برگردد؟</span>
-                      <input type="number" min={0} max={100} value={profile.cancellation_policy.early_refund_percent}
-                        onChange={e => patchProfile({ cancellation_policy: { ...profile.cancellation_policy, early_refund_percent: Math.min(100, Math.max(0, parseInt(e.target.value) || 0)) } })}
-                        className="w-16 text-sm px-2 py-1.5 border border-gray-200 rounded-lg bg-white text-center" />
-                      <span className="text-xs text-gray-500 shrink-0">٪</span>
-                    </div>
-                    <div className="flex items-center gap-2 pt-2 border-t border-gray-200">
-                      <span className="text-xs text-gray-600 shrink-0">اگه دیرتر از اون (نزدیک‌تر به جلسه) کنسل کرد، چند درصد برگردد؟</span>
-                      <input type="number" min={0} max={100} value={profile.cancellation_policy.late_refund_percent}
-                        onChange={e => patchProfile({ cancellation_policy: { ...profile.cancellation_policy, late_refund_percent: Math.min(100, Math.max(0, parseInt(e.target.value) || 0)) } })}
-                        className="w-16 text-sm px-2 py-1.5 border border-gray-200 rounded-lg bg-white text-center shrink-0" />
-                      <span className="text-xs text-gray-500 shrink-0">٪</span>
-                    </div>
-                  </div>
-                )}
               </section>
 
               {/* مکان‌های حضوری — سطحِ tenant، مشترکِ همه‌ی دکترها؛ فقط owner ویرایش می‌کند */}
@@ -3582,6 +3551,67 @@ export function PsychologyAdmin() {
                 )}
               </div>
             </div>
+          </div>
+
+          {/* سیاستِ کنسلی — per-resource؛ وقتی مراجع خودش کنسل می‌کند این محاسبه می‌شود */}
+          <div className="bg-white rounded-2xl border border-gray-100 p-5 mt-4">
+            <h2 className="text-sm font-bold text-gray-900 mb-1">📋 سیاستِ کنسلیِ جلسه</h2>
+            <p className="text-xs text-gray-400 mb-4">وقتی مراجع خودش یک جلسه را کنسل می‌کند، طبقِ همین قانون بازپرداخت محاسبه می‌شود.</p>
+
+            {me?.isOwner && staffList.filter(r => r.is_active).length > 1 && (
+              <select value={viewingResourceId || staffList.find(r => r.is_active)?.id || ''}
+                onChange={e => { setViewingResourceId(e.target.value); setProfileLoaded(false) }}
+                className="w-full text-sm px-3 py-2 border border-gray-200 rounded-lg mb-4 focus:outline-none focus:border-brand-400">
+                {staffList.filter(r => r.is_active).map(r => (
+                  <option key={r.id} value={r.id}>{r.name}{r.title ? ` — ${r.title}` : ''}</option>
+                ))}
+              </select>
+            )}
+
+            {!profileLoaded ? (
+              <div className="text-center py-8 text-gray-400 text-sm">در حال بارگذاری...</div>
+            ) : (
+              <>
+                <label className="flex items-center justify-between p-3 rounded-xl border border-gray-100 cursor-pointer mb-3">
+                  <span className="text-sm text-gray-700">مراجع اجازه‌ی کنسل‌کردنِ خودکار داشته باشد</span>
+                  <input type="checkbox" checked={profile.cancellation_policy.enabled}
+                    onChange={e => patchProfile({ cancellation_policy: { ...profile.cancellation_policy, enabled: e.target.checked } })}
+                    className="w-5 h-5 accent-brand-600 shrink-0" />
+                </label>
+                {profile.cancellation_policy.enabled && (
+                  <div className="space-y-3 bg-gray-50 rounded-xl p-3.5">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-gray-600 shrink-0">اگه حداقل</span>
+                      <input type="number" min={0} value={profile.cancellation_policy.threshold_hours}
+                        onChange={e => patchProfile({ cancellation_policy: { ...profile.cancellation_policy, threshold_hours: parseInt(e.target.value) || 0 } })}
+                        className="w-16 text-sm px-2 py-1.5 border border-gray-200 rounded-lg bg-white text-center" />
+                      <span className="text-xs text-gray-600 shrink-0">ساعت قبل از جلسه کنسل کرد:</span>
+                    </div>
+                    <div className="flex items-center gap-2 pr-2">
+                      <span className="text-xs text-gray-500 shrink-0">چند درصدِ پول برگردد؟</span>
+                      <input type="number" min={0} max={100} value={profile.cancellation_policy.early_refund_percent}
+                        onChange={e => patchProfile({ cancellation_policy: { ...profile.cancellation_policy, early_refund_percent: Math.min(100, Math.max(0, parseInt(e.target.value) || 0)) } })}
+                        className="w-16 text-sm px-2 py-1.5 border border-gray-200 rounded-lg bg-white text-center" />
+                      <span className="text-xs text-gray-500 shrink-0">٪</span>
+                    </div>
+                    <div className="flex items-center gap-2 pt-2 border-t border-gray-200">
+                      <span className="text-xs text-gray-600 shrink-0">اگه دیرتر از اون (نزدیک‌تر به جلسه) کنسل کرد، چند درصد برگردد؟</span>
+                      <input type="number" min={0} max={100} value={profile.cancellation_policy.late_refund_percent}
+                        onChange={e => patchProfile({ cancellation_policy: { ...profile.cancellation_policy, late_refund_percent: Math.min(100, Math.max(0, parseInt(e.target.value) || 0)) } })}
+                        className="w-16 text-sm px-2 py-1.5 border border-gray-200 rounded-lg bg-white text-center shrink-0" />
+                      <span className="text-xs text-gray-500 shrink-0">٪</span>
+                    </div>
+                  </div>
+                )}
+                <div className="flex items-center justify-end gap-3 mt-4">
+                  {profileSaved && <span className="text-xs text-brand-600">✓ ذخیره شد</span>}
+                  <button onClick={saveProfile} disabled={profileSaving}
+                    className="px-5 py-2 bg-brand-600 text-white rounded-xl text-sm font-medium disabled:opacity-40 hover:bg-brand-800">
+                    {profileSaving ? 'در حال ذخیره...' : '💾 ذخیره‌ی سیاستِ کنسلی'}
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

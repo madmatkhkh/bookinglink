@@ -402,7 +402,7 @@ create table psy_resource_profiles (
   updated_at timestamptz not null default now()
 );
 
--- ── ردگیریِ پرداختِ آنلاین (زرین‌پال) — یک جدولِ عمومی برای هر نوع پرداخت
+-- ── ردگیریِ پرداختِ آنلاین (زیبال) — یک جدولِ عمومی برای هر نوع پرداخت
 -- (مصاحبه/ارزیابی/پروتکل/جلسه) تا منطقِ درگاه فقط یک‌جا نوشته شود ──────────
 create table psy_payment_intents (
   id uuid primary key default uuid_generate_v4(),
@@ -413,7 +413,7 @@ create table psy_payment_intents (
   purpose text not null,       -- 'interview' | 'assessment' | 'package' | 'session' | 'extra_session'
   ref_id uuid,                 -- شناسه‌ی session/package (وقتی مصداق دارد)
   amount int not null,         -- تومان
-  authority text,              -- Authority برگشتی از زرین‌پال
+  authority text,              -- trackId برگشتی از زیبال (اسمِ ستون از قبل مانده، مقدارش trackId است)
   status text not null default 'pending',  -- pending | paid | failed
   created_at timestamptz not null default now()
 );

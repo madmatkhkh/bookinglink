@@ -3,7 +3,7 @@ import { sb } from '@/lib/supabase'
 import { getActiveTenant } from '@/lib/tenant'
 import { FLOW } from '@/lib/flow'
 import { PSY_PRICING, getPaymentMethods } from '@/lib/psy'
-import { requestZarinpalPayment } from '@/lib/zarinpal'
+import { requestZibalPayment } from '@/lib/zibal'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -70,11 +70,11 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   if (intentErr || !intent) return NextResponse.json({ error: 'خطا در ایجادِ پرداخت' }, { status: 500 })
 
   const callbackUrl = `${req.nextUrl.origin}/api/t/${params.slug}/psy/pay-online/callback?intent=${intent.id}`
-  const result = await requestZarinpalPayment(amount, description, callbackUrl, phone)
+  const result = await requestZibalPayment(amount, description, callbackUrl, phone)
   if (!result.ok) {
     await sb().from('psy_payment_intents').update({ status: 'failed' }).eq('id', intent.id)
     return NextResponse.json({ error: result.error }, { status: 502 })
   }
-  await sb().from('psy_payment_intents').update({ authority: result.authority }).eq('id', intent.id)
+  await sb().from('psy_payment_intents').update({ authority: String(result.trackId) }).eq('id', intent.id)
   return NextResponse.json({ success: true, url: result.url })
 }
