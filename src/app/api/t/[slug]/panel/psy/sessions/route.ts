@@ -27,7 +27,7 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
   }
   if (q.get('all')) {
     let query = db.from('psy_sessions')
-      .select('id, case_number, session_date, session_time, session_type, attendee, status')
+      .select('id, case_number, session_date, session_time, session_type, attendee, status, delay_minutes')
       .eq('tenant_id', a.tenant.id).neq('session_date', '').order('session_date', { ascending: true })
     if (!a.isOwner) query = query.eq('resource_id', a.resourceId)
     const { data } = await query

@@ -24,7 +24,7 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
 
   if (q.get('all')) {
     let query = sb().from('psy_stages')
-      .select('id, case_number, stage_type, session_date, session_time, status')
+      .select('id, case_number, stage_type, session_date, session_time, status, delay_minutes')
       .eq('tenant_id', a.tenant.id).neq('session_date', '').order('session_date', { ascending: true })
     if (!a.isOwner) query = query.eq('resource_id', a.resourceId)
     const { data } = await query
@@ -83,7 +83,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { slug: stri
   const { data: stage } = await stageQ.maybeSingle()
   if (!stage) return NextResponse.json({ error: 'مرحله یافت نشد یا دسترسی ندارید' }, { status: 404 })
 
-  const ALLOWED = ['notes', 'session_date', 'session_time', 'cancel_notice']
+  const ALLOWED = ['notes', 'session_date', 'session_time', 'cancel_notice', 'delay_minutes']
   const patch: Record<string, any> = {}
   for (const k of ALLOWED) if (body[k] !== undefined) patch[k] = body[k]
 

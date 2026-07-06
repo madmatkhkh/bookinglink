@@ -14,6 +14,7 @@ type CaseStage = {
   price: number; paid: boolean; payment_submitted?: boolean; payment_ref?: string
   session_date?: string; session_time?: string; held?: boolean
   cancel_notice?: string; resource_id?: string | null; created_at: string
+  delay_minutes?: number | null
 }
 
 type Booking = {
@@ -39,6 +40,7 @@ type Session = {
   paid: boolean; payment_submitted?: boolean
   refund_percent?: number; refund_status?: string; refund_card?: string
   resource_id?: string | null
+  delay_minutes?: number | null
 }
 
 type Step = 'login' | 'otp' | 'panel'
@@ -296,7 +298,8 @@ export default function PatientPanel() {
             <StageInfo icon="📅" title="وقت ثبت شد"
               desc="منتظرِ برگزاری باشید. پس از آن، دکتر مرحله‌ی بعد را مشخص می‌کند."
               date={currentStage.session_date} time={currentStage.session_time}
-              label={`وقتِ ${STAGE_TYPE_LABEL[currentStage.stage_type] || ''}`} />
+              label={`وقتِ ${STAGE_TYPE_LABEL[currentStage.stage_type] || ''}`}
+              delayMinutes={currentStage.delay_minutes} />
           )}
 
           <button onClick={() => loadData(booking.case_number)}
@@ -606,6 +609,11 @@ function SessionCard({ session: s, num, phone, caseNumber, onUpdate }: {
                 : <>{s.session_date} — {s.session_time}</>}
             {' | '}{s.session_type === 'online' ? '🎥 آنلاین' : '🏥 حضوری'}
           </div>
+          {!!s.delay_minutes && !isAwaiting && s.status !== 'forfeited' && s.status !== 'replaced' && (
+            <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1 mt-1.5 inline-block">
+              ⏱ این جلسه با {s.delay_minutes} دقیقه تاخیر برگزار می‌شود.
+            </div>
+          )}
         </div>
         {canCancel && (
           <button onClick={() => setShowConfirm(true)}
@@ -886,10 +894,15 @@ function SlotPicker({ session, phone, caseNumber, onClose, onDone, title = 'ان
           <button onClick={onClose} className="text-gray-400 text-lg leading-none">✕</button>
         </div>
         {(session?.session_type || sessionType) && (
-          <div className="px-4 pt-3">
+          <div className="px-4 pt-3 space-y-2">
             <span className="inline-block text-xs px-2.5 py-1 rounded-full bg-brand-50 text-brand-700 border border-brand-100">
               {(session?.session_type || sessionType) === 'online' ? '🎥 این جلسه آنلاین است' : `🏥 این جلسه حضوری است${officeLocation ? ` — ${officeLocation}` : ''}`}
             </span>
+            {(session?.session_type || sessionType) === 'offline' && (
+              <p className="text-[11px] text-gray-400 leading-5">
+                ⏱ ساعتِ انتخابی تقریبی است؛ ممکن است جلسه چند دقیقه با تاخیر شروع شود. سعی می‌شود همان سرِ ساعتِ اعلام‌شده رعایت شود.
+              </p>
+            )}
           </div>
         )}
         <div className="p-4">
@@ -1065,6 +1078,14 @@ function SchedulePicker({ pkg, existingSessions, phone, caseNumber, onClose, onD
           <button onClick={onClose} className="text-gray-400 text-2xl w-8 h-8 flex items-center justify-center">×</button>
         </div>
 
+        {(pkg.child_session_type === 'offline' || pkg.parent_session_type === 'offline') && (
+          <div className="px-4 pt-3">
+            <p className="text-[11px] text-gray-400 leading-5">
+              ⏱ ساعتِ انتخابی برایِ جلساتِ حضوری تقریبی است؛ ممکن است چند دقیقه با تاخیر شروع شود. سعی می‌شود همان سرِ ساعتِ اعلام‌شده رعایت شود.
+            </p>
+          </div>
+        )}
+
         <div className="p-4">
           {/* Progress */}
           <div className="bg-gray-100 rounded-full h-2 mb-4">
@@ -1189,13 +1210,18 @@ function StageWaiting({ title, desc }: { title: string; desc: string }) {
   )
 }
 
-function StageInfo({ icon, title, desc, date, time, label }: { icon: string; title: string; desc: string; date?: string; time?: string; label: string }) {
+function StageInfo({ icon, title, desc, date, time, label, delayMinutes }: { icon: string; title: string; desc: string; date?: string; time?: string; label: string; delayMinutes?: number | null }) {
   return (
     <>
       <StageHero icon={icon} title={title} desc={desc} />
       {date && (
         <div className="bg-gray-50 rounded-xl p-3 text-sm text-gray-600">
           {label}: {date} — {time}
+        </div>
+      )}
+      {!!delayMinutes && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm text-amber-700 mt-2">
+          ⏱ این جلسه با {delayMinutes} دقیقه تاخیر برگزار می‌شود.
         </div>
       )}
     </>

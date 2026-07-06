@@ -107,6 +107,7 @@ type CaseStage = {
   held?: boolean
   notes?: string
   cancel_notice?: string
+  delay_minutes?: number | null
   resource_id?: string | null
   created_at: string
 }
@@ -484,7 +485,7 @@ export function PsychologyAdmin() {
   const [agendaMode, setAgendaMode] = useState<'month' | 'week'>('week')
   const [weekIdx, setWeekIdx] = useState(0)
   const [monthSchedules, setMonthSchedules] = useState<{ date: string; available_times: string[]; is_off: boolean; slot_types?: Record<string, string>; slot_locs?: Record<string, string> }[]>([])
-  const [allSessions, setAllSessions] = useState<{ id: string; case_number: string; session_date: string; session_time: string; session_type: string; attendee: string; status: string }[]>([])
+  const [allSessions, setAllSessions] = useState<{ id: string; case_number: string; session_date: string; session_time: string; session_type: string; attendee: string; status: string; delay_minutes?: number | null }[]>([])
   const [allStages, setAllStages] = useState<CaseStage[]>([])
 
   // ── Loading ────────────────────────────────────────────────────
@@ -1003,7 +1004,7 @@ export function PsychologyAdmin() {
 
   // همه‌ی نوبت‌های یک تاریخ (مصاحبه + ارزیابی + جلسه) مرتب‌شده بر اساس ساعت
   function apptsForDate(dateStr: string) {
-    const out: { time: string; name: string; type: string; mode?: string; loc?: string; color: string; kind: 'interview' | 'assessment' | 'session'; id: string; caseNumber: string }[] = []
+    const out: { time: string; name: string; type: string; mode?: string; loc?: string; color: string; kind: 'interview' | 'assessment' | 'session'; id: string; caseNumber: string; delayMinutes?: number | null }[] = []
     const bookingByCase = new Map(bookings.map(b => [b.case_number, b]))
     for (const s of allStages) {
       if (s.session_date === dateStr && s.session_time && s.status === 'booked') {
@@ -1013,15 +1014,37 @@ export function PsychologyAdmin() {
           type: STAGE_TYPE_LABEL[s.stage_type] || s.stage_type,
           mode: b?.session_type, loc: b?.office_location,
           color: s.stage_type === 'assessment' ? 'bg-purple-50 text-purple-700 border-purple-100' : 'bg-blue-50 text-blue-700 border-blue-100',
-          kind: s.stage_type, id: s.id, caseNumber: s.case_number,
+          kind: s.stage_type, id: s.id, caseNumber: s.case_number, delayMinutes: s.delay_minutes,
         })
       }
     }
     for (const s of allSessions) {
       if (s.session_date === dateStr && s.session_time && s.status !== 'cancelled' && s.status !== 'forfeited' && s.status !== 'replaced')
-        out.push({ time: s.session_time, name: childNameOf(s.case_number), type: s.attendee === 'parent' ? 'جلسه (والدین)' : 'جلسه (کودک)', mode: s.session_type, color: 'bg-green-50 text-green-700 border-green-100', kind: 'session', id: s.id, caseNumber: s.case_number })
+        out.push({ time: s.session_time, name: childNameOf(s.case_number), type: s.attendee === 'parent' ? 'جلسه (والدین)' : 'جلسه (کودک)', mode: s.session_type, color: 'bg-green-50 text-green-700 border-green-100', kind: 'session', id: s.id, caseNumber: s.case_number, delayMinutes: s.delay_minutes })
     }
     return out.sort((a, b) => timeKey(a.time) - timeKey(b.time))
+  }
+
+  // اعلامِ تاخیر برای یک نوبتِ رزروشده — مراجع در پنلِ خودش می‌بیند
+  async function announceDelay(appt: { kind: 'interview' | 'assessment' | 'session'; id: string; name: string; delayMinutes?: number | null }) {
+    const r = await uiPrompt(`تاخیرِ نوبتِ «${appt.name}» به دقیقه (برای پاک‌کردنِ تاخیرِ قبلی، عدد ۰ بزن):`,
+      { defaultValue: appt.delayMinutes ? String(appt.delayMinutes) : '' })
+    if (r === null) return
+    const n = parseInt(String(r).trim(), 10)
+    if (isNaN(n) || n < 0) { uiAlert('عددِ معتبر (۰ یا بیشتر) وارد کن.'); return }
+    const delay_minutes = n === 0 ? null : n
+    if (appt.kind === 'session') {
+      await fetch(api('/sessions'), {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: appt.id, delay_minutes }),
+      })
+    } else {
+      await fetch(api('/stages'), {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: appt.id, delay_minutes }),
+      })
+    }
+    await Promise.all([loadAllSessions(), loadAllStages()])
   }
 
   // لغوِ یک نوبت توسط مطب → کاربر بدونِ پرداختِ اضافه دوباره وقت می‌گیرد
@@ -2346,6 +2369,8 @@ export function PsychologyAdmin() {
                           ev.stopPropagation()
                           setOpt(opts[(curIdx + 1) % opts.length])
                         }
+                        // ساعتِ دلخواهی که دکتر با «افزودن» اضافه کرده (نه از لیستِ پیش‌فرض) — قابلِ حذفِ کامل
+                        const isCustom = !ALL_TIMES.includes(t)
                         return (
                           <div key={t}
                             onClick={() => {
@@ -2359,10 +2384,20 @@ export function PsychologyAdmin() {
                                 setOpt(opts[0])  // پیش‌فرض: اولین گزینه (بدونِ «هردو»)
                               }
                             }}
-                            className={`text-center py-2 border rounded-xl text-sm transition-all
+                            className={`relative text-center py-2 border rounded-xl text-sm transition-all
                               ${isPastTime ? 'border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed line-through' :
                                 takenBy ? 'border-amber-200 bg-amber-50 text-amber-700 cursor-not-allowed' :
                                 'cursor-pointer ' + (selected ? 'border-brand-600 bg-brand-50 text-brand-800 font-medium' : 'border-gray-200 text-gray-500 hover:border-gray-300')}`}>
+                            {isCustom && (
+                              <button onClick={(ev) => {
+                                  ev.stopPropagation()
+                                  setSelectedTimes(prev => prev.filter(x => x !== t))
+                                  setSlotTypes(st => { const n = { ...st }; delete n[t]; return n })
+                                  setSlotLocs(sl => { const n = { ...sl }; delete n[t]; return n })
+                                }}
+                                title="حذفِ این ساعتِ دلخواه"
+                                className="absolute -top-1.5 -left-1.5 w-4 h-4 rounded-full bg-gray-400 text-white text-[10px] leading-4 flex items-center justify-center hover:bg-red-500">✕</button>
+                            )}
                             {enTime(t)}
                             {takenBy && !isPastTime && <span className="block text-[10px] mt-0.5">🔒 {takenBy.name}</span>}
                             {selected && !locked && (
@@ -2462,6 +2497,11 @@ export function PsychologyAdmin() {
                                       <span className="font-medium">{appt.mode === 'online' ? '🎥 ' : appt.mode === 'offline' ? '🏥 ' : ''}{appt.name}</span>
                                       <span className="flex items-center gap-2">
                                         <span className="opacity-75">{appt.type}{appt.loc ? ` — ${appt.loc}` : ''}</span>
+                                        {!!appt.delayMinutes && (
+                                          <span className="px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded font-medium">⏱ {toFarsiNum(appt.delayMinutes)} د تاخیر</span>
+                                        )}
+                                        <button onClick={() => announceDelay(appt)}
+                                          className="px-1.5 py-0.5 bg-white/70 border border-gray-200 rounded text-amber-600 hover:bg-white">⏱ تاخیر</button>
                                         <button onClick={() => cancelAppointment(appt)}
                                           className="px-1.5 py-0.5 bg-white/70 border border-gray-200 rounded text-red-500 hover:bg-white">لغو</button>
                                       </span>
