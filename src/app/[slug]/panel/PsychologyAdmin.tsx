@@ -5,7 +5,7 @@ import { PERSIAN_MONTHS, toLatinNum, getCurrentJalali, getDaysInJalaliMonth, jal
 import { STAGE_TYPE_LABEL, STAGE_STATUS_LABEL } from '@/lib/flow'
 import { PRICING } from '@/lib/config'
 import { ClinicSettings, DEFAULT_SETTINGS, SessionMode, OfficeLocation, PaymentCardInfo } from '@/lib/settings'
-import { IntakeForm, FormField, FormFieldType, DEFAULT_INTAKE_FORM, LEGACY_DETAIL_LABELS, CancellationPolicy, PaymentMethods } from '@/lib/psy'
+import { IntakeForm, FormField, FormFieldType, DEFAULT_INTAKE_FORM, LEGACY_DETAIL_LABELS, CancellationPolicy, PaymentMethods, INTAKE_KNOWN_COLUMNS, fieldVisible } from '@/lib/psy'
 import { DialogHost, uiAlert, uiConfirm, uiPrompt } from '@/components/ui/Dialog'
 
 // در پنلِ ادمین همه‌ی ارقام لاتین نمایش داده می‌شوند (فقط نمایش؛ فرمتِ ذخیره دست‌نخورده)
@@ -424,7 +424,6 @@ export function PsychologyAdmin() {
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null)
   const [patientView, setPatientView] = useState<'list' | 'detail' | 'edit'>('list')
   const [patientTab, setPatientTab] = useState<'info' | 'payment' | 'packages' | 'sessions'>('info')
-  const [infoSubTab, setInfoSubTab] = useState<'child' | 'family' | 'other'>('child')
   const [packages, setPackages] = useState<Package[]>([])
   const [sessions, setSessions] = useState<Session[]>([])
   const [stages, setStages] = useState<CaseStage[]>([])
@@ -439,6 +438,12 @@ export function PsychologyAdmin() {
   })
   const [editSession, setEditSession] = useState<Session | null>(null)
   const [editingPatient, setEditingPatient] = useState<Partial<Patient>>({})
+  // فرمِ رزروِ فعلیِ همون دکترِ صاحبِ این پرونده — فقط برای نمایشِ برچسبِ درستِ
+  // سوال‌ها (مستقل از تبِ تنظیمات، که فرمِ منبعِ در حالِ ویرایش را نگه می‌دارد)
+  const [patientIntakeForm, setPatientIntakeForm] = useState<IntakeForm>(DEFAULT_INTAKE_FORM)
+  const [infoOpenSection, setInfoOpenSection] = useState<string | null>(null)
+  const [manualFieldLabel, setManualFieldLabel] = useState('')
+  const [manualFieldValue, setManualFieldValue] = useState('')
 
   // ── Bookings state ─────────────────────────────────────────────
   const [bookings, setBookings] = useState<Booking[]>([])
@@ -655,7 +660,32 @@ export function PsychologyAdmin() {
     setSelectedPatient(p)
     setPatientView('detail')
     setPatientTab('info')
-    await loadPatientData(p.case_number)
+    setInfoOpenSection(null)
+    await Promise.all([loadPatientData(p.case_number), loadPatientIntakeForm((p as any).resource_id)])
+  }
+
+  // فرمِ رزروِ صاحبِ این پرونده رو فقط برای نمایش/برچسب می‌خونه — چیزی رو تو
+  // تبِ تنظیمات دست‌نخورده می‌ذاره
+  async function loadPatientIntakeForm(resourceId?: string | null) {
+    try {
+      const url = resourceId ? api(`/intake-form?resource_id=${resourceId}`) : api('/intake-form')
+      const res = await fetch(url, { cache: 'no-store' })
+      const data = await res.json().catch(() => ({}))
+      setPatientIntakeForm(res.ok && data.form ? data.form : DEFAULT_INTAKE_FORM)
+    } catch { setPatientIntakeForm(DEFAULT_INTAKE_FORM) }
+  }
+
+  // مقدارِ فعلیِ یک فیلد برای این پرونده — یا از ستونِ واقعی یا از details
+  function patientFieldValue(p: Partial<Patient>, fieldId: string): unknown {
+    if ((INTAKE_KNOWN_COLUMNS as readonly string[]).includes(fieldId)) return (p as any)[fieldId]
+    return (p.details || {})[fieldId]
+  }
+
+  // همه‌ی پاسخ‌های این پرونده (ستون‌های واقعی + details) — برای چکِ showIf
+  function patientAnswers(p: Partial<Patient>): Record<string, unknown> {
+    const known: Record<string, unknown> = {}
+    for (const k of INTAKE_KNOWN_COLUMNS) known[k] = (p as any)[k]
+    return { ...(p.details || {}), ...known }
   }
 
   // از مودالِ «پرونده‌ها» مستقیم به تبِ پروتکل‌های درمانِ همان مراجع برو
@@ -731,7 +761,7 @@ export function PsychologyAdmin() {
       setShowAddPatient(false)
       setNewPatientForm({ child_name: '', birth_date: '', grade: '', reason: '', father_name: '', father_phone: '', mother_name: '', mother_phone: '' })
       await fetchAll()
-      if (data.booking) { setSelectedPatient(data.booking); await loadPatientData(data.booking.case_number); setPatientView('detail') }
+      if (data.booking) { setSelectedPatient(data.booking); await Promise.all([loadPatientData(data.booking.case_number), loadPatientIntakeForm(data.booking.resource_id)]); setPatientView('detail') }
     } catch (e: any) {
       setAddPatientSaving(false)
       uiAlert('خطای شبکه: ' + (e?.message || e))
@@ -921,6 +951,58 @@ export function PsychologyAdmin() {
   // ── کمک‌توابعِ برنامه ───────────────────────────────────────────
   const childNameOf = (cn: string) => bookings.find(b => b.case_number === cn)?.child_name || cn
   const schedForDay = (d: number) => monthSchedules.find(s => s.date === `${schedYear}/${schedMonth + 1}/${d}`)
+
+  // یک ردیفِ جلسه (هم برای «جلسات تکی» هم برای جلسه‌هایِ زیرِ هر پروتکلِ درمان)
+  function renderSessionList(list: Session[]) {
+    const sorted = [...list].sort((a, b) => (a.session_number || 0) - (b.session_number || 0))
+    let n = 0
+    return sorted.map((s) => {
+      const active = s.status !== 'forfeited' && s.status !== 'replaced' && s.status !== 'cancelled'
+      const num = active ? ++n : null
+      return (
+        <div key={s.id} onClick={() => { setEditSession(s); setSessForm({ session_goals: s.session_goals || '', session_summary: s.session_summary || '', doctor_notes_private: s.doctor_notes_private || '', doctor_note_for_patient: s.doctor_note_for_patient || '', status: s.status || 'confirmed' }) }}
+          className="bg-white rounded-xl border border-gray-100 p-3 cursor-pointer hover:border-brand-200 transition-all">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${num ? 'bg-brand-50 text-brand-600' : 'bg-gray-100 text-gray-400'}`}>{num ? toFarsiNum(num) : '—'}</div>
+              <div>
+                <div className="text-sm font-medium text-gray-900">{enTime(s.session_date)} — {enTime(s.session_time)}</div>
+                <div className="text-xs text-gray-400">
+                  {s.attendee === 'child' ? '👧 کودک' : '👨‍👩 والدین'} •
+                  {s.session_type === 'online' ? ' 🎥 آنلاین' : ' 🏥 حضوری'}
+                </div>
+              </div>
+            </div>
+            <span className={`text-xs px-2 py-0.5 rounded-full ${STATUS_COLOR[s.status] || 'bg-gray-100 text-gray-500'}`}>
+              {STATUS_LABEL[s.status] || s.status}
+            </span>
+          </div>
+          {s.session_summary && (
+            <div className="mt-2 bg-blue-50 rounded-lg p-2 border border-blue-100">
+              <p className="text-xs text-blue-600 mb-0.5">شرح جلسه:</p>
+              <p className="text-xs text-gray-700 line-clamp-2">{s.session_summary}</p>
+            </div>
+          )}
+          {!s.paid && s.payment_submitted && (
+            <div className="mt-2 text-xs text-blue-600" onClick={e => e.stopPropagation()}>
+              💳 پرداختِ جایگزین اعلام شد{s.payment_ref ? ` — ${s.payment_ref}` : ''} — تأیید از تبِ «تأیید پرداخت‌ها»
+            </div>
+          )}
+          {!s.paid && !s.payment_submitted && active && (
+            <div className="mt-2 text-xs text-gray-400" onClick={e => e.stopPropagation()}>⏳ در انتظارِ پرداختِ مراجع</div>
+          )}
+          {s.refund_status === 'pending' && (
+            <div className="mt-2 text-xs text-amber-600" onClick={e => e.stopPropagation()}>
+              💸 بازپرداختِ {toFarsiNum(s.refund_percent || 50)}٪ — در انتظارِ واریز (از تبِ «تأیید پرداخت‌ها» انجام می‌شود)
+            </div>
+          )}
+          {s.refund_status === 'done' && (
+            <div className="mt-2 text-xs text-green-600" onClick={e => e.stopPropagation()}>✅ بازپرداخت واریز شد{s.refund_ref ? ` — ${s.refund_ref}` : ''}</div>
+          )}
+        </div>
+      )
+    })
+  }
 
   // همه‌ی نوبت‌های یک تاریخ (مصاحبه + ارزیابی + جلسه) مرتب‌شده بر اساس ساعت
   function apptsForDate(dateStr: string) {
@@ -1322,7 +1404,7 @@ export function PsychologyAdmin() {
   // helperهای ویرایشِ آرایه‌ها
   // برچسبِ یک کلیدِ details: اول از فرمِ فعلیِ همین دکتر (اگر چنین فیلدی هنوز هست)، بعد از نقشه‌ی پرونده‌های قدیمی، وگرنه خودِ کلید
   function detailFieldLabel(key: string): string {
-    for (const s of intakeForm.sections) {
+    for (const s of patientIntakeForm.sections) {
       const f = s.fields.find(fl => fl.id === key)
       if (f) return f.label
     }
@@ -1732,7 +1814,7 @@ export function PsychologyAdmin() {
                     ['info', '👤 اطلاعات مراجع'],
                     ['payment', '💳 اطلاعات پرداخت'],
                     ['packages', '📦 پروتکل‌های درمان'],
-                    ['sessions', '🗓 جلسات'],
+                    ['sessions', '🗓 جلسات تکی'],
                   ] as const).map(([k, label]) => (
                     <button key={k} onClick={() => setPatientTab(k)}
                       className={`px-3 py-1.5 text-xs font-medium rounded-lg whitespace-nowrap transition-all ${
@@ -1746,66 +1828,71 @@ export function PsychologyAdmin() {
                 </div>
 
                 {/* ── Tab: اطلاعات مراجع ─────────────────────────────── */}
-                {patientTab === 'info' && (
-                  <div>
-                    <div className="flex gap-1 mb-3 overflow-x-auto no-scrollbar">
-                      {([['child', '👤 کودک'], ['family', '👨‍👩‍👧 خانواده'], ['other', '📝 سایرِ اطلاعاتِ فرم']] as const).map(([k, label]) => (
-                        <button key={k} onClick={() => setInfoSubTab(k)}
-                          className={`px-3 py-1 text-xs rounded-lg whitespace-nowrap transition-all shrink-0 ${infoSubTab === k ? 'bg-brand-100 text-brand-700 font-medium' : 'bg-white border border-gray-200 text-gray-500'}`}>
-                          {label}
-                        </button>
-                      ))}
-                    </div>
-
-                    {infoSubTab === 'child' && (
+                {patientTab === 'info' && (() => {
+                  const answers = patientAnswers(selectedPatient)
+                  const usedKeys = new Set<string>(['child_name', 'father_phone'])
+                  return (
+                    <div className="space-y-2">
+                      {/* همیشه بالا و بازِ: مشخصاتِ ثابت (نام/شماره — این‌ها بیرونِ فرم و برایِ OTP لازم‌اند) */}
                       <div className="bg-white rounded-xl border border-gray-100 p-4">
-                        <Section title="مشخصات کودک" icon="👤">
-                          <InfoRow label="نام کودک" value={selectedPatient.child_name} />
-                          <InfoRow label="تاریخ تولد" value={enTime(selectedPatient.birth_date)} />
-                          <InfoRow label="پایه‌ی تحصیلی" value={selectedPatient.grade} />
-                        </Section>
-                        <Section title="شکایت اصلی" icon="💬">
-                          <InfoRow label="دلیلِ مراجعه" value={selectedPatient.reason} />
-                        </Section>
-                      </div>
-                    )}
-
-                    {infoSubTab === 'family' && (
-                      <div className="bg-white rounded-xl border border-gray-100 p-4">
-                        <Section title="اطلاعات پدر" icon="👨">
-                          <InfoRow label="نام" value={selectedPatient.father_name} />
-                          <InfoRow label="تلفن" value={enTime(selectedPatient.father_phone)} />
-                        </Section>
-                        <Section title="اطلاعات مادر" icon="👩">
-                          <InfoRow label="نام" value={selectedPatient.mother_name} />
-                          <InfoRow label="تلفن" value={enTime(selectedPatient.mother_phone)} />
-                        </Section>
-                      </div>
-                    )}
-
-                    {infoSubTab === 'other' && (
-                      <div className="bg-white rounded-xl border border-gray-100 p-4">
-                        {/* هرچه در details است — چه فیلدهای دیتاییِ فرمِ رزرو، چه پرونده‌های قدیمی‌تر */}
-                        <Section title="پاسخ‌هایِ فرمِ رزرو" icon="📝">
-                          {Object.keys((selectedPatient as any).details || {}).length === 0 ? (
-                            <p className="text-xs text-gray-400">چیزی ثبت نشده.</p>
-                          ) : (
-                            Object.entries((selectedPatient as any).details || {}).map(([key, value]) => (
-                              <InfoRow key={key} label={detailFieldLabel(key)} value={formatDetailValue(value)} />
-                            ))
-                          )}
-                        </Section>
-                        <Section title="مشخصاتِ نوبت‌دهی" icon="🗓">
+                        <Section title="مشخصاتِ ثابت و نوبت‌دهی" icon="🗓">
+                          <InfoRow label="نام" value={selectedPatient.child_name} />
+                          <InfoRow label="شماره‌ی تماسِ ثابت" value={enTime(selectedPatient.father_phone)} />
+                          <InfoRow label="شماره‌ی پرونده" value={selectedPatient.case_number} />
                           <InfoRow label="نوعِ جلسه" value={selectedPatient.session_type === 'online' ? '🎥 آنلاین' : selectedPatient.session_type === 'offline' ? '🏥 حضوری' : selectedPatient.session_type} />
                           <InfoRow label="مطبِ انتخابی" value={(selectedPatient as any).office_location} />
-                          <InfoRow label="نامِ سرپرست" value={(selectedPatient as any).parent_name} />
-                          <InfoRow label="تلفنِ تماس" value={enTime((selectedPatient as any).phone)} />
-                          <InfoRow label="شماره‌ی پرونده" value={selectedPatient.case_number} />
                         </Section>
                       </div>
-                    )}
-                  </div>
-                )}
+
+                      {/* بخش‌هایِ فرمِ فعلیِ این دکتر — آکاردئونی، دقیقاً طبقِ سوال‌هایی که همین الان تعریف شده‌اند */}
+                      {patientIntakeForm.sections.map(sec => {
+                        const visibleFields = sec.fields.filter(f => !f.hidden && fieldVisible(f, answers))
+                        visibleFields.forEach(f => usedKeys.add(f.id))
+                        if (visibleFields.length === 0) return null
+                        const isOpen = infoOpenSection === sec.id
+                        return (
+                          <div key={sec.id} className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+                            <button onClick={() => setInfoOpenSection(isOpen ? null : sec.id)}
+                              className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-700">
+                              <span>{sec.title}</span>
+                              <span className="text-gray-400 text-xs">{isOpen ? '▲' : '▼'}</span>
+                            </button>
+                            {isOpen && (
+                              <div className="px-4 pb-4">
+                                {visibleFields.map(f => (
+                                  <InfoRow key={f.id} label={f.label} value={formatDetailValue(patientFieldValue(selectedPatient, f.id))} />
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
+
+                      {/* هرچه در details هست ولی جزوِ فرمِ فعلی نیست — فرمِ عوض‌شده یا یادداشتِ دستیِ دکتر */}
+                      {(() => {
+                        const leftover = Object.entries((selectedPatient as any).details || {}).filter(([k]) => !usedKeys.has(k))
+                        if (leftover.length === 0) return null
+                        const isOpen = infoOpenSection === '__legacy'
+                        return (
+                          <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+                            <button onClick={() => setInfoOpenSection(isOpen ? null : '__legacy')}
+                              className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-700">
+                              <span>📝 سایر / یادداشت‌هایِ دستی</span>
+                              <span className="text-gray-400 text-xs">{isOpen ? '▲' : '▼'}</span>
+                            </button>
+                            {isOpen && (
+                              <div className="px-4 pb-4">
+                                {leftover.map(([key, value]) => (
+                                  <InfoRow key={key} label={detailFieldLabel(key)} value={formatDetailValue(value)} />
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })()}
+                    </div>
+                  )
+                })()}
 
                 {/* ── Tab: اطلاعات پرداخت ─────────────────────────────── */}
                 {patientTab === 'payment' && (
@@ -1872,6 +1959,12 @@ export function PsychologyAdmin() {
                                 <div className="text-center text-xs text-amber-600 bg-amber-50 rounded-lg py-2 border border-amber-100">💳 منتظر پرداختِ مراجع</div>
                               )}
                             </div>
+                            {pkgSessions.length > 0 && (
+                              <div className="mt-3 pt-3 border-t border-gray-50 space-y-2">
+                                <div className="text-xs text-gray-400 px-0.5">جلسات این پروتکل</div>
+                                {renderSessionList(pkgSessions)}
+                              </div>
+                            )}
                           </div>
                         )
                       })}
@@ -1879,7 +1972,7 @@ export function PsychologyAdmin() {
                   </div>
                 )}
 
-                {/* ── Tab: جلسات ────────────────────────────────────── */}
+                {/* ── Tab: جلسات تکی ────────────────────────────────────── */}
                 {patientTab === 'sessions' && (
                   <div>
                     {/* مراحلِ پیش‌ازدرمان (مصاحبه/ارزیابی) — هر تعداد، به هر ترتیب */}
@@ -1916,62 +2009,13 @@ export function PsychologyAdmin() {
                       )
                     })()}
 
-                    <div className="text-xs text-gray-400 mb-2 px-1">جلسات پروتکل درمان</div>
-                    <button onClick={() => setShowNewSession(true)}
+                    <div className="text-xs text-gray-400 mb-2 px-1">جلسه‌های تکی (مصاحبه، ارزیابی، یا دلخواهِ دکتر — جدا از پروتکل درمان)</div>
+                    <button onClick={() => { setNewSess(s => ({ ...s, standalone: true, package_id: '' })); setShowNewSession(true) }}
                       className="w-full py-3 border-2 border-dashed border-brand-200 rounded-xl text-sm text-brand-600 hover:bg-brand-50 mb-4 transition-all">
-                      + ثبت جلسه جدید
+                      + ثبت جلسه‌ی تکیِ جدید
                     </button>
                     <div className="space-y-2">
-                      {(() => {
-                        const sorted = [...sessions].sort((a, b) => (a.session_number || 0) - (b.session_number || 0))
-                        let n = 0
-                        return sorted.map((s) => {
-                          const active = s.status !== 'forfeited' && s.status !== 'replaced' && s.status !== 'cancelled'
-                          const num = active ? ++n : null
-                          return (
-                        <div key={s.id} onClick={() => { setEditSession(s); setSessForm({ session_goals: s.session_goals || '', session_summary: s.session_summary || '', doctor_notes_private: s.doctor_notes_private || '', doctor_note_for_patient: s.doctor_note_for_patient || '', status: s.status || 'confirmed' }) }}
-                          className="bg-white rounded-xl border border-gray-100 p-3 cursor-pointer hover:border-brand-200 transition-all">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${num ? 'bg-brand-50 text-brand-600' : 'bg-gray-100 text-gray-400'}`}>{num ? toFarsiNum(num) : '—'}</div>
-                              <div>
-                                <div className="text-sm font-medium text-gray-900">{enTime(s.session_date)} — {enTime(s.session_time)}</div>
-                                <div className="text-xs text-gray-400">
-                                  {s.attendee === 'child' ? '👧 کودک' : '👨‍👩 والدین'} •
-                                  {s.session_type === 'online' ? ' 🎥 آنلاین' : ' 🏥 حضوری'}
-                                </div>
-                              </div>
-                            </div>
-                            <span className={`text-xs px-2 py-0.5 rounded-full ${STATUS_COLOR[s.status] || 'bg-gray-100 text-gray-500'}`}>
-                              {STATUS_LABEL[s.status] || s.status}
-                            </span>
-                          </div>
-                          {s.session_summary && (
-                            <div className="mt-2 bg-blue-50 rounded-lg p-2 border border-blue-100">
-                              <p className="text-xs text-blue-600 mb-0.5">شرح جلسه:</p>
-                              <p className="text-xs text-gray-700 line-clamp-2">{s.session_summary}</p>
-                            </div>
-                          )}
-                          {!s.paid && s.payment_submitted && (
-                            <div className="mt-2 text-xs text-blue-600" onClick={e => e.stopPropagation()}>
-                              💳 پرداختِ جایگزین اعلام شد{s.payment_ref ? ` — ${s.payment_ref}` : ''} — تأیید از تبِ «تأیید پرداخت‌ها»
-                            </div>
-                          )}
-                          {!s.paid && !s.payment_submitted && active && (
-                            <div className="mt-2 text-xs text-gray-400" onClick={e => e.stopPropagation()}>⏳ در انتظارِ پرداختِ مراجع</div>
-                          )}
-                          {s.refund_status === 'pending' && (
-                            <div className="mt-2 text-xs text-amber-600" onClick={e => e.stopPropagation()}>
-                              💸 بازپرداختِ {toFarsiNum(s.refund_percent || 50)}٪ — در انتظارِ واریز (از تبِ «تأیید پرداخت‌ها» انجام می‌شود)
-                            </div>
-                          )}
-                          {s.refund_status === 'done' && (
-                            <div className="mt-2 text-xs text-green-600" onClick={e => e.stopPropagation()}>✅ بازپرداخت واریز شد{s.refund_ref ? ` — ${s.refund_ref}` : ''}</div>
-                          )}
-                        </div>
-                          )
-                        })
-                      })()}
+                      {renderSessionList(sessions.filter(s => !s.package_id))}
                     </div>
                   </div>
                 )}
@@ -1979,77 +2023,102 @@ export function PsychologyAdmin() {
             )}
 
             {/* ── Patient Edit Form ────────────────────────────────────── */}
-            {patientView === 'edit' && selectedPatient && (
-              <div>
-                <div className="flex items-center justify-between mb-4">
-                  <button onClick={() => setPatientView('detail')}
-                    className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-800">
-                    ← انصراف
-                  </button>
-                  <button onClick={savePatient}
-                    className="text-sm px-4 py-2 bg-brand-600 text-white rounded-xl hover:bg-brand-700">
-                    💾 ذخیره پرونده
-                  </button>
-                </div>
-
-                <div className="space-y-4">
-                  {/* مشخصات کودک */}
-                  <div className="bg-white rounded-xl border border-gray-100 p-4">
-                    <h3 className="text-sm font-semibold text-gray-700 mb-3 pb-2 border-b border-gray-100">👤 مشخصات کودک</h3>
-                    <div className="grid grid-cols-2 gap-3">
-                      <Field label="نام کودک *" value={editingPatient.child_name} onChange={v => setEditingPatient(p => ({...p, child_name: v}))} />
-                      <Field label="تاریخ تولد *" value={editingPatient.birth_date} onChange={v => setEditingPatient(p => ({...p, birth_date: v}))} placeholder="1394/06/15" />
-                      <Field label="پایه‌ی تحصیلی" value={editingPatient.grade} onChange={v => setEditingPatient(p => ({...p, grade: v}))} placeholder="سوم ابتدایی" />
-                    </div>
-                    <div className="mt-3 space-y-3">
-                      <TextareaField label="دلیلِ مراجعه *" value={editingPatient.reason} onChange={v => setEditingPatient(p => ({...p, reason: v}))} rows={3} />
-                    </div>
+            {patientView === 'edit' && selectedPatient && (() => {
+              const editValue = (fieldId: string): string =>
+                formatDetailValue((INTAKE_KNOWN_COLUMNS as readonly string[]).includes(fieldId) ? (editingPatient as any)[fieldId] : (editingPatient.details || {})[fieldId])
+              const setEditValue = (fieldId: string, v: string) => {
+                if ((INTAKE_KNOWN_COLUMNS as readonly string[]).includes(fieldId)) setEditingPatient(p => ({ ...p, [fieldId]: v } as any))
+                else setEditingPatient(p => ({ ...p, details: { ...(p.details || {}), [fieldId]: v } }))
+              }
+              const answers = patientAnswers(editingPatient)
+              const usedKeys = new Set<string>()
+              return (
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <button onClick={() => setPatientView('detail')}
+                      className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-800">
+                      ← انصراف
+                    </button>
+                    <button onClick={savePatient}
+                      className="text-sm px-4 py-2 bg-brand-600 text-white rounded-xl hover:bg-brand-700">
+                      💾 ذخیره پرونده
+                    </button>
                   </div>
 
-                  {/* اطلاعات پدر */}
-                  <div className="bg-white rounded-xl border border-gray-100 p-4">
-                    <h3 className="text-sm font-semibold text-gray-700 mb-3 pb-2 border-b border-gray-100">👨 اطلاعات پدر</h3>
-                    <div className="grid grid-cols-2 gap-3">
-                      <Field label="نام پدر *" value={editingPatient.father_name} onChange={v => setEditingPatient(p => ({...p, father_name: v}))} />
-                      <Field label="تلفن پدر *" value={editingPatient.father_phone} onChange={v => setEditingPatient(p => ({...p, father_phone: v}))} placeholder="09xxxxxxxxx" />
+                  <div className="space-y-2">
+                    {/* مشخصاتِ ثابت — بیرونِ فرم، همیشه باز */}
+                    <div className="bg-white rounded-xl border border-gray-100 p-4">
+                      <h3 className="text-sm font-semibold text-gray-700 mb-3 pb-2 border-b border-gray-100">🗓 مشخصاتِ ثابت و نوبت‌دهی</h3>
+                      <div className="grid grid-cols-2 gap-3">
+                        <Field label="نام *" value={editingPatient.child_name} onChange={v => setEditingPatient(p => ({ ...p, child_name: v }))} />
+                        <Field label="شماره‌ی تماسِ ثابت *" value={editingPatient.father_phone} onChange={v => setEditingPatient(p => ({ ...p, father_phone: v }))} placeholder="09xxxxxxxxx" />
+                      </div>
+                      <div className="mt-3">
+                        <SelectField label="نوعِ جلسه" value={editingPatient.session_type} onChange={v => setEditingPatient(p => ({ ...p, session_type: v } as any))} options={['offline', 'online']} />
+                      </div>
                     </div>
-                  </div>
 
-                  {/* اطلاعات مادر */}
-                  <div className="bg-white rounded-xl border border-gray-100 p-4">
-                    <h3 className="text-sm font-semibold text-gray-700 mb-3 pb-2 border-b border-gray-100">👩 اطلاعات مادر</h3>
-                    <div className="grid grid-cols-2 gap-3">
-                      <Field label="نام مادر" value={editingPatient.mother_name} onChange={v => setEditingPatient(p => ({...p, mother_name: v}))} />
-                      <Field label="تلفن مادر" value={editingPatient.mother_phone} onChange={v => setEditingPatient(p => ({...p, mother_phone: v}))} placeholder="09xxxxxxxxx" />
-                    </div>
-                  </div>
+                    {/* بخش‌هایِ فرمِ فعلی — آکاردئونی، همون سکشنی که تو نمای مشاهده باز بود */}
+                    {patientIntakeForm.sections.map(sec => {
+                      const visibleFields = sec.fields.filter(f => !f.hidden && fieldVisible(f, answers))
+                      visibleFields.forEach(f => usedKeys.add(f.id))
+                      if (visibleFields.length === 0) return null
+                      const isOpen = infoOpenSection === sec.id
+                      return (
+                        <div key={sec.id} className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+                          <button onClick={() => setInfoOpenSection(isOpen ? null : sec.id)}
+                            className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold text-gray-700">
+                            <span>{sec.title}</span>
+                            <span className="text-gray-400 text-xs">{isOpen ? '▲' : '▼'}</span>
+                          </button>
+                          {isOpen && (
+                            <div className="px-4 pb-4 space-y-3">
+                              {visibleFields.map(f => {
+                                if (f.type === 'select') return <SelectField key={f.id} label={f.label} value={editValue(f.id)} onChange={v => setEditValue(f.id, v)} options={f.options || []} />
+                                if (f.type === 'textarea' || f.type === 'multiselect') return <TextareaField key={f.id} label={f.label} value={editValue(f.id)} onChange={v => setEditValue(f.id, v)} rows={2} />
+                                return <Field key={f.id} label={f.label} value={editValue(f.id)} onChange={v => setEditValue(f.id, v)} placeholder={f.placeholder} />
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
 
-                  {/* سایرِ پاسخ‌های فرمِ رزرو — کاملاً دیتایی، برچسب از فرمِ فعلی یا نگاشتِ پرونده‌های قدیمی */}
-                  <div className="bg-white rounded-xl border border-gray-100 p-4">
-                    <h3 className="text-sm font-semibold text-gray-700 mb-3 pb-2 border-b border-gray-100">📝 سایرِ اطلاعاتِ فرم</h3>
-                    <div className="space-y-3">
-                      {Object.keys(editingPatient.details || {}).length === 0 ? (
-                        <p className="text-xs text-gray-400">چیزی ثبت نشده.</p>
-                      ) : (
-                        Object.entries(editingPatient.details || {}).map(([key, value]) => (
+                    {/* سایر/دستی — شاملِ کلیدهایِ قدیمی + امکانِ افزودنِ یادداشتِ تازه */}
+                    <div className="bg-white rounded-xl border border-gray-100 p-4">
+                      <h3 className="text-sm font-semibold text-gray-700 mb-3 pb-2 border-b border-gray-100">📝 سایر / یادداشت‌هایِ دستی</h3>
+                      <div className="space-y-3">
+                        {Object.entries(editingPatient.details || {}).filter(([k]) => !usedKeys.has(k)).map(([key, value]) => (
                           <TextareaField key={key} label={detailFieldLabel(key)} value={formatDetailValue(value)} rows={2}
                             onChange={v => setEditingPatient(p => ({ ...p, details: { ...(p.details || {}), [key]: v } }))} />
-                        ))
-                      )}
-                      <SelectField label="نوعِ جلسه" value={editingPatient.session_type} onChange={v => setEditingPatient(p => ({...p, session_type: v} as any))} options={['offline','online']} />
+                        ))}
+                        <div className="pt-2 border-t border-gray-50 flex gap-2 items-end">
+                          <div className="flex-1">
+                            <Field label="عنوانِ یادداشتِ تازه" value={manualFieldLabel} onChange={setManualFieldLabel} placeholder="مثلاً: نگرانیِ ویژه" />
+                          </div>
+                          <div className="flex-1">
+                            <Field label="متن" value={manualFieldValue} onChange={setManualFieldValue} />
+                          </div>
+                          <button onClick={() => {
+                            const label = manualFieldLabel.trim()
+                            if (!label) { uiAlert('عنوان را وارد کنید'); return }
+                            setEditingPatient(p => ({ ...p, details: { ...(p.details || {}), [label]: manualFieldValue } }))
+                            setManualFieldLabel(''); setManualFieldValue('')
+                          }} className="px-4 py-2.5 bg-gray-100 text-gray-700 rounded-xl text-sm whitespace-nowrap">+ افزودن</button>
+                        </div>
+                      </div>
                     </div>
+                  </div>
 
+                  <div className="mt-4 flex gap-3">
+                    <button onClick={() => setPatientView('detail')}
+                      className="flex-1 py-3 border border-gray-200 rounded-xl text-sm text-gray-500">انصراف</button>
+                    <button onClick={savePatient}
+                      className="flex-1 py-3 bg-brand-600 text-white rounded-xl text-sm font-medium">💾 ذخیره پرونده</button>
                   </div>
                 </div>
-
-                <div className="mt-4 flex gap-3">
-                  <button onClick={() => setPatientView('detail')}
-                    className="flex-1 py-3 border border-gray-200 rounded-xl text-sm text-gray-500">انصراف</button>
-                  <button onClick={savePatient}
-                    className="flex-1 py-3 bg-brand-600 text-white rounded-xl text-sm font-medium">💾 ذخیره پرونده</button>
-                </div>
-              </div>
-            )}
+              )
+            })()}
           </>
         )}
 
