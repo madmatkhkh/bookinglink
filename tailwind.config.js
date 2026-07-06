@@ -4,25 +4,37 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        paper: '#FAF8F5',
-        sand: '#EDE7DE',
-        ink: '#26211C',
-        soot: '#6E655B',
-        // رنگِ برندِ tenant — در layout هر صفحه از theme_color تزریق می‌شود
+        // ── پالتِ مونوکروم (جایگزینِ پالتِ گرمِ کاغذی) ─────────────────
+        // نام‌ها همان قبلی‌اند تا همه‌ی className‌های موجود بدونِ تغییر
+        // مونوکروم شوند: bg-paper / border-sand / text-ink / text-soot …
+        paper: '#FFFFFF',   // زمینه‌ی صفحه (بود #FAF8F5)
+        sand:  '#ECECEC',   // بوردر و زمینه‌ی خیلی روشن (بود #EDE7DE)
+        ink:   '#0A0A0A',   // متن و دکمه‌ی اصلی (بود #26211C)
+        soot:  '#737373',   // متنِ کم‌رنگ (بود #6E655B)
+        // رنگِ برندِ tenant — همچنان از theme_color تزریق می‌شود؛ پیش‌فرضش در
+        // globals.css به خاکستریِ تیره ست شده تا صفحاتِ بی‌برند هم مونوکروم بمانند.
         accent: 'rgb(var(--brand) / <alpha-value>)',
-        // پالتِ ثابتِ brand — پنلِ روانشناسی (منتقل‌شده از psych-booking) از این
-        // سایه‌ها (brand-50 … brand-900) استفاده می‌کند.
+        // پالتِ خاکستریِ برند (جایگزینِ سبز) — پنلِ روانشناسی از brand-50…900
+        // استفاده می‌کند؛ حالا سایه‌های خنثیِ مشکی/خاکستری.
         brand: {
-          50:  '#EAF3DE',
-          100: '#C0DD97',
-          200: '#97C459',
-          400: '#639922',
-          600: '#3B6D11',
-          800: '#27500A',
-          900: '#173404',
+          50:  '#F5F5F5',
+          100: '#E5E5E5',
+          200: '#D4D4D4',
+          400: '#A3A3A3',
+          600: '#525252',
+          800: '#262626',
+          900: '#0A0A0A',
         },
       },
-      fontFamily: { sans: ['Vazirmatn', 'sans-serif'] },
+      fontFamily: {
+        // بدنه — خوانا در سایزهای کوچک
+        sans: ['Vazirmatn', 'system-ui', 'sans-serif'],
+        // تیترها — هندسی و فشرده (YekanBakh-مانند)
+        display: ['Estedad', 'Vazirmatn', 'system-ui', 'sans-serif'],
+      },
+      letterSpacing: {
+        tightest: '-0.03em', // برای تیترهای بزرگِ فارسی
+      },
     },
   },
   plugins: [],
