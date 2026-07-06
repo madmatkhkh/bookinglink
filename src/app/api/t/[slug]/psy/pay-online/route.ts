@@ -24,8 +24,8 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
 
   const { case_number, purpose, ref_id } = await req.json() as { case_number: string; purpose: Purpose; ref_id?: string }
   // auth با کوکیِ امضاشده — نه شماره‌ای که کلاینت در body می‌فرستد. دو راهِ مجاز:
-  // ۱) کوکیِ مراجعِ OTPشده که شماره‌اش روی پرونده باشد (پنلِ /my)
-  // ۲) کوکیِ مجوزِ پرداختِ همین پرونده (فلوِ مصاحبه‌ی اولیه، درست بعد از ثبتِ فرم)
+  // 1) کوکیِ مراجعِ OTPشده که شماره‌اش روی پرونده باشد (پنلِ /my)
+  // 2) کوکیِ مجوزِ پرداختِ همین پرونده (فلوِ مصاحبه‌ی اولیه، درست بعد از ثبتِ فرم)
   const cookiePhone = getClientPhone(req)
   const grantedCase = getPayCase(req)
 

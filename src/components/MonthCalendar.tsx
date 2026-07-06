@@ -14,7 +14,7 @@ export default function MonthCalendar({
   renderDay: (day: number) => ReactNode
 }) {
   const days = getDaysInJalaliMonth(year, month)
-  const firstWd = jalaliWeekday(year, month, 1) // ۰=شنبه
+  const firstWd = jalaliWeekday(year, month, 1) // 0=شنبه
 
   return (
     <div>

@@ -15,7 +15,7 @@ const STARTPAY_BASE = 'https://gateway.zibal.ir/start'
 export type ZibalRequestResult = { ok: true; trackId: number; url: string } | { ok: false; error: string }
 export type ZibalVerifyResult = { ok: true; refNumber: string | number } | { ok: false; error: string }
 
-// مبلغ‌ها همه‌جای این پروژه تومان است؛ زیبال ریال می‌گیرد (× ۱۰)
+// مبلغ‌ها همه‌جای این پروژه تومان است؛ زیبال ریال می‌گیرد (× 10)
 export async function requestZibalPayment(
   amountToman: number, description: string, callbackUrl: string, mobile?: string
 ): Promise<ZibalRequestResult> {

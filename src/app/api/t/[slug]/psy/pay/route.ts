@@ -12,8 +12,8 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   if (!t) return NextResponse.json({ error: 'یافت نشد' }, { status: 404 })
   const { package_id, session_id, stage_id, case_number, payment_ref } = await req.json()
   // auth با کوکیِ امضاشده — نه شماره‌ای که کلاینت در body می‌فرستد. دو راهِ مجاز:
-  // ۱) کوکیِ مراجعِ OTPشده که شماره‌اش روی پرونده باشد (پنلِ /my)
-  // ۲) کوکیِ مجوزِ پرداختِ همین پرونده (فلوِ مصاحبه‌ی اولیه، درست بعد از ثبتِ فرم)
+  // 1) کوکیِ مراجعِ OTPشده که شماره‌اش روی پرونده باشد (پنلِ /my)
+  // 2) کوکیِ مجوزِ پرداختِ همین پرونده (فلوِ مصاحبه‌ی اولیه، درست بعد از ثبتِ فرم)
   const phone = getClientPhone(req)
   const grantedCase = getPayCase(req)
 

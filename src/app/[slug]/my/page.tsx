@@ -178,7 +178,7 @@ export default function PatientPanel() {
         <div className="mb-4">
           <label className="text-xs text-gray-500 mb-1.5 block">شماره موبایل</label>
           <input value={phone} onChange={e => setPhone(e.target.value)} onKeyDown={e => e.key === 'Enter' && sendOtp()}
-            placeholder="۰۹۱۲۳۴۵۶۷۸۹" dir="ltr"
+            placeholder="09123456789" dir="ltr"
             className="w-full text-sm px-3 py-2.5 border border-gray-200 rounded-xl text-center tracking-widest focus:outline-none focus:border-brand-400" />
         </div>
         {error && <p className="text-xs text-red-500 mb-3 text-center">{error}</p>}
@@ -205,7 +205,7 @@ export default function PatientPanel() {
           )}
         </div>
         <input value={otpCode} onChange={e => setOtpCode(e.target.value)} onKeyDown={e => e.key === 'Enter' && verifyOtp()}
-          placeholder="۱۲۳۴۵" dir="ltr" maxLength={5}
+          placeholder="12345" dir="ltr" maxLength={5}
           className="w-full text-xl px-3 py-3 border border-gray-200 rounded-xl text-center tracking-[0.5em] focus:outline-none focus:border-brand-400 mb-3" />
         {error && <p className="text-xs text-red-500 mb-3 text-center">{error}</p>}
         <button onClick={verifyOtp} disabled={loading || otpCode.length < 4}
@@ -566,7 +566,7 @@ function SessionCard({ session: s, num, phone, caseNumber, onUpdate }: {
 
   async function cancelSession() {
     if (needsRefundCard && refundCard.replace(/[^0-9]/g, '').length < 16) {
-      uiAlert(`برای بازگشتِ ${toFarsiNum(refundPercent)}٪ مبلغ، شماره کارتِ ۱۶ رقمی را کامل وارد کنید.`)
+      uiAlert(`برای بازگشتِ ${toFarsiNum(refundPercent)}٪ مبلغ، شماره کارتِ 16 رقمی را کامل وارد کنید.`)
       return
     }
     setCancelling(true)

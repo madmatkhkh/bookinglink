@@ -6,8 +6,12 @@ export const PERSIAN_MONTHS = [
 
 export const PERSIAN_WEEKDAYS = ['ش','ی','د','س','چ','پ','ج']
 
+// طبقِ تصمیمِ صریحِ صاحبِ پروژه: هیچ‌جای نوبت‌لینک رقمِ فارسی نمایش داده نمی‌شود —
+// نه فقط در دیتابیس، در UI هم. این تابع (با همین نام، تا همه‌ی صداکننده‌هایش در
+// کل پروژه بدونِ نیاز به تغییرِ تک‌تک‌شان درست شوند) دیگر تبدیل به رقمِ فارسی
+// نمی‌کند؛ فقط رشته‌ی همان عددِ لاتین را برمی‌گرداند.
 export function toFarsiNum(n: number | string): string {
-  return String(n).replace(/\d/g, d => '۰۱۲۳۴۵۶۷۸۹'[parseInt(d)])
+  return String(n)
 }
 
 export function getCurrentJalali(): { year: number; month: number; day: number } {
@@ -102,7 +106,7 @@ export function jalaliDateTimeToTimestamp(dateStr: string, timeStr: string): num
   const [h, min] = toLatinNum(timeStr).split(':').map(Number)
   if ([jy, jm, jd].some(Number.isNaN)) return null
   const { gy, gm, gd } = jalaliToGregorian(jy, jm, jd)
-  // ایران UTC+3:30 (بدون ساعت تابستانی از ۲۰۲۲)
+  // ایران UTC+3:30 (بدون ساعت تابستانی از 2022)
   return Date.UTC(gy, gm - 1, gd, h || 0, min || 0) - 3.5 * 3600 * 1000
 }
 
@@ -110,7 +114,7 @@ export function jalaliDateTimeToTimestamp(dateStr: string, timeStr: string): num
 export const PERSIAN_WEEKDAYS_SHORT = PERSIAN_WEEKDAYS
 export const PERSIAN_WEEKDAYS_FULL = ['شنبه','یکشنبه','دوشنبه','سه‌شنبه','چهارشنبه','پنجشنبه','جمعه']
 
-// ── روزِ هفته‌ی ایرانی برای تاریخِ جلالی: ۰=شنبه ... ۶=جمعه ─────────
+// ── روزِ هفته‌ی ایرانی برای تاریخِ جلالی: 0=شنبه ... 6=جمعه ─────────
 export function jalaliWeekday(jy: number, jm: number, jd: number): number {
   const { gy, gm, gd } = jalaliToGregorian(jy, jm, jd)
   const jsDay = new Date(Date.UTC(gy, gm - 1, gd)).getUTCDay() // 0=یکشنبه

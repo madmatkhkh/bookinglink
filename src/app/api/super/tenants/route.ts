@@ -70,7 +70,7 @@ export async function POST(req: NextRequest) {
     if (res?.id) {
       await sb().from('psy_resource_profiles').insert({
         resource_id: res.id,
-        badges: ['📍 شهر و منطقه‌ی خودتان', '⏱ پاسخ در ۲ ساعت', '⭐ ۴.۹ از ۵'],
+        badges: ['📍 شهر و منطقه‌ی خودتان', '⏱ پاسخ در 2 ساعت', '⭐ 4.9 از 5'],
         session_modes: 'both',
       })
     }

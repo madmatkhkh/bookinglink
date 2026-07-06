@@ -25,7 +25,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   if (!childName || !fatherPhone)
     return NextResponse.json({ error: 'نام و شماره تماس لازم است' }, { status: 400 })
   if (!/^09\d{9}$/.test(String(fatherPhone).replace(/[۰-۹]/g, d => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d))).trim()))
-    return NextResponse.json({ error: 'شماره تماس معتبر نیست (باید ۱۱ رقم و با ۰۹ شروع شود)' }, { status: 400 })
+    return NextResponse.json({ error: 'شماره تماس معتبر نیست (باید 11 رقم و با 09 شروع شود)' }, { status: 400 })
 
   // یک پرونده با همین نام + همین شماره قبلاً ثبت نشده باشد (تغییرِ نام یا شماره
   // آزاد است — فقط ترکیبِ عینِ یکسان مسدود می‌شود)
@@ -106,7 +106,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   }
   await sb().from('psy_cases').update({ current_stage_id: stage.id }).eq('id', data.id)
 
-  // مجوزِ پرداختِ محدود به همین پرونده (کوکیِ امضاشده‌ی ۲ساعته) — تا مراجعِ تازه
+  // مجوزِ پرداختِ محدود به همین پرونده (کوکیِ امضاشده‌ی 2ساعته) — تا مراجعِ تازه
   // بدونِ OTP بتواند فقط هزینه‌ی مصاحبه‌ی همین پرونده را پرداخت کند (auth.ts)
   const res = NextResponse.json({ success: true, id: data.id, caseNumber, stageId: stage.id })
   setPayCookie(res, caseNumber)

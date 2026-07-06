@@ -36,7 +36,7 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
   return NextResponse.json({
     profile: { resource_id: r.id, name: r.name, title: r.title, avatar_url: r.avatar_url, phone: r.phone,
       badges: prof.badges, session_modes: prof.session_modes, cards: prof.cards,
-      cancellation_policy: prof.cancellation_policy, payment_methods: prof.payment_methods },
+      cancellation_policy: prof.cancellation_policy, payment_methods: prof.payment_methods, quick_times: prof.quick_times },
   }, { headers: NO_STORE })
 }
 
@@ -61,7 +61,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   }
 
   const profilePatch: Record<string, unknown> = { resource_id: targetId, updated_at: new Date().toISOString() }
-  for (const k of ['badges', 'session_modes', 'cards'] as const) if (k in body) profilePatch[k] = body[k]
+  for (const k of ['badges', 'session_modes', 'cards', 'quick_times'] as const) if (k in body) profilePatch[k] = body[k]
   if ('cancellation_policy' in body) profilePatch.cancellation_policy = mergeCancellationPolicy(body.cancellation_policy)
   if ('payment_methods' in body) {
     const pm = mergePaymentMethods(body.payment_methods)

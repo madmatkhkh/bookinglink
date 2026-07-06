@@ -95,6 +95,11 @@ export function mergePaymentMethods(raw: Partial<PaymentMethods> | null | undefi
 // ── سطحِ resource/شخص: پروفایلِ هرکارمند (دکتر) — نام/عنوان/آواتار از خودِ
 // جدولِ resources می‌آید (اینجا تکرار نشده)؛ این‌ها فقط چیزهایی‌اند که هر دکتر
 // مستقل از بقیه مدیریت می‌کند.
+// لیستِ ساعت‌های استانداردِ پیش‌فرض که در تبِ «روزهای کاری» به‌عنوانِ گزینه‌های
+// سریع نشان داده می‌شوند؛ هر دکتر می‌تواند از پنلِ خودش این لیست را ویرایش کند
+// (افزودن/حذفِ ساعت) — پس این‌جا فقط مقدارِ پیش‌فرضِ اولیه برای دکترهای تازه است.
+export const DEFAULT_QUICK_TIMES = ['8:00','9:00','10:00','11:00','12:00','13:00','14:00','15:00','16:00','17:00','18:00']
+
 export type ResourceProfile = {
   resource_id: string
   badges: string[]
@@ -102,6 +107,7 @@ export type ResourceProfile = {
   cards: PaymentCardInfo[]
   cancellation_policy: CancellationPolicy
   payment_methods: PaymentMethods
+  quick_times: string[]
 }
 
 export const DEFAULT_RESOURCE_PROFILE: Omit<ResourceProfile, 'resource_id'> = {
@@ -110,6 +116,7 @@ export const DEFAULT_RESOURCE_PROFILE: Omit<ResourceProfile, 'resource_id'> = {
   cards: [],
   cancellation_policy: DEFAULT_CANCELLATION_POLICY,
   payment_methods: DEFAULT_PAYMENT_METHODS,
+  quick_times: DEFAULT_QUICK_TIMES,
 }
 
 export function mergeResourceProfile(resourceId: string, raw: Partial<ResourceProfile> | null | undefined): ResourceProfile {
@@ -122,6 +129,7 @@ export function mergeResourceProfile(resourceId: string, raw: Partial<ResourcePr
     cards: Array.isArray(raw?.cards) ? raw!.cards : [],
     cancellation_policy: mergeCancellationPolicy(raw?.cancellation_policy),
     payment_methods: mergePaymentMethods(raw?.payment_methods),
+    quick_times: Array.isArray(raw?.quick_times) && raw!.quick_times.length > 0 ? raw!.quick_times : DEFAULT_QUICK_TIMES,
   }
 }
 
@@ -264,7 +272,7 @@ export const DEFAULT_INTAKE_FORM: IntakeForm = {
     ]},
     { id: 'family', title: 'خواهر/برادر و محلِ زندگی', fields: [
       { id: 'has_siblings', label: 'آیا خواهر یا برادر دارد؟', type: 'select', required: true, options: ['بله', 'خیر'] },
-      { id: 'siblings_info', label: 'سن و تحصیلاتِ هر خواهر/برادر', type: 'textarea', required: true, placeholder: 'مثلاً: خواهر ۱۰ ساله کلاس چهارم', showIf: { fieldId: 'has_siblings', value: 'بله' } },
+      { id: 'siblings_info', label: 'سن و تحصیلاتِ هر خواهر/برادر', type: 'textarea', required: true, placeholder: 'مثلاً: خواهر 10 ساله کلاس چهارم', showIf: { fieldId: 'has_siblings', value: 'بله' } },
       { id: 'other_residents', label: 'آیا عضوِ دیگری غیر از اعضای اصلیِ خانواده با شما زندگی می‌کند؟', type: 'select', required: true, options: ['بله', 'خیر'] },
       { id: 'other_residents_info', label: 'چه کسی؟', type: 'text', required: true, placeholder: 'مثلاً: پدربزرگ', showIf: { fieldId: 'other_residents', value: 'بله' } },
       { id: 'home_address', label: 'آدرسِ خانه', type: 'textarea', required: true, placeholder: 'آدرسِ کاملِ محلِ سکونت...' },
@@ -278,22 +286,22 @@ export const DEFAULT_INTAKE_FORM: IntakeForm = {
         options: [...CHILD_CONDITIONS_DEFAULT, 'هیچ‌کدام'] },
     ]},
     { id: 'pregnancy', title: 'دورانِ بارداریِ مادر', fields: [
-      { id: 'pregnancy_age', label: 'سنِ مادر هنگامِ بارداری', type: 'text', required: false, placeholder: '۲۸' },
-      { id: 'pregnancy_count', label: 'تعدادِ دفعاتِ بارداری', type: 'text', required: false, placeholder: '۲' },
+      { id: 'pregnancy_age', label: 'سنِ مادر هنگامِ بارداری', type: 'text', required: false, placeholder: '28' },
+      { id: 'pregnancy_count', label: 'تعدادِ دفعاتِ بارداری', type: 'text', required: false, placeholder: '2' },
       { id: 'pregnancy_factors', label: 'موارد را انتخاب کنید', type: 'multiselect', required: false,
         options: ['استرس', 'افسردگی', 'مشکلاتِ خانوادگی', 'سابقه‌ی سقط', 'هیچ‌کدام'] },
     ]},
     { id: 'birth', title: 'زایمان و تولد', fields: [
       { id: 'birth_type', label: 'نوعِ زایمان', type: 'select', required: true, options: ['طبیعی', 'سزارین'] },
-      { id: 'birth_weight', label: 'وزنِ هنگامِ تولد', type: 'text', required: true, placeholder: '۳.۲ کیلوگرم' },
+      { id: 'birth_weight', label: 'وزنِ هنگامِ تولد', type: 'text', required: true, placeholder: '3.2 کیلوگرم' },
     ]},
     { id: 'growth', title: 'رشد و تکامل', fields: [
       { id: 'growth_crawl', label: 'سینه‌خیز رفته؟', type: 'select', required: true, options: ['بله', 'خیر'] },
       { id: 'growth_crawl_duration', label: 'چه مدت؟', type: 'text', required: false, showIf: { fieldId: 'growth_crawl', value: 'بله' } },
       { id: 'growth_walk4', label: 'چهار دست و پا رفته؟', type: 'select', required: true, options: ['بله', 'خیر'] },
       { id: 'growth_walk4_duration', label: 'چه مدت؟', type: 'text', required: false, showIf: { fieldId: 'growth_walk4', value: 'بله' } },
-      { id: 'growth_walk_age', label: 'سنِ راه رفتن', type: 'text', required: true, placeholder: '۱۲ ماه' },
-      { id: 'growth_talk_age', label: 'سنِ اولین کلمه', type: 'text', required: true, placeholder: '۱۸ ماه' },
+      { id: 'growth_walk_age', label: 'سنِ راه رفتن', type: 'text', required: true, placeholder: '12 ماه' },
+      { id: 'growth_talk_age', label: 'سنِ اولین کلمه', type: 'text', required: true, placeholder: '18 ماه' },
       { id: 'growth_issues', label: 'مشکلِ خاص در مراحلِ رشد', type: 'textarea', required: false, placeholder: 'در صورتِ وجود توضیح دهید...' },
     ]},
     { id: 'medical', title: 'اطلاعاتِ پزشکی', fields: [
@@ -301,7 +309,7 @@ export const DEFAULT_INTAKE_FORM: IntakeForm = {
       { id: 'current_meds', label: 'داروهای در حالِ مصرف', type: 'text', required: true, placeholder: 'نام دارو و دوز...' },
     ]},
     { id: 'sports', title: 'فعالیتِ ورزشی', fields: [
-      { id: 'sports_activity', label: 'نوع و زمانِ فعالیت', type: 'text', required: true, placeholder: 'فوتبال، ۲ روز در هفته' },
+      { id: 'sports_activity', label: 'نوع و زمانِ فعالیت', type: 'text', required: true, placeholder: 'فوتبال، 2 روز در هفته' },
       { id: 'sports_limit', label: 'محدودیتِ ورزشی', type: 'text', required: false, placeholder: 'در صورتِ وجود...' },
     ]},
     { id: 'parenting', title: 'رفتارِ والدین با فرزند', fields: [

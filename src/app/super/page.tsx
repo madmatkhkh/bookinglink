@@ -1,6 +1,6 @@
 'use client'
 // ─── پنلِ سوپرادمینِ پلتفرم ──────────────────────────────────────
-// ورود با SUPER_SECRET، لیست/ساخت/تعلیقِ tenantها (فاز ۱: آنبوردینگِ دستی)
+// ورود با SUPER_SECRET، لیست/ساخت/تعلیقِ tenantها (فاز 1: آنبوردینگِ دستی)
 import { useCallback, useEffect, useState } from 'react'
 import { DialogProvider, useDialog } from '@/components/Dialog'
 import { PLATFORM_NAME } from '@/lib/config'

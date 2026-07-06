@@ -53,9 +53,9 @@ export default function Landing() {
       <section className="max-w-4xl mx-auto px-6 py-12">
         <div className="grid sm:grid-cols-3 gap-4">
           {[
-            { n: '۱', t: 'تمپلیت را انتخاب کنید', d: 'قالبِ آماده‌ی حرفه‌ی خودتان را بردارید — از پیش برای کارِ شما چیده شده.' },
-            { n: '۲', t: 'چند دقیقه تنظیمش کنید', d: 'عکس، سرویس‌ها، قیمت‌ها و ساعاتِ کاری. همین.' },
-            { n: '۳', t: 'لینک را در بایو بگذارید', d: 'مشتری از اینستاگرام می‌آید و خودش نوبت می‌گیرد.' },
+            { n: '1', t: 'تمپلیت را انتخاب کنید', d: 'قالبِ آماده‌ی حرفه‌ی خودتان را بردارید — از پیش برای کارِ شما چیده شده.' },
+            { n: '2', t: 'چند دقیقه تنظیمش کنید', d: 'عکس، سرویس‌ها، قیمت‌ها و ساعاتِ کاری. همین.' },
+            { n: '3', t: 'لینک را در بایو بگذارید', d: 'مشتری از اینستاگرام می‌آید و خودش نوبت می‌گیرد.' },
           ].map(s => (
             <div key={s.n} className="rounded-2xl border border-sand bg-white p-5">
               <div className="w-9 h-9 rounded-full bg-ink text-white flex items-center justify-center font-bold text-sm mb-3">{s.n}</div>

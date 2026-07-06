@@ -2,20 +2,20 @@
 // احرازِ هویت — چهار نقش، چهار سازوکار، همه در یک‌جا (نه کپی در هر route؛
 // درسِ حفره‌های isAuthed پراکنده در psych-booking)
 //
-// ۱) مراجع:   کوکیِ امضاشده با HMAC («phone.sig») پس از تاییدِ OTP
-// ۲) متخصص (صاحبِ مجموعه): توکنِ نشستِ ذخیره‌شده در tenants.owner_session پس از OTP
-// ۳) کارمند (یک «منبع»/پرسنل): توکنِ نشستِ ذخیره‌شده در resources.owner_session —
+// 1) مراجع:   کوکیِ امضاشده با HMAC («phone.sig») پس از تاییدِ OTP
+// 2) متخصص (صاحبِ مجموعه): توکنِ نشستِ ذخیره‌شده در tenants.owner_session پس از OTP
+// 3) کارمند (یک «منبع»/پرسنل): توکنِ نشستِ ذخیره‌شده در resources.owner_session —
 //    مستقل از صاحبِ مجموعه؛ برای مجموعه‌هایی با چند نفر پرسنل که هرکدام باید
 //    فقط دیتای خودشان را ببینند (نه فقط روانشناسی؛ هر نیچی که چندکارمندی شد).
-// ۴) سوپرادمین: توکنِ امضاشده‌ی موقت (نه خودِ رمز) پس از واردکردنِ SUPER_SECRET
+// 4) سوپرادمین: توکنِ امضاشده‌ی موقت (نه خودِ رمز) پس از واردکردنِ SUPER_SECRET
 //
 // سخت‌سازی‌های امنیتی (این نسخه):
 // - AUTH_SECRET دیگر fallback ندارد — اگر ست نشده باشد، با خطای روشن fail می‌شود
 //   (fallbackِ عمومیِ داخلِ سورس یعنی کوکیِ قابلِ‌جعل برای هرکسی که کد را دیده).
-// - کدِ OTP پنج‌رقمی شد (۱۰۰هزار حالت به‌جای ۱۰هزار).
+// - کدِ OTP پنج‌رقمی شد (100هزار حالت به‌جای 10هزار).
 // - rate limit دیتابیس‌محور (جدولِ auth_throttle — چون serverless هستیم و
 //   حافظه‌ی داخلی بینِ نمونه‌ها مشترک نیست): هم صدورِ OTP هم تلاش‌های تایید.
-// - کوکیِ سوپرادمین دیگر خودِ SUPER_SECRET نیست — یک توکنِ امضاشده‌ی ۷روزه است؛
+// - کوکیِ سوپرادمین دیگر خودِ SUPER_SECRET نیست — یک توکنِ امضاشده‌ی 7روزه است؛
 //   با عوض‌کردنِ هرکدام از SUPER_SECRET/AUTH_SECRET همه‌ی نشست‌ها باطل می‌شوند.
 // - کد فقط وقتی در پاسخِ HTTP برمی‌گردد که OTP_ECHO_CODE=true باشد (حالتِ
 //   موقتِ پیش‌ازپیامک). با اتصالِ پنلِ پیامک این env حذف می‌شود.
@@ -94,7 +94,7 @@ export function getClientPhone(req: NextRequest): string | null {
 // ثبتِ فرم، هزینه‌ی مصاحبه‌ی *همان* پرونده‌ای که خودش ساخت را پرداخت کند.
 // به‌جای برگشتن به authِ «دانستنِ شماره‌کیس+شماره‌تلفن» (که حفره بود)، خودِ
 // /psy/book موقعِ ساختِ پرونده یک کوکیِ امضاشده‌ی محدود می‌نشاند: فقط برای
-// «ثبتِ پرداختِ» همان یک پرونده معتبر است (نه خواندنِ هیچ دیتایی) و ۲ ساعته
+// «ثبتِ پرداختِ» همان یک پرونده معتبر است (نه خواندنِ هیچ دیتایی) و 2 ساعته
 // منقضی می‌شود. جعلش بدونِ AUTH_SECRET ممکن نیست.
 
 export const PAY_COOKIE = 'case_pay'
@@ -179,7 +179,7 @@ export async function clearPanelSession(req: NextRequest, res: NextResponse, ten
 // ── سوپرادمین ────────────────────────────────────────────────────────────────
 // کوکی دیگر خودِ SUPER_SECRET نیست — یک توکنِ «super.<زمانِ‌صدور>.<امضا>» است.
 // امضا هم AUTH_SECRET هم SUPER_SECRET را در بر می‌گیرد؛ عوض‌کردنِ هرکدام
-// همه‌ی نشست‌های فعال را باطل می‌کند. عمرِ توکن ۷ روز است.
+// همه‌ی نشست‌های فعال را باطل می‌کند. عمرِ توکن 7 روز است.
 
 const SUPER_TTL_MS = 7 * 24 * 60 * 60 * 1000
 
@@ -218,14 +218,14 @@ export function otpEchoEnabled(): boolean {
 }
 
 /**
- * کدِ تازه (۵ رقمی) می‌سازد و ذخیره می‌کند.
- * rate limit: حداکثر ۳ صدور برای هر شماره و ۱۰ صدور برای هر IP در هر ۱۰ دقیقه —
+ * کدِ تازه (5 رقمی) می‌سازد و ذخیره می‌کند.
+ * rate limit: حداکثر 3 صدور برای هر شماره و 10 صدور برای هر IP در هر 10 دقیقه —
  * هم ضدِ brute force هم (بعد از اتصالِ پیامک) ضدِ سوزاندنِ اعتبارِ پیامکی (SMS bombing).
  */
 export async function issueOtp(phone: string, ip?: string): Promise<IssueOtpResult> {
   if (!(await checkThrottle(`otp:issue:${phone}`, 3, 600))) return { ok: false, throttled: true }
   if (ip && !(await checkThrottle(`otp:issue:ip:${ip}`, 10, 600))) return { ok: false, throttled: true }
-  const code = String(randomInt(10000, 100000)) // ۵ رقم، از CSPRNG نه Math.random
+  const code = String(randomInt(10000, 100000)) // 5 رقم، از CSPRNG نه Math.random
   const expires_at = new Date(Date.now() + 5 * 60 * 1000).toISOString()
   await sb().from('otps').insert({ phone, code, expires_at })
   return { ok: true, code }
@@ -233,7 +233,7 @@ export async function issueOtp(phone: string, ip?: string): Promise<IssueOtpResu
 
 /**
  * کد را بررسی و در صورتِ صحت مصرف (حذف) می‌کند.
- * rate limit: حداکثر ۵ تلاشِ تایید برای هر شماره در هر ۱۰ دقیقه — با کدِ ۵رقمی
+ * rate limit: حداکثر 5 تلاشِ تایید برای هر شماره در هر 10 دقیقه — با کدِ 5رقمی
  * یعنی brute force عملاً ناممکن.
  */
 export async function verifyOtp(phone: string, code: string): Promise<VerifyOtpResult> {
@@ -253,7 +253,7 @@ function toEnDigits(s: string): string {
   return String(s).replace(/[۰-۹]/g, ch => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(ch)))
 }
 
-/** نرمال‌سازیِ شماره‌ی موبایل: ارقامِ فارسی، فاصله، +۹۸ → 09xxxxxxxxx */
+/** نرمال‌سازیِ شماره‌ی موبایل: ارقامِ فارسی، فاصله، +98 → 09xxxxxxxxx */
 export function normalizePhone(raw: string): string {
   let p = toEnDigits(String(raw || '')).replace(/[^0-9]/g, '')
   if (p.startsWith('98') && p.length === 12) p = '0' + p.slice(2)

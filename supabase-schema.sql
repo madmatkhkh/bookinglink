@@ -2,15 +2,15 @@
 -- اسکیمای پلتفرمِ نوبت‌دهیِ چند‌مستاجریِ چند‌نیچی (Multi-tenant, Multi-niche)
 --
 -- سه اصلِ معماری:
---   ۱. ساختار = کد، محتوا و قابلیت = دیتا. (تفاوتِ نیچ‌ها هرگز کدِ جدا نیست)
---   ۲. هر رزرو می‌تواند به یک «منبع» (پرسنل) وصل باشد؛ برای تک‌نفره‌ها یک منبعِ پیش‌فرض.
---   ۳. اسلات ذخیره نمی‌شود، محاسبه می‌شود؛ ضامنِ همزمانی، unique index دیتابیس است.
+--   1. ساختار = کد، محتوا و قابلیت = دیتا. (تفاوتِ نیچ‌ها هرگز کدِ جدا نیست)
+--   2. هر رزرو می‌تواند به یک «منبع» (پرسنل) وصل باشد؛ برای تک‌نفره‌ها یک منبعِ پیش‌فرض.
+--   3. اسلات ذخیره نمی‌شود، محاسبه می‌شود؛ ضامنِ همزمانی، unique index دیتابیس است.
 -- ─────────────────────────────────────────────────────────────────────────────
 
 create extension if not exists "uuid-ossp";
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- بخش ۱ — نیچ‌ها (تمپلیت‌ها): محتوای پیش‌فرضِ هر نوع کسب‌وکار، همه به‌صورتِ دیتا
+-- بخش 1 — نیچ‌ها (تمپلیت‌ها): محتوای پیش‌فرضِ هر نوع کسب‌وکار، همه به‌صورتِ دیتا
 -- ═══════════════════════════════════════════════════════════════════════════
 create table niches (
   key text primary key,
@@ -30,7 +30,7 @@ create table niches (
 );
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- بخش ۲ — مستاجرها
+-- بخش 2 — مستاجرها
 -- ═══════════════════════════════════════════════════════════════════════════
 create table tenants (
   id uuid primary key default uuid_generate_v4(),
@@ -61,7 +61,7 @@ create table tenant_profiles (
 );
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- بخش ۳ — منابع (پرسنل): قلبِ قابلیتِ چند‌منبعی
+-- بخش 3 — منابع (پرسنل): قلبِ قابلیتِ چند‌منبعی
 -- ═══════════════════════════════════════════════════════════════════════════
 create table resources (
   id uuid primary key default uuid_generate_v4(),
@@ -82,7 +82,7 @@ create index on resources (tenant_id);
 create unique index resources_tenant_phone_key on resources (tenant_id, phone) where phone is not null;
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- بخش ۴ — سرویس‌ها
+-- بخش 4 — سرویس‌ها
 -- ═══════════════════════════════════════════════════════════════════════════
 create table services (
   id uuid primary key default uuid_generate_v4(),
@@ -106,7 +106,7 @@ create table service_resources (
 );
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- بخش ۵ — برنامه‌ی کاری: به‌ازای هر منبع
+-- بخش 5 — برنامه‌ی کاری: به‌ازای هر منبع
 -- ═══════════════════════════════════════════════════════════════════════════
 create table weekly_schedules (
   id uuid primary key default uuid_generate_v4(),
@@ -132,7 +132,7 @@ create table schedule_overrides (
 create index on schedule_overrides (tenant_id, resource_id, date);
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- بخش ۶ — رزروها: به یک منبع گره می‌خورند
+-- بخش 6 — رزروها: به یک منبع گره می‌خورند
 -- ═══════════════════════════════════════════════════════════════════════════
 create table bookings (
   id uuid primary key default uuid_generate_v4(),
@@ -162,7 +162,7 @@ create unique index bookings_slot_unique
   where status not in ('cancelled');
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- بخش ۷ — پرونده‌ی مراجع/مشتری: اسکلتِ مشترک، فیلدهای نیچ‌محور
+-- بخش 7 — پرونده‌ی مراجع/مشتری: اسکلتِ مشترک، فیلدهای نیچ‌محور
 -- ═══════════════════════════════════════════════════════════════════════════
 create table client_records (
   id uuid primary key default uuid_generate_v4(),
@@ -176,7 +176,7 @@ create table client_records (
 create index on client_records (tenant_id);
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- بخش ۸ — زیرساخت‌های مشترک
+-- بخش 8 — زیرساخت‌های مشترک
 -- ═══════════════════════════════════════════════════════════════════════════
 create table otps (
   id uuid primary key default uuid_generate_v4(),
@@ -268,7 +268,7 @@ insert into niches (key, display_name, tagline, icon, client_label, resource_lab
 );
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- بخش ۹ — جدول‌های تخصصیِ نیچِ روانشناسی (از psych-booking، حالا multi-tenant)
+-- بخش 9 — جدول‌های تخصصیِ نیچِ روانشناسی (از psych-booking، حالا multi-tenant)
 --
 -- این‌ها فقط برای tenantهای نیچِ روانشناسی استفاده می‌شوند. نیچ‌های دیگر
 -- (سالن و…) این جدول‌ها را نادیده می‌گیرند و از جدول‌های عمومیِ بالا استفاده
@@ -351,7 +351,7 @@ create table psy_packages (
   tenant_id uuid not null references tenants(id) on delete cascade,
   case_number text not null,
   title text not null default '',
-  month text, year text,  -- دوره‌ی تعلق‌گرفتنِ پکیج (مثلاً ماهِ ۴ سالِ ۱۴۰۵)
+  month text, year text,  -- دوره‌ی تعلق‌گرفتنِ پکیج (مثلاً ماهِ 4 سالِ 1405)
   -- جلسه‌های کودک و والدین جدا شمرده و قیمت‌گذاری می‌شوند
   child_sessions int not null default 0,
   child_session_type text default 'offline',   -- 'online' | 'offline'
@@ -372,7 +372,7 @@ create index on psy_packages (tenant_id, resource_id);
 -- ستون‌های نوعِ اسلات روی برنامه‌ی روزانه (آنلاین/حضوری و مطبِ هر ساعت)
 -- در psy_schedules پایین به‌صورت jsonb نگه داشته می‌شوند.
 
--- ── جلسه‌های پروتکلِ درمان (مرحله‌ی ۳) ──────────────────────────────────────
+-- ── جلسه‌های پروتکلِ درمان (مرحله‌ی 3) ──────────────────────────────────────
 create table psy_sessions (
   id uuid primary key default uuid_generate_v4(),
   tenant_id uuid not null references tenants(id) on delete cascade,
@@ -429,6 +429,8 @@ create table psy_resource_profiles (
   cancellation_policy jsonb not null default '{"enabled":true,"threshold_hours":12,"early_refund_percent":50,"late_refund_percent":0}',
   -- کدام روش‌های پرداخت برای این دکتر فعال است (حداقل یکی باید روشن بماند)
   payment_methods jsonb not null default '{"card_to_card":true,"online":false}',
+  -- ساعت‌های سریعِ پیشنهادی در تبِ «روزهای کاری» — قابلِ ویرایش (افزودن/حذف) توسطِ خودِ دکتر
+  quick_times jsonb not null default '["8:00","9:00","10:00","11:00","12:00","13:00","14:00","15:00","16:00","17:00","18:00"]',
   updated_at timestamptz not null default now()
 );
 

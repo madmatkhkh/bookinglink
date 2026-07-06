@@ -1,9 +1,9 @@
 'use client'
 // ─────────────────────────────────────────────────────────────────────────────
 // فلوی رزرو — تک‌صفحه، سه گام:
-// ۱) انتخابِ روز (تقویمِ جلالی؛ روزها بی‌درنگ، دسترس‌پذیری آسنکرون) و ساعت
-// ۲) شماره‌ی موبایل + OTP + نام (ورود و رزرو یکی می‌شوند)
-// ۳) کارت‌به‌کارت و اعلامِ پرداخت
+// 1) انتخابِ روز (تقویمِ جلالی؛ روزها بی‌درنگ، دسترس‌پذیری آسنکرون) و ساعت
+// 2) شماره‌ی موبایل + OTP + نام (ورود و رزرو یکی می‌شوند)
+// 3) کارت‌به‌کارت و اعلامِ پرداخت
 // ─────────────────────────────────────────────────────────────────────────────
 import { useState, useEffect, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
@@ -34,7 +34,7 @@ function BookingFlow() {
   const [pickedResource, setPickedResource] = useState<string | null>(null) // null = هر کسی که آزاد بود
   const [loadErr, setLoadErr] = useState(false)
 
-  // گام ۱
+  // گام 1
   const now = getCurrentJalali()
   const [calY, setCalY] = useState(now.year)
   const [calM, setCalM] = useState(now.month)
@@ -43,7 +43,7 @@ function BookingFlow() {
   const [daySlots, setDaySlots] = useState<string[] | null>(null)
   const [pickedTime, setPickedTime] = useState('')
 
-  // گام ۲
+  // گام 2
   const [step, setStep] = useState(1)
   const [phone, setPhone] = useState('')
   const [devCode, setDevCode] = useState('')
@@ -54,7 +54,7 @@ function BookingFlow() {
   const [note, setNote] = useState('')
   const [busy, setBusy] = useState(false)
 
-  // گام ۳
+  // گام 3
   const [payInfo, setPayInfo] = useState<{ booking_id: string; amount: number; card_number: string; card_holder_name: string } | null>(null)
   const [payRef, setPayRef] = useState('')
   const [done, setDone] = useState(false)
@@ -170,7 +170,7 @@ function BookingFlow() {
           ))}
         </div>
 
-        {/* ── گام ۱: تقویم و ساعت ── */}
+        {/* ── گام 1: تقویم و ساعت ── */}
         {step === 1 && (
           <div>
             {/* انتخابِ پرسنل — فقط اگر بیش از یک منبعِ انتخاب‌شدنی باشد */}
@@ -236,7 +236,7 @@ function BookingFlow() {
           </div>
         )}
 
-        {/* ── گام ۲: شماره + OTP + نام ── */}
+        {/* ── گام 2: شماره + OTP + نام ── */}
         {step === 2 && (
           <div className="space-y-4">
             <div className="rounded-2xl border border-sand bg-white p-4 text-sm">
@@ -262,7 +262,7 @@ function BookingFlow() {
                       </div>
                     )}
                     <input value={code} onChange={e => setCode(e.target.value)} dir="ltr" inputMode="numeric"
-                      placeholder="کدِ ۴ رقمی" className="w-full p-3 rounded-xl border border-sand bg-white text-sm tnum text-center" />
+                      placeholder="کدِ 4 رقمی" className="w-full p-3 rounded-xl border border-sand bg-white text-sm tnum text-center" />
                     <button onClick={verifyCode} disabled={busy}
                       className="w-full py-3 rounded-2xl bg-accent text-white font-medium disabled:opacity-50">
                       تاییدِ کد
@@ -290,7 +290,7 @@ function BookingFlow() {
           </div>
         )}
 
-        {/* ── گام ۳: پرداخت ── */}
+        {/* ── گام 3: پرداخت ── */}
         {step === 3 && payInfo && !done && (
           <div className="space-y-4">
             <div className="rounded-2xl border border-sand bg-white p-5">
@@ -304,7 +304,7 @@ function BookingFlow() {
                 <div className="text-xs text-soot mt-1">به نامِ {payInfo.card_holder_name}</div>
               </div>
             </div>
-            <label className="block text-xs font-bold text-soot">شماره‌ی پیگیری یا ۴ رقمِ آخرِ کارتِ خودتان</label>
+            <label className="block text-xs font-bold text-soot">شماره‌ی پیگیری یا 4 رقمِ آخرِ کارتِ خودتان</label>
             <input value={payRef} onChange={e => setPayRef(e.target.value)} dir="ltr"
               className="w-full p-3 rounded-xl border border-sand bg-white text-sm tnum" />
             <button onClick={submitPayment} disabled={busy || !payRef.trim()}

@@ -19,7 +19,7 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
   return NextResponse.json({ phone, bookings: data || [] })
 }
 
-// لغوِ رزرو توسطِ مراجع — فاز ۱: فقط رزروهای آینده، بدونِ سازوکارِ بازپرداخت
+// لغوِ رزرو توسطِ مراجع — فاز 1: فقط رزروهای آینده، بدونِ سازوکارِ بازپرداخت
 export async function POST(req: NextRequest, { params }: { params: { slug: string } }) {
   const t = await requireTenant(params.slug)
   if (isTenantResponse(t)) return t

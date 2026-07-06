@@ -211,26 +211,30 @@ type ResourceProfileView = {
   cards: PaymentCardInfo[]
   cancellation_policy: CancellationPolicy
   payment_methods: PaymentMethods
+  quick_times: string[]
 }
+
+const ALL_TIMES = ['8:00','9:00','10:00','11:00','12:00','13:00','14:00','15:00','16:00','17:00','18:00']
 
 const DEFAULT_PROFILE: ResourceProfileView = {
   resource_id: '', name: '', title: '', avatar_url: '', badges: [], session_modes: 'both', cards: [],
   cancellation_policy: { enabled: true, threshold_hours: 12, early_refund_percent: 50, late_refund_percent: 0 },
   payment_methods: { card_to_card: true, online: false },
+  quick_times: ALL_TIMES,
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const ALL_TIMES = ['۸:۰۰','۹:۰۰','۱۰:۰۰','۱۱:۰۰','۱۲:۰۰','۱۳:۰۰','۱۴:۰۰','۱۵:۰۰','۱۶:۰۰','۱۷:۰۰','۱۸:۰۰']
 
-// کلیدِ مرتب‌سازیِ عددیِ ساعت (رقمِ فارسی «۱۱:۰۰» → دقیقه) تا ترتیب درست باشد نه الفبایی
+// کلیدِ مرتب‌سازیِ عددیِ ساعت («11:00» → دقیقه) تا ترتیب درست باشد نه الفبایی
 function timeKey(t: string): number {
   const [h, m] = toLatinNum(t || '').split(':').map(x => parseInt(x, 10))
   return (isNaN(h) ? 0 : h) * 60 + (isNaN(m) ? 0 : m)
 }
 
-// اعتبارسنجی و نرمال‌سازیِ ساعتِ دلخواهِ واردشده‌ی دکتر (مثلاً «۹», «9:30», «۱۴:۰۵») به
-// همان قالبِ رقمِ فارسیِ استفاده‌شده در ALL_TIMES («۹:۰۰»)؛ اگر نامعتبر بود null برمی‌گرداند.
+// اعتبارسنجی و نرمال‌سازیِ ساعتِ دلخواهِ واردشده‌ی دکتر (مثلاً «9», «9:30», «14:05»، همه با
+// رقمِ فارسی یا لاتین) به همان قالبِ لاتینِ استفاده‌شده در ALL_TIMES («9:00»)؛ اگر نامعتبر
+// بود null برمی‌گرداند. هیچ‌جا خروجی به رقمِ فارسی تبدیل نمی‌شود.
 function parseCustomTime(raw: string): string | null {
   const s = toLatinNum(raw || '').trim()
   const m = s.match(/^(\d{1,2})(?::(\d{1,2}))?$/)
@@ -238,8 +242,7 @@ function parseCustomTime(raw: string): string | null {
   const h = parseInt(m[1], 10)
   const min = m[2] ? parseInt(m[2], 10) : 0
   if (h < 0 || h > 23 || min < 0 || min > 59) return null
-  const toFa = (n: number | string) => String(n).replace(/\d/g, d => '۰۱۲۳۴۵۶۷۸۹'[parseInt(d, 10)])
-  return `${toFa(h)}:${toFa(String(min).padStart(2, '0'))}`
+  return `${h}:${String(min).padStart(2, '0')}`
 }
 
 // برچسبِ ترکیبیِ نمایشِ سریعِ یک مرحله («مصاحبه: منتظر پرداخت»)
@@ -478,6 +481,8 @@ export function PsychologyAdmin() {
   const [slotTypes, setSlotTypes] = useState<Record<string, 'online' | 'offline'>>({})
   const [slotLocs, setSlotLocs] = useState<Record<string, string>>({})
   const [customTime, setCustomTime] = useState('')
+  const [removeTimeMode, setRemoveTimeMode] = useState(false)
+  const [quickTimesSaving, setQuickTimesSaving] = useState(false)
   const [isOff, setIsOff] = useState(false)
   const [schedSaving, setSchedSaving] = useState(false)
   const [schedSaved, setSchedSaved] = useState(false)
@@ -1027,11 +1032,11 @@ export function PsychologyAdmin() {
 
   // اعلامِ تاخیر برای یک نوبتِ رزروشده — مراجع در پنلِ خودش می‌بیند
   async function announceDelay(appt: { kind: 'interview' | 'assessment' | 'session'; id: string; name: string; delayMinutes?: number | null }) {
-    const r = await uiPrompt(`تاخیرِ نوبتِ «${appt.name}» به دقیقه (برای پاک‌کردنِ تاخیرِ قبلی، عدد ۰ بزن):`,
+    const r = await uiPrompt(`تاخیرِ نوبتِ «${appt.name}» به دقیقه (برای پاک‌کردنِ تاخیرِ قبلی، عدد 0 بزن):`,
       { defaultValue: appt.delayMinutes ? String(appt.delayMinutes) : '' })
     if (r === null) return
     const n = parseInt(String(r).trim(), 10)
-    if (isNaN(n) || n < 0) { uiAlert('عددِ معتبر (۰ یا بیشتر) وارد کن.'); return }
+    if (isNaN(n) || n < 0) { uiAlert('عددِ معتبر (0 یا بیشتر) وارد کن.'); return }
     const delay_minutes = n === 0 ? null : n
     if (appt.kind === 'session') {
       await fetch(api('/sessions'), {
@@ -1250,6 +1255,28 @@ export function PsychologyAdmin() {
   }
 
   const patchProfile = (p: Partial<ResourceProfileView>) => setProfile(s => ({ ...s, ...p }))
+
+  // ذخیره‌ی مستقلِ لیستِ «ساعت‌های سریع» — بلافاصله پس از افزودن/حذف در تبِ
+  // «روزهای کاری» (نه منتظرِ دکمه‌ی «ذخیره‌ی تغییرات»ِ تبِ تنظیماتِ سایت که
+  // برایِ بقیه‌ی فیلدهای پروفایل است). هر دکتر لیستِ خودش را مستقل ویرایش می‌کند.
+  async function persistQuickTimes(next: string[]) {
+    setQuickTimesSaving(true)
+    try {
+      const body: Record<string, any> = { quick_times: next }
+      if (me?.isOwner && viewingResourceId) body.resource_id = viewingResourceId
+      const res = await fetch(api('/profile'), {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+      })
+      if (res.status === 401) { setNeedsLogin(true); return }
+      if (!res.ok) { const d = await res.json().catch(() => ({})); uiAlert(d.error || 'ذخیره نشد'); return }
+      patchProfile({ quick_times: next })
+      setProfileSnapshot(s => {
+        try { return JSON.stringify({ ...JSON.parse(s), quick_times: next }) } catch { return s }
+      })
+    } finally {
+      setQuickTimesSaving(false)
+    }
+  }
 
   // ── فرمِ رزرو (per-resource) ───────────────────────────────────────────────
   async function loadIntakeForm() {
@@ -1519,7 +1546,7 @@ export function PsychologyAdmin() {
         let msg = ''
         try { msg = JSON.parse(raw).error || '' } catch {}
         if (res.status === 403 && !msg) {
-          uiAlert('ذخیره نشد (۴۰۳). این خطا از خودِ برنامه نیست؛ درخواست توسطِ فایروالِ Vercel بلاک شده. در پنلِ Vercel → Firewall، گزینه‌ی «Attack Challenge Mode» را خاموش کن (یا Deployment Protection را بررسی کن).')
+          uiAlert('ذخیره نشد (403). این خطا از خودِ برنامه نیست؛ درخواست توسطِ فایروالِ Vercel بلاک شده. در پنلِ Vercel → Firewall، گزینه‌ی «Attack Challenge Mode» را خاموش کن (یا Deployment Protection را بررسی کن).')
         } else {
           uiAlert(`ذخیره نشد (کد ${res.status}): ${msg || raw.slice(0, 200) || 'خطای ناشناخته'}`)
         }
@@ -2161,7 +2188,7 @@ export function PsychologyAdmin() {
                     {totalPending === 0 ? 'موردِ منتظرِ اقدامی وجود ندارد.' : `${toFarsiNum(totalPending)} مورد منتظر اقدام است.`}
                   </p>
 
-                  {/* بخش ۱: مصاحبه */}
+                  {/* بخش 1: مصاحبه */}
                   <PendingSection title="مصاحبه‌ی اولیه" icon="🩺" count={interviewPending.length}>
                     {interviewPending.map(s => (
                       <PendingPayCard key={s.id} name={childOf(s.case_number)} caseNumber={s.case_number}
@@ -2176,7 +2203,7 @@ export function PsychologyAdmin() {
                     ))}
                   </PendingSection>
 
-                  {/* بخش ۲: ارزیابی */}
+                  {/* بخش 2: ارزیابی */}
                   <PendingSection title="ارزیابیِ کودک" icon="🧩" count={assessmentPending.length}>
                     {assessmentPending.map(s => (
                       <PendingPayCard key={s.id} name={childOf(s.case_number)} caseNumber={s.case_number}
@@ -2191,7 +2218,7 @@ export function PsychologyAdmin() {
                     ))}
                   </PendingSection>
 
-                  {/* بخش ۳: پروتکل‌های درمان (و جلسه‌های جایگزین) */}
+                  {/* بخش 3: پروتکل‌های درمان (و جلسه‌های جایگزین) */}
                   <PendingSection title="پروتکل درمان" icon="📦" count={pendingPkgs.length + pendingSess.length}>
                     {pendingPkgs.map(p => (
                       <PendingPayCard key={p.id} name={childOf(p.case_number)} caseNumber={p.case_number}
@@ -2219,7 +2246,7 @@ export function PsychologyAdmin() {
                     ))}
                   </PendingSection>
 
-                  {/* بخش ۴: بازپرداختِ کنسلی‌ها */}
+                  {/* بخش 4: بازپرداختِ کنسلی‌ها */}
                   <PendingSection title="بازپرداختِ کنسلی" icon="💸" count={pendingRefunds.length}>
                     {pendingRefunds.map(s => (
                       <RefundPendingCard key={s.id} name={childOf(s.case_number)} caseNumber={s.case_number}
@@ -2315,30 +2342,41 @@ export function PsychologyAdmin() {
                       <p className="text-[11px] text-gray-400 mb-3">روی هر ساعت بزن تا بینِ مطب‌ها جابجا شود.</p>
                     )}
 
-                    {/* افزودنِ ساعتِ دلخواه — برای وقتی لیستِ پیش‌فرض کافی نیست (مثلاً ۹:۳۰ یا ۱۹:۰۰) */}
-                    <div className="flex items-center gap-2 mb-3">
+                    {/* افزودن/حذفِ ساعت از لیستِ سریعِ این دکتر — این لیست برایِ همه‌ی روزها مشترک است */}
+                    <div className="flex items-center gap-2 mb-1.5">
                       <input value={customTime} onChange={e => setCustomTime(e.target.value)}
                         onKeyDown={e => { if (e.key === 'Enter') {
                           const t = parseCustomTime(customTime)
-                          if (!t) { uiAlert('ساعت نامعتبر است — مثال: ۹:۳۰ یا 14:00'); return }
+                          if (!t) { uiAlert('ساعت نامعتبر است — مثال: 9:30 یا 14:00'); return }
+                          if (!profile.quick_times.includes(t)) persistQuickTimes([...profile.quick_times, t])
                           if (!selectedTimes.includes(t)) setSelectedTimes(prev => [...prev, t])
                           setCustomTime('')
                         }}}
-                        placeholder="ساعتِ دلخواه (مثلاً ۹:۳۰)"
+                        placeholder="ساعتِ دلخواه (مثلاً 9:30)"
                         className="flex-1 text-sm px-3 py-2 border border-gray-200 rounded-xl" dir="ltr" />
                       <button onClick={() => {
                           const t = parseCustomTime(customTime)
-                          if (!t) { uiAlert('ساعت نامعتبر است — مثال: ۹:۳۰ یا 14:00'); return }
+                          if (!t) { uiAlert('ساعت نامعتبر است — مثال: 9:30 یا 14:00'); return }
+                          if (!profile.quick_times.includes(t)) persistQuickTimes([...profile.quick_times, t])
                           if (!selectedTimes.includes(t)) setSelectedTimes(prev => [...prev, t])
                           setCustomTime('')
                         }}
-                        className="px-4 py-2 border border-brand-200 text-brand-700 rounded-xl text-sm font-medium hover:bg-brand-50 shrink-0">
+                        disabled={quickTimesSaving}
+                        className="px-4 py-2 border border-brand-200 text-brand-700 rounded-xl text-sm font-medium hover:bg-brand-50 shrink-0 disabled:opacity-50">
                         ➕ افزودن
                       </button>
+                      <button onClick={() => setRemoveTimeMode(v => !v)}
+                        disabled={quickTimesSaving}
+                        className={`px-4 py-2 border rounded-xl text-sm font-medium shrink-0 disabled:opacity-50 ${removeTimeMode ? 'bg-red-500 border-red-500 text-white' : 'border-red-200 text-red-500 hover:bg-red-50'}`}>
+                        🗑 حذف
+                      </button>
                     </div>
+                    {removeTimeMode && (
+                      <p className="text-[11px] text-red-500 mb-3">هر ساعتی را که می‌خواهی از لیستِ گزینه‌ها کامل حذف کنی، لمس کن. برای خروج از این حالت، دوباره «🗑 حذف» را بزن.</p>
+                    )}
 
                     <div className="grid grid-cols-3 gap-2 mb-4">
-                      {Array.from(new Set([...ALL_TIMES, ...selectedTimes])).sort((a, b) => timeKey(a) - timeKey(b)).map(t => {
+                      {Array.from(new Set([...profile.quick_times, ...selectedTimes])).sort((a, b) => timeKey(a) - timeKey(b)).map(t => {
                         const dateStr = `${schedYear}/${schedMonth + 1}/${selectedDay}`
                         const takenBy = apptsForDate(dateStr).find(a => a.time === t)
                         const slotTs = jalaliDateTimeToTimestamp(dateStr, t)
@@ -2369,11 +2407,16 @@ export function PsychologyAdmin() {
                           ev.stopPropagation()
                           setOpt(opts[(curIdx + 1) % opts.length])
                         }
-                        // ساعتِ دلخواهی که دکتر با «افزودن» اضافه کرده (نه از لیستِ پیش‌فرض) — قابلِ حذفِ کامل
-                        const isCustom = !ALL_TIMES.includes(t)
+                        const removeThisTime = () => {
+                          if (profile.quick_times.includes(t)) persistQuickTimes(profile.quick_times.filter(x => x !== t))
+                          setSelectedTimes(prev => prev.filter(x => x !== t))
+                          setSlotTypes(st => { const n = { ...st }; delete n[t]; return n })
+                          setSlotLocs(sl => { const n = { ...sl }; delete n[t]; return n })
+                        }
                         return (
                           <div key={t}
                             onClick={() => {
+                              if (removeTimeMode) { removeThisTime(); return }
                               if (locked) return
                               if (selected) {
                                 setSelectedTimes(prev => prev.filter(x => x !== t))
@@ -2385,22 +2428,13 @@ export function PsychologyAdmin() {
                               }
                             }}
                             className={`relative text-center py-2 border rounded-xl text-sm transition-all
-                              ${isPastTime ? 'border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed line-through' :
+                              ${removeTimeMode ? 'cursor-pointer border-red-200 bg-red-50 text-red-600 hover:bg-red-100' :
+                                isPastTime ? 'border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed line-through' :
                                 takenBy ? 'border-amber-200 bg-amber-50 text-amber-700 cursor-not-allowed' :
                                 'cursor-pointer ' + (selected ? 'border-brand-600 bg-brand-50 text-brand-800 font-medium' : 'border-gray-200 text-gray-500 hover:border-gray-300')}`}>
-                            {isCustom && (
-                              <button onClick={(ev) => {
-                                  ev.stopPropagation()
-                                  setSelectedTimes(prev => prev.filter(x => x !== t))
-                                  setSlotTypes(st => { const n = { ...st }; delete n[t]; return n })
-                                  setSlotLocs(sl => { const n = { ...sl }; delete n[t]; return n })
-                                }}
-                                title="حذفِ این ساعتِ دلخواه"
-                                className="absolute -top-1.5 -left-1.5 w-4 h-4 rounded-full bg-gray-400 text-white text-[10px] leading-4 flex items-center justify-center hover:bg-red-500">✕</button>
-                            )}
                             {enTime(t)}
-                            {takenBy && !isPastTime && <span className="block text-[10px] mt-0.5">🔒 {takenBy.name}</span>}
-                            {selected && !locked && (
+                            {!removeTimeMode && takenBy && !isPastTime && <span className="block text-[10px] mt-0.5">🔒 {takenBy.name}</span>}
+                            {!removeTimeMode && selected && !locked && (
                               fixed
                                 ? <span className="block text-[10px] mt-1 text-brand-600">{opts[0]?.label}</span>
                                 : <button onClick={cycle}
@@ -2434,7 +2468,7 @@ export function PsychologyAdmin() {
 
                 {(() => {
                   const WEEK = ['شنبه', 'یک‌شنبه', 'دوشنبه', 'سه‌شنبه', 'چهارشنبه', 'پنج‌شنبه', 'جمعه']
-                  // مرزِ هفته‌ها (شنبه‌ها در روزهای ۶، ۱۳، ۲۰، ۲۷ شروع می‌شوند؛ هفته‌ی اول ۱ تا ۵)
+                  // مرزِ هفته‌ها (شنبه‌ها در روزهای 6، 13، 20، 27 شروع می‌شوند؛ هفته‌ی اول 1 تا 5)
                   const weekStarts = [1, 6, 13, 20, 27].filter(s => s <= daysInMonth)
                   const wIdx = Math.min(weekIdx, weekStarts.length - 1)
                   let rangeStart = 1, rangeEnd = daysInMonth
@@ -2560,7 +2594,7 @@ export function PsychologyAdmin() {
                       className="text-xs px-3 py-1.5 border border-gray-200 rounded-lg text-gray-500 hover:bg-gray-50">↻ بروزرسانی</button>
                   </div>
                   <div className="flex bg-white rounded-xl border border-gray-100 p-1 gap-1">
-                    {([['1m', '۱ ماه'], ['3m', '۳ ماه'], ['6m', '۶ ماه'], ['12m', '۱۲ ماه'], ['all', 'همه']] as const).map(([k, lbl]) => (
+                    {([['1m', '1 ماه'], ['3m', '3 ماه'], ['6m', '6 ماه'], ['12m', '12 ماه'], ['all', 'همه']] as const).map(([k, lbl]) => (
                       <button key={k} onClick={() => { setFinanceRange(k); setFinanceCustomOpen(false); setFinanceLoaded(false); loadFinance(k) }}
                         className={`flex-1 text-xs py-1.5 rounded-lg font-medium transition-all ${financeRange === k ? 'bg-brand-600 text-white' : 'text-gray-500 hover:bg-gray-50'}`}>
                         {lbl}
@@ -3106,7 +3140,7 @@ export function PsychologyAdmin() {
                                   {field.type === 'select' && 'مراجع فقط یکی از گزینه‌ها را انتخاب می‌کند — مثلِ بله/خیر.'}
                                   {field.type === 'multiselect' && 'مراجع می‌تواند چند گزینه را همزمان انتخاب کند — مثلِ چند علامتِ رفتاری.'}
                                   {field.type === 'date' && 'مراجع با یک تقویمِ واقعیِ شمسی (کلیک‌پذیر) تاریخ را انتخاب می‌کند — نه تایپِ دستی.'}
-                                  {field.type === 'phone' && 'فقط شماره‌ی موبایلِ معتبر (۱۱ رقم، با ۰۹) قبول می‌شود — نه هر متنی.'}
+                                  {field.type === 'phone' && 'فقط شماره‌ی موبایلِ معتبر (11 رقم، با 09) قبول می‌شود — نه هر متنی.'}
                                 </p>
                               </div>
 
@@ -3239,8 +3273,8 @@ export function PsychologyAdmin() {
                   <label className="text-xs text-gray-500 mb-1 block">نوع جلسه کودک</label>
                   <select value={newPkg.child_session_type} onChange={e => setNewPkg({...newPkg, child_session_type: e.target.value})}
                     className="w-full text-sm px-3 py-2 border border-gray-200 rounded-lg bg-white">
-                    <option value="offline">حضوری — ۱,۲۰۰,۰۰۰</option>
-                    <option value="online">آنلاین — ۸۵۰,۰۰۰</option>
+                    <option value="offline">حضوری — 1,200,000</option>
+                    <option value="online">آنلاین — 850,000</option>
                   </select>
                 </div>
               </div>
@@ -3254,8 +3288,8 @@ export function PsychologyAdmin() {
                   <label className="text-xs text-gray-500 mb-1 block">نوع جلسه والدین</label>
                   <select value={newPkg.parent_session_type} onChange={e => setNewPkg({...newPkg, parent_session_type: e.target.value})}
                     className="w-full text-sm px-3 py-2 border border-gray-200 rounded-lg bg-white">
-                    <option value="offline">حضوری — ۱,۲۰۰,۰۰۰</option>
-                    <option value="online">آنلاین — ۸۵۰,۰۰۰</option>
+                    <option value="offline">حضوری — 1,200,000</option>
+                    <option value="online">آنلاین — 850,000</option>
                   </select>
                 </div>
               </div>
@@ -3586,8 +3620,8 @@ export function PsychologyAdmin() {
               <div className="bg-gray-50 rounded-2xl p-4 space-y-2">
                 <div className="bg-white rounded-xl border border-gray-100 p-3">
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-sm font-medium text-gray-800">جلسه‌ی ۳</span>
-                    <span className="text-xs text-gray-400">۱۴۰۵/۰۴/۱۰ — ۱۶:۰۰ | 🎥 آنلاین</span>
+                    <span className="text-sm font-medium text-gray-800">جلسه‌ی 3</span>
+                    <span className="text-xs text-gray-400">1405/04/10 — 16:00 | 🎥 آنلاین</span>
                   </div>
                   {profile.cancellation_policy.enabled && (
                     <button disabled className="text-xs px-2.5 py-1 border border-red-200 text-red-500 rounded-lg mt-1">کنسل</button>
@@ -3595,7 +3629,7 @@ export function PsychologyAdmin() {
                 </div>
                 <div className="bg-white rounded-xl border border-gray-100 p-3">
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-sm font-medium text-gray-800">جلسه‌ی ۲</span>
+                    <span className="text-sm font-medium text-gray-800">جلسه‌ی 2</span>
                     <span className="text-xs text-red-500">سوخت شد — مبلغ برنگشت</span>
                   </div>
                   {patientFeatures.patient_buy_extra_session && (
@@ -3801,7 +3835,7 @@ function PanelLogin({ slug, onSuccess }: { slug: string; onSuccess: () => void }
               </div>
             )}
             <input value={code} onChange={e => setCode(e.target.value)} dir="ltr" inputMode="numeric" autoFocus
-              placeholder="کد ۴ رقمی"
+              placeholder="کد 4 رقمی"
               className="w-full p-3 rounded-xl border border-gray-200 text-lg text-center tracking-widest focus:outline-none focus:border-brand-400" />
             <button onClick={verify} disabled={busy || code.trim().length < 4}
               className="w-full py-3 rounded-xl bg-brand-600 text-white font-medium disabled:opacity-40">

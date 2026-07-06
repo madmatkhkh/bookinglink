@@ -30,20 +30,20 @@ export default function InterviewPage() {
   const [intakeLoaded, setIntakeLoaded] = useState(false)
   const [answers, setAnswers] = useState<Record<string, any>>({})
   const setAnswer = (id: string, v: any) => setAnswers(a => ({ ...a, [id]: v }))
-  // فرمِ درازِ قدیمی به یک ویزاردِ چندمرحله‌ای تبدیل شد — مرحله‌ی ۰ = مشخصاتِ تماس، بقیه = هر بخش یک صفحه
+  // فرمِ درازِ قدیمی به یک ویزاردِ چندمرحله‌ای تبدیل شد — مرحله‌ی 0 = مشخصاتِ تماس، بقیه = هر بخش یک صفحه
   const [pageIdx, setPageIdx] = useState(0)
 
-  const price = sessionType === 'online' ? '۸۵۰,۰۰۰' : '۱,۲۰۰,۰۰۰'
+  const price = sessionType === 'online' ? '850,000' : '1,200,000'
 
   // گزینه‌های نوعِ جلسه: آنلاین (در صورتِ فعال‌بودن) + یک کارت به‌ازای هر مکانِ حضوری
   const sessionOptions = useMemo(() => {
     const opts: { key: string; type: 'online' | 'offline'; loc: string; icon: string; label: string; desc: string; price: string }[] = []
     if (onlineAvailable(settings.session_modes)) {
-      opts.push({ key: 'online', type: 'online', loc: '', icon: '🎥', label: 'آنلاین', desc: 'تماس تصویری', price: '۸۵۰,۰۰۰' })
+      opts.push({ key: 'online', type: 'online', loc: '', icon: '🎥', label: 'آنلاین', desc: 'تماس تصویری', price: '850,000' })
     }
     if (offlineAvailable(settings.session_modes)) {
       for (const l of settings.office_locations) {
-        opts.push({ key: `offline:${l.id}`, type: 'offline', loc: l.title, icon: '🏥', label: l.title || 'حضوری', desc: l.address || 'جلسه‌ی حضوری', price: '۱,۲۰۰,۰۰۰' })
+        opts.push({ key: `offline:${l.id}`, type: 'offline', loc: l.title, icon: '🏥', label: l.title || 'حضوری', desc: l.address || 'جلسه‌ی حضوری', price: '1,200,000' })
       }
     }
     return opts
@@ -92,7 +92,7 @@ export default function InterviewPage() {
     })
   }
 
-  // شماره‌ی موبایلِ ایرانی: دقیقاً ۱۱ رقم، با ۰۹ شروع می‌شود (ارقامِ فارسی هم قبول است)
+  // شماره‌ی موبایلِ ایرانی: دقیقاً 11 رقم، با 09 شروع می‌شود (ارقامِ فارسی هم قبول است)
   function isValidIranPhone(v: string): boolean {
     return /^09\d{9}$/.test(toLatinNum(v).trim())
   }
@@ -103,7 +103,7 @@ export default function InterviewPage() {
     const miss: string[] = []
     if (!childName.trim()) miss.push('نام')
     if (!fatherPhone.trim()) miss.push('شماره تماس')
-    else if (!isValidIranPhone(fatherPhone)) miss.push('شماره تماس (باید ۱۱ رقم و با ۰۹ شروع شود)')
+    else if (!isValidIranPhone(fatherPhone)) miss.push('شماره تماس (باید 11 رقم و با 09 شروع شود)')
     return [...miss, ...missingIntakeFields(intakeForm, answers)]
   }
 
@@ -263,7 +263,7 @@ export default function InterviewPage() {
               const miss: string[] = []
               if (!childName.trim()) miss.push('نام')
               if (!fatherPhone.trim()) miss.push('شماره تماس')
-              else if (!isValidIranPhone(fatherPhone)) miss.push('شماره تماس (باید ۱۱ رقم و با ۰۹ شروع شود)')
+              else if (!isValidIranPhone(fatherPhone)) miss.push('شماره تماس (باید 11 رقم و با 09 شروع شود)')
               return miss
             }
             if (!currentSection) return []
@@ -331,7 +331,7 @@ export default function InterviewPage() {
                   {safeIdx === 0 ? (
                     <div className="grid grid-cols-2 gap-3">
                       <Field label="نام و نام خانوادگیِ کودک *" value={childName} onChange={setChildName} placeholder="آرین رضایی" />
-                      <Field label="شماره تماس *" value={fatherPhone} onChange={setFatherPhone} placeholder="۰۹۱۲..." dir="ltr" />
+                      <Field label="شماره تماس *" value={fatherPhone} onChange={setFatherPhone} placeholder="0912..." dir="ltr" />
                     </div>
                   ) : (
                     <div className="space-y-3">
@@ -398,7 +398,7 @@ function DynamicField({ field, value, onChange, onToggle }: {
     </div>
   )
   if (field.type === 'phone') return (
-    <Field label={label} value={value || ''} onChange={onChange} placeholder="۰۹۱۲..." dir="ltr" />
+    <Field label={label} value={value || ''} onChange={onChange} placeholder="0912..." dir="ltr" />
   )
   if (field.type === 'select') return (
     <div>
