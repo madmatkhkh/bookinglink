@@ -448,10 +448,6 @@ export function PsychologyAdmin() {
 
   // ── Bookings state ─────────────────────────────────────────────
   const [bookings, setBookings] = useState<Booking[]>([])
-  const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null)
-  const [bookingFilter, setBookingFilter] = useState<'all' | 'pending' | 'confirmed' | 'cancelled'>('all')
-  const [bookingSearch, setBookingSearch] = useState('')
-  const [bookingNotes, setBookingNotes] = useState('')
 
   // ── Pending payments (تب تأیید پرداخت‌ها) ─────────────────────────
   const [pendingPkgs, setPendingPkgs] = useState<Package[]>([])
@@ -689,18 +685,6 @@ export function PsychologyAdmin() {
     return { ...(p.details || {}), ...known }
   }
 
-  // از مودالِ «پرونده‌ها» مستقیم به تبِ پروتکل‌های درمانِ همان مراجع برو
-  async function goToPackagesTab(caseNumber: string) {
-    setSelectedBooking(null)
-    const p = patients.find(x => x.case_number === caseNumber)
-    if (!p) return
-    setMainTab('patients')
-    setSelectedPatient(p)
-    setPatientView('detail')
-    setPatientTab('packages')
-    await loadPatientData(caseNumber)
-  }
-
   // ─── Patient edit ────────────────────────────────────────────────────────────
 
   function startEdit(p: Patient) {
@@ -860,18 +844,6 @@ export function PsychologyAdmin() {
     loadAllSessions()
   }
 
-  // ─── Booking actions ─────────────────────────────────────────────────────────
-
-  async function updateBookingStatus(id: string, status: string) {
-    await fetch(api('/cases'), {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, status, doctor_notes: bookingNotes }),
-    })
-    setSelectedBooking(null)
-    fetchAll()
-  }
-
   // تأیید پرداختِ یک مرحله (مصاحبه/ارزیابی) → باز شدنِ گرفتنِ وقت
   async function confirmStagePayment(stageId: string, stageType: 'interview' | 'assessment') {
     const label = STAGE_TYPE_LABEL[stageType] || stageType
@@ -881,7 +853,7 @@ export function PsychologyAdmin() {
       body: JSON.stringify({ id: stageId, confirm_payment: true }),
     })
     if (!res.ok) { uiAlert('خطا در ثبت'); return }
-    setSelectedBooking(null); fetchAll()
+    fetchAll()
   }
 
   // ردِ پرداختِ یک مرحله → بازگشت به مرحله‌ی پرداخت تا مراجع دوباره واریز کند
@@ -895,21 +867,7 @@ export function PsychologyAdmin() {
       body: JSON.stringify({ id: stageId, reject_payment: true, reject_reason: reason }),
     })
     if (!res.ok) { uiAlert('خطا در ثبت'); return }
-    await loadPendingPayments(); setSelectedBooking(null); fetchAll()
-  }
-
-  // ردِ کاملِ پرونده (معمولاً روی همان اولین مرحله‌ی منتظرِ پرداخت)
-  async function rejectCase(id: string) {
-    const r = await uiPrompt('دلیل رد را بنویسید (برای مراجع نمایش داده می‌شود):', { required: true })
-    if (r === null) return
-    const reject_reason = r.trim()
-    if (!reject_reason) { uiAlert('لطفاً دلیل را بنویسید.'); return }
-    const res = await fetch(api('/cases'), {
-      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, reject_reason, status: 'cancelled' }),
-    })
-    if (!res.ok) { uiAlert('خطا در ثبت'); return }
-    setSelectedBooking(null); fetchAll()
+    await loadPendingPayments(); fetchAll()
   }
 
   // ردِ پرداختِ پروتکل درمان → مراجع باید دوباره واریز کند
@@ -947,7 +905,7 @@ export function PsychologyAdmin() {
     })
     const d = await res.json().catch(() => ({}))
     if (!res.ok) { uiAlert(d.error || 'خطا در ثبتِ مرحله'); return }
-    setSelectedBooking(null); fetchAll()
+    fetchAll()
     if (selectedPatient?.case_number === caseNumber) await loadPatientData(caseNumber)
   }
 
@@ -1577,19 +1535,6 @@ export function PsychologyAdmin() {
       p.mother_phone?.includes(q)
     )
   })
-
-  const filteredBookings = bookings
-    .filter(b => bookingFilter === 'all' || b.status === bookingFilter)
-    .filter(b => {
-      if (!bookingSearch) return true
-      const q = bookingSearch.toLowerCase()
-      return (
-        b.child_name?.toLowerCase().includes(q) ||
-        b.father_name?.toLowerCase().includes(q) ||
-        b.case_number?.toLowerCase().includes(q) ||
-        b.father_phone?.includes(q)
-      )
-    })
 
   const bookingCounts = {
     all: bookings.length,
@@ -2248,96 +2193,6 @@ export function PsychologyAdmin() {
               )
             })()}
 
-            {/* Booking detail modal */}
-            {selectedBooking && (
-              <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50" onClick={e => { if (e.target === e.currentTarget) setSelectedBooking(null) }}>
-                <div className="bg-white rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto p-6 shadow-xl" dir="rtl">
-                  <div className="flex items-center justify-between mb-4">
-                    <h2 className="font-semibold text-gray-900">{selectedBooking.child_name}</h2>
-                    <button onClick={() => setSelectedBooking(null)} className="text-gray-400 hover:text-gray-600">✕</button>
-                  </div>
-                  <div className="space-y-2 mb-4">
-                    <InfoRow label="شماره پرونده" value={selectedBooking.case_number} />
-                    <InfoRow label="نوع جلسه" value={selectedBooking.session_type === 'online' ? 'آنلاین' : `حضوری${selectedBooking.office_location ? ` — ${selectedBooking.office_location}` : ''}`} />
-                    <InfoRow label="وضعیت" value={STATUS_LABEL[selectedBooking.status]} />
-                    <InfoRow label="مرحله‌ی جاری" value={stageLabel(selectedBooking.current_stage)} />
-                    {selectedBooking.current_stage?.session_date && (
-                      <InfoRow label={`وقتِ ${STAGE_TYPE_LABEL[selectedBooking.current_stage.stage_type] || ''}`}
-                        value={`${enTime(selectedBooking.current_stage.session_date)} — ${enTime(selectedBooking.current_stage.session_time)}`} />
-                    )}
-                    {selectedBooking.current_stage?.payment_ref && (
-                      <InfoRow label="فیشِ واریزی" value={selectedBooking.current_stage.payment_ref} />
-                    )}
-                    {selectedBooking.status === 'cancelled' && selectedBooking.reject_reason && (
-                      <InfoRow label="دلیل رد" value={selectedBooking.reject_reason} />
-                    )}
-                  </div>
-                  <div className="mb-4">
-                    <label className="text-xs text-gray-500 mb-1 block">یادداشت دکتر</label>
-                    <textarea value={bookingNotes} onChange={e => setBookingNotes(e.target.value)}
-                      rows={3} className="w-full text-sm px-3 py-2 border border-gray-200 rounded-lg resize-none" />
-                  </div>
-
-                  {/* اکشن‌های مرحله‌ایِ دکتر */}
-                  {(() => {
-                    const stage = selectedBooking.current_stage
-                    const id = selectedBooking.id
-
-                    if (selectedBooking.status === 'cancelled')
-                      return <div className="text-center text-sm text-red-600 bg-red-50 rounded-xl py-3">این پرونده رد شده است.</div>
-
-                    if (!stage) {
-                      // هیچ مرحله‌ی بازی نیست — دکتر مرحله‌ی بعد را کاملاً آزاد مشخص می‌کند
-                      return (
-                        <div className="space-y-2">
-                          <div className="text-center text-sm text-gray-600 bg-gray-50 rounded-xl py-3">
-                            مرحله‌ی بازی نیست. مرحله‌ی بعد برایِ این پرونده را مشخص کنید، یا مستقیم برای پروتکلِ درمان اقدام کنید.
-                          </div>
-                          <div className="flex gap-2">
-                            <button onClick={() => addNextStage(selectedBooking.case_number, 'interview')}
-                              className="flex-1 py-2.5 bg-blue-600 text-white rounded-xl text-sm">🩺 مصاحبه‌ی دیگر</button>
-                            <button onClick={() => addNextStage(selectedBooking.case_number, 'assessment')}
-                              className="flex-1 py-2.5 bg-purple-600 text-white rounded-xl text-sm">🧩 ارزیابی</button>
-                          </div>
-                          <button onClick={() => goToPackagesTab(selectedBooking.case_number)}
-                            className="w-full py-2.5 bg-brand-600 text-white rounded-xl text-sm font-medium">📦 رفتن به پروتکلِ درمان</button>
-                          <button onClick={() => rejectCase(id)} className="w-full py-2 border border-red-200 text-red-500 rounded-xl text-sm">❌ رد پرونده</button>
-                        </div>
-                      )
-                    }
-
-                    const label = STAGE_TYPE_LABEL[stage.stage_type] || stage.stage_type
-
-                    if (stage.status === 'awaiting_payment')
-                      return (
-                        <div className="space-y-2">
-                          <div className="text-center text-xs text-amber-700 bg-amber-50 rounded-xl py-2.5 border border-amber-100">💳 منتظر پرداختِ کارت‌به‌کارتِ {label} توسط مراجع</div>
-                          <button onClick={() => rejectCase(id)} className="w-full py-2 border border-red-200 text-red-500 rounded-xl text-sm">❌ رد پرونده</button>
-                        </div>
-                      )
-
-                    if (stage.status === 'payment_submitted')
-                      return (
-                        <div className="space-y-2">
-                          <div className="text-center text-xs text-blue-700 bg-blue-50 rounded-xl py-2 border border-blue-100">مراجع اعلام کرده پرداخت کرده. واریز را بررسی و تأیید کنید.</div>
-                          <div className="flex gap-2">
-                            <button onClick={() => confirmStagePayment(stage.id, stage.stage_type)} className="flex-1 py-2.5 bg-green-600 text-white rounded-xl text-sm">✅ تأیید پرداختِ {label}</button>
-                            <button onClick={() => rejectStagePayment(stage.id)} className="flex-1 py-2.5 bg-red-500 text-white rounded-xl text-sm">❌ رد</button>
-                          </div>
-                        </div>
-                      )
-
-                    if (stage.status === 'awaiting_booking')
-                      return <div className="text-center text-sm text-gray-600 bg-gray-50 rounded-xl py-3">پرداخت تأیید شد. منتظرِ گرفتنِ وقتِ {label} توسط مراجع.</div>
-
-                    if (stage.status === 'booked')
-                      return <div className="text-center text-sm text-gray-600 bg-gray-50 rounded-xl py-3">{label} رزرو شد. پس از برگزاری، از تبِ «پرونده‌ها» → «جلسات»ِ همین مراجع تأیید کنید تا مرحله‌ی بعد را مشخص کنید.</div>
-
-                    return null
-                  })()}
-                </div>
-              </div>
-            )}
           </div>
         )}
 

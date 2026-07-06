@@ -8,7 +8,7 @@ import { onlineAvailable, offlineAvailable, fieldVisible, missingIntakeFields } 
 import type { PaymentCardInfo, IntakeForm, FormField, PaymentMethods } from '@/lib/psy'
 import { DialogHost, uiAlert, uiConfirm, uiPrompt } from '@/components/ui/Dialog'
 
-type Step = 1 | 2 | 3 | 'pay' | 'done'
+type Step = 1 | 3 | 'pay' | 'done'
 
 export default function InterviewPage() {
   const { slug } = useParams<{ slug: string }>()
@@ -19,16 +19,9 @@ export default function InterviewPage() {
   const [sessionType, setSessionType] = useState<'online'|'offline'|''>('')
   const [officeLoc, setOfficeLoc] = useState('')   // عنوانِ مکانِ حضوریِ انتخاب‌شده
   const [selKey, setSelKey] = useState('')         // کلیدِ گزینه‌ی انتخاب‌شده (برای های‌لایت)
-  const [curMonth, setCurMonth] = useState(today.month)
-  const [curYear, setCurYear] = useState(today.year)
-  const [selectedDay, setSelectedDay] = useState<number|null>(null)
-  const [selectedSlot, setSelectedSlot] = useState<string>('')
   const [loading, setLoading] = useState(false)
   const [caseNumber, setCaseNumber] = useState('')
   const [stageId, setStageId] = useState('')
-  // برنامه‌ی واقعی دکتر از دیتابیس — کلید: شماره روز، مقدار: ساعت‌های خالی
-  const [schedule, setSchedule] = useState<Record<string, string[]>>({})
-  const [loadingSchedule, setLoadingSchedule] = useState(false)
   // نام و شماره‌تماس همیشه ثابت‌اند (برای OTP لازم‌اند)؛ بقیه‌ی سوال‌ها کاملاً
   // دیتایی‌اند و از فرمِ تنظیم‌شده‌ی همین دکتر می‌آیند.
   const [childName, setChildName] = useState('')
@@ -41,29 +34,6 @@ export default function InterviewPage() {
   const [pageIdx, setPageIdx] = useState(0)
 
   const price = sessionType === 'online' ? '۸۵۰,۰۰۰' : '۱,۲۰۰,۰۰۰'
-  const daysInMonth = getDaysInJalaliMonth(curYear, curMonth)
-  const startDay = 2
-  const availDays = Object.keys(schedule).filter(d => schedule[d].length > 0).map(Number)
-
-  // هر بار ماه/سال عوض شد، برنامه‌ی واقعی اون ماه رو از دیتابیس بخون
-  useEffect(() => {
-    let cancelled = false
-    setLoadingSchedule(true)
-    fetch(`/api/t/${slug}/psy/schedule?year=${curYear}&month=${curMonth + 1}`, { cache: 'no-store' })
-      .then(r => r.json())
-      .then(d => {
-        if (cancelled) return
-        const map: Record<string, string[]> = {}
-        for (const s of d.schedules || []) {
-          const day = parseInt(s.date.split('/')[2])
-          map[String(day)] = s.available_times || []
-        }
-        setSchedule(map)
-      })
-      .catch(() => { if (!cancelled) setSchedule({}) })
-      .finally(() => { if (!cancelled) setLoadingSchedule(false) })
-    return () => { cancelled = true }
-  }, [curMonth, curYear])
 
   // گزینه‌های نوعِ جلسه: آنلاین (در صورتِ فعال‌بودن) + یک کارت به‌ازای هر مکانِ حضوری
   const sessionOptions = useMemo(() => {
@@ -111,14 +81,6 @@ export default function InterviewPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settings.loaded, sessionOptions])
-
-  function changeMonth(dir: number) {
-    let m = curMonth + dir, y = curYear
-    if (m < 0) { m = 11; y-- }
-    if (m > 11) { m = 0; y++ }
-    setCurMonth(m); setCurYear(y)
-    setSelectedDay(null); setSelectedSlot('')
-  }
 
   // toggle عمومی برای فیلدهای چندگزینه‌ای — همان رفتارِ «هیچ‌کدام» منحصربه‌فرد
   function toggleMulti(fieldId: string, option: string) {
@@ -284,68 +246,6 @@ export default function InterviewPage() {
                 </button>
               </>
             )}
-          </div>
-        )}
-
-        {/* Step 2 */}
-        {step === 2 && (
-          <div className="bg-white rounded-2xl border border-gray-100 p-5 mb-4">
-            <div className="flex items-center justify-between mb-4">
-              <button onClick={() => changeMonth(-1)} className="w-8 h-8 flex items-center justify-center border border-gray-200 rounded-lg text-gray-500 hover:bg-gray-50">›</button>
-              <h2 className="text-base font-medium text-gray-800">{PERSIAN_MONTHS[curMonth]} {toFarsiNum(curYear)}</h2>
-              <button onClick={() => changeMonth(1)} className="w-8 h-8 flex items-center justify-center border border-gray-200 rounded-lg text-gray-500 hover:bg-gray-50">‹</button>
-            </div>
-            <div className="grid grid-cols-7 gap-1 mb-2">
-              {PERSIAN_WEEKDAYS.map(d => <div key={d} className="text-center text-xs text-gray-400 py-1">{d}</div>)}
-            </div>
-            <div className="grid grid-cols-7 gap-1 mb-5">
-              {Array(startDay).fill(null).map((_,i) => <div key={i} />)}
-              {Array(daysInMonth).fill(null).map((_,i) => {
-                const d = i + 1
-                const isPast = curYear === today.year && curMonth === today.month && d <= today.day
-                const hasSlot = availDays.includes(d)
-                const isSelected = selectedDay === d
-                return (
-                  <div key={d} onClick={() => { if(!isPast && hasSlot){ setSelectedDay(d); setSelectedSlot('') }}}
-                    className={`text-center py-2 rounded-lg text-sm transition-all relative
-                      ${isPast ? 'text-gray-300 cursor-default' : ''}
-                      ${hasSlot && !isPast ? 'cursor-pointer hover:bg-brand-50' : ''}
-                      ${isSelected ? 'bg-brand-50 text-brand-800 font-medium' : ''}
-                      ${!isPast && !hasSlot ? 'text-gray-400 cursor-default' : ''}
-                    `}>
-                    {toFarsiNum(d)}
-                    {hasSlot && !isPast && <span className="block w-1 h-1 rounded-full bg-brand-400 mx-auto mt-0.5" />}
-                  </div>
-                )
-              })}
-            </div>
-            {loadingSchedule && (
-              <p className="text-center text-xs text-gray-400 mb-4">در حال بارگذاری برنامه...</p>
-            )}
-            {!loadingSchedule && availDays.length === 0 && (
-              <p className="text-center text-xs text-gray-400 mb-4">برای این ماه نوبتی تعریف نشده است.</p>
-            )}
-            {selectedDay && (
-              <div className="mb-5">
-                <h3 className="text-sm font-medium text-gray-700 mb-3">ساعت‌های خالی — {toFarsiNum(selectedDay)} {PERSIAN_MONTHS[curMonth]}</h3>
-                <div className="grid grid-cols-3 gap-2">
-                  {(schedule[String(selectedDay)] || []).map(s => (
-                    <div key={s} onClick={() => setSelectedSlot(s)}
-                      className={`text-center py-2 border rounded-lg text-sm cursor-pointer transition-all
-                        ${selectedSlot === s ? 'border-brand-600 bg-brand-50 text-brand-800 font-medium' : 'border-gray-200 text-gray-500'}`}>
-                      {s}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-            <div className="flex gap-2">
-              <button onClick={() => setStep(1)} className="px-4 py-3 border border-gray-200 rounded-xl text-sm text-gray-500 hover:bg-gray-50">برگشت</button>
-              <button disabled={!selectedDay || !selectedSlot} onClick={() => setStep(3)}
-                className="flex-1 py-3 bg-brand-600 text-white rounded-xl text-sm font-medium disabled:opacity-40 hover:bg-brand-800 transition-colors">
-                مشخصات مراجع ←
-              </button>
-            </div>
           </div>
         )}
 
