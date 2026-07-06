@@ -4,16 +4,24 @@ import { useParams, useSearchParams, useRouter } from 'next/navigation'
 import { PERSIAN_MONTHS, PERSIAN_WEEKDAYS, toFarsiNum, getCurrentJalali, getDaysInJalaliMonth, jalaliDateTimeToTimestamp } from '@/lib/calendar'
 import { PSY_PRICING as PRICING, DEFAULT_CANCELLATION_POLICY } from '@/lib/psy'
 import { usePublicClinic, usePatientFeatures, CardChooser } from '@/components/PsyPublic'
-import { FLOW } from '@/lib/flow'
+import { STAGE_TYPE_LABEL } from '@/lib/flow'
 import { DialogHost, uiAlert, uiConfirm } from '@/components/ui/Dialog'
+
+type CaseStage = {
+  id: string; case_number: string
+  stage_type: 'interview' | 'assessment'
+  status: 'awaiting_payment' | 'payment_submitted' | 'awaiting_booking' | 'booked'
+  price: number; paid: boolean; payment_submitted?: boolean; payment_ref?: string
+  session_date?: string; session_time?: string; held?: boolean
+  cancel_notice?: string; resource_id?: string | null; created_at: string
+}
 
 type Booking = {
   id: string; case_number: string; child_name: string; birth_date: string
   grade: string; father_name: string; mother_name: string
-  father_phone: string; mother_phone: string; booking_date: string; status: string
-  flow_status?: string; reject_reason?: string; cancel_notice?: string
-  interview_date?: string; interview_time?: string; interview_price?: number
-  assessment_date?: string; assessment_time?: string; assessment_price?: number
+  father_phone: string; mother_phone: string; status: string
+  reject_reason?: string
+  current_stage_id?: string | null
   resource_id?: string | null
 }
 type Package = {
@@ -50,11 +58,11 @@ export default function PatientPanel() {
   const [booking, setBooking] = useState<Booking | null>(null)
   const [packages, setPackages] = useState<Package[]>([])
   const [sessions, setSessions] = useState<Session[]>([])
+  const [stages, setStages] = useState<CaseStage[]>([])
   const [activeTab, setActiveTab] = useState<'packages' | 'sessions' | 'info'>('packages')
   const [selectedPkg, setSelectedPkg] = useState<Package | null>(null)
   const [scheduleView, setScheduleView] = useState(false)
-  const [showAssessment, setShowAssessment] = useState(false)
-  const [showInterviewSlot, setShowInterviewSlot] = useState(false)
+  const [showSlotPicker, setShowSlotPicker] = useState(false)
 
   async function sendOtp() {
     if (!phone || phone.length < 10) { setError('شماره موبایل درست نیست'); return }
@@ -96,6 +104,7 @@ export default function PatientPanel() {
             setBooking(data.booking)
             setPackages(data.packages || [])
             setSessions(data.sessions || [])
+            setStages(data.stages || [])
             setStep('panel')
           }
         } finally {
@@ -133,6 +142,7 @@ export default function PatientPanel() {
     if (data.booking) setBooking(data.booking)
     setPackages(data.packages || [])
     setSessions(data.sessions || [])
+    setStages(data.stages || [])
   }
 
   const pkgPrice = (p: Package) =>
@@ -207,9 +217,12 @@ export default function PatientPanel() {
 
   if (!booking) return null
 
-  // مراجعی که هنوز وارد مرحله‌ی درمان نشده، وضعیت مرحله‌ی فعلی‌اش را می‌بیند
-  const fs = booking.flow_status || FLOW.INTERVIEW_AWAITING_PAYMENT
-  const inTreatment = packages.length > 0 || fs === FLOW.PACKAGE_ASSIGNED
+  // مراجعی که هنوز وارد مرحله‌ی درمان نشده، وضعیت مرحله‌ی فعلی‌اش را می‌بیند.
+  // مرحله‌ی جاری (اگر باشد) از current_stage_id پیدا می‌شود؛ اگر نبود یعنی یا
+  // منتظرِ تصمیمِ دکتر برای مرحله‌ی بعد است، یا وارد فازِ پروتکلِ درمان شده.
+  const currentStage = stages.find(s => s.id === booking.current_stage_id) || null
+  const isRejected = booking.status === 'cancelled' && !!booking.reject_reason
+  const inTreatment = !currentStage && packages.length > 0
 
   if (!inTreatment) return (
     <div className="min-h-screen bg-gray-50" dir="rtl">
@@ -230,102 +243,54 @@ export default function PatientPanel() {
 
       <div className="max-w-lg mx-auto p-4 space-y-3">
         {/* نوارِ پیشرفتِ مراحل */}
-        <StageProgress fs={fs} />
+        <StageProgress stages={stages} inTreatment={inTreatment} />
 
         <div className="bg-white rounded-2xl border border-gray-100 p-6 text-center">
-          {/* ── مرحله‌ی مصاحبه ───────────────────────────────── */}
-          {fs === FLOW.INTERVIEW_AWAITING_PAYMENT && (
+          {isRejected ? (
+            <>
+              <StageHero icon="❌" title="تأیید نشد" desc="متأسفانه پس از بررسی، امکان ادامه‌ی فرایند درمان فراهم نشد." red />
+              <div className="bg-red-50 border border-red-100 rounded-xl p-3 text-sm text-red-600 text-right">
+                <span className="font-medium">دلیل: </span>{booking.reject_reason}
+              </div>
+            </>
+          ) : !currentStage ? (
+            <StageWaiting title="منتظرِ تعیینِ مرحله‌ی بعد" desc="دکتر به‌زودی مرحله‌ی بعدِ روندِ درمان را برای شما مشخص می‌کند." />
+          ) : currentStage.status === 'awaiting_payment' ? (
             <StagePayment
-              icon="🩺" title="هزینه‌ی مصاحبه‌ی اولیه با والدین"
-              desc="برای شروع، هزینه‌ی مصاحبه‌ی اولیه را پرداخت کنید. پس از تأیید پرداخت، می‌توانید وقت مصاحبه را انتخاب کنید."
-              amount={booking.interview_price || PRICING.interview}
-              resourceId={booking.resource_id} caseNumber={booking.case_number} phone={phone} purpose="interview"
+              icon={currentStage.stage_type === 'assessment' ? '🧩' : '🩺'}
+              title={`هزینه‌ی ${STAGE_TYPE_LABEL[currentStage.stage_type] || ''}`}
+              desc="برای ادامه، هزینه‌ی این مرحله را پرداخت کنید. پس از تأیید پرداخت، می‌توانید وقت بگیرید."
+              amount={currentStage.price || (currentStage.stage_type === 'assessment' ? PRICING.assessment : PRICING.interview)}
+              resourceId={booking.resource_id} caseNumber={booking.case_number} phone={phone} stageId={currentStage.id}
               onPaid={async (ref) => {
-                const res = await fetch(`/api/t/${slug}/psy/stage-pay`, {
+                const res = await fetch(`/api/t/${slug}/psy/pay`, {
                   method: 'POST', headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ case_number: booking.case_number, phone, stage: 'interview', payment_ref: ref })
+                  body: JSON.stringify({ case_number: booking.case_number, phone, stage_id: currentStage.id, payment_ref: ref })
                 })
                 return res.ok
               }}
               onDone={() => loadData(booking.case_number)} />
-          )}
-
-          {fs === FLOW.INTERVIEW_PAYMENT_SUBMITTED && (
-            <StageWaiting title="در انتظار تأیید پرداخت" desc="پرداخت شما ثبت شد و در حالِ بررسی است. پس از تأیید، اینجا می‌توانید وقت مصاحبه را بگیرید." />
-          )}
-
-          {fs === FLOW.INTERVIEW_AWAITING_BOOKING && (
+          ) : currentStage.status === 'payment_submitted' ? (
+            <StageWaiting title="در انتظار تأیید پرداخت" desc="پرداخت شما ثبت شد و در حالِ بررسی است. پس از تأیید، اینجا می‌توانید وقت بگیرید." />
+          ) : currentStage.status === 'awaiting_booking' ? (
             <>
-              {booking.cancel_notice && (
+              {currentStage.cancel_notice && (
                 <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm text-amber-700 text-right mb-3">
-                  ⚠️ {booking.cancel_notice}
+                  ⚠️ {currentStage.cancel_notice}
                 </div>
               )}
-              <StageHero icon="✅" title={booking.cancel_notice ? 'انتخاب زمانِ جدید' : 'پرداخت تأیید شد!'} desc="می‌توانید وقتِ مصاحبه‌ی اولیه را انتخاب کنید." />
-              <button onClick={() => setShowInterviewSlot(true)}
+              <StageHero icon="✅" title={currentStage.cancel_notice ? 'انتخاب زمانِ جدید' : 'پرداخت تأیید شد!'}
+                desc={`می‌توانید وقتِ ${STAGE_TYPE_LABEL[currentStage.stage_type] || ''} را انتخاب کنید.`} />
+              <button onClick={() => setShowSlotPicker(true)}
                 className="w-full py-3 bg-brand-600 text-white rounded-xl text-sm font-medium hover:bg-brand-800">
-                📅 گرفتن وقت مصاحبه
+                📅 گرفتن وقت
               </button>
             </>
-          )}
-
-          {fs === FLOW.INTERVIEW_BOOKED && (
-            <StageInfo icon="📅" title="وقت مصاحبه ثبت شد"
-              desc="منتظرِ برگزاریِ مصاحبه باشید. پس از مصاحبه، مرحله‌ی ارزیابیِ کودک فعال می‌شود."
-              date={booking.interview_date} time={booking.interview_time} label="وقت مصاحبه" />
-          )}
-
-          {fs === FLOW.INTERVIEW_REJECTED && (
-            <>
-              <StageHero icon="❌" title="مصاحبه تأیید نشد" desc="متأسفانه پس از بررسی، امکان ادامه‌ی فرایند درمان فراهم نشد." red />
-              {booking.reject_reason && (
-                <div className="bg-red-50 border border-red-100 rounded-xl p-3 text-sm text-red-600 text-right">
-                  <span className="font-medium">دلیل: </span>{booking.reject_reason}
-                </div>
-              )}
-            </>
-          )}
-
-          {/* ── مرحله‌ی ارزیابی ──────────────────────────────── */}
-          {fs === FLOW.ASSESSMENT_AWAITING_PAYMENT && (
-            <StagePayment
-              icon="🧩" title="هزینه‌ی ارزیابیِ کودک"
-              desc="مصاحبه‌ی اولیه برگزار شد. برای ادامه، هزینه‌ی ارزیابیِ کودک را پرداخت کنید. پس از تأیید پرداخت، وقت ارزیابی را می‌گیرید."
-              amount={booking.assessment_price || PRICING.assessment}
-              resourceId={booking.resource_id} caseNumber={booking.case_number} phone={phone} purpose="assessment"
-              onPaid={async (ref) => {
-                const res = await fetch(`/api/t/${slug}/psy/stage-pay`, {
-                  method: 'POST', headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ case_number: booking.case_number, phone, stage: 'assessment', payment_ref: ref })
-                })
-                return res.ok
-              }}
-              onDone={() => loadData(booking.case_number)} />
-          )}
-
-          {fs === FLOW.ASSESSMENT_PAYMENT_SUBMITTED && (
-            <StageWaiting title="در انتظار تأیید پرداخت" desc="پرداختِ ارزیابی ثبت شد و در حالِ بررسی است. پس از تأیید، می‌توانید وقت ارزیابی را بگیرید." />
-          )}
-
-          {fs === FLOW.ASSESSMENT_AWAITING_BOOKING && (
-            <>
-              {booking.cancel_notice && (
-                <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm text-amber-700 text-right mb-3">
-                  ⚠️ {booking.cancel_notice}
-                </div>
-              )}
-              <StageHero icon="✅" title={booking.cancel_notice ? 'انتخاب زمانِ جدید' : 'پرداخت تأیید شد!'} desc="می‌توانید وقتِ ارزیابیِ کودک را انتخاب کنید." />
-              <button onClick={() => setShowAssessment(true)}
-                className="w-full py-3 bg-brand-600 text-white rounded-xl text-sm font-medium hover:bg-brand-800">
-                📅 گرفتن وقت ارزیابی
-              </button>
-            </>
-          )}
-
-          {fs === FLOW.ASSESSMENT_BOOKED && (
-            <StageInfo icon="📅" title="ارزیابی رزرو شد"
-              desc="وقتِ ارزیابیِ کودک ثبت شد. پس از ارزیابی، دکتر پروتکلِ درمان را تعیین می‌کند."
-              date={booking.assessment_date} time={booking.assessment_time} label="وقت ارزیابی" />
+          ) : (
+            <StageInfo icon="📅" title="وقت ثبت شد"
+              desc="منتظرِ برگزاری باشید. پس از آن، دکتر مرحله‌ی بعد را مشخص می‌کند."
+              date={currentStage.session_date} time={currentStage.session_time}
+              label={`وقتِ ${STAGE_TYPE_LABEL[currentStage.stage_type] || ''}`} />
           )}
 
           <button onClick={() => loadData(booking.case_number)}
@@ -333,28 +298,15 @@ export default function PatientPanel() {
         </div>
       </div>
 
-      {showInterviewSlot && (
-        <SlotPicker phone={phone} caseNumber={booking.case_number} title="انتخاب وقت مصاحبه" resourceId={booking.resource_id}
-          onClose={() => setShowInterviewSlot(false)}
-          onDone={() => { setShowInterviewSlot(false); loadData(booking.case_number) }}
+      {showSlotPicker && currentStage && (
+        <SlotPicker phone={phone} caseNumber={booking.case_number}
+          title={`انتخاب وقتِ ${STAGE_TYPE_LABEL[currentStage.stage_type] || ''}`} resourceId={booking.resource_id}
+          onClose={() => setShowSlotPicker(false)}
+          onDone={() => { setShowSlotPicker(false); loadData(booking.case_number) }}
           onConfirm={async (date: string, time: string) => {
-            const res = await fetch(`/api/t/${slug}/psy/interview-book`, {
+            const res = await fetch(`/api/t/${slug}/psy/stage-book`, {
               method: 'POST', headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ case_number: booking.case_number, phone, interview_date: date, interview_time: time })
-            })
-            const d = await res.json().catch(() => ({}))
-            return { ok: res.ok, error: d.error as string | undefined }
-          }} />
-      )}
-
-      {showAssessment && (
-        <SlotPicker phone={phone} caseNumber={booking.case_number} title="انتخاب وقت ارزیابی" resourceId={booking.resource_id}
-          onClose={() => setShowAssessment(false)}
-          onDone={() => { setShowAssessment(false); loadData(booking.case_number) }}
-          onConfirm={async (date: string, time: string) => {
-            const res = await fetch(`/api/t/${slug}/psy/assessment`, {
-              method: 'POST', headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ case_number: booking.case_number, phone, assessment_date: date, assessment_time: time })
+              body: JSON.stringify({ case_number: booking.case_number, phone, stage_id: currentStage.id, session_date: date, session_time: time })
             })
             const d = await res.json().catch(() => ({}))
             return { ok: res.ok, error: d.error as string | undefined }
@@ -1233,10 +1185,10 @@ function StageInfo({ icon, title, desc, date, time, label }: { icon: string; tit
 }
 
 // کارتِ پرداختِ کارت‌به‌کارت — شماره کارت + کد رهگیریِ اختیاری + دکمه‌ی «پرداخت کردم»
-function StagePayment({ icon, title, desc, amount, onPaid, onDone, resourceId, caseNumber, phone, purpose }: {
+function StagePayment({ icon, title, desc, amount, onPaid, onDone, resourceId, caseNumber, phone, stageId }: {
   icon: string; title: string; desc: string; amount: number
   onPaid: (ref: string) => Promise<boolean>; onDone: () => void
-  resourceId?: string | null; caseNumber: string; phone: string; purpose: 'interview' | 'assessment'
+  resourceId?: string | null; caseNumber: string; phone: string; stageId: string
 }) {
   const [ref, setRef] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -1261,7 +1213,7 @@ function StagePayment({ icon, title, desc, amount, onPaid, onDone, resourceId, c
     try {
       const res = await fetch(`/api/t/${slug}/psy/pay-online`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ case_number: caseNumber, phone, purpose }),
+        body: JSON.stringify({ case_number: caseNumber, phone, purpose: 'stage', ref_id: stageId }),
       })
       const data = await res.json()
       if (data.url) window.location.href = data.url
@@ -1324,29 +1276,27 @@ function StagePayment({ icon, title, desc, amount, onPaid, onDone, resourceId, c
   )
 }
 
-// نوارِ پیشرفتِ سه‌مرحله‌ای: مصاحبه → ارزیابی → درمان
-function StageProgress({ fs }: { fs: string }) {
-  const order = [
-    FLOW.INTERVIEW_AWAITING_PAYMENT, FLOW.INTERVIEW_PAYMENT_SUBMITTED, FLOW.INTERVIEW_AWAITING_BOOKING, FLOW.INTERVIEW_BOOKED,
-    FLOW.ASSESSMENT_AWAITING_PAYMENT, FLOW.ASSESSMENT_PAYMENT_SUBMITTED, FLOW.ASSESSMENT_AWAITING_BOOKING, FLOW.ASSESSMENT_BOOKED,
-    FLOW.PACKAGE_ASSIGNED,
-  ] as string[]
-  const idx = order.indexOf(fs)
-  const stageOf = (s: string) => s.startsWith('interview') ? 0 : s.startsWith('assessment') ? 1 : 2
-  const cur = idx === -1 ? 0 : stageOf(fs)
-  const steps = ['مصاحبه', 'ارزیابی', 'درمان']
+// نوارِ پیشرفتِ مراحل — حالا طولش متغیر است (هر تعداد مصاحبه/ارزیابی که واقعاً وجود دارد) + درمان در انتها
+function StageProgress({ stages, inTreatment }: { stages: CaseStage[]; inTreatment: boolean }) {
+  const items = stages.map(s => ({
+    icon: s.stage_type === 'assessment' ? '🧩' : '🩺',
+    label: STAGE_TYPE_LABEL[s.stage_type] || s.stage_type,
+    done: s.status === 'booked' && !!s.held,
+    current: !(s.status === 'booked' && !!s.held),
+  }))
+  items.push({ icon: '📦', label: 'درمان', done: inTreatment, current: false })
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 p-3 flex items-center justify-between">
-      {steps.map((label, i) => (
-        <div key={label} className="flex items-center flex-1 last:flex-none">
-          <div className="flex flex-col items-center gap-1">
+    <div className="bg-white rounded-2xl border border-gray-100 p-3 flex items-center justify-between overflow-x-auto">
+      {items.map((it, i) => (
+        <div key={i} className="flex items-center flex-1 last:flex-none">
+          <div className="flex flex-col items-center gap-1 shrink-0">
             <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-medium
-              ${i < cur ? 'bg-green-500 text-white' : i === cur ? 'bg-brand-600 text-white' : 'bg-gray-100 text-gray-400'}`}>
-              {i < cur ? '✓' : toFarsiNum(i + 1)}
+              ${it.done ? 'bg-green-500 text-white' : it.current ? 'bg-brand-600 text-white' : 'bg-gray-100 text-gray-400'}`}>
+              {it.done ? '✓' : it.icon}
             </div>
-            <span className={`text-[11px] ${i === cur ? 'text-brand-700 font-medium' : 'text-gray-400'}`}>{label}</span>
+            <span className={`text-[11px] whitespace-nowrap ${it.current ? 'text-brand-700 font-medium' : 'text-gray-400'}`}>{it.label}</span>
           </div>
-          {i < steps.length - 1 && <div className={`flex-1 h-px mx-2 ${i < cur ? 'bg-green-400' : 'bg-gray-200'}`} />}
+          {i < items.length - 1 && <div className={`flex-1 h-px mx-2 ${it.done ? 'bg-green-400' : 'bg-gray-200'}`} />}
         </div>
       ))}
     </div>

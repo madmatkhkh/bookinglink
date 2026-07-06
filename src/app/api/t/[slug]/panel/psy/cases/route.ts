@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { sb } from '@/lib/supabase'
 import { requirePanelAuth, isPanelAuthResponse } from '@/lib/tenant'
-import { FLOW } from '@/lib/flow'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -15,7 +14,7 @@ function genCase(): string {
 export async function GET(req: NextRequest, { params }: { params: { slug: string } }) {
   const a = await requirePanelAuth(req, params.slug)
   if (isPanelAuthResponse(a)) return a
-  let q = sb().from('psy_cases').select('*').eq('tenant_id', a.tenant.id)
+  let q = sb().from('psy_cases').select('*, current_stage:psy_stages!current_stage_id(*)').eq('tenant_id', a.tenant.id)
   if (!a.isOwner) q = q.eq('resource_id', a.resourceId)
   else {
     const filterId = req.nextUrl.searchParams.get('resource_id')
@@ -75,10 +74,8 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
     parent_name: b.father_name || b.mother_name || '',
     phone: b.father_phone || b.mother_phone || b.phone || '',
     details: { ...details, home_address: b.home_address || '', extra_notes: b.extra_notes || '' },
-    flow_status: FLOW.PACKAGE_ASSIGNED,
     status: 'confirmed',
     session_type: b.session_type || 'offline',
-    booking_date: '', booking_time: '',
   }
   const { data, error } = await sb().from('psy_cases').insert(row).select().single()
   if (error) {
@@ -100,10 +97,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { slug: stri
 
   // ستون‌های واقعیِ psy_cases که مستقیم قابلِ ویرایش‌اند
   const ALLOWED = [
-    'status', 'doctor_notes', 'flow_status', 'reject_reason',
-    'interview_paid', 'assessment_paid', 'assessment_price', 'interview_price',
-    'interview_date', 'interview_time', 'assessment_date', 'assessment_time',
-    'interview_notes', 'assessment_notes', 'interview_held', 'assessment_held',
+    'status', 'doctor_notes', 'reject_reason',
     'child_name', 'child_name_en', 'birth_date', 'reason',
     'father_name', 'father_phone', 'mother_name', 'mother_phone',
     'parent_name', 'phone', 'session_type', 'office_location',
@@ -142,6 +136,8 @@ export async function DELETE(req: NextRequest, { params }: { params: { slug: str
   if (c?.case_number) {
     await sb().from('psy_sessions').delete().eq('tenant_id', a.tenant.id).eq('case_number', c.case_number)
     await sb().from('psy_packages').delete().eq('tenant_id', a.tenant.id).eq('case_number', c.case_number)
+    await sb().from('psy_cases').update({ current_stage_id: null }).eq('id', id).eq('tenant_id', a.tenant.id)
+    await sb().from('psy_stages').delete().eq('tenant_id', a.tenant.id).eq('case_number', c.case_number)
   }
   const { error } = await sb().from('psy_cases').delete().eq('id', id).eq('tenant_id', a.tenant.id)
   if (error) { console.error('psy/cases DELETE error:', error); return NextResponse.json({ error: 'مشکلی در حذفِ پرونده پیش آمد.' }, { status: 500 }) }

@@ -17,9 +17,10 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
   if (!booking || (booking.father_phone !== phone && booking.mother_phone !== phone))
     return NextResponse.json({ error: 'دسترسی ندارید' }, { status: 403 })
 
-  const [{ data: packages }, { data: sessions }] = await Promise.all([
+  const [{ data: packages }, { data: sessions }, { data: stages }] = await Promise.all([
     sb().from('psy_packages').select('*').eq('tenant_id', t.id).eq('case_number', case_number).order('created_at', { ascending: false }),
     sb().from('psy_sessions').select('*').eq('tenant_id', t.id).eq('case_number', case_number).order('session_date', { ascending: true }),
+    sb().from('psy_stages').select('*').eq('tenant_id', t.id).eq('case_number', case_number).order('created_at', { ascending: true }),
   ])
-  return NextResponse.json({ booking, packages: packages || [], sessions: sessions || [] })
+  return NextResponse.json({ booking, packages: packages || [], sessions: sessions || [], stages: stages || [] })
 }

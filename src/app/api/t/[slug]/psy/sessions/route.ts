@@ -19,13 +19,13 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
 
   const reqDates = Array.from(new Set(sessions.map((s: any) => s.session_date)))
   const db = sb()
-  const [{ data: takenSessions }, { data: takenBookings }] = await Promise.all([
+  const [{ data: takenSessions }, { data: takenStages }] = await Promise.all([
     db.from('psy_sessions').select('session_date, session_time').eq('tenant_id', t.id).eq('resource_id', booking.resource_id).in('session_date', reqDates),
-    db.from('psy_cases').select('booking_date, booking_time, status').eq('tenant_id', t.id).eq('resource_id', booking.resource_id).in('booking_date', reqDates),
+    db.from('psy_stages').select('session_date, session_time').eq('tenant_id', t.id).eq('resource_id', booking.resource_id).in('session_date', reqDates),
   ])
   const takenSet = new Set<string>()
   for (const s of takenSessions || []) takenSet.add(`${s.session_date}|${s.session_time}`)
-  for (const b of takenBookings || []) if (b.status !== 'cancelled') takenSet.add(`${b.booking_date}|${b.booking_time}`)
+  for (const s of takenStages || []) if (s.session_date && s.session_time) takenSet.add(`${s.session_date}|${s.session_time}`)
 
   const clash = sessions.find((s: any) => takenSet.has(`${s.session_date}|${s.session_time}`))
   if (clash)

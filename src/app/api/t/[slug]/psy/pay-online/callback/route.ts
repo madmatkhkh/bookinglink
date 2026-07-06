@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { sb } from '@/lib/supabase'
 import { getActiveTenant } from '@/lib/tenant'
-import { FLOW } from '@/lib/flow'
 import { verifyZibalPayment } from '@/lib/zibal'
 
 export const dynamic = 'force-dynamic'
@@ -43,12 +42,12 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
   await sb().from('psy_payment_intents').update({ status: 'paid' }).eq('id', intentId)
 
   // finalize — دقیقاً معادلِ تاییدِ دستیِ دکتر برای همان نوع پرداخت
-  if (intent.purpose === 'interview') {
-    const { data: c } = await sb().from('psy_cases').select('id').eq('tenant_id', t.id).eq('case_number', intent.case_number).maybeSingle()
-    if (c) await sb().from('psy_cases').update({ flow_status: FLOW.INTERVIEW_AWAITING_BOOKING, interview_paid: true, status: 'confirmed' }).eq('id', c.id)
-  } else if (intent.purpose === 'assessment') {
-    const { data: c } = await sb().from('psy_cases').select('id').eq('tenant_id', t.id).eq('case_number', intent.case_number).maybeSingle()
-    if (c) await sb().from('psy_cases').update({ flow_status: FLOW.ASSESSMENT_AWAITING_BOOKING, assessment_paid: true }).eq('id', c.id)
+  if (intent.purpose === 'stage' && intent.ref_id) {
+    await sb().from('psy_stages').update({ paid: true, status: 'awaiting_booking' }).eq('id', intent.ref_id).eq('tenant_id', t.id)
+    const { data: stage } = await sb().from('psy_stages').select('case_number').eq('id', intent.ref_id).maybeSingle()
+    if (stage) {
+      await sb().from('psy_cases').update({ status: 'confirmed' }).eq('tenant_id', t.id).eq('case_number', stage.case_number).eq('status', 'pending')
+    }
   } else if (intent.purpose === 'package' && intent.ref_id) {
     await sb().from('psy_packages').update({ paid: true }).eq('id', intent.ref_id).eq('tenant_id', t.id)
   } else if (intent.purpose === 'session' && intent.ref_id) {

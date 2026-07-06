@@ -23,12 +23,11 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   if (!session.paid) return NextResponse.json({ error: 'ابتدا باید هزینه‌ی این جلسه پرداخت شود' }, { status: 400 })
 
   const db = sb()
-  const [{ data: takenS }, { data: takenB }] = await Promise.all([
+  const [{ data: takenS }, { data: takenSt }] = await Promise.all([
     db.from('psy_sessions').select('id').eq('tenant_id', t.id).eq('resource_id', booking.resource_id).eq('session_date', session_date).eq('session_time', session_time).neq('id', session_id),
-    db.from('psy_cases').select('id, status').eq('tenant_id', t.id).eq('resource_id', booking.resource_id).eq('booking_date', session_date).eq('booking_time', session_time),
+    db.from('psy_stages').select('id').eq('tenant_id', t.id).eq('resource_id', booking.resource_id).eq('session_date', session_date).eq('session_time', session_time),
   ])
-  const bookingClash = (takenB || []).some((b: any) => b.status !== 'cancelled')
-  if ((takenS && takenS.length > 0) || bookingClash)
+  if ((takenS && takenS.length > 0) || (takenSt && takenSt.length > 0))
     return NextResponse.json({ error: 'این ساعت قبلاً رزرو شده. لطفاً زمان دیگری انتخاب کنید.' }, { status: 409 })
 
   const { error } = await sb().from('psy_sessions').update({ session_date, session_time }).eq('id', session_id)

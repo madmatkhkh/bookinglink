@@ -25,6 +25,7 @@ export default function InterviewPage() {
   const [selectedSlot, setSelectedSlot] = useState<string>('')
   const [loading, setLoading] = useState(false)
   const [caseNumber, setCaseNumber] = useState('')
+  const [stageId, setStageId] = useState('')
   // برنامه‌ی واقعی دکتر از دیتابیس — کلید: شماره روز، مقدار: ساعت‌های خالی
   const [schedule, setSchedule] = useState<Record<string, string[]>>({})
   const [loadingSchedule, setLoadingSchedule] = useState(false)
@@ -161,7 +162,7 @@ export default function InterviewPage() {
         })
       })
       const data = await res.json()
-      if (data.caseNumber) { setCaseNumber(data.caseNumber); setStep('pay') }
+      if (data.caseNumber) { setCaseNumber(data.caseNumber); setStageId(data.stageId || ''); setStep('pay') }
       else uiAlert((data.error || 'خطا در ثبت اطلاعات') + (data.detail ? `\n\n(جزئیاتِ فنی برای پشتیبانی: ${data.detail})` : ''))
     } catch { uiAlert('خطا در ارتباط با سرور') }
     setLoading(false)
@@ -171,9 +172,9 @@ export default function InterviewPage() {
   async function submitInterviewPayment(ref: string) {
     setLoading(true)
     try {
-      const res = await fetch(`/api/t/${slug}/psy/stage-pay`, {
+      const res = await fetch(`/api/t/${slug}/psy/pay`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ case_number: caseNumber, phone: fatherPhone, stage: 'interview', payment_ref: ref })
+        body: JSON.stringify({ case_number: caseNumber, phone: fatherPhone, stage_id: stageId, payment_ref: ref })
       })
       if (res.ok) setStep('done')
       else uiAlert('ثبتِ پرداخت ناموفق بود')
@@ -182,7 +183,7 @@ export default function InterviewPage() {
   }
 
   if (step === 'pay') return <InterviewPayScreen amount={PRICING.interview} cards={settings.cards} loaded={settings.loaded} loading={loading}
-    onPay={submitInterviewPayment} paymentMethods={displayDoctor?.payment_methods} slug={slug} caseNumber={caseNumber} phone={fatherPhone} />
+    onPay={submitInterviewPayment} paymentMethods={displayDoctor?.payment_methods} slug={slug} caseNumber={caseNumber} phone={fatherPhone} stageId={stageId} />
 
   if (step === 'done') return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
@@ -654,9 +655,9 @@ function StepBar({ current }: { current: number }) {
   )
 }
 // صفحه‌ی پرداختِ کارت‌به‌کارتِ مصاحبه‌ی اولیه
-function InterviewPayScreen({ amount, cards, loaded, loading, onPay, paymentMethods, slug, caseNumber, phone }: {
+function InterviewPayScreen({ amount, cards, loaded, loading, onPay, paymentMethods, slug, caseNumber, phone, stageId }: {
   amount: number; cards: PaymentCardInfo[]; loaded: boolean; loading: boolean; onPay: (ref: string) => void
-  paymentMethods?: PaymentMethods; slug: string; caseNumber: string; phone: string
+  paymentMethods?: PaymentMethods; slug: string; caseNumber: string; phone: string; stageId: string
 }) {
   const [ref, setRef] = useState('')
   const online = !!paymentMethods?.online
@@ -670,7 +671,7 @@ function InterviewPayScreen({ amount, cards, loaded, loading, onPay, paymentMeth
     try {
       const res = await fetch(`/api/t/${slug}/psy/pay-online`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ case_number: caseNumber, phone, purpose: 'interview' }),
+        body: JSON.stringify({ case_number: caseNumber, phone, purpose: 'stage', ref_id: stageId }),
       })
       const data = await res.json()
       if (data.url) window.location.href = data.url

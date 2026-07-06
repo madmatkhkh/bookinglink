@@ -266,9 +266,38 @@ insert into niches (key, display_name, tagline, icon, client_label, resource_lab
 -- سه‌مرحله‌ای روانشناسیِ کودک‌اند که یک نیچ به آن نیاز دارد.
 -- ═══════════════════════════════════════════════════════════════════════════
 
+-- ── مراحلِ پیش‌ازدرمانِ پرونده (مصاحبه/ارزیابی) — کاملاً آزاد و تکرارپذیر ────
+-- به‌جایِ فلوی هاردکدشده‌ی «مصاحبه یک‌بار → ارزیابی یک‌بار»، هر پرونده هر تعداد
+-- مرحله از هر نوع می‌تواند داشته باشد، به هر ترتیب که دکتر بعد از برگزاریِ هر
+-- مرحله تصمیم می‌گیرد (تکرار، ردکردن، رفتن مستقیم به پروتکلِ درمان). پیش از
+-- psy_cases تعریف می‌شود چون آن جدول به این‌جا یک FK دارد (current_stage_id).
+create table psy_stages (
+  id uuid primary key default uuid_generate_v4(),
+  tenant_id uuid not null references tenants(id) on delete cascade,
+  case_number text not null,
+  stage_type text not null,      -- 'interview' | 'assessment'
+  status text not null default 'awaiting_payment', -- awaiting_payment | payment_submitted | awaiting_booking | booked
+  price bigint not null default 0,
+  paid boolean default false,
+  payment_submitted boolean default false,
+  payment_ref text,
+  session_date text default '',
+  session_time text default '',
+  held boolean default false,    -- آیا واقعاً برگزار شد (پس از رزرو)
+  notes text,                    -- یادداشتِ دکتر برای همین مرحله
+  cancel_notice text,            -- پیامِ لغوِ نوبت توسطِ مطب (اگر مطب نوبت را لغو کرد)
+  resource_id uuid references resources(id),
+  created_at timestamptz not null default now()
+);
+create index on psy_stages (tenant_id, case_number);
+create index on psy_stages (tenant_id, resource_id);
+create index on psy_stages (tenant_id, status);
+alter table psy_stages enable row level security;
+
 -- ── پرونده و رزروِ تخصصیِ روانشناسی ─────────────────────────────────────────
 -- معادلِ bookings در psych-booking، ولی با tenant_id. کلیدِ منطقی: case_number
--- (یکتا در هر tenant). فلوی سه‌مرحله‌ای روی flow_status.
+-- (یکتا در هر tenant). فلوی پیش‌ازدرمان دیگر هاردکد نیست — روی current_stage_id
+-- + جدولِ psy_stages بالا مدیریت می‌شود.
 create table psy_cases (
   id uuid primary key default uuid_generate_v4(),
   tenant_id uuid not null references tenants(id) on delete cascade,
@@ -285,31 +314,14 @@ create table psy_cases (
   reason text,
   session_type text,           -- 'online' | 'offline'
   office_location text,
-  -- تاریخ/ساعتِ انتخاب‌شده در همان لحظه‌ی رزرو (پیش از تاییدِ دکتر) — برایِ
-  -- چک‌کردنِ تداخل با بقیه‌ی رزروها همین جا نگه داشته می‌شود
-  booking_date text, booking_time text,
   -- کلِ فیلدهای تفصیلیِ پرونده در یک jsonb (تا افزودن/حذفِ فیلد نیازی به migration نداشته باشد)
   -- فرمِ مصاحبه و تبِ پرونده می‌توانند این را برای نیچ‌های مختلف (کودک/بزرگسال) متفاوت پر کنند.
   details jsonb not null default '{}',
-  -- فلوی سه‌مرحله‌ای
-  flow_status text not null default 'interview_awaiting_payment',
   reject_reason text,
-  -- مرحله‌ی ۱: مصاحبه
-  interview_date text, interview_time text,
-  interview_paid boolean default false,
-  interview_payment_ref text,
-  interview_payment_submitted boolean default false,
-  interview_price bigint default 0,
-  interview_held boolean default false,
-  interview_notes text,
-  -- مرحله‌ی ۲: ارزیابی
-  assessment_date text, assessment_time text,
-  assessment_paid boolean default false,
-  assessment_payment_ref text,
-  assessment_payment_submitted boolean default false,
-  assessment_price bigint default 0,
-  assessment_held boolean default false,
-  assessment_notes text,
+  -- مرحله‌ی «در حالِ انجام»ِ فعلیِ این پرونده (مصاحبه/ارزیابی که هنوز پرداخت/رزرو/برگزاری‌اش
+  -- تمام نشده). وقتی null است یعنی هیچ مرحله‌ای در جریان نیست و دکتر باید مرحله‌ی بعد را
+  -- مشخص کند (یا پرونده وارد فازِ پروتکلِ درمان شده). تاریخچه‌ی کاملِ مراحل در psy_stages است.
+  current_stage_id uuid references psy_stages(id) on delete set null,
   -- یادداشتِ کلیِ دکتر
   doctor_notes text,
   status text not null default 'pending',
@@ -319,7 +331,6 @@ create table psy_cases (
   unique (tenant_id, case_number)
 );
 create index on psy_cases (tenant_id);
-create index on psy_cases (tenant_id, flow_status);
 create index on psy_cases (tenant_id, phone);
 create index on psy_cases (tenant_id, resource_id);
 

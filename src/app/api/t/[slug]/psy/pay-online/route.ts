@@ -1,14 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { sb } from '@/lib/supabase'
 import { getActiveTenant } from '@/lib/tenant'
-import { FLOW } from '@/lib/flow'
 import { PSY_PRICING, getPaymentMethods } from '@/lib/psy'
 import { requestZibalPayment } from '@/lib/zibal'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-type Purpose = 'interview' | 'assessment' | 'package' | 'session'
+type Purpose = 'stage' | 'package' | 'session'
 
 function pkgAmount(p: any): number {
   return (p.child_sessions * (p.child_session_type === 'online' ? PSY_PRICING.sessionOnline : PSY_PRICING.sessionOffline))
@@ -25,7 +24,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   const { case_number, phone, purpose, ref_id } = await req.json() as { case_number: string; phone: string; purpose: Purpose; ref_id?: string }
 
   const { data: c } = await sb().from('psy_cases')
-    .select('id, resource_id, father_phone, mother_phone, flow_status, interview_price, assessment_price')
+    .select('id, resource_id, father_phone, mother_phone, current_stage_id')
     .eq('tenant_id', t.id).eq('case_number', case_number).single()
   if (!c || (c.father_phone !== phone && c.mother_phone !== phone))
     return NextResponse.json({ error: 'دسترسی ندارید' }, { status: 403 })
@@ -36,16 +35,12 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
 
   let amount = 0
   let description = ''
-  if (purpose === 'interview') {
-    if (c.flow_status !== FLOW.INTERVIEW_AWAITING_PAYMENT)
-      return NextResponse.json({ error: 'این مرحله در حالتِ پرداخت نیست' }, { status: 400 })
-    amount = c.interview_price || PSY_PRICING.interview
-    description = 'هزینه‌ی مصاحبه‌ی اولیه'
-  } else if (purpose === 'assessment') {
-    if (c.flow_status !== FLOW.ASSESSMENT_AWAITING_PAYMENT)
-      return NextResponse.json({ error: 'این مرحله در حالتِ پرداخت نیست' }, { status: 400 })
-    amount = c.assessment_price || PSY_PRICING.assessment
-    description = 'هزینه‌ی ارزیابی'
+  if (purpose === 'stage') {
+    if (!ref_id || c.current_stage_id !== ref_id) return NextResponse.json({ error: 'این مرحله در دسترس نیست' }, { status: 400 })
+    const { data: stage } = await sb().from('psy_stages').select('*').eq('id', ref_id).eq('tenant_id', t.id).single()
+    if (!stage || stage.status !== 'awaiting_payment') return NextResponse.json({ error: 'این مرحله در حالتِ پرداخت نیست' }, { status: 400 })
+    amount = stage.price || 0
+    description = stage.stage_type === 'assessment' ? 'هزینه‌ی ارزیابی' : 'هزینه‌ی مصاحبه‌ی اولیه'
   } else if (purpose === 'package') {
     if (!ref_id) return NextResponse.json({ error: 'شناسه‌ی پروتکل لازم است' }, { status: 400 })
     const { data: pkg } = await sb().from('psy_packages').select('*').eq('id', ref_id).eq('tenant_id', t.id).eq('case_number', case_number).single()

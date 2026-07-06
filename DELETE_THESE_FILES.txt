@@ -1,0 +1,10 @@
+این سه فایل دیگر لازم نیستند و باید از پروژه‌ی محلی حذف شوند (منطق‌شان در stage-book و pay ادغام شده):
+
+- src/app/api/t/[slug]/psy/assessment/route.ts
+- src/app/api/t/[slug]/psy/interview-book/route.ts
+- src/app/api/t/[slug]/psy/stage-pay/route.ts
+
+بقیه‌ی فایل‌های این زیپ یا تغییرکرده‌اند یا تازه‌اند — جایگزینِ همان مسیر در پروژه‌ی اصلی کن.
+
+⚠️ این تغییر شاملِ بازسازیِ اسکیمای دیتابیس هم است (جدولِ جدیدِ psy_stages + حذفِ چند ستون از psy_cases).
+طبقِ روالِ همیشگی: توی Supabase اول همه‌ی جدول‌ها را drop کن، بعد کلِ supabase-schema.sql را از نو اجرا کن.

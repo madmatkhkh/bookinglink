@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { sb } from '@/lib/supabase'
 import { getActiveTenant } from '@/lib/tenant'
-import { FLOW } from '@/lib/flow'
 import { PSY_PRICING, getDefaultResourceId, getIntakeForm, missingIntakeFields, INTAKE_KNOWN_COLUMNS } from '@/lib/psy'
 
 export const dynamic = 'force-dynamic'
@@ -81,8 +80,6 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
     session_type: sessionType,
     office_location: officeLocation || null,
     details,
-    interview_price: PSY_PRICING.interview,
-    flow_status: FLOW.INTERVIEW_AWAITING_PAYMENT,
     status: 'pending',
   }]).select().single()
 
@@ -93,5 +90,20 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
       detail: `${error.code || ''} ${error.message || ''}`.trim(),
     }, { status: 500 })
   }
-  return NextResponse.json({ success: true, id: data.id, caseNumber })
+
+  // مرحله‌ی اولِ پرونده همیشه «مصاحبه» است — خودِ ثبتِ فرم همین مرحله را می‌سازد
+  const { data: stage, error: stageErr } = await sb().from('psy_stages').insert({
+    tenant_id: t.id, resource_id: finalResourceId, case_number: caseNumber,
+    stage_type: 'interview', price: PSY_PRICING.interview, status: 'awaiting_payment',
+  }).select().single()
+  if (stageErr || !stage) {
+    console.error('psy/book stage insert error:', stageErr)
+    return NextResponse.json({
+      error: 'مشکلی در ایجادِ مرحله‌ی مصاحبه پیش آمد. لطفاً دوباره تلاش کنید.',
+      detail: `${stageErr?.code || ''} ${stageErr?.message || ''}`.trim(),
+    }, { status: 500 })
+  }
+  await sb().from('psy_cases').update({ current_stage_id: stage.id }).eq('id', data.id)
+
+  return NextResponse.json({ success: true, id: data.id, caseNumber, stageId: stage.id })
 }

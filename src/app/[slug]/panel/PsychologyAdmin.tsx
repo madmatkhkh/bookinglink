@@ -2,7 +2,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { PERSIAN_MONTHS, toLatinNum, getCurrentJalali, getDaysInJalaliMonth, jalaliDateTimeToTimestamp } from '@/lib/calendar'
-import { FLOW, FLOW_LABEL as FLOW_LABEL_SHARED } from '@/lib/flow'
+import { STAGE_TYPE_LABEL, STAGE_STATUS_LABEL } from '@/lib/flow'
 import { PRICING } from '@/lib/config'
 import { ClinicSettings, DEFAULT_SETTINGS, SessionMode, OfficeLocation, PaymentCardInfo } from '@/lib/settings'
 import { IntakeForm, FormField, FormFieldType, DEFAULT_INTAKE_FORM, LEGACY_DETAIL_LABELS, CancellationPolicy, PaymentMethods } from '@/lib/psy'
@@ -89,7 +89,25 @@ type Patient = {
   details?: Record<string, any>
   // وضعیت
   status: string
-  booking_date?: string
+  created_at: string
+}
+
+// یک مرحله‌ی پیش‌ازدرمان (مصاحبه/ارزیابی) — هر پرونده هر تعداد از این‌ها می‌تواند داشته باشد
+type CaseStage = {
+  id: string
+  case_number: string
+  stage_type: 'interview' | 'assessment'
+  status: 'awaiting_payment' | 'payment_submitted' | 'awaiting_booking' | 'booked'
+  price: number
+  paid: boolean
+  payment_submitted?: boolean
+  payment_ref?: string
+  session_date?: string
+  session_time?: string
+  held?: boolean
+  notes?: string
+  cancel_notice?: string
+  resource_id?: string | null
   created_at: string
 }
 
@@ -103,28 +121,11 @@ type Booking = {
   mother_phone?: string
   session_type: 'online' | 'offline'
   office_location?: string
-  booking_date: string
-  booking_time: string
-  price: number
   status: 'pending' | 'confirmed' | 'cancelled'
   doctor_notes?: string
-  flow_status?: string
   reject_reason?: string
-  interview_date?: string
-  interview_time?: string
-  interview_paid?: boolean
-  interview_payment_ref?: string
-  interview_price?: number
-  assessment_date?: string
-  assessment_time?: string
-  assessment_paid?: boolean
-  assessment_payment_ref?: string
-  assessment_price?: number
-  interview_notes?: string
-  assessment_notes?: string
-  interview_held?: boolean
-  assessment_held?: boolean
-  cancel_notice?: string
+  current_stage_id?: string | null
+  current_stage?: CaseStage | null
   created_at: string
 }
 
@@ -226,7 +227,11 @@ function timeKey(t: string): number {
   return (isNaN(h) ? 0 : h) * 60 + (isNaN(m) ? 0 : m)
 }
 
-const FLOW_LABEL = FLOW_LABEL_SHARED
+// برچسبِ ترکیبیِ نمایشِ سریعِ یک مرحله («مصاحبه: منتظر پرداخت»)
+function stageLabel(s?: CaseStage | null): string {
+  if (!s) return '—'
+  return `${STAGE_TYPE_LABEL[s.stage_type] || s.stage_type}: ${STAGE_STATUS_LABEL[s.status] || s.status}`
+}
 
 const STATUS_LABEL: Record<string, string> = {
   pending: 'در انتظار',
@@ -250,15 +255,16 @@ const STATUS_COLOR: Record<string, string> = {
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 // کارتِ جلسه‌ی مصاحبه/ارزیابی در پرونده — یادداشت + تأیید برگزاری
-function StageSessionCard({ stage, date, time, notes, held, canHold, onSave }: {
-  stage: 'interview' | 'assessment'; date?: string; time?: string
-  notes: string; held: boolean; canHold: boolean
-  onSave: (notes: string, markHeld: boolean) => Promise<void> | void
+function StageSessionCard({ stage, index, onSave }: {
+  stage: CaseStage; index?: number
+  onSave: (stageId: string, notes: string, markHeld: boolean) => Promise<void> | void
 }) {
-  const [val, setVal] = useState(notes)
+  const [val, setVal] = useState(stage.notes || '')
   const [saving, setSaving] = useState(false)
-  const label = stage === 'interview' ? 'جلسه‌ی مصاحبه‌ی اولیه' : 'جلسه‌ی ارزیابیِ کودک'
-  const icon = stage === 'interview' ? '🩺' : '🧩'
+  const label = (STAGE_TYPE_LABEL[stage.stage_type] || stage.stage_type) + (index && index > 1 ? ` #${index}` : '')
+  const icon = stage.stage_type === 'interview' ? '🩺' : '🧩'
+  const held = !!stage.held
+  const canHold = stage.status === 'booked' && !held
   return (
     <div className="bg-white rounded-xl border border-gray-100 p-3">
       <div className="flex items-center justify-between mb-2">
@@ -266,7 +272,7 @@ function StageSessionCard({ stage, date, time, notes, held, canHold, onSave }: {
           <span className="text-lg">{icon}</span>
           <div>
             <div className="text-sm font-medium text-gray-900">{label}</div>
-            <div className="text-xs text-gray-400">{date ? `${enTime(date)} — ${enTime(time)}` : 'زمان ثبت نشده'}</div>
+            <div className="text-xs text-gray-400">{stage.session_date ? `${enTime(stage.session_date)} — ${enTime(stage.session_time)}` : 'زمان ثبت نشده'}</div>
           </div>
         </div>
         <span className={`text-xs px-2 py-0.5 rounded-full ${held ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'}`}>
@@ -276,10 +282,10 @@ function StageSessionCard({ stage, date, time, notes, held, canHold, onSave }: {
       <textarea value={val} onChange={e => setVal(e.target.value)} rows={2} placeholder="مطالب و یادداشتِ این جلسه..."
         className="w-full text-sm px-3 py-2 border border-gray-200 rounded-lg resize-none focus:outline-none focus:border-brand-400 mb-2" />
       <div className="flex gap-2">
-        <button onClick={async () => { setSaving(true); await onSave(val, false); setSaving(false) }} disabled={saving}
+        <button onClick={async () => { setSaving(true); await onSave(stage.id, val, false); setSaving(false) }} disabled={saving}
           className="flex-1 py-2 border border-gray-200 text-gray-600 rounded-lg text-sm disabled:opacity-40">💾 ذخیره یادداشت</button>
         {!held && canHold && (
-          <button onClick={async () => { if (!await uiConfirm('تأیید برگزاریِ این جلسه؟ مرحله‌ی بعد برای مراجع باز می‌شود.')) return; setSaving(true); await onSave(val, true); setSaving(false) }} disabled={saving}
+          <button onClick={async () => { if (!await uiConfirm('تأیید برگزاریِ این جلسه؟ پرونده برای تعیینِ مرحله‌ی بعد آزاد می‌شود.')) return; setSaving(true); await onSave(stage.id, val, true); setSaving(false) }} disabled={saving}
             className="flex-1 py-2 bg-green-600 text-white rounded-lg text-sm disabled:opacity-40">✅ تایید برگزاری</button>
         )}
       </div>
@@ -421,6 +427,7 @@ export function PsychologyAdmin() {
   const [infoSubTab, setInfoSubTab] = useState<'child' | 'family' | 'other'>('child')
   const [packages, setPackages] = useState<Package[]>([])
   const [sessions, setSessions] = useState<Session[]>([])
+  const [stages, setStages] = useState<CaseStage[]>([])
   const [patientSearch, setPatientSearch] = useState('')
   const [showNewPackage, setShowNewPackage] = useState(false)
   const [showNewSession, setShowNewSession] = useState(false)
@@ -444,6 +451,7 @@ export function PsychologyAdmin() {
   const [pendingPkgs, setPendingPkgs] = useState<Package[]>([])
   const [pendingSess, setPendingSess] = useState<Session[]>([])
   const [pendingRefunds, setPendingRefunds] = useState<Session[]>([])
+  const [pendingStages, setPendingStages] = useState<CaseStage[]>([])
 
   // ── Schedule state ─────────────────────────────────────────────
   const today = getCurrentJalali()
@@ -461,6 +469,7 @@ export function PsychologyAdmin() {
   const [weekIdx, setWeekIdx] = useState(0)
   const [monthSchedules, setMonthSchedules] = useState<{ date: string; available_times: string[]; is_off: boolean; slot_types?: Record<string, string>; slot_locs?: Record<string, string> }[]>([])
   const [allSessions, setAllSessions] = useState<{ id: string; case_number: string; session_date: string; session_time: string; session_type: string; attendee: string; status: string }[]>([])
+  const [allStages, setAllStages] = useState<CaseStage[]>([])
 
   // ── Loading ────────────────────────────────────────────────────
   const [loading, setLoading] = useState(true)
@@ -609,31 +618,37 @@ export function PsychologyAdmin() {
   // پرداخت‌های منتظرِ تأیید (پروتکل‌های درمان و جلسه‌های جایگزین) در همه‌ی پرونده‌ها
   async function loadPendingPayments() {
     try {
-      const [pkgRes, sessRes, refundRes] = await Promise.all([
+      const [pkgRes, sessRes, refundRes, stageRes] = await Promise.all([
         fetch(api('/packages?pending=1'), { cache: 'no-store' }),
         fetch(api('/sessions?pending=1'), { cache: 'no-store' }),
         fetch(api('/sessions?refunds=1'), { cache: 'no-store' }),
+        fetch(api('/stages?pending=1'), { cache: 'no-store' }),
       ])
       const pkg = await pkgRes.json().catch(() => ({}))
       const sess = await sessRes.json().catch(() => ({}))
       const refunds = await refundRes.json().catch(() => ({}))
+      const stg = await stageRes.json().catch(() => ({}))
       setPendingPkgs(pkg.packages || [])
       setPendingSess(sess.sessions || [])
       setPendingRefunds(refunds.sessions || [])
+      setPendingStages(stg.stages || [])
     } catch {}
   }
 
   useEffect(() => { fetchAll(); loadSettings() }, [fetchAll])
 
   async function loadPatientData(case_number: string) {
-    const [pkgRes, sessRes] = await Promise.all([
+    const [pkgRes, sessRes, stageRes] = await Promise.all([
       fetch(api(`/packages?case_number=${case_number}`), { cache: 'no-store' }),
       fetch(api(`/sessions?case_number=${case_number}`), { cache: 'no-store' }),
+      fetch(api(`/stages?case_number=${case_number}`), { cache: 'no-store' }),
     ])
     const pkgData = await pkgRes.json()
     const sessData = await sessRes.json()
+    const stageData = await stageRes.json()
     setPackages(pkgData.packages || [])
     setSessions(sessData.sessions || [])
+    setStages(stageData.stages || [])
   }
 
   async function openPatient(p: Patient) {
@@ -641,6 +656,18 @@ export function PsychologyAdmin() {
     setPatientView('detail')
     setPatientTab('info')
     await loadPatientData(p.case_number)
+  }
+
+  // از مودالِ «پرونده‌ها» مستقیم به تبِ پروتکل‌های درمانِ همان مراجع برو
+  async function goToPackagesTab(caseNumber: string) {
+    setSelectedBooking(null)
+    const p = patients.find(x => x.case_number === caseNumber)
+    if (!p) return
+    setMainTab('patients')
+    setSelectedPatient(p)
+    setPatientView('detail')
+    setPatientTab('packages')
+    await loadPatientData(caseNumber)
   }
 
   // ─── Patient edit ────────────────────────────────────────────────────────────
@@ -671,15 +698,6 @@ export function PsychologyAdmin() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ...newPkg, case_number: selectedPatient.case_number }),
     })
-    // پرونده وارد مرحله‌ی درمان شد
-    const bk = bookings.find(b => b.case_number === selectedPatient.case_number)
-    if (bk) {
-      await fetch(api('/cases'), {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: bk.id, flow_status: 'package_assigned' }),
-      })
-    }
     setShowNewPackage(false)
     await loadPatientData(selectedPatient.case_number)
     fetchAll()
@@ -805,45 +823,43 @@ export function PsychologyAdmin() {
   }
 
   // تأیید پرداختِ یک مرحله (مصاحبه/ارزیابی) → باز شدنِ گرفتنِ وقت
-  async function confirmStagePayment(id: string, stage: 'interview' | 'assessment') {
-    const label = stage === 'interview' ? 'مصاحبه' : 'ارزیابی'
+  async function confirmStagePayment(stageId: string, stageType: 'interview' | 'assessment') {
+    const label = STAGE_TYPE_LABEL[stageType] || stageType
     if (!await uiConfirm(`پرداختِ ${label} تأیید شود؟ پس از تأیید، مراجع می‌تواند وقت بگیرد.`)) return
-    const patch = stage === 'interview'
-      ? { id, flow_status: FLOW.INTERVIEW_AWAITING_BOOKING, interview_paid: true, status: 'confirmed' }
-      : { id, flow_status: FLOW.ASSESSMENT_AWAITING_BOOKING, assessment_paid: true }
-    const res = await fetch(api('/cases'), {
-      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch),
+    const res = await fetch(api('/stages'), {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: stageId, confirm_payment: true }),
     })
     if (!res.ok) { uiAlert('خطا در ثبت'); return }
     setSelectedBooking(null); fetchAll()
   }
 
-  // ردِ مرحله‌ی مصاحبه
-  async function rejectInterview(id: string) {
+  // ردِ پرداختِ یک مرحله → بازگشت به مرحله‌ی پرداخت تا مراجع دوباره واریز کند
+  async function rejectStagePayment(stageId: string) {
+    const r = await uiPrompt('دلیل ردِ پرداخت را بنویسید (برای مراجع نمایش داده می‌شود):', { required: true })
+    if (r === null) return
+    const reason = r.trim()
+    if (!reason) { uiAlert('لطفاً دلیل را بنویسید.'); return }
+    const res = await fetch(api('/stages'), {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: stageId, reject_payment: true, reject_reason: reason }),
+    })
+    if (!res.ok) { uiAlert('خطا در ثبت'); return }
+    await loadPendingPayments(); setSelectedBooking(null); fetchAll()
+  }
+
+  // ردِ کاملِ پرونده (معمولاً روی همان اولین مرحله‌ی منتظرِ پرداخت)
+  async function rejectCase(id: string) {
     const r = await uiPrompt('دلیل رد را بنویسید (برای مراجع نمایش داده می‌شود):', { required: true })
     if (r === null) return
     const reject_reason = r.trim()
     if (!reject_reason) { uiAlert('لطفاً دلیل را بنویسید.'); return }
     const res = await fetch(api('/cases'), {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, flow_status: FLOW.INTERVIEW_REJECTED, reject_reason, status: 'cancelled' }),
+      body: JSON.stringify({ id, reject_reason, status: 'cancelled' }),
     })
     if (!res.ok) { uiAlert('خطا در ثبت'); return }
     setSelectedBooking(null); fetchAll()
-  }
-
-  // ردِ پرداختِ ارزیابی → بازگشت به مرحله‌ی پرداخت تا مراجع دوباره واریز کند
-  async function rejectAssessmentPayment(id: string) {
-    const r = await uiPrompt('دلیل ردِ پرداخت را بنویسید (برای مراجع نمایش داده می‌شود):', { required: true })
-    if (r === null) return
-    const reason = r.trim()
-    if (!reason) { uiAlert('لطفاً دلیل را بنویسید.'); return }
-    const res = await fetch(api('/cases'), {
-      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, flow_status: FLOW.ASSESSMENT_AWAITING_PAYMENT, assessment_paid: false, cancel_notice: `پرداختِ ارزیابی تأیید نشد: ${reason}` }),
-    })
-    if (!res.ok) { uiAlert('خطا در ثبت'); return }
-    await loadPendingPayments(); setSelectedBooking(null); fetchAll()
   }
 
   // ردِ پرداختِ پروتکل درمان → مراجع باید دوباره واریز کند
@@ -872,27 +888,25 @@ export function PsychologyAdmin() {
     if (selectedPatient) await loadPatientData(selectedPatient.case_number)
   }
 
-  // باز کردنِ مرحله‌ی ارزیابی پس از برگزاریِ مصاحبه (مراجع باید پرداخت کند)
-  async function openAssessmentStage(id: string) {
-    const res = await fetch(api('/cases'), {
-      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, flow_status: FLOW.ASSESSMENT_AWAITING_PAYMENT }),
+  // دکتر مرحله‌ی بعدِ پرونده را مشخص می‌کند (مصاحبه‌ی دیگر یا ارزیابی) — کاملاً
+  // آزاد: هر تعداد بار، به هر ترتیب. فقط وقتی ممکن است که مرحله‌ی بازِ دیگری نباشد.
+  async function addNextStage(caseNumber: string, stageType: 'interview' | 'assessment') {
+    const res = await fetch(api('/stages'), {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ case_number: caseNumber, stage_type: stageType }),
     })
-    if (!res.ok) { uiAlert('خطا در ثبت'); return }
+    const d = await res.json().catch(() => ({}))
+    if (!res.ok) { uiAlert(d.error || 'خطا در ثبتِ مرحله'); return }
     setSelectedBooking(null); fetchAll()
+    if (selectedPatient?.case_number === caseNumber) await loadPatientData(caseNumber)
   }
 
-  // ذخیره‌ی یادداشت و/یا تأییدِ برگزاریِ جلسه‌ی مصاحبه/ارزیابی
-  async function saveStageSession(bookingId: string, stage: 'interview' | 'assessment', notes: string, markHeld: boolean) {
-    const patch: Record<string, any> = { id: bookingId }
-    if (stage === 'interview') {
-      patch.interview_notes = notes
-      if (markHeld) { patch.interview_held = true; patch.flow_status = FLOW.ASSESSMENT_AWAITING_PAYMENT }
-    } else {
-      patch.assessment_notes = notes
-      if (markHeld) patch.assessment_held = true
-    }
-    const res = await fetch(api('/cases'), {
+  // ذخیره‌ی یادداشت و/یا تأییدِ برگزاریِ یک مرحله — بعد از این، پرونده آزاد می‌شود
+  // تا دکتر مرحله‌ی بعد را (اگر خواست) مشخص کند
+  async function saveStageSession(stageId: string, notes: string, markHeld: boolean) {
+    const patch: Record<string, any> = { id: stageId, notes }
+    if (markHeld) patch.mark_held = true
+    const res = await fetch(api('/stages'), {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch),
     })
     if (!res.ok) { uiAlert('خطا در ثبت'); return }
@@ -911,11 +925,18 @@ export function PsychologyAdmin() {
   // همه‌ی نوبت‌های یک تاریخ (مصاحبه + ارزیابی + جلسه) مرتب‌شده بر اساس ساعت
   function apptsForDate(dateStr: string) {
     const out: { time: string; name: string; type: string; mode?: string; loc?: string; color: string; kind: 'interview' | 'assessment' | 'session'; id: string; caseNumber: string }[] = []
-    for (const b of bookings) {
-      if (b.interview_date === dateStr && b.interview_time)
-        out.push({ time: b.interview_time, name: b.child_name, type: 'مصاحبه', mode: b.session_type, loc: b.office_location, color: 'bg-blue-50 text-blue-700 border-blue-100', kind: 'interview', id: b.id, caseNumber: b.case_number })
-      if (b.assessment_date === dateStr && b.assessment_time)
-        out.push({ time: b.assessment_time, name: b.child_name, type: 'ارزیابی', mode: b.session_type, loc: b.office_location, color: 'bg-purple-50 text-purple-700 border-purple-100', kind: 'assessment', id: b.id, caseNumber: b.case_number })
+    const bookingByCase = new Map(bookings.map(b => [b.case_number, b]))
+    for (const s of allStages) {
+      if (s.session_date === dateStr && s.session_time && s.status === 'booked') {
+        const b = bookingByCase.get(s.case_number)
+        out.push({
+          time: s.session_time, name: childNameOf(s.case_number),
+          type: STAGE_TYPE_LABEL[s.stage_type] || s.stage_type,
+          mode: b?.session_type, loc: b?.office_location,
+          color: s.stage_type === 'assessment' ? 'bg-purple-50 text-purple-700 border-purple-100' : 'bg-blue-50 text-blue-700 border-blue-100',
+          kind: s.stage_type, id: s.id, caseNumber: s.case_number,
+        })
+      }
     }
     for (const s of allSessions) {
       if (s.session_date === dateStr && s.session_time && s.status !== 'cancelled' && s.status !== 'forfeited' && s.status !== 'replaced')
@@ -936,14 +957,12 @@ export function PsychologyAdmin() {
         body: JSON.stringify({ id: appt.id, session_date: '', session_time: '', doctor_note_for_patient: msg }),
       })
     } else {
-      const patch = appt.kind === 'interview'
-        ? { id: appt.id, flow_status: FLOW.INTERVIEW_AWAITING_BOOKING, interview_date: '', interview_time: '', cancel_notice: msg }
-        : { id: appt.id, flow_status: FLOW.ASSESSMENT_AWAITING_BOOKING, assessment_date: '', assessment_time: '', cancel_notice: msg }
-      await fetch(api('/cases'), {
-        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch),
+      await fetch(api('/stages'), {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: appt.id, clear_booking: true, cancel_notice: msg }),
       })
     }
-    await Promise.all([fetchAll(), loadAllSessions()])
+    await Promise.all([fetchAll(), loadAllSessions(), loadAllStages()])
   }
 
   // لغوِ همه‌ی نوبت‌های یک روز
@@ -956,13 +975,11 @@ export function PsychologyAdmin() {
         await fetch(api('/sessions'), { method: 'PATCH', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ id: a.id, session_date: '', session_time: '', doctor_note_for_patient: msg }) })
       } else {
-        const patch = a.kind === 'interview'
-          ? { id: a.id, flow_status: FLOW.INTERVIEW_AWAITING_BOOKING, interview_date: '', interview_time: '', cancel_notice: msg }
-          : { id: a.id, flow_status: FLOW.ASSESSMENT_AWAITING_BOOKING, assessment_date: '', assessment_time: '', cancel_notice: msg }
-        await fetch(api('/cases'), { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch) })
+        await fetch(api('/stages'), { method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: a.id, clear_booking: true, cancel_notice: msg }) })
       }
     }
-    await Promise.all([fetchAll(), loadAllSessions()])
+    await Promise.all([fetchAll(), loadAllSessions(), loadAllStages()])
   }
 
 
@@ -998,6 +1015,15 @@ export function PsychologyAdmin() {
     } catch {}
   }
 
+  // همه‌ی مراحلِ رزروشده (مصاحبه/ارزیابی) را بخوان (برای نمای برنامه)
+  async function loadAllStages() {
+    try {
+      const res = await fetch(api('/stages?all=1'), { cache: 'no-store' })
+      const data = await res.json()
+      setAllStages(data.stages || [])
+    } catch {}
+  }
+
   // تازه‌سازیِ رزروها بدونِ لودینگِ کلی (برای به‌روزماندنِ تعدادِ نوبتِ تقویم)
   async function refreshBookings() {
     try {
@@ -1028,7 +1054,7 @@ export function PsychologyAdmin() {
 
   // با ورود به تب برنامه، داده‌های ماه و جلسه‌ها را بارگذاری کن
   useEffect(() => {
-    if (mainTab === 'schedule') { loadMonthSchedules(schedMonth, schedYear); loadAllSessions(); refreshBookings(); if (!profileLoaded) loadProfile() }
+    if (mainTab === 'schedule') { loadMonthSchedules(schedMonth, schedYear); loadAllSessions(); loadAllStages(); refreshBookings(); if (!profileLoaded) loadProfile() }
     if (mainTab === 'settings') { if (!settingsLoaded) loadSettings(); loadProfile(); loadIntakeForm() }
     if (mainTab === 'patient_settings') { if (!patientFeaturesLoaded) loadPatientFeatures(); loadProfile() }
     if (mainTab === 'finance') loadFinance()
@@ -1469,10 +1495,7 @@ export function PsychologyAdmin() {
 
   if (needsLogin) return <PanelLogin slug={slug} onSuccess={() => { setNeedsLogin(false); fetchAll() }} />
 
-  const pendingActionCount =
-    bookings.filter(b => b.flow_status === FLOW.INTERVIEW_PAYMENT_SUBMITTED).length +
-    bookings.filter(b => b.flow_status === FLOW.ASSESSMENT_PAYMENT_SUBMITTED).length +
-    pendingPkgs.length + pendingSess.length + pendingRefunds.length
+  const pendingActionCount = pendingStages.length + pendingPkgs.length + pendingSess.length + pendingRefunds.length
 
   // تبِ «تأیید پرداخت‌ها» فقط وقتی به‌دردبخور است که کارت‌به‌کارت واقعاً استفاده می‌شود
   // (وگرنه پرداخت‌ها آنلاین و خودکار تایید می‌شوند) — مگر این‌که از قبل چیزی منتظرِ
@@ -1689,6 +1712,14 @@ export function PsychologyAdmin() {
                         <span className={`text-xs px-2 py-0.5 rounded-full ${STATUS_COLOR[selectedPatient.status] || ''}`}>
                           {STATUS_LABEL[selectedPatient.status] || selectedPatient.status}
                         </span>
+                        {selectedPatient.status !== 'cancelled' && (() => {
+                          const bk = bookings.find(b => b.case_number === selectedPatient.case_number)
+                          return (
+                            <span className="text-xs px-2 py-0.5 bg-brand-50 text-brand-700 rounded-full">
+                              {bk?.current_stage ? stageLabel(bk.current_stage) : 'منتظرِ تعیینِ مرحله‌ی بعد'}
+                            </span>
+                          )
+                        })()}
                       </div>
                       <div className="text-sm text-gray-400 mt-0.5">{selectedPatient.reason}</div>
                     </div>
@@ -1780,13 +1811,17 @@ export function PsychologyAdmin() {
                 {patientTab === 'payment' && (
                   <div className="bg-white rounded-xl border border-gray-100 p-4">
                     {(() => {
-                      const bk = bookings.find(b => b.case_number === selectedPatient.case_number)
                       const fmt = (paid?: boolean, sub?: boolean, ref?: string) =>
                         paid ? `✅ پرداخت‌شده${ref ? ' — فیش: ' + ref : ''}` : sub ? '⏳ منتظر تأیید' : '—'
+                      const typeCounts: Record<string, number> = {}
                       return (
                         <Section title="اطلاعات پرداخت" icon="💳">
-                          <InfoRow label="مصاحبه‌ی اولیه" value={fmt(bk?.interview_paid, false, bk?.interview_payment_ref)} />
-                          <InfoRow label="ارزیابیِ کودک" value={fmt(bk?.assessment_paid, false, bk?.assessment_payment_ref)} />
+                          {stages.map(s => {
+                            typeCounts[s.stage_type] = (typeCounts[s.stage_type] || 0) + 1
+                            const n = typeCounts[s.stage_type]
+                            const label = (STAGE_TYPE_LABEL[s.stage_type] || s.stage_type) + (n > 1 ? ` #${n}` : '')
+                            return <InfoRow key={s.id} label={label} value={fmt(s.paid, s.payment_submitted, s.payment_ref)} />
+                          })}
                           {packages.map(p => (
                             <InfoRow key={p.id} label={`پروتکل درمان ${PERSIAN_MONTHS[parseInt(p.month) - 1]} ${p.year}`}
                               value={fmt(p.paid, p.payment_submitted, p.payment_ref)} />
@@ -1847,27 +1882,36 @@ export function PsychologyAdmin() {
                 {/* ── Tab: جلسات ────────────────────────────────────── */}
                 {patientTab === 'sessions' && (
                   <div>
-                    {/* جلسه‌های مصاحبه و ارزیابی (مرحله‌های اولِ درمان) */}
+                    {/* مراحلِ پیش‌ازدرمان (مصاحبه/ارزیابی) — هر تعداد، به هر ترتیب */}
+                    {stages.length > 0 && (
+                      <div className="space-y-2 mb-4">
+                        {(() => {
+                          const typeCounts: Record<string, number> = {}
+                          return stages.map(s => {
+                            typeCounts[s.stage_type] = (typeCounts[s.stage_type] || 0) + 1
+                            return (
+                              <StageSessionCard key={s.id} stage={s} index={typeCounts[s.stage_type]}
+                                onSave={(stageId, notes, markHeld) => saveStageSession(stageId, notes, markHeld)} />
+                            )
+                          })
+                        })()}
+                      </div>
+                    )}
+
+                    {/* وقتی مرحله‌ی بازی نیست، دکتر آزادانه مرحله‌ی بعد را مشخص می‌کند
+                        (مصاحبه/ارزیابیِ دیگر، یا مستقیم پروتکل درمانِ زیر) */}
                     {(() => {
                       const bk = bookings.find(b => b.case_number === selectedPatient.case_number)
-                      if (!bk) return null
-                      const showInterview = !!bk.interview_date || bk.interview_held
-                      const showAssessment = !!bk.assessment_date || bk.assessment_held
-                      if (!showInterview && !showAssessment) return null
+                      if (!bk || bk.current_stage_id || bk.status === 'cancelled') return null
                       return (
-                        <div className="space-y-2 mb-4">
-                          {showInterview && (
-                            <StageSessionCard stage="interview" date={bk.interview_date} time={bk.interview_time}
-                              notes={bk.interview_notes || ''} held={!!bk.interview_held}
-                              canHold={!!bk.interview_date && !bk.interview_held}
-                              onSave={(notes, markHeld) => saveStageSession(bk.id, 'interview', notes, markHeld)} />
-                          )}
-                          {showAssessment && (
-                            <StageSessionCard stage="assessment" date={bk.assessment_date} time={bk.assessment_time}
-                              notes={bk.assessment_notes || ''} held={!!bk.assessment_held}
-                              canHold={!!bk.assessment_date && !bk.assessment_held}
-                              onSave={(notes, markHeld) => saveStageSession(bk.id, 'assessment', notes, markHeld)} />
-                          )}
+                        <div className="bg-white rounded-xl border border-dashed border-brand-200 p-3 mb-4">
+                          <div className="text-xs text-gray-500 mb-2">مرحله‌ی بازی نیست — مرحله‌ی بعد را مشخص کنید (یا مستقیم پروتکلِ درمان زیر را تعریف کنید):</div>
+                          <div className="flex gap-2">
+                            <button onClick={() => addNextStage(selectedPatient.case_number, 'interview')}
+                              className="flex-1 py-2 bg-blue-600 text-white rounded-lg text-sm">🩺 مصاحبه‌ی دیگر</button>
+                            <button onClick={() => addNextStage(selectedPatient.case_number, 'assessment')}
+                              className="flex-1 py-2 bg-purple-600 text-white rounded-lg text-sm">🧩 ارزیابی</button>
+                          </div>
                         </div>
                       )
                     })()}
@@ -2017,12 +2061,12 @@ export function PsychologyAdmin() {
             {/* صندوقِ تأیید پرداخت‌ها — سه بخش */}
             {(() => {
               const childOf = (cn: string) => bookings.find(b => b.case_number === cn)?.child_name || cn
-              const interviewPending = bookings.filter(b => b.flow_status === FLOW.INTERVIEW_PAYMENT_SUBMITTED)
-              const assessmentPending = bookings.filter(b => b.flow_status === FLOW.ASSESSMENT_PAYMENT_SUBMITTED)
+              const interviewPending = pendingStages.filter(s => s.stage_type === 'interview')
+              const assessmentPending = pendingStages.filter(s => s.stage_type === 'assessment')
               const pkgAmount = (p: Package) =>
                 (p.child_sessions * (p.child_session_type === 'online' ? PRICING.sessionOnline : PRICING.sessionOffline)) +
                 (p.parent_sessions * (p.parent_session_type === 'online' ? PRICING.sessionOnline : PRICING.sessionOffline))
-              const totalPending = interviewPending.length + assessmentPending.length + pendingPkgs.length + pendingSess.length + pendingRefunds.length
+              const totalPending = pendingStages.length + pendingPkgs.length + pendingSess.length + pendingRefunds.length
               const refundAmt = (s: Session) => {
                 const full = s.session_type === 'online' ? PRICING.sessionOnline : PRICING.sessionOffline
                 return Math.round(full * (s.refund_percent || 50) / 100)
@@ -2038,13 +2082,13 @@ export function PsychologyAdmin() {
 
                   {/* بخش ۱: مصاحبه */}
                   <PendingSection title="مصاحبه‌ی اولیه" icon="🩺" count={interviewPending.length}>
-                    {interviewPending.map(b => (
-                      <PendingPayCard key={b.id} name={b.child_name} caseNumber={b.case_number}
-                        amount={b.interview_price || PRICING.interview} receipt={b.interview_payment_ref}>
+                    {interviewPending.map(s => (
+                      <PendingPayCard key={s.id} name={childOf(s.case_number)} caseNumber={s.case_number}
+                        amount={s.price || PRICING.interview} receipt={s.payment_ref}>
                         <div className="flex gap-2">
-                          <button onClick={() => confirmStagePayment(b.id, 'interview')}
+                          <button onClick={() => confirmStagePayment(s.id, 'interview')}
                             className="flex-1 py-2 bg-green-600 text-white rounded-lg text-sm">✅ تأیید پرداخت</button>
-                          <button onClick={() => rejectInterview(b.id)}
+                          <button onClick={() => rejectStagePayment(s.id)}
                             className="flex-1 py-2 border border-red-200 text-red-500 rounded-lg text-sm">رد</button>
                         </div>
                       </PendingPayCard>
@@ -2053,13 +2097,13 @@ export function PsychologyAdmin() {
 
                   {/* بخش ۲: ارزیابی */}
                   <PendingSection title="ارزیابیِ کودک" icon="🧩" count={assessmentPending.length}>
-                    {assessmentPending.map(b => (
-                      <PendingPayCard key={b.id} name={b.child_name} caseNumber={b.case_number}
-                        amount={b.assessment_price || PRICING.assessment} receipt={b.assessment_payment_ref}>
+                    {assessmentPending.map(s => (
+                      <PendingPayCard key={s.id} name={childOf(s.case_number)} caseNumber={s.case_number}
+                        amount={s.price || PRICING.assessment} receipt={s.payment_ref}>
                         <div className="flex gap-2">
-                          <button onClick={() => confirmStagePayment(b.id, 'assessment')}
+                          <button onClick={() => confirmStagePayment(s.id, 'assessment')}
                             className="flex-1 py-2 bg-green-600 text-white rounded-lg text-sm">✅ تأیید پرداخت</button>
-                          <button onClick={() => rejectAssessmentPayment(b.id)}
+                          <button onClick={() => rejectStagePayment(s.id)}
                             className="flex-1 py-2 border border-red-200 text-red-500 rounded-lg text-sm">رد</button>
                         </div>
                       </PendingPayCard>
@@ -2116,25 +2160,17 @@ export function PsychologyAdmin() {
                   </div>
                   <div className="space-y-2 mb-4">
                     <InfoRow label="شماره پرونده" value={selectedBooking.case_number} />
-                    <InfoRow label="تاریخ" value={selectedBooking.booking_date} />
-                    <InfoRow label="ساعت" value={selectedBooking.booking_time} />
                     <InfoRow label="نوع جلسه" value={selectedBooking.session_type === 'online' ? 'آنلاین' : `حضوری${selectedBooking.office_location ? ` — ${selectedBooking.office_location}` : ''}`} />
-                    <InfoRow label="مبلغ" value={`${selectedBooking.price?.toLocaleString('en-US')} تومان`} />
                     <InfoRow label="وضعیت" value={STATUS_LABEL[selectedBooking.status]} />
-                    <InfoRow label="مرحله پرونده" value={FLOW_LABEL[selectedBooking.flow_status || FLOW.INTERVIEW_AWAITING_PAYMENT] || '—'} />
-                    {selectedBooking.interview_date && (
-                      <InfoRow label="وقت مصاحبه" value={`${enTime(selectedBooking.interview_date)} — ${enTime(selectedBooking.interview_time)}`} />
+                    <InfoRow label="مرحله‌ی جاری" value={stageLabel(selectedBooking.current_stage)} />
+                    {selectedBooking.current_stage?.session_date && (
+                      <InfoRow label={`وقتِ ${STAGE_TYPE_LABEL[selectedBooking.current_stage.stage_type] || ''}`}
+                        value={`${enTime(selectedBooking.current_stage.session_date)} — ${enTime(selectedBooking.current_stage.session_time)}`} />
                     )}
-                    {selectedBooking.interview_payment_ref && (
-                      <InfoRow label="فیش واریزیِ مصاحبه" value={selectedBooking.interview_payment_ref} />
+                    {selectedBooking.current_stage?.payment_ref && (
+                      <InfoRow label="فیشِ واریزی" value={selectedBooking.current_stage.payment_ref} />
                     )}
-                    {selectedBooking.assessment_date && (
-                      <InfoRow label="وقت ارزیابی" value={`${enTime(selectedBooking.assessment_date)} — ${enTime(selectedBooking.assessment_time)}`} />
-                    )}
-                    {selectedBooking.assessment_payment_ref && (
-                      <InfoRow label="فیش واریزیِ ارزیابی" value={selectedBooking.assessment_payment_ref} />
-                    )}
-                    {selectedBooking.flow_status === FLOW.INTERVIEW_REJECTED && selectedBooking.reject_reason && (
+                    {selectedBooking.status === 'cancelled' && selectedBooking.reject_reason && (
                       <InfoRow label="دلیل رد" value={selectedBooking.reject_reason} />
                     )}
                   </div>
@@ -2146,59 +2182,60 @@ export function PsychologyAdmin() {
 
                   {/* اکشن‌های مرحله‌ایِ دکتر */}
                   {(() => {
-                    const fs = selectedBooking.flow_status || FLOW.INTERVIEW_AWAITING_PAYMENT
+                    const stage = selectedBooking.current_stage
                     const id = selectedBooking.id
 
-                    if (fs === FLOW.INTERVIEW_AWAITING_PAYMENT)
+                    if (selectedBooking.status === 'cancelled')
+                      return <div className="text-center text-sm text-red-600 bg-red-50 rounded-xl py-3">این پرونده رد شده است.</div>
+
+                    if (!stage) {
+                      // هیچ مرحله‌ی بازی نیست — دکتر مرحله‌ی بعد را کاملاً آزاد مشخص می‌کند
                       return (
                         <div className="space-y-2">
-                          <div className="text-center text-xs text-amber-700 bg-amber-50 rounded-xl py-2.5 border border-amber-100">💳 منتظر پرداختِ کارت‌به‌کارتِ مصاحبه توسط مراجع</div>
-                          <button onClick={() => rejectInterview(id)} className="w-full py-2 border border-red-200 text-red-500 rounded-xl text-sm">❌ رد پرونده</button>
+                          <div className="text-center text-sm text-gray-600 bg-gray-50 rounded-xl py-3">
+                            مرحله‌ی بازی نیست. مرحله‌ی بعد برایِ این پرونده را مشخص کنید، یا مستقیم برای پروتکلِ درمان اقدام کنید.
+                          </div>
+                          <div className="flex gap-2">
+                            <button onClick={() => addNextStage(selectedBooking.case_number, 'interview')}
+                              className="flex-1 py-2.5 bg-blue-600 text-white rounded-xl text-sm">🩺 مصاحبه‌ی دیگر</button>
+                            <button onClick={() => addNextStage(selectedBooking.case_number, 'assessment')}
+                              className="flex-1 py-2.5 bg-purple-600 text-white rounded-xl text-sm">🧩 ارزیابی</button>
+                          </div>
+                          <button onClick={() => goToPackagesTab(selectedBooking.case_number)}
+                            className="w-full py-2.5 bg-brand-600 text-white rounded-xl text-sm font-medium">📦 رفتن به پروتکلِ درمان</button>
+                          <button onClick={() => rejectCase(id)} className="w-full py-2 border border-red-200 text-red-500 rounded-xl text-sm">❌ رد پرونده</button>
+                        </div>
+                      )
+                    }
+
+                    const label = STAGE_TYPE_LABEL[stage.stage_type] || stage.stage_type
+
+                    if (stage.status === 'awaiting_payment')
+                      return (
+                        <div className="space-y-2">
+                          <div className="text-center text-xs text-amber-700 bg-amber-50 rounded-xl py-2.5 border border-amber-100">💳 منتظر پرداختِ کارت‌به‌کارتِ {label} توسط مراجع</div>
+                          <button onClick={() => rejectCase(id)} className="w-full py-2 border border-red-200 text-red-500 rounded-xl text-sm">❌ رد پرونده</button>
                         </div>
                       )
 
-                    if (fs === FLOW.INTERVIEW_PAYMENT_SUBMITTED)
+                    if (stage.status === 'payment_submitted')
                       return (
                         <div className="space-y-2">
                           <div className="text-center text-xs text-blue-700 bg-blue-50 rounded-xl py-2 border border-blue-100">مراجع اعلام کرده پرداخت کرده. واریز را بررسی و تأیید کنید.</div>
                           <div className="flex gap-2">
-                            <button onClick={() => confirmStagePayment(id, 'interview')} className="flex-1 py-2.5 bg-green-600 text-white rounded-xl text-sm">✅ تأیید پرداختِ مصاحبه</button>
-                            <button onClick={() => rejectInterview(id)} className="flex-1 py-2.5 bg-red-500 text-white rounded-xl text-sm">❌ رد</button>
+                            <button onClick={() => confirmStagePayment(stage.id, stage.stage_type)} className="flex-1 py-2.5 bg-green-600 text-white rounded-xl text-sm">✅ تأیید پرداختِ {label}</button>
+                            <button onClick={() => rejectStagePayment(stage.id)} className="flex-1 py-2.5 bg-red-500 text-white rounded-xl text-sm">❌ رد</button>
                           </div>
                         </div>
                       )
 
-                    if (fs === FLOW.INTERVIEW_AWAITING_BOOKING)
-                      return <div className="text-center text-sm text-gray-600 bg-gray-50 rounded-xl py-3">پرداخت تأیید شد. منتظرِ گرفتنِ وقتِ مصاحبه توسط مراجع.</div>
+                    if (stage.status === 'awaiting_booking')
+                      return <div className="text-center text-sm text-gray-600 bg-gray-50 rounded-xl py-3">پرداخت تأیید شد. منتظرِ گرفتنِ وقتِ {label} توسط مراجع.</div>
 
-                    if (fs === FLOW.INTERVIEW_BOOKED)
-                      return (
-                        <button onClick={() => openAssessmentStage(id)} className="w-full py-2.5 bg-brand-600 text-white rounded-xl text-sm font-medium">
-                          ✅ مصاحبه برگزار شد → فعال‌سازیِ مرحله‌ی ارزیابی
-                        </button>
-                      )
+                    if (stage.status === 'booked')
+                      return <div className="text-center text-sm text-gray-600 bg-gray-50 rounded-xl py-3">{label} رزرو شد. پس از برگزاری، از تبِ «پرونده‌ها» → «جلسات»ِ همین مراجع تأیید کنید تا مرحله‌ی بعد را مشخص کنید.</div>
 
-                    if (fs === FLOW.ASSESSMENT_AWAITING_PAYMENT)
-                      return <div className="text-center text-xs text-amber-700 bg-amber-50 rounded-xl py-2.5 border border-amber-100">💳 منتظر پرداختِ کارت‌به‌کارتِ ارزیابی توسط مراجع</div>
-
-                    if (fs === FLOW.ASSESSMENT_PAYMENT_SUBMITTED)
-                      return (
-                        <button onClick={() => confirmStagePayment(id, 'assessment')} className="w-full py-2.5 bg-green-600 text-white rounded-xl text-sm font-medium">
-                          ✅ تأیید پرداختِ ارزیابی
-                        </button>
-                      )
-
-                    if (fs === FLOW.ASSESSMENT_AWAITING_BOOKING)
-                      return <div className="text-center text-sm text-gray-600 bg-gray-50 rounded-xl py-3">پرداختِ ارزیابی تأیید شد. منتظرِ گرفتنِ وقتِ ارزیابی توسط مراجع.</div>
-
-                    if (fs === FLOW.ASSESSMENT_BOOKED)
-                      return <div className="text-center text-sm text-gray-600 bg-gray-50 rounded-xl py-3">ارزیابی رزرو شد. پس از برگزاری، از تبِ «پروتکل‌های درمان»ی پرونده، پروتکلِ درمان را تعریف کنید.</div>
-
-                    return (
-                      <div className="text-center text-sm text-gray-600 bg-gray-50 rounded-xl py-3">
-                        مرحله: <b className="text-gray-800">{FLOW_LABEL[fs] || fs}</b>
-                      </div>
-                    )
+                    return null
                   })()}
                 </div>
               </div>

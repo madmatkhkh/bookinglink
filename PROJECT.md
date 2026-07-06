@@ -41,9 +41,9 @@
 
 **عمومی (همه‌ی نیچ‌ها):** `niches`، `tenants` (+niche_key, custom_domain, domain_verified)، `tenant_profiles`، `resources` (+phone, owner_session — ورودِ مستقلِ کارمند)، `services` + `service_resources`، `weekly_schedules` + `schedule_overrides` (per-resource)، `bookings` (+resource_id)، `client_records` (پرونده‌ی نیچ‌محور)، `otps`، `tenant_features`.
 
-**تخصصیِ روانشناسی:** `psy_cases` (معادلِ bookings؛ فلوی سه‌مرحله‌ای: مصاحبه→ارزیابی→پروتکل، فیلدهای تفصیلی در `details` jsonb، +`resource_id`)، `psy_sessions` (+package_id, doctor_note_for_patient, refund_card, refund_percent, resource_id)، `psy_packages` (+month, year, status, child/parent sessions, resource_id)، `psy_clinic_settings` (تک‌ردیف per-tenant، فقط `office_locations` — سطحِ برند/کلینیک، مشترکِ همه‌ی دکترها)، `psy_resource_profiles` (تک‌ردیف per-resource: badges, session_modes, cards — پروفایلِ شخصیِ هر دکتر)، `psy_schedules` (روزمحور، حالا per-resource: `unique(tenant_id, resource_id, date)`).
+**تخصصیِ روانشناسی:** `psy_cases` (معادلِ bookings؛ فقط پرونده/هویت + `current_stage_id` که به مرحله‌ی بازِ جاری اشاره می‌کند، فیلدهای تفصیلی در `details` jsonb، +`resource_id`)، `psy_stages` (**جدولِ جدید** — مراحلِ پیش‌ازدرمانِ کاملاً آزاد و تکرارپذیر: هر ردیف یک نمونه از `stage_type` — مصاحبه یا ارزیابی — با چرخه‌ی خودش: `awaiting_payment→payment_submitted→awaiting_booking→booked`؛ هر پرونده هر تعداد از این‌ها می‌تواند داشته باشد)، `psy_sessions` (+package_id, doctor_note_for_patient, refund_card, refund_percent, resource_id)، `psy_packages` (+month, year, status, child/parent sessions, resource_id)، `psy_clinic_settings` (تک‌ردیف per-tenant، فقط `office_locations` — سطحِ برند/کلینیک، مشترکِ همه‌ی دکترها)، `psy_resource_profiles` (تک‌ردیف per-resource: badges, session_modes, cards — پروفایلِ شخصیِ هر دکتر)، `psy_schedules` (روزمحور، حالا per-resource: `unique(tenant_id, resource_id, date)`).
 
-⚠️ هر بار اسکیما عوض شد، باید در سوپابیس اول `drop table` همه (لیستِ کامل در `supabase-schema.sql`) بعد کلِ فایل را از نو اجرا کرد — هنوز سیستمِ migration نداریم. **استثنا:** تغییرِ چندکارمندی (`migrations/0002_multi_resource_staff.sql`) عمداً additive نوشته شده تا روی دیتابیسِ زنده هم بدونِ drop قابلِ اجرا باشد.
+⚠️ هر بار اسکیما عوض شد، باید در سوپابیس اول `drop table` همه (لیستِ کامل در `supabase-schema.sql`) بعد کلِ فایل را از نو اجرا کرد — هنوز سیستمِ migration نداریم. **استثناها:** تغییرِ چندکارمندی (`migrations/0002_multi_resource_staff.sql`) و تغییرِ مراحلِ آزادِ پیش‌ازدرمان (`migrations/0006_flexible_stages.sql`) عمداً additive/ALTER نوشته شده‌اند تا روی دیتابیسِ زنده هم بدونِ drop قابلِ اجرا باشند.
 
 ## نقشه‌ی مسیرها (routes)
 
@@ -63,11 +63,11 @@
 
 ## API روانشناسی (`/api/t/[slug]/psy/*` و `/api/t/[slug]/panel/psy/*`)
 
-سمتِ پنلِ دکتر (auth با `requirePanelAuth` — owner همه‌چیز، کارمند فقط دیتای خودش): `cases`, `sessions`, `packages`, `schedule` (per-resource)، `finance` (قابلِ فیلتر با resource_id)، `profile` (پروفایلِ per-resource: نام/عنوان/آواتار/بج/نوعِ جلسه/کارت)، `settings` (فقط office_locations، فقط owner می‌نویسد)، `features` (روشن/خاموشِ ماژول‌های پنلِ مراجع، فقط owner).
+سمتِ پنلِ دکتر (auth با `requirePanelAuth` — owner همه‌چیز، کارمند فقط دیتای خودش): `cases`, `sessions`, `packages`, `stages` (**جدید** — مدیریتِ مراحلِ پیش‌ازدرمان: لیست/تاریخچه‌ی یک پرونده، افزودنِ مرحله‌ی بعد، تأیید/ردِ پرداخت، ثبتِ برگزاری)، `schedule` (per-resource)، `finance` (قابلِ فیلتر با resource_id)، `profile` (پروفایلِ per-resource: نام/عنوان/آواتار/بج/نوعِ جلسه/کارت)، `settings` (فقط office_locations، فقط owner می‌نویسد)، `features` (روشن/خاموشِ ماژول‌های پنلِ مراجع، فقط owner).
 
 سطحِ پلتفرم (نه فقط psychology): `panel/whoami` (owner یا کدام resource؟)، `panel/staff-login` (ورودِ کارمند با شماره‌ی خودش)، `panel/resources` (owner: مدیریتِ لیستِ پرسنل + شماره‌ی ورودشان).
 
-سمتِ مراجع (بدونِ auth یا با تاییدِ شماره): `public` (شاملِ `doctors[]` حالا)، `otp`، `data`، `pay`، `book`، `stage-pay`، `interview-book`، `assessment`، `buy-session`، `cancel`، `schedule-one`، `sessions`، `schedule`.
+سمتِ مراجع (بدونِ auth یا با تاییدِ شماره): `public` (شاملِ `doctors[]` حالا)، `otp`، `data` (حالا شاملِ `stages[]` هم)، `pay` (کارت‌به‌کارت — عمومی شده: `stage_id` یا `package_id` یا `session_id`)، `pay-online` (زیبال — عمومی شده: `purpose: 'stage'|'package'|'session'` + `ref_id`)، `book` (ثبتِ فرمِ مصاحبه — اولین مرحله‌ی `psy_stages` را هم می‌سازد)، `stage-book` (**جدید، جایگزینِ `interview-book`+`assessment`** — گرفتنِ وقت برای هر نوع مرحله با `stage_id`)، `buy-session`، `cancel`، `schedule-one`، `sessions`، `schedule`.
 
 ## قابلیت‌هایی که تا الان ساخته شده‌اند
 
@@ -108,6 +108,7 @@
 - ✅ **انتخابگرِ تاریخِ واقعی:** حالتِ قبلی (سه‌تا select) رو با یه تقویمِ واقعی و کلیک‌پذیر عوض کردم — دکمه‌ای که با کلیک، یه پاپ‌آپ با گریدِ روزها باز می‌شه (دقیقاً از جنسِ بقیه‌ی پنل: گوشه‌گردِ سفید با سایه)، بالای گرید هم دو منویِ ماه/سال برای پرش سریع بینِ سال‌های دور (لازم برای تاریخِ تولد).
 - 🩹 **رفع‌شده (باگِ نهفته‌ی قدیمی):** ستونِ `refund_percent` رویِ `psy_sessions` در دو جای پنل و صفحه‌ی مراجع دو معنیِ متضاد داشت — یک‌جا مستقیم به‌عنوانِ «درصدِ بازپرداخت» نمایش داده می‌شد، جای دیگر با فرمولِ `100 - refund_percent` (یعنی انگار «درصدِ سوخته» بود). چون قدیم همیشه مقدارش ۵۰ بود (نقطه‌ی تقارن)، هیچ‌وقت بروز نمی‌کرد؛ با قابلِ‌تنظیم‌شدنِ درصدها، این ناهماهنگی واقعی می‌شد. الان همه‌جا یکسان است: `refund_percent` = درصدی که به مراجع برمی‌گردد.
 - 🩹 **رفع‌شده:** حینِ کارِ چندکارمندی، بازنویسیِ روتِ `panel/psy/cases` باعث شده بود نمایش/ویرایشِ فیلدهای تفصیلیِ پرونده (رشد، مدرسه، بارداری، …) در پنل خراب شود (چون این‌ها هیچ‌وقت واقعاً ستونِ مستقل نبودند، از `details` می‌آمدند ولی کدِ پنل مستقیم `selectedPatient.growth_info` می‌خواند). حالا نمایش/ویرایش هردو عمومی و از رویِ `details` است (با نگاشتِ برچسبِ پرونده‌های قدیمی در `LEGACY_DETAIL_LABELS`)، و این باگ به‌طورِ طبیعی همراهِ فرم‌بیلدر حل شد.
+- ✅ **فلوی پیش‌ازدرمانِ آزاد و تکرارپذیر (بازطراحیِ بزرگ):** فلوی هاردکدِ «مصاحبه یک‌بار → ارزیابی یک‌بار → پروتکل» حذف شد. جدولِ جدیدِ `psy_stages` هر تعداد نمونه از هر نوعِ مرحله (مصاحبه/ارزیابی) را برای یک پرونده نگه می‌دارد؛ هر نمونه چرخه‌ی خودش را دارد (`awaiting_payment→payment_submitted→awaiting_booking→booked`). `psy_cases.current_stage_id` به مرحله‌ی «بازِ» جاری اشاره می‌کند؛ وقتی دکتر برگزاریِ یک مرحله را تأیید می‌کند (`held=true`)، این اشاره‌گر خالی می‌شود و پرونده منتظرِ تصمیمِ دکتر می‌ماند — دکتر آزادانه می‌تواند مصاحبه/ارزیابیِ دیگری اضافه کند یا مستقیم پروتکلِ درمان تعریف کند (که خودش از قبل تکرارپذیر بود). این چوزِ در تبِ «پرونده‌ها» → پرونده → «جلسات» در دسترسِ دکتر است. سمتِ مراجع (`/my`) هم به‌طورِ کامل بازنویسی شد تا به‌جایِ حالتِ ثابت، از رویِ `current_stage_id` و لیستِ `stages[]` رندر شود. مسیرهای عمومیِ `interview-book`/`assessment`/`stage-pay` در یک روتِ عمومیِ `stage-book` (+گسترشِ `pay`/`pay-online` با `stage_id`/`purpose:'stage'`) ادغام شدند. **این تغییرِ اسکیما destructive است** (ستون‌های `interview_*`/`assessment_*`/`flow_status`/`booking_date`/`booking_time` از `psy_cases` حذف شدند) — چون دیتای زنده‌ای برای حفظ نبود، مثلِ همیشه با بازسازیِ کاملِ `supabase-schema.sql` انجام شد؛ `migrations/0006_flexible_stages.sql` معادلِ ALTERِ additive را هم برای آینده مستند کرده.
 
 ## باقی‌مانده / فازِ بعد
 
@@ -115,6 +116,7 @@
 2. **verifyِ دامنه‌ی اختصاصی** — ستون آماده، منطقِ تاییدِ مالکیت پیاده نشده.
 3. اگر جایی ۴۰۴ یا خطای «endpoint نیست» دیدی، احتمالاً یک روتِ کوچکِ حاشیه‌ای از psych-booking جا مانده — بگو تا اضافه شود.
 4. (یادداشتِ کوچک، غیرِفوری) تو `/interview/page.tsx` یک استِپِ ۲ (تقویمِ پیشِ‌نمایش) و fetchِ برنامه‌ی مربوطه از قبل در کد هست ولی هیچ دکمه‌ای بهش نمی‌رسد — کدِ مرده از یک بازطراحیِ قدیمی، بی‌خطر ولی قابلِ حذف در یک پاکسازیِ بعدی.
+5. (یادداشتِ کوچک، غیرِفوری) تبِ «پرونده‌ها»یِ اصلی و مودالِ جزئیاتش در `PsychologyAdmin.tsx` (`selectedBooking` / `filteredBookings`) ظاهراً از قبل کدِ مرده بودند — هیچ‌جا `setSelectedBooking(یک‌پرونده‌ی‌واقعی)` صدا زده نمی‌شود، فقط `setSelectedBooking(null)`. حینِ کارِ مراحلِ آزاد، این مودال هم به‌روز شد (شاملِ چوزرِ مرحله‌ی بعد) تا اگر یک‌جا واقعاً استفاده می‌شود خراب نشود، ولی مسیرِ واقعیِ کارِ روزمره برای دکتر همان تبِ «مراجعان» → پرونده → «جلسات» است. اگر این تبِ «پرونده‌ها» واقعاً بلااستفاده است، کاندیدِ حذف در یک پاکسازیِ بعدی است.
 
 ## قراردادهای کاری (مهم، همیشه رعایت شود)
 

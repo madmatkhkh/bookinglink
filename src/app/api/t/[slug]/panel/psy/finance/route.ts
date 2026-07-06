@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { sb } from '@/lib/supabase'
 import { requirePanelAuth, isPanelAuthResponse } from '@/lib/tenant'
 import { PSY_PRICING } from '@/lib/psy'
-import { FLOW } from '@/lib/flow'
 import { gregorianToJalali } from '@/lib/calendar'
 
 export const dynamic = 'force-dynamic'
@@ -44,13 +43,14 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
     return true
   }
 
-  let casesQ = sb().from('psy_cases').select('*').eq('tenant_id', t.id)
+  let casesQ = sb().from('psy_cases').select('case_number, child_name').eq('tenant_id', t.id)
+  let stagesQ = sb().from('psy_stages').select('*').eq('tenant_id', t.id)
   let pkgsQ = sb().from('psy_packages').select('*').eq('tenant_id', t.id)
   let sessQ = sb().from('psy_sessions').select('*').eq('tenant_id', t.id)
-  if (resourceFilter) { casesQ = casesQ.eq('resource_id', resourceFilter); pkgsQ = pkgsQ.eq('resource_id', resourceFilter); sessQ = sessQ.eq('resource_id', resourceFilter) }
-  const [{ data: cases }, { data: packages }, { data: sessions }] = await Promise.all([casesQ, pkgsQ, sessQ])
+  if (resourceFilter) { stagesQ = stagesQ.eq('resource_id', resourceFilter); pkgsQ = pkgsQ.eq('resource_id', resourceFilter); sessQ = sessQ.eq('resource_id', resourceFilter) }
+  const [{ data: cases }, { data: stages }, { data: packages }, { data: sessions }] = await Promise.all([casesQ, stagesQ, pkgsQ, sessQ])
 
-  const B = (cases || []).filter(x => inRange(x.created_at))
+  const St = (stages || []).filter(x => inRange(x.created_at))
   const P = (packages || []).filter(x => inRange(x.created_at))
   const S = (sessions || []).filter(x => inRange(x.created_at))
 
@@ -64,13 +64,11 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
     const k = jalaliMonthKey(iso); if (k) monthly[k] = (monthly[k] || 0) + amount
   }
 
-  for (const b of B) {
-    const iPrice = b.interview_price || PSY_PRICING.interview
-    const aPrice = b.assessment_price || PSY_PRICING.assessment
-    if (b.interview_paid) { paid.interview += iPrice; paidCount.interview++; addMonthly(b.created_at, iPrice) }
-    else if (b.flow_status === FLOW.INTERVIEW_PAYMENT_SUBMITTED) { pending.interview += iPrice; pendingCount.interview++ }
-    if (b.assessment_paid) { paid.assessment += aPrice; paidCount.assessment++; addMonthly(b.created_at, aPrice) }
-    else if (b.flow_status === FLOW.ASSESSMENT_PAYMENT_SUBMITTED) { pending.assessment += aPrice; pendingCount.assessment++ }
+  // مصاحبه/ارزیابی حالا از psy_stages می‌آید (هر مرحله یک ردیفِ مستقل، هر تعداد ممکن)
+  for (const st of St) {
+    const bucket = st.stage_type === 'assessment' ? 'assessment' : 'interview'
+    if (st.paid) { paid[bucket] += st.price || 0; paidCount[bucket]++; addMonthly(st.created_at, st.price || 0) }
+    else if (st.payment_submitted) { pending[bucket] += st.price || 0; pendingCount[bucket]++ }
   }
   for (const p of P) {
     const total = pkgTotal(p)
@@ -108,14 +106,11 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
 
   const perCase: Record<string, number> = {}
   const bump = (cn: string, amt: number) => { if (cn) perCase[cn] = (perCase[cn] || 0) + amt }
-  for (const b of B) {
-    if (b.interview_paid) bump(b.case_number, b.interview_price || PSY_PRICING.interview)
-    if (b.assessment_paid) bump(b.case_number, b.assessment_price || PSY_PRICING.assessment)
-  }
+  for (const st of St) if (st.paid) bump(st.case_number, st.price || 0)
   for (const p of P) if (p.paid) bump(p.case_number, pkgTotal(p))
   for (const s of S) if (s.paid) bump(s.case_number, sessPrice(s.session_type))
   const nameByCase: Record<string, string> = {}
-  for (const b of B) if (b.case_number) nameByCase[b.case_number] = b.child_name || b.case_number
+  for (const b of cases || []) if (b.case_number) nameByCase[b.case_number] = b.child_name || b.case_number
   const topCases = Object.entries(perCase).sort((a, b) => b[1] - a[1]).slice(0, 8)
     .map(([case_number, amount]) => ({ case_number, name: nameByCase[case_number] || case_number, amount }))
 

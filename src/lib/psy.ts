@@ -12,6 +12,11 @@ export const PSY_PRICING = {
   sessionOffline: 1200000,
 }
 
+// قیمتِ پیش‌فرضِ هر نوعِ مرحله‌ی پیش‌ازدرمان (وقتی دکتر خودش قیمتِ دیگری نداده)
+export function stagePrice(stageType: string): number {
+  return stageType === 'assessment' ? PSY_PRICING.assessment : PSY_PRICING.interview
+}
+
 // قانونِ کنسلی: اگر ≥ partialHours ساعت مانده کنسل شود، partialPercent٪ سوخت
 export const PSY_CANCEL = { partialHours: 12, partialPercent: 50 }
 
