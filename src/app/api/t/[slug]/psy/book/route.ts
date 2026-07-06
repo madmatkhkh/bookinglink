@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { sb } from '@/lib/supabase'
 import { getActiveTenant } from '@/lib/tenant'
 import { PSY_PRICING, getDefaultResourceId, getIntakeForm, missingIntakeFields, INTAKE_KNOWN_COLUMNS } from '@/lib/psy'
+import { setPayCookie } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -105,5 +106,9 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   }
   await sb().from('psy_cases').update({ current_stage_id: stage.id }).eq('id', data.id)
 
-  return NextResponse.json({ success: true, id: data.id, caseNumber, stageId: stage.id })
+  // مجوزِ پرداختِ محدود به همین پرونده (کوکیِ امضاشده‌ی ۲ساعته) — تا مراجعِ تازه
+  // بدونِ OTP بتواند فقط هزینه‌ی مصاحبه‌ی همین پرونده را پرداخت کند (auth.ts)
+  const res = NextResponse.json({ success: true, id: data.id, caseNumber, stageId: stage.id })
+  setPayCookie(res, caseNumber)
+  return res
 }

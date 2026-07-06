@@ -22,21 +22,29 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
   const { data: intent } = await sb().from('psy_payment_intents').select('*').eq('id', intentId).eq('tenant_id', t.id).maybeSingle()
   if (!intent) return NextResponse.redirect(`${base}?payment=error`)
 
-  const redirectBase = `${base}?phone=${encodeURIComponent(intent.phone)}&case=${encodeURIComponent(intent.case_number)}`
+  // بدونِ phone/case در URL — صفحه‌ی /my آن‌ها را نمی‌خواند و شماره‌تلفن در URL
+  // (تاریخچه‌ی مرورگر/لاگ‌ها) نشت می‌کرد
+  const redirectBase = base
+
+  // trackId باید مالِ همین intent باشد — وگرنه می‌شد با رسیدِ یک پرداختِ
+  // ارزانِ دیگر (که واقعاً paid است)، یک intentِ گران را نهایی کرد
+  if (intent.authority && trackId && String(intent.authority) !== String(trackId)) {
+    return NextResponse.redirect(`${redirectBase}?payment=error`)
+  }
 
   if (success !== '1' || !trackId) {
     await sb().from('psy_payment_intents').update({ status: 'failed' }).eq('id', intentId)
-    return NextResponse.redirect(`${redirectBase}&payment=cancelled`)
+    return NextResponse.redirect(`${redirectBase}?payment=cancelled`)
   }
   if (intent.status === 'paid') {
     // قبلاً پردازش شده (مثلاً کاربر رفرش کرده) — دوباره finalize نکن، فقط برگردان
-    return NextResponse.redirect(`${redirectBase}&payment=success`)
+    return NextResponse.redirect(`${redirectBase}?payment=success`)
   }
 
   const verify = await verifyZibalPayment(trackId)
   if (!verify.ok) {
     await sb().from('psy_payment_intents').update({ status: 'failed' }).eq('id', intentId)
-    return NextResponse.redirect(`${redirectBase}&payment=failed`)
+    return NextResponse.redirect(`${redirectBase}?payment=failed`)
   }
 
   await sb().from('psy_payment_intents').update({ status: 'paid' }).eq('id', intentId)
@@ -54,5 +62,5 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
     await sb().from('psy_sessions').update({ paid: true }).eq('id', intent.ref_id).eq('tenant_id', t.id)
   }
 
-  return NextResponse.redirect(`${redirectBase}&payment=success`)
+  return NextResponse.redirect(`${redirectBase}?payment=success`)
 }

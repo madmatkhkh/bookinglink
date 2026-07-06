@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { sb } from '@/lib/supabase'
 import { getActiveTenant } from '@/lib/tenant'
-import { issueOtp, verifyOtp, normalizePhone } from '@/lib/auth'
+import { issueOtp, verifyOtp, setClientCookie, normalizePhone, requestIp, otpEchoEnabled, OTP_THROTTLED_MSG } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -11,14 +11,19 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   if (!t) return NextResponse.json({ error: 'یافت نشد' }, { status: 404 })
   const body = await req.json()
   const phone = normalizePhone(body.phone || '')
+  if (!/^09\d{9}$/.test(phone)) return NextResponse.json({ error: 'شماره‌ی موبایل معتبر نیست' }, { status: 400 })
 
   if (!body.code) {
-    const code = await issueOtp(phone)
-    return NextResponse.json({ success: true, dev_code: code })
+    const issued = await issueOtp(phone, requestIp(req))
+    if (!issued.ok) return NextResponse.json({ error: OTP_THROTTLED_MSG }, { status: 429 })
+    // TODO(sms): این‌جا کد با پیامک ارسال می‌شود. تا آن موقع فقط با OTP_ECHO_CODE=true
+    // در پاسخ برمی‌گردد؛ روی پروداکشنِ واقعی این env باید حذف شود.
+    return NextResponse.json({ success: true, ...(otpEchoEnabled() ? { dev_code: issued.code } : {}) })
   }
 
   const ok = await verifyOtp(phone, String(body.code))
-  if (!ok) return NextResponse.json({ error: 'کد اشتباه یا منقضی شده' }, { status: 400 })
+  if (ok === 'throttled') return NextResponse.json({ error: OTP_THROTTLED_MSG }, { status: 429 })
+  if (ok !== 'ok') return NextResponse.json({ error: 'کد اشتباه یا منقضی شده' }, { status: 400 })
 
   let booking = null
   const { data: byFather } = await sb().from('psy_cases').select('*')
@@ -30,5 +35,9 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
     booking = byMother
   }
   if (!booking) return NextResponse.json({ error: 'پرونده‌ای با این شماره یافت نشد' }, { status: 404 })
-  return NextResponse.json({ success: true, booking })
+  // نشستِ مراجع: از این به بعد routeهای دیتا/پرداخت/رزرو با همین کوکیِ امضاشده
+  // auth می‌شوند، نه با شماره‌ای که کلاینت خودش در query/body می‌فرستد.
+  const res = NextResponse.json({ success: true, booking })
+  setClientCookie(res, phone)
+  return res
 }

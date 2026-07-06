@@ -202,7 +202,7 @@ export default function PatientPanel() {
           )}
         </div>
         <input value={otpCode} onChange={e => setOtpCode(e.target.value)} onKeyDown={e => e.key === 'Enter' && verifyOtp()}
-          placeholder="۱۲۳۴" dir="ltr" maxLength={4}
+          placeholder="۱۲۳۴۵" dir="ltr" maxLength={5}
           className="w-full text-xl px-3 py-3 border border-gray-200 rounded-xl text-center tracking-[0.5em] focus:outline-none focus:border-brand-400 mb-3" />
         {error && <p className="text-xs text-red-500 mb-3 text-center">{error}</p>}
         <button onClick={verifyOtp} disabled={loading || otpCode.length < 4}

@@ -7,13 +7,28 @@
 // ۳) کارمند (یک «منبع»/پرسنل): توکنِ نشستِ ذخیره‌شده در resources.owner_session —
 //    مستقل از صاحبِ مجموعه؛ برای مجموعه‌هایی با چند نفر پرسنل که هرکدام باید
 //    فقط دیتای خودشان را ببینند (نه فقط روانشناسی؛ هر نیچی که چندکارمندی شد).
-// ۴) سوپرادمین: کوکیِ رمزِ ثابت (SUPER_SECRET)
+// ۴) سوپرادمین: توکنِ امضاشده‌ی موقت (نه خودِ رمز) پس از واردکردنِ SUPER_SECRET
+//
+// سخت‌سازی‌های امنیتی (این نسخه):
+// - AUTH_SECRET دیگر fallback ندارد — اگر ست نشده باشد، با خطای روشن fail می‌شود
+//   (fallbackِ عمومیِ داخلِ سورس یعنی کوکیِ قابلِ‌جعل برای هرکسی که کد را دیده).
+// - کدِ OTP پنج‌رقمی شد (۱۰۰هزار حالت به‌جای ۱۰هزار).
+// - rate limit دیتابیس‌محور (جدولِ auth_throttle — چون serverless هستیم و
+//   حافظه‌ی داخلی بینِ نمونه‌ها مشترک نیست): هم صدورِ OTP هم تلاش‌های تایید.
+// - کوکیِ سوپرادمین دیگر خودِ SUPER_SECRET نیست — یک توکنِ امضاشده‌ی ۷روزه است؛
+//   با عوض‌کردنِ هرکدام از SUPER_SECRET/AUTH_SECRET همه‌ی نشست‌ها باطل می‌شوند.
+// - کد فقط وقتی در پاسخِ HTTP برمی‌گردد که OTP_ECHO_CODE=true باشد (حالتِ
+//   موقتِ پیش‌ازپیامک). با اتصالِ پنلِ پیامک این env حذف می‌شود.
 // ─────────────────────────────────────────────────────────────────────────────
-import { createHmac, timingSafeEqual, randomUUID } from 'crypto'
+import { createHmac, timingSafeEqual, randomUUID, randomInt } from 'crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { sb } from './supabase'
 
-const SECRET = () => process.env.AUTH_SECRET || 'dev-secret-change-me'
+function SECRET(): string {
+  const s = process.env.AUTH_SECRET
+  if (!s) throw new Error('AUTH_SECRET تنظیم نشده — بدونِ آن هیچ کوکی‌ای امن نیست. آن را در env ست کن.')
+  return s
+}
 
 export const CLIENT_COOKIE = 'client_auth'
 export const PANEL_COOKIE = 'panel_auth'
@@ -27,6 +42,32 @@ function sign(value: string): string {
 function safeEqual(a: string, b: string): boolean {
   const ba = Buffer.from(a), bb = Buffer.from(b)
   return ba.length === bb.length && timingSafeEqual(ba, bb)
+}
+
+// ── rate limiting (دیتابیس‌محور) ─────────────────────────────────────────────
+// شمارشِ رخدادهای اخیرِ یک «کلید» در جدولِ auth_throttle. اگر از سقف رد شده،
+// false برمی‌گرداند (و رخدادِ تازه ثبت نمی‌کند)؛ وگرنه رخداد را ثبت می‌کند.
+// پاکسازیِ ردیف‌های کهنه‌ی همان کلید هم همین‌جا انجام می‌شود (fire-and-forget).
+
+export async function checkThrottle(key: string, max: number, windowSec: number): Promise<boolean> {
+  const db = sb()
+  const since = new Date(Date.now() - windowSec * 1000).toISOString()
+  const { count, error } = await db.from('auth_throttle')
+    .select('id', { count: 'exact', head: true })
+    .eq('key', key).gte('created_at', since)
+  // اگر خودِ جدول در دسترس نبود (مثلاً migration هنوز اجرا نشده)، ورود را
+  // نمی‌بندیم ولی سمتِ سرور لاگ می‌کنیم — امنیت نباید کلِ سیستم را قفل کند.
+  if (error) { console.error('auth_throttle error (آیا migration 0008 اجرا شده؟):', error); return true }
+  if ((count || 0) >= max) return false
+  await db.from('auth_throttle').insert({ key })
+  // پاکسازیِ کهنه‌ها (بدونِ await — نتیجه مهم نیست)
+  db.from('auth_throttle').delete().eq('key', key).lt('created_at', since).then(() => {}, () => {})
+  return true
+}
+
+/** IPِ درخواست برای کلیدهای throttle (پشتِ Vercel از x-forwarded-for) */
+export function requestIp(req: NextRequest): string {
+  return (req.headers.get('x-forwarded-for') || '').split(',')[0].trim() || 'unknown'
 }
 
 // ── مراجع ────────────────────────────────────────────────────────────────────
@@ -46,6 +87,32 @@ export function getClientPhone(req: NextRequest): string | null {
   if (i <= 0) return null
   const phone = raw.slice(0, i), sig = raw.slice(i + 1)
   return safeEqual(sign(phone), sig) ? phone : null
+}
+
+// ── مجوزِ پرداختِ محدود به یک پرونده (فلوِ مصاحبه‌ی اولیه) ─────────────────────
+// مراجعِ تازه هنوز OTP نزده (پیامک هم که وصل نیست)، ولی باید بلافاصله بعد از
+// ثبتِ فرم، هزینه‌ی مصاحبه‌ی *همان* پرونده‌ای که خودش ساخت را پرداخت کند.
+// به‌جای برگشتن به authِ «دانستنِ شماره‌کیس+شماره‌تلفن» (که حفره بود)، خودِ
+// /psy/book موقعِ ساختِ پرونده یک کوکیِ امضاشده‌ی محدود می‌نشاند: فقط برای
+// «ثبتِ پرداختِ» همان یک پرونده معتبر است (نه خواندنِ هیچ دیتایی) و ۲ ساعته
+// منقضی می‌شود. جعلش بدونِ AUTH_SECRET ممکن نیست.
+
+export const PAY_COOKIE = 'case_pay'
+
+export function setPayCookie(res: NextResponse, caseNumber: string) {
+  res.cookies.set(PAY_COOKIE, `${caseNumber}.${sign(`pay.${caseNumber}`)}`, {
+    httpOnly: true, sameSite: 'lax', secure: true, path: '/', maxAge: 60 * 60 * 2,
+  })
+}
+
+/** شماره‌کیسِ دارای مجوزِ پرداخت از کوکی؛ در صورتِ دستکاری null */
+export function getPayCase(req: NextRequest): string | null {
+  const raw = req.cookies.get(PAY_COOKIE)?.value
+  if (!raw) return null
+  const i = raw.lastIndexOf('.')
+  if (i <= 0) return null
+  const caseNumber = raw.slice(0, i), sig = raw.slice(i + 1)
+  return safeEqual(sign(`pay.${caseNumber}`), sig) ? caseNumber : null
 }
 
 // ── متخصص (پنل) ──────────────────────────────────────────────────────────────
@@ -110,32 +177,77 @@ export async function clearPanelSession(req: NextRequest, res: NextResponse, ten
 }
 
 // ── سوپرادمین ────────────────────────────────────────────────────────────────
+// کوکی دیگر خودِ SUPER_SECRET نیست — یک توکنِ «super.<زمانِ‌صدور>.<امضا>» است.
+// امضا هم AUTH_SECRET هم SUPER_SECRET را در بر می‌گیرد؛ عوض‌کردنِ هرکدام
+// همه‌ی نشست‌های فعال را باطل می‌کند. عمرِ توکن ۷ روز است.
+
+const SUPER_TTL_MS = 7 * 24 * 60 * 60 * 1000
+
+function superSig(issuedAt: string): string {
+  return sign(`super.${issuedAt}.${process.env.SUPER_SECRET || ''}`)
+}
+
+/** پس از واردکردنِ درستِ SUPER_SECRET: توکنِ نشستِ امضاشده روی پاسخ می‌نشیند */
+export function createSuperSession(res: NextResponse) {
+  const issuedAt = String(Date.now())
+  res.cookies.set(SUPER_COOKIE, `${issuedAt}.${superSig(issuedAt)}`, {
+    httpOnly: true, sameSite: 'lax', secure: true, path: '/', maxAge: SUPER_TTL_MS / 1000,
+  })
+}
 
 export function isSuperAuthed(req: NextRequest): boolean {
-  const v = req.cookies.get(SUPER_COOKIE)?.value
-  return !!v && !!process.env.SUPER_SECRET && safeEqual(v, process.env.SUPER_SECRET)
+  if (!process.env.SUPER_SECRET) return false
+  const raw = req.cookies.get(SUPER_COOKIE)?.value
+  if (!raw) return false
+  const i = raw.indexOf('.')
+  if (i <= 0) return false
+  const issuedAt = raw.slice(0, i), sig = raw.slice(i + 1)
+  const ts = Number(issuedAt)
+  if (!Number.isFinite(ts) || Date.now() - ts > SUPER_TTL_MS) return false
+  return safeEqual(superSig(issuedAt), sig)
 }
 
 // ── OTP مشترک ────────────────────────────────────────────────────────────────
 
-/** کدِ تازه می‌سازد و ذخیره می‌کند. تا اتصالِ ماژولِ پیامک، کد در پاسخ برمی‌گردد. */
-export async function issueOtp(phone: string): Promise<string> {
-  const code = Math.floor(1000 + Math.random() * 9000).toString()
-  const expires_at = new Date(Date.now() + 5 * 60 * 1000).toISOString()
-  await sb().from('otps').insert({ phone, code, expires_at })
-  return code
+export type IssueOtpResult = { ok: true; code: string } | { ok: false; throttled: true }
+export type VerifyOtpResult = 'ok' | 'bad' | 'throttled'
+
+/** آیا کد باید در پاسخِ HTTP برگردد؟ فقط در حالتِ موقتِ پیش‌ازپیامک (OTP_ECHO_CODE=true) */
+export function otpEchoEnabled(): boolean {
+  return process.env.OTP_ECHO_CODE === 'true'
 }
 
-/** کد را بررسی و در صورتِ صحت مصرف (حذف) می‌کند */
-export async function verifyOtp(phone: string, code: string): Promise<boolean> {
+/**
+ * کدِ تازه (۵ رقمی) می‌سازد و ذخیره می‌کند.
+ * rate limit: حداکثر ۳ صدور برای هر شماره و ۱۰ صدور برای هر IP در هر ۱۰ دقیقه —
+ * هم ضدِ brute force هم (بعد از اتصالِ پیامک) ضدِ سوزاندنِ اعتبارِ پیامکی (SMS bombing).
+ */
+export async function issueOtp(phone: string, ip?: string): Promise<IssueOtpResult> {
+  if (!(await checkThrottle(`otp:issue:${phone}`, 3, 600))) return { ok: false, throttled: true }
+  if (ip && !(await checkThrottle(`otp:issue:ip:${ip}`, 10, 600))) return { ok: false, throttled: true }
+  const code = String(randomInt(10000, 100000)) // ۵ رقم، از CSPRNG نه Math.random
+  const expires_at = new Date(Date.now() + 5 * 60 * 1000).toISOString()
+  await sb().from('otps').insert({ phone, code, expires_at })
+  return { ok: true, code }
+}
+
+/**
+ * کد را بررسی و در صورتِ صحت مصرف (حذف) می‌کند.
+ * rate limit: حداکثر ۵ تلاشِ تایید برای هر شماره در هر ۱۰ دقیقه — با کدِ ۵رقمی
+ * یعنی brute force عملاً ناممکن.
+ */
+export async function verifyOtp(phone: string, code: string): Promise<VerifyOtpResult> {
+  if (!(await checkThrottle(`otp:verify:${phone}`, 5, 600))) return 'throttled'
   const { data } = await sb().from('otps').select('id, expires_at')
     .eq('phone', phone).eq('code', toEnDigits(code))
     .order('created_at', { ascending: false }).limit(1)
   const row = data?.[0]
-  if (!row || new Date(row.expires_at).getTime() < Date.now()) return false
+  if (!row || new Date(row.expires_at).getTime() < Date.now()) return 'bad'
   await sb().from('otps').delete().eq('phone', phone)
-  return true
+  return 'ok'
 }
+
+export const OTP_THROTTLED_MSG = 'تعدادِ تلاش‌ها زیاد شده — چند دقیقه صبر کن و دوباره امتحان کن'
 
 function toEnDigits(s: string): string {
   return String(s).replace(/[۰-۹]/g, ch => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(ch)))

@@ -3,6 +3,7 @@ import { sb } from '@/lib/supabase'
 import { getActiveTenant } from '@/lib/tenant'
 import { PSY_PRICING, getPaymentMethods } from '@/lib/psy'
 import { requestZibalPayment } from '@/lib/zibal'
+import { getClientPhone, getPayCase } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -21,13 +22,23 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   const t = await getActiveTenant(params.slug)
   if (!t) return NextResponse.json({ error: 'یافت نشد' }, { status: 404 })
 
-  const { case_number, phone, purpose, ref_id } = await req.json() as { case_number: string; phone: string; purpose: Purpose; ref_id?: string }
+  const { case_number, purpose, ref_id } = await req.json() as { case_number: string; purpose: Purpose; ref_id?: string }
+  // auth با کوکیِ امضاشده — نه شماره‌ای که کلاینت در body می‌فرستد. دو راهِ مجاز:
+  // ۱) کوکیِ مراجعِ OTPشده که شماره‌اش روی پرونده باشد (پنلِ /my)
+  // ۲) کوکیِ مجوزِ پرداختِ همین پرونده (فلوِ مصاحبه‌ی اولیه، درست بعد از ثبتِ فرم)
+  const cookiePhone = getClientPhone(req)
+  const grantedCase = getPayCase(req)
 
   const { data: c } = await sb().from('psy_cases')
     .select('id, resource_id, father_phone, mother_phone, current_stage_id')
     .eq('tenant_id', t.id).eq('case_number', case_number).single()
-  if (!c || (c.father_phone !== phone && c.mother_phone !== phone))
-    return NextResponse.json({ error: 'دسترسی ندارید' }, { status: 403 })
+  if (!c) return NextResponse.json({ error: 'دسترسی ندارید' }, { status: 403 })
+  const viaPhone = !!cookiePhone && (c.father_phone === cookiePhone || c.mother_phone === cookiePhone)
+  const viaGrant = !!grantedCase && grantedCase === case_number
+  if (!viaPhone && !viaGrant)
+    return NextResponse.json({ error: 'ابتدا با کدِ یک‌بارمصرف وارد شوید' }, { status: 401 })
+  // شماره برای درگاه (فیلدِ اختیاریِ mobile در زیبال) — از خودِ پرونده، نه ورودیِ کلاینت
+  const phone = c.father_phone
   if (!c.resource_id) return NextResponse.json({ error: 'منبعی برای این پرونده ثبت نشده' }, { status: 400 })
 
   const methods = await getPaymentMethods(c.resource_id)

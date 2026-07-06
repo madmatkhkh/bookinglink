@@ -3,6 +3,7 @@ import { sb } from '@/lib/supabase'
 import { getActiveTenant } from '@/lib/tenant'
 import { jalaliDateTimeToTimestamp } from '@/lib/calendar'
 import { getCancellationPolicy } from '@/lib/psy'
+import { getClientPhone } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -10,7 +11,9 @@ export const revalidate = 0
 export async function POST(req: NextRequest, { params }: { params: { slug: string } }) {
   const t = await getActiveTenant(params.slug)
   if (!t) return NextResponse.json({ error: 'یافت نشد' }, { status: 404 })
-  const { session_id, case_number, phone, refund_card } = await req.json()
+  const { session_id, case_number, refund_card } = await req.json()
+  const phone = getClientPhone(req)
+  if (!phone) return NextResponse.json({ error: 'ابتدا با کدِ یک‌بارمصرف وارد شوید' }, { status: 401 })
 
   const { data: booking } = await sb().from('psy_cases').select('father_phone, mother_phone')
     .eq('tenant_id', t.id).eq('case_number', case_number).single()

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { sb } from '@/lib/supabase'
 import { getActiveTenant } from '@/lib/tenant'
+import { getClientPhone } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -8,7 +9,9 @@ export const revalidate = 0
 export async function POST(req: NextRequest, { params }: { params: { slug: string } }) {
   const t = await getActiveTenant(params.slug)
   if (!t) return NextResponse.json({ error: 'یافت نشد' }, { status: 404 })
-  const { session_id, case_number, phone, session_date, session_time } = await req.json()
+  const { session_id, case_number, session_date, session_time } = await req.json()
+  const phone = getClientPhone(req)
+  if (!phone) return NextResponse.json({ error: 'ابتدا با کدِ یک‌بارمصرف وارد شوید' }, { status: 401 })
   if (!session_id || !session_date || !session_time) return NextResponse.json({ error: 'ناقص' }, { status: 400 })
 
   const { data: booking } = await sb().from('psy_cases').select('resource_id, father_phone, mother_phone')
