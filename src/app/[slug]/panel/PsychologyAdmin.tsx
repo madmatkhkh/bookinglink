@@ -228,6 +228,19 @@ function timeKey(t: string): number {
   return (isNaN(h) ? 0 : h) * 60 + (isNaN(m) ? 0 : m)
 }
 
+// اعتبارسنجی و نرمال‌سازیِ ساعتِ دلخواهِ واردشده‌ی دکتر (مثلاً «۹», «9:30», «۱۴:۰۵») به
+// همان قالبِ رقمِ فارسیِ استفاده‌شده در ALL_TIMES («۹:۰۰»)؛ اگر نامعتبر بود null برمی‌گرداند.
+function parseCustomTime(raw: string): string | null {
+  const s = toLatinNum(raw || '').trim()
+  const m = s.match(/^(\d{1,2})(?::(\d{1,2}))?$/)
+  if (!m) return null
+  const h = parseInt(m[1], 10)
+  const min = m[2] ? parseInt(m[2], 10) : 0
+  if (h < 0 || h > 23 || min < 0 || min > 59) return null
+  const toFa = (n: number | string) => String(n).replace(/\d/g, d => '۰۱۲۳۴۵۶۷۸۹'[parseInt(d, 10)])
+  return `${toFa(h)}:${toFa(String(min).padStart(2, '0'))}`
+}
+
 // برچسبِ ترکیبیِ نمایشِ سریعِ یک مرحله («مصاحبه: منتظر پرداخت»)
 function stageLabel(s?: CaseStage | null): string {
   if (!s) return '—'
@@ -463,6 +476,7 @@ export function PsychologyAdmin() {
   const [selectedTimes, setSelectedTimes] = useState<string[]>([])
   const [slotTypes, setSlotTypes] = useState<Record<string, 'online' | 'offline'>>({})
   const [slotLocs, setSlotLocs] = useState<Record<string, string>>({})
+  const [customTime, setCustomTime] = useState('')
   const [isOff, setIsOff] = useState(false)
   const [schedSaving, setSchedSaving] = useState(false)
   const [schedSaved, setSchedSaved] = useState(false)
@@ -1508,6 +1522,7 @@ export function PsychologyAdmin() {
     setSlotTypes({})
     setSlotLocs({})
     setIsOff(false)
+    setCustomTime('')
     const date = `${schedYear}/${schedMonth + 1}/${d}`
     try {
       const res = await fetch(api(`/schedule?date=${date}${scheduleResourceQS()}`), { cache: 'no-store' })
@@ -2276,8 +2291,31 @@ export function PsychologyAdmin() {
                     {profile.session_modes === 'offline' && settings.office_locations.length > 1 && (
                       <p className="text-[11px] text-gray-400 mb-3">روی هر ساعت بزن تا بینِ مطب‌ها جابجا شود.</p>
                     )}
+
+                    {/* افزودنِ ساعتِ دلخواه — برای وقتی لیستِ پیش‌فرض کافی نیست (مثلاً ۹:۳۰ یا ۱۹:۰۰) */}
+                    <div className="flex items-center gap-2 mb-3">
+                      <input value={customTime} onChange={e => setCustomTime(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter') {
+                          const t = parseCustomTime(customTime)
+                          if (!t) { uiAlert('ساعت نامعتبر است — مثال: ۹:۳۰ یا 14:00'); return }
+                          if (!selectedTimes.includes(t)) setSelectedTimes(prev => [...prev, t])
+                          setCustomTime('')
+                        }}}
+                        placeholder="ساعتِ دلخواه (مثلاً ۹:۳۰)"
+                        className="flex-1 text-sm px-3 py-2 border border-gray-200 rounded-xl" dir="ltr" />
+                      <button onClick={() => {
+                          const t = parseCustomTime(customTime)
+                          if (!t) { uiAlert('ساعت نامعتبر است — مثال: ۹:۳۰ یا 14:00'); return }
+                          if (!selectedTimes.includes(t)) setSelectedTimes(prev => [...prev, t])
+                          setCustomTime('')
+                        }}
+                        className="px-4 py-2 border border-brand-200 text-brand-700 rounded-xl text-sm font-medium hover:bg-brand-50 shrink-0">
+                        ➕ افزودن
+                      </button>
+                    </div>
+
                     <div className="grid grid-cols-3 gap-2 mb-4">
-                      {ALL_TIMES.map(t => {
+                      {Array.from(new Set([...ALL_TIMES, ...selectedTimes])).sort((a, b) => timeKey(a) - timeKey(b)).map(t => {
                         const dateStr = `${schedYear}/${schedMonth + 1}/${selectedDay}`
                         const takenBy = apptsForDate(dateStr).find(a => a.time === t)
                         const slotTs = jalaliDateTimeToTimestamp(dateStr, t)
@@ -2327,7 +2365,6 @@ export function PsychologyAdmin() {
                                 'cursor-pointer ' + (selected ? 'border-brand-600 bg-brand-50 text-brand-800 font-medium' : 'border-gray-200 text-gray-500 hover:border-gray-300')}`}>
                             {enTime(t)}
                             {takenBy && !isPastTime && <span className="block text-[10px] mt-0.5">🔒 {takenBy.name}</span>}
-                            {isPastTime && <span className="block text-[10px] mt-0.5">گذشته</span>}
                             {selected && !locked && (
                               fixed
                                 ? <span className="block text-[10px] mt-1 text-brand-600">{opts[0]?.label}</span>

@@ -23,6 +23,7 @@ type Booking = {
   reject_reason?: string
   current_stage_id?: string | null
   resource_id?: string | null
+  session_type?: 'online' | 'offline'; office_location?: string
 }
 type Package = {
   id: string; case_number: string; month: string; year: string
@@ -231,9 +232,14 @@ export default function PatientPanel() {
         <div className="max-w-lg mx-auto flex items-center justify-between">
           <div>
             <h1 className="text-sm font-semibold text-gray-900">{booking.child_name}</h1>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <span className="text-xs text-gray-400">پرونده:</span>
               <span className="text-xs font-mono text-brand-600 bg-brand-50 px-2 py-0.5 rounded">{booking.case_number}</span>
+              {booking.session_type && (
+                <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
+                  {booking.session_type === 'online' ? '🎥 آنلاین' : `🏥 حضوری${booking.office_location ? ` — ${booking.office_location}` : ''}`}
+                </span>
+              )}
             </div>
           </div>
           <button onClick={logout}
@@ -301,6 +307,7 @@ export default function PatientPanel() {
       {showSlotPicker && currentStage && (
         <SlotPicker phone={phone} caseNumber={booking.case_number}
           title={`انتخاب وقتِ ${STAGE_TYPE_LABEL[currentStage.stage_type] || ''}`} resourceId={booking.resource_id}
+          sessionType={booking.session_type} officeLocation={booking.office_location}
           onClose={() => setShowSlotPicker(false)}
           onDone={() => { setShowSlotPicker(false); loadData(booking.case_number) }}
           onConfirm={async (date: string, time: string) => {
@@ -783,10 +790,14 @@ function PayButton({ pkg, phone, onSuccess, total }: { pkg: Package; phone: stri
 }
 
 // ==================== SLOT PICKER (تک‌جلسه‌ای) ====================
-function SlotPicker({ session, phone, caseNumber, onClose, onDone, title = 'انتخاب زمان جلسه', onConfirm, resourceId }: {
+function SlotPicker({ session, phone, caseNumber, onClose, onDone, title = 'انتخاب زمان جلسه', onConfirm, resourceId, sessionType, officeLocation }: {
   session?: Session; phone: string; caseNumber: string; onClose: () => void; onDone: () => void
   title?: string; onConfirm?: (date: string, time: string) => Promise<{ ok: boolean; error?: string }>
   resourceId?: string | null
+  // نوعِ جلسه (آنلاین/حضوری) وقتی `session` در دست نیست (مثلاً مراحلِ پیش‌ازدرمان) —
+  // هم برایِ فیلترکردنِ اسلات‌ها هم برایِ نمایشِ واضح به مراجع که این وقت مالِ کدام نوع است
+  sessionType?: 'online' | 'offline'
+  officeLocation?: string
 }) {
   const { slug } = useParams<{ slug: string }>()
   const today = getCurrentJalali()
@@ -855,7 +866,7 @@ function SlotPicker({ session, phone, caseNumber, onClose, onDone, title = 'ان
   const slotsForDay = (d: number) => {
     const base = schedule[String(d)] || []
     const dayTypes = slotTypes[String(d)] || {}
-    const want = session?.session_type // 'online' | 'offline' | undefined
+    const want = session?.session_type || sessionType // 'online' | 'offline' | undefined
     return base.filter(t => {
       const ts = jalaliDateTimeToTimestamp(`${curYear}/${curMonth + 1}/${d}`, t)
       if (!(ts === null || ts > Date.now())) return false
@@ -874,6 +885,13 @@ function SlotPicker({ session, phone, caseNumber, onClose, onDone, title = 'ان
           <h3 className="text-sm font-semibold text-gray-900">{title}</h3>
           <button onClick={onClose} className="text-gray-400 text-lg leading-none">✕</button>
         </div>
+        {(session?.session_type || sessionType) && (
+          <div className="px-4 pt-3">
+            <span className="inline-block text-xs px-2.5 py-1 rounded-full bg-brand-50 text-brand-700 border border-brand-100">
+              {(session?.session_type || sessionType) === 'online' ? '🎥 این جلسه آنلاین است' : `🏥 این جلسه حضوری است${officeLocation ? ` — ${officeLocation}` : ''}`}
+            </span>
+          </div>
+        )}
         <div className="p-4">
           <div className="flex items-center justify-between mb-4">
             <button onClick={() => changeMonth(-1)} className="w-8 h-8 border border-gray-200 rounded-lg text-gray-500">›</button>
