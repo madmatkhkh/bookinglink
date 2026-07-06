@@ -734,6 +734,18 @@ export function PsychologyAdmin() {
     fetchAll()
   }
 
+  // حذفِ کاملِ یک پروتکلِ درمان (مثلاً اگر دکتر اشتباهی ثبتش کرده بود). جلسه‌های
+  // این پروتکل حذف نمی‌شوند، فقط از این پروتکل جدا می‌شوند (جلسه‌ی تکیِ بی‌عنوان).
+  async function deletePackage(pkg: Package) {
+    if (!await uiConfirm(`پروتکل درمانِ «${PERSIAN_MONTHS[parseInt(pkg.month) - 1]} ${pkg.year}» برای همیشه حذف شود؟ جلسه‌های ثبت‌شده‌ی این پروتکل حذف نمی‌شوند، فقط از آن جدا می‌مانند.`)) return
+    const res = await fetch(api('/packages'), {
+      method: 'DELETE', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: pkg.id }),
+    })
+    if (!res.ok) { uiAlert('حذف ناموفق بود'); return }
+    if (selectedPatient) await loadPatientData(selectedPatient.case_number)
+  }
+
   // حذفِ کاملِ یک پرونده (با تأیید)
   async function deletePatient(p: Patient) {
     if (!await uiConfirm(`پرونده‌ی «${p.child_name}» (${p.case_number}) و همه‌ی پروتکل‌های درمان و جلسه‌هایش برای همیشه حذف شود؟`)) return
@@ -1952,7 +1964,11 @@ export function PsychologyAdmin() {
                               <h3 className="font-medium text-gray-900 text-sm">
                                 {PERSIAN_MONTHS[parseInt(pkg.month) - 1]} {pkg.year}
                               </h3>
-                              <span className="text-sm font-semibold text-brand-600">{total.toLocaleString('en-US')} ت</span>
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm font-semibold text-brand-600">{total.toLocaleString('en-US')} ت</span>
+                                <button onClick={() => deletePackage(pkg)}
+                                  className="text-xs px-2 py-1 border border-red-200 text-red-500 rounded-lg hover:bg-red-50">🗑</button>
+                              </div>
                             </div>
                             <div className="grid grid-cols-2 gap-2 text-xs text-gray-500">
                               <div>کودک: {childSess.length}/{pkg.child_sessions} جلسه ({pkg.child_session_type === 'online' ? 'آنلاین' : 'حضوری'})</div>
