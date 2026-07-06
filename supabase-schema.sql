@@ -367,6 +367,9 @@ create table psy_sessions (
   tenant_id uuid not null references tenants(id) on delete cascade,
   case_number text not null,
   package_id uuid references psy_packages(id) on delete set null,
+  -- عنوانِ جلسه‌ی تکی (ارزیابی/مصاحبه/دلخواه) — فقط برای جلسه‌های بدونِ پروتکل؛
+  -- جلسه‌های پروتکل عنوانِ جدا ندارند (خودِ پروتکل مشخص‌شان می‌کند)
+  title text,
   session_number int not null default 1,
   session_date text not null default '',
   session_time text not null default '',

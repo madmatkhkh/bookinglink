@@ -32,7 +32,7 @@ type Package = {
   resource_id?: string | null
 }
 type Session = {
-  id: string; package_id: string; session_number: number
+  id: string; package_id: string; session_number: number; title?: string
   session_date: string; session_time: string; session_type: string
   attendee: string; status: string; doctor_note_for_patient: string
   paid: boolean; payment_submitted?: boolean
@@ -583,7 +583,7 @@ function SessionCard({ session: s, num, phone, caseNumber, onUpdate }: {
       <div className="flex items-start justify-between mb-2">
         <div>
           <div className="flex items-center gap-2">
-            <span className="font-medium text-sm">{num ? `جلسه ${toFarsiNum(num)}` : 'جلسه‌ی سوخته'}</span>
+            <span className="font-medium text-sm">{s.title || (num ? `جلسه ${toFarsiNum(num)}` : 'جلسه‌ی سوخته')}</span>
             <span className={`text-xs px-2 py-0.5 rounded border ${s.attendee === 'child' ? 'bg-blue-50 text-blue-600 border-blue-100' : 'bg-purple-50 text-purple-600 border-purple-100'}`}>
               {s.attendee === 'child' ? 'کودک' : 'والدین'}
             </span>

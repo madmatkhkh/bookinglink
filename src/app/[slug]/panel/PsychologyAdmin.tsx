@@ -149,6 +149,7 @@ type Session = {
   id: string
   package_id: string
   case_number: string
+  title?: string
   session_number: number
   session_date: string
   session_time: string
@@ -537,7 +538,7 @@ export function PsychologyAdmin() {
     child_session_type: 'offline', parent_session_type: 'offline', notes: ''
   })
   const [newSess, setNewSess] = useState({
-    session_date: '', session_time: '', session_type: 'offline', attendee: 'child', package_id: '', standalone: false, paid: true
+    title: 'ارزیابی', customTitle: '', session_type: 'offline', attendee: 'child', paid: true
   })
   const [sessForm, setSessForm] = useState({
     session_goals: '', session_summary: '',
@@ -782,27 +783,21 @@ export function PsychologyAdmin() {
 
   async function createSession() {
     if (!selectedPatient) return
-    if (!newSess.standalone && !newSess.package_id) { uiAlert('یک پروتکل درمان انتخاب کنید یا «جلسه‌ی جداگانه» را بزنید.'); return }
-    const payload = newSess.standalone
-      ? {
-          case_number: selectedPatient.case_number,
-          session_date: newSess.session_date, session_time: newSess.session_time,
-          session_type: newSess.session_type, attendee: newSess.attendee,
-          package_id: null, paid: newSess.paid,
-        }
-      : {
-          case_number: selectedPatient.case_number,
-          session_date: newSess.session_date, session_time: newSess.session_time,
-          session_type: newSess.session_type, attendee: newSess.attendee,
-          package_id: newSess.package_id, paid: false,
-        }
+    const title = newSess.title === 'دلخواه' ? newSess.customTitle.trim() : newSess.title
+    if (newSess.title === 'دلخواه' && !title) { uiAlert('عنوانِ دلخواه را بنویسید.'); return }
+    const payload = {
+      case_number: selectedPatient.case_number,
+      title, session_date: '', session_time: '',
+      session_type: newSess.session_type, attendee: newSess.attendee,
+      package_id: null, paid: newSess.paid,
+    }
     await fetch(api('/sessions'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     })
     setShowNewSession(false)
-    setNewSess({ session_date: '', session_time: '', session_type: 'offline', attendee: 'child', package_id: '', standalone: false, paid: true })
+    setNewSess({ title: 'ارزیابی', customTitle: '', session_type: 'offline', attendee: 'child', paid: true })
     await loadPatientData(selectedPatient.case_number)
     loadAllSessions()
   }
@@ -966,7 +961,12 @@ export function PsychologyAdmin() {
             <div className="flex items-center gap-2">
               <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${num ? 'bg-brand-50 text-brand-600' : 'bg-gray-100 text-gray-400'}`}>{num ? toFarsiNum(num) : '—'}</div>
               <div>
-                <div className="text-sm font-medium text-gray-900">{enTime(s.session_date)} — {enTime(s.session_time)}</div>
+                {s.title && <div className="text-xs font-medium text-brand-600 mb-0.5">{s.title}</div>}
+                <div className="text-sm font-medium text-gray-900">
+                  {s.session_date ? `${enTime(s.session_date)} — ${enTime(s.session_time)}` : (
+                    <span className="text-amber-600 font-normal">{s.paid ? '⏳ منتظرِ نوبت‌گیریِ مراجع' : '⏳ منتظرِ پرداخت و نوبت‌گیریِ مراجع'}</span>
+                  )}
+                </div>
                 <div className="text-xs text-gray-400">
                   {s.attendee === 'child' ? '👧 کودک' : '👨‍👩 والدین'} •
                   {s.session_type === 'online' ? ' 🎥 آنلاین' : ' 🏥 حضوری'}
@@ -2010,7 +2010,7 @@ export function PsychologyAdmin() {
                     })()}
 
                     <div className="text-xs text-gray-400 mb-2 px-1">جلسه‌های تکی (مصاحبه، ارزیابی، یا دلخواهِ دکتر — جدا از پروتکل درمان)</div>
-                    <button onClick={() => { setNewSess(s => ({ ...s, standalone: true, package_id: '' })); setShowNewSession(true) }}
+                    <button onClick={() => setShowNewSession(true)}
                       className="w-full py-3 border-2 border-dashed border-brand-200 rounded-xl text-sm text-brand-600 hover:bg-brand-50 mb-4 transition-all">
                       + ثبت جلسه‌ی تکیِ جدید
                     </button>
@@ -3394,46 +3394,28 @@ export function PsychologyAdmin() {
       {showNewSession && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-xl" dir="rtl">
-            <h2 className="font-semibold text-gray-900 mb-4">ثبت جلسه جدید</h2>
+            <h2 className="font-semibold text-gray-900 mb-4">ثبتِ جلسه‌ی تکیِ جدید</h2>
             <div className="space-y-3">
-              {/* نوعِ ثبت: پروتکل درمان یا جلسه‌ی جداگانه */}
-              <div className="flex bg-gray-100 rounded-xl p-1 gap-1">
-                {([[false, '📦 از پروتکل درمان'], [true, '🎯 جلسه‌ی جداگانه']] as const).map(([val, lbl]) => (
-                  <button key={String(val)} onClick={() => setNewSess({ ...newSess, standalone: val })}
-                    className={`flex-1 text-xs py-2 rounded-lg font-medium transition-all ${newSess.standalone === val ? 'bg-white text-brand-700 shadow-sm' : 'text-gray-500'}`}>
-                    {lbl}
-                  </button>
-                ))}
-              </div>
-
-              {!newSess.standalone ? (
-                <div>
-                  <label className="text-xs text-gray-500 mb-1 block">پروتکل درمان مربوطه</label>
-                  <select value={newSess.package_id} onChange={e => setNewSess({...newSess, package_id: e.target.value})}
-                    className="w-full text-sm px-3 py-2 border border-gray-200 rounded-lg bg-white">
-                    <option value="">انتخاب پروتکل درمان...</option>
-                    {packages.map(p => (
-                      <option key={p.id} value={p.id}>{PERSIAN_MONTHS[parseInt(p.month) - 1]} {p.year}</option>
-                    ))}
-                  </select>
+              {/* عنوانِ جلسه — این جلسه همیشه مستقل از پروتکلِ درمان است */}
+              <div>
+                <label className="text-xs text-gray-500 mb-1 block">عنوانِ جلسه</label>
+                <div className="flex bg-gray-100 rounded-xl p-1 gap-1">
+                  {(['ارزیابی', 'مصاحبه', 'دلخواه'] as const).map(t => (
+                    <button key={t} onClick={() => setNewSess({ ...newSess, title: t })}
+                      className={`flex-1 text-xs py-2 rounded-lg font-medium transition-all ${newSess.title === t ? 'bg-white text-brand-700 shadow-sm' : 'text-gray-500'}`}>
+                      {t}
+                    </button>
+                  ))}
                 </div>
-              ) : (
-                <p className="text-xs text-gray-400 bg-brand-50 border border-brand-100 rounded-lg p-2.5">
-                  جلسه‌ی جداگانه به هیچ پروتکل درمانی وصل نیست و مستقیم در پرونده‌ی این مراجع ثبت می‌شود.
-                </p>
+              </div>
+              {newSess.title === 'دلخواه' && (
+                <Field label="عنوانِ دلخواه" value={newSess.customTitle} onChange={v => setNewSess({ ...newSess, customTitle: v })} placeholder="مثلاً: جلسه‌ی مشاوره‌ی خانواده" />
               )}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs text-gray-500 mb-1 block">تاریخ</label>
-                  <input value={newSess.session_date} onChange={e => setNewSess({...newSess, session_date: e.target.value})}
-                    placeholder="1404/04/15" className="w-full text-sm px-3 py-2 border border-gray-200 rounded-lg" />
-                </div>
-                <div>
-                  <label className="text-xs text-gray-500 mb-1 block">ساعت</label>
-                  <input value={newSess.session_time} onChange={e => setNewSess({...newSess, session_time: e.target.value})}
-                    placeholder="10:00" className="w-full text-sm px-3 py-2 border border-gray-200 rounded-lg" />
-                </div>
-              </div>
+
+              <p className="text-xs text-gray-400 bg-brand-50 border border-brand-100 rounded-lg p-2.5">
+                فقط این جلسه را مجاز می‌کنید — تاریخ و ساعتش را خودِ مراجع از پنلِ خودش انتخاب می‌کند.
+              </p>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs text-gray-500 mb-1 block">نوع جلسه</label>
@@ -3452,13 +3434,11 @@ export function PsychologyAdmin() {
                   </select>
                 </div>
               </div>
-              {newSess.standalone && (
-                <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
-                  <input type="checkbox" checked={newSess.paid} onChange={e => setNewSess({ ...newSess, paid: e.target.checked })}
-                    className="w-4 h-4 accent-brand-600" />
-                  این جلسه پرداخت‌شده است (اگر تیک نزنی، مراجع باید در پنل پرداخت کند)
-                </label>
-              )}
+              <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                <input type="checkbox" checked={newSess.paid} onChange={e => setNewSess({ ...newSess, paid: e.target.checked })}
+                  className="w-4 h-4 accent-brand-600" />
+                این جلسه پرداخت‌شده است (اگر تیک نزنی، مراجع باید در پنل پرداخت کند)
+              </label>
             </div>
             <div className="flex gap-2 mt-4">
               <button onClick={() => setShowNewSession(false)}
