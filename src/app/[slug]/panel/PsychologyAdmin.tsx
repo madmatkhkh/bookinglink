@@ -835,6 +835,19 @@ export function PsychologyAdmin() {
     loadAllSessions()
   }
 
+  // حذفِ کاملِ یک جلسه (مثلاً اگر دکتر اشتباهی ثبتش کرده بود)
+  async function deleteSession() {
+    if (!editSession) return
+    if (!await uiConfirm('این جلسه برای همیشه حذف شود؟ این کار بازگشت‌پذیر نیست.')) return
+    await fetch(api('/sessions'), {
+      method: 'DELETE', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: editSession.id }),
+    })
+    setEditSession(null)
+    if (selectedPatient) await loadPatientData(selectedPatient.case_number)
+    loadAllSessions()
+  }
+
   // ─── Booking actions ─────────────────────────────────────────────────────────
 
   async function updateBookingStatus(id: string, status: string) {
@@ -3454,7 +3467,7 @@ export function PsychologyAdmin() {
       {editSession && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto p-6 shadow-xl" dir="rtl">
-            <h2 className="font-semibold text-gray-900 mb-4">ویرایش جلسه — {editSession.session_date}</h2>
+            <h2 className="font-semibold text-gray-900 mb-4">ویرایش جلسه — {editSession.title || editSession.session_date || 'بدونِ عنوان'}</h2>
             <div className="space-y-3">
               <div>
                 <label className="text-xs text-gray-500 mb-1 block">اهداف جلسه</label>
@@ -3491,6 +3504,8 @@ export function PsychologyAdmin() {
               </div>
             </div>
             <div className="flex gap-2 mt-4">
+              <button onClick={deleteSession}
+                className="py-2.5 px-4 border border-red-200 text-red-500 rounded-xl text-sm hover:bg-red-50">🗑 حذف</button>
               <button onClick={() => setEditSession(null)}
                 className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-500">انصراف</button>
               <button onClick={saveSession}
