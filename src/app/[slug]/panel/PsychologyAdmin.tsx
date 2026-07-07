@@ -261,13 +261,13 @@ const STATUS_LABEL: Record<string, string> = {
  active: 'فعال',
 }
 const STATUS_COLOR: Record<string, string> = {
- pending: 'bg-gray-100 text-ink border border-sand',
- confirmed: 'bg-gray-100 text-ink border border-sand',
- cancelled: 'bg-gray-100 text-ink border border-sand',
- forfeited: 'bg-gray-100 text-ink border border-sand',
+ pending: 'bg-amber-50 text-amber-800 border border-amber-200',
+ confirmed: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
+ cancelled: 'bg-red-50 text-red-600 border border-red-100',
+ forfeited: 'bg-red-50 text-red-600 border border-red-100',
  replaced: 'bg-gray-100 text-soot border border-sand',
- completed: 'bg-gray-100 text-ink border border-sand',
- active: 'bg-gray-100 text-ink border border-sand',
+ completed: 'bg-gray-100 text-soot border border-sand',
+ active: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -2838,7 +2838,7 @@ export function PsychologyAdmin() {
           </div>
           <input type="checkbox" checked={profile.payment_methods.card_to_card}
            onChange={e => patchProfile({ payment_methods: { ...profile.payment_methods, card_to_card: e.target.checked } })}
-           className="w-5 h-5 accent-ink" />
+           className="w-5 h-5 accent-emerald-600" />
          </label>
          <label className="flex items-center justify-between p-3 rounded-xl border border-sand cursor-pointer">
           <div>
@@ -2847,7 +2847,7 @@ export function PsychologyAdmin() {
           </div>
           <input type="checkbox" checked={profile.payment_methods.online}
            onChange={e => patchProfile({ payment_methods: { ...profile.payment_methods, online: e.target.checked } })}
-           className="w-5 h-5 accent-ink" />
+           className="w-5 h-5 accent-emerald-600" />
          </label>
          {!profile.payment_methods.card_to_card && !profile.payment_methods.online && (
           <p className="text-[11px] text-ink px-1">حداقل یک روش باید فعال بماند.</p>
@@ -3168,7 +3168,7 @@ export function PsychologyAdmin() {
                 <span className="text-sm text-ink">پاسخ به این سوال اجباری باشد</span>
                 <input type="checkbox" checked={field.required}
                  onChange={e => updateFormField(sIdx, fIdx, { required: e.target.checked })}
-                 className="w-5 h-5 accent-ink" />
+                 className="w-5 h-5 accent-emerald-600" />
                </label>
 
                {/* منطقِ شرطی — از اینجا (سوالِ گزینه‌ای) تعیین می‌کنی هر جواب چه سوال‌هایی رو بعدش باز کنه */}
@@ -3431,7 +3431,7 @@ export function PsychologyAdmin() {
        </div>
        <label className="flex items-center gap-2 text-sm text-ink cursor-pointer">
         <input type="checkbox" checked={newSess.paid} onChange={e => setNewSess({ ...newSess, paid: e.target.checked })}
-         className="w-4 h-4 accent-ink" />
+         className="w-4 h-4 accent-emerald-600" />
         این جلسه پرداخت‌شده است (اگر تیک نزنی، مراجع باید در پنل پرداخت کند)
        </label>
       </div>
@@ -3605,7 +3605,7 @@ export function PsychologyAdmin() {
           </div>
           <input type="checkbox" checked={!!patientFeatures.patient_buy_extra_session}
            onChange={e => togglePatientFeature('patient_buy_extra_session', e.target.checked)}
-           className="w-5 h-5 accent-ink shrink-0" />
+           className="w-5 h-5 accent-emerald-600 shrink-0" />
          </label>
          <p className="text-[11px] text-soot px-1">
           اجازه‌ی کنسل‌کردنِ خودکار پایینِ همین صفحه، کنارِ سیاستِ کنسلی، تنظیم می‌شود.
@@ -3666,7 +3666,7 @@ export function PsychologyAdmin() {
          <span className="text-sm text-ink">مراجع اجازه‌ی کنسل‌کردنِ خودکار داشته باشد</span>
          <input type="checkbox" checked={profile.cancellation_policy.enabled}
           onChange={e => patchProfile({ cancellation_policy: { ...profile.cancellation_policy, enabled: e.target.checked } })}
-          className="w-5 h-5 accent-ink shrink-0" />
+          className="w-5 h-5 accent-emerald-600 shrink-0" />
         </label>
         {profile.cancellation_policy.enabled && (
          <div className="space-y-3 bg-gray-50 rounded-xl p-3.5">
