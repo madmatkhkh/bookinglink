@@ -2288,8 +2288,8 @@ export function PsychologyAdmin() {
        <>
         {/* راهنمای رنگ‌ها */}
         <div className="flex items-center justify-center gap-4 text-xs text-soot mb-3">
-         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-gray-200 border border-sand" /> روز کاری</span>
-         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-ink" /> نوبتِ رزروشده</span>
+         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-emerald-500/15 border border-emerald-500/40" /> روز کاری</span>
+         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-amber-400" /> نوبتِ رزروشده</span>
         </div>
 
         <div className="bg-white rounded-2xl border border-sand p-5 mb-4">
@@ -2314,14 +2314,14 @@ export function PsychologyAdmin() {
              className={`relative text-center py-2.5 rounded-lg text-sm transition-all
               ${isPast ? 'text-gray-300 cursor-default' : 'cursor-pointer'}
               ${isSel ? 'ring-2 ring-ink font-medium' : ''}
-              ${!isPast && totalSlots > 0 ? 'bg-gray-100 text-ink' : ''}
+              ${!isPast && totalSlots > 0 ? 'bg-emerald-500/10 text-emerald-700' : ''}
               ${!isPast && totalSlots === 0 ? 'text-soot hover:bg-gray-50' : ''}`}>
              {toFarsiNum(d)}
              {!isPast && totalSlots > 0 && (
-              <span className="block text-[10px] mt-0.5 text-ink">{toFarsiNum(totalSlots)} ساعت</span>
+              <span className="block text-[10px] mt-0.5 text-emerald-600">{toFarsiNum(totalSlots)} ساعت</span>
              )}
              {booked > 0 && (
-              <span className="absolute top-1 left-1 min-w-4 h-4 px-1 bg-ink text-white text-[10px] rounded-full flex items-center justify-center font-medium">{toFarsiNum(booked)}</span>
+              <span className="absolute top-1 left-1 min-w-4 h-4 px-1 bg-amber-400 text-white text-[10px] rounded-full flex items-center justify-center font-medium">{toFarsiNum(booked)}</span>
              )}
             </div>
            )
@@ -3224,7 +3224,7 @@ export function PsychologyAdmin() {
        {(isSettingsTabDirty || settingsSaved || profileSaved || intakeSaved) && (
         <div className="fixed bottom-0 inset-x-0 z-30 bg-white/95 border-t border-sand backdrop-blur">
          <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-end gap-3">
-          {(settingsSaved || profileSaved || intakeSaved) && <span className="text-xs text-ink">✓ تنظیمات ذخیره شد</span>}
+          {(settingsSaved || profileSaved || intakeSaved) && <span className="text-xs text-emerald-600 font-medium">✓ تنظیمات ذخیره شد</span>}
           <button onClick={async () => {
             if (me?.isOwner) await Promise.all([saveSettings(), saveProfile(), saveIntakeForm()])
             else await Promise.all([saveProfile(), saveIntakeForm()])
@@ -3694,7 +3694,7 @@ export function PsychologyAdmin() {
          </div>
         )}
         <div className="flex items-center justify-end gap-3 mt-4">
-         {profileSaved && <span className="text-xs text-ink">✓ ذخیره شد</span>}
+         {profileSaved && <span className="text-xs text-emerald-600 font-medium">✓ ذخیره شد</span>}
          <button onClick={saveProfile} disabled={profileSaving}
           className="px-5 py-2 bg-ink text-white rounded-xl text-sm font-medium disabled:opacity-40 hover:bg-ink/90">
           {profileSaving ? 'در حال ذخیره...' : 'ذخیره‌ی سیاستِ کنسلی'}

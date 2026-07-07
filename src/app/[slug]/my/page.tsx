@@ -1335,12 +1335,12 @@ function StageProgress({ stages, inTreatment }: { stages: CaseStage[]; inTreatme
     <div key={i} className="flex items-center flex-1 last:flex-none">
      <div className="flex flex-col items-center gap-1 shrink-0">
       <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-medium
-       ${it.done ? 'bg-ink text-white' : it.current ? 'bg-ink text-white' : 'bg-gray-100 text-soot'}`}>
+       ${it.done ? 'bg-emerald-500 text-white' : it.current ? 'bg-ink text-white' : 'bg-gray-100 text-soot'}`}>
        {it.done ? '✓' : it.icon}
       </div>
       <span className={`text-[11px] whitespace-nowrap ${it.current ? 'text-ink font-medium' : 'text-soot'}`}>{it.label}</span>
      </div>
-     {i < items.length - 1 && <div className={`flex-1 h-px mx-2 ${it.done ? 'bg-ink' : 'bg-gray-200'}`} />}
+     {i < items.length - 1 && <div className={`flex-1 h-px mx-2 ${it.done ? 'bg-emerald-400' : 'bg-gray-200'}`} />}
     </div>
    ))}
   </div>
