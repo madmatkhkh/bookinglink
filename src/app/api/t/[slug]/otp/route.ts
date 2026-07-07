@@ -16,7 +16,10 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
 
   if (!body.code) {
     const issued = await issueOtp(phone, requestIp(req))
-    if (!issued.ok) return NextResponse.json({ error: OTP_THROTTLED_MSG }, { status: 429 })
+    if (!issued.ok) {
+      if ('throttled' in issued) return NextResponse.json({ error: OTP_THROTTLED_MSG }, { status: 429 })
+      return NextResponse.json({ error: issued.smsError || 'ارسالِ پیامک ناموفق بود — دوباره تلاش کن' }, { status: 502 })
+    }
     // TODO(sms): این‌جا کد با پیامک ارسال می‌شود. تا آن موقع فقط با OTP_ECHO_CODE=true
     // در پاسخ برمی‌گردد؛ روی پروداکشنِ واقعی این env باید حذف شود.
     return NextResponse.json({ success: true, ...(otpEchoEnabled() ? { dev_code: issued.code } : {}) })

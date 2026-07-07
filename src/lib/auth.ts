@@ -23,6 +23,7 @@
 import { createHmac, timingSafeEqual, randomUUID, randomInt } from 'crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { sb } from './supabase'
+import { sendOtpSms, smsConfigured } from './sms'
 
 function SECRET(): string {
   const s = process.env.AUTH_SECRET
@@ -209,11 +210,14 @@ export function isSuperAuthed(req: NextRequest): boolean {
 
 // ── OTP مشترک ────────────────────────────────────────────────────────────────
 
-export type IssueOtpResult = { ok: true; code: string } | { ok: false; throttled: true }
+export type IssueOtpResult = { ok: true; code: string } | { ok: false; throttled: true } | { ok: false; smsError: string }
 export type VerifyOtpResult = 'ok' | 'bad' | 'throttled'
 
-/** آیا کد باید در پاسخِ HTTP برگردد؟ فقط در حالتِ موقتِ پیش‌ازپیامک (OTP_ECHO_CODE=true) */
+/** آیا کد باید در پاسخِ HTTP برگردد؟ فقط در حالتِ موقتِ پیش‌ازپیامک — و فقط اگر
+ * پیامکِ واقعی هنوز تنظیم نشده باشد (وگرنه حتی با OTP_ECHO_CODE=true فراموش‌شده
+ * در env، کدِ محرمانه در پاسخِ HTTP لو نمی‌رود). */
 export function otpEchoEnabled(): boolean {
+  if (smsConfigured()) return false
   return process.env.OTP_ECHO_CODE === 'true'
 }
 
@@ -228,6 +232,16 @@ export async function issueOtp(phone: string, ip?: string): Promise<IssueOtpResu
   const code = String(randomInt(10000, 100000)) // 5 رقم، از CSPRNG نه Math.random
   const expires_at = new Date(Date.now() + 5 * 60 * 1000).toISOString()
   await sb().from('otps').insert({ phone, code, expires_at })
+  // اگر پیامکِ واقعی تنظیم شده (SMS_IR_API_KEY/SMS_IR_TEMPLATE_ID)، همین‌جا ارسال کن.
+  // اگر ارسال شکست خورد، کد را از دیتابیس پاک می‌کنیم — چون کدی که به دستِ کاربر
+  // نمی‌رسد نباید معتبر بماند (هم گیج‌کننده هم یک OTPِ یتیم در دیتابیس).
+  if (smsConfigured()) {
+    const sent = await sendOtpSms(phone, code)
+    if (!sent.ok) {
+      await sb().from('otps').delete().eq('phone', phone).eq('code', code)
+      return { ok: false, smsError: sent.error }
+    }
+  }
   return { ok: true, code }
 }
 

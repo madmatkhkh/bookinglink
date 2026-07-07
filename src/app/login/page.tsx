@@ -2,15 +2,12 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // ورودِ متخصص — طراحیِ مونوکروم، دو ستونه.
 //
-// احرازِ هویتِ این پروژه OTP-محور و per-tenant است (lib/auth.ts). این صفحه:
-//   قدم ۱: نشانیِ کارگاه (workspace slug) + شماره‌ی موبایل → درخواستِ کد
-//   قدم ۲: واردکردنِ کدِ ۵ رقمی → ورود و هدایت به پنل
-//
-// ⚠️ نکته‌ی بک‌اند: مسیرِ موجودِ /api/t/<slug>/otp کوکیِ «مراجع» می‌نشاند
-// (setClientCookie)، نه نشستِ پنلِ متخصص. برای ورودِ واقعیِ متخصص باید یک
-// endpoint بسازی که پس از تاییدِ OTP، createPanelSession(res, tenantId) را صدا
-// بزند (مثلاً POST /api/t/<slug>/panel/login). تا آن موقع این UI به همان مسیرِ
-// OTPِ موجود وصل است تا فلو کامل تست شود؛ فقط createPanelSession را در بک‌اند اضافه کن.
+// این صفحه دیگر خودش OTP را دست‌کاری نمی‌کند — قبلاً به /api/t/<slug>/otp وصل
+// بود که کوکیِ «مراجع» می‌نشاند، نه نشستِ پنلِ متخصص؛ یعنی بعدِ «ورودِ موفق»
+// دوباره به لاگین برمی‌گشت (باگ). راهِ درست این نبود که OTP را اینجا هم پیاده
+// کنیم؛ خودِ `/[slug]/panel` از قبل یک فلوِ OTPِ کامل و درست دارد (owner/staff،
+// هر دو کوکیِ صحیح). این صفحه فقط نشانیِ کارگاه را می‌گیرد، وجودش را با یک
+// endpoint سبک و عمومی چک می‌کند، و کاربر را به همان پنلِ واقعی هدایت می‌کند.
 // ─────────────────────────────────────────────────────────────────────────────
 import { useState } from 'react'
 import { PLATFORM_NAME } from '@/lib/config'
@@ -22,39 +19,24 @@ const AGENDA = [
 ]
 
 export default function Login() {
-  const [step, setStep] = useState<'id' | 'code'>('id')
   const [slug, setSlug] = useState('')
-  const [phone, setPhone] = useState('')
-  const [code, setCode] = useState('')
-  const [devCode, setDevCode] = useState<string | null>(null)
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
 
-  async function requestCode(e: React.FormEvent) {
-    e.preventDefault(); setErr(''); setBusy(true)
+  async function goToPanel(e: React.FormEvent) {
+    e.preventDefault(); setErr('')
+    const s = slug.trim().toLowerCase()
+    if (!s) return
+    setBusy(true)
     try {
-      const r = await fetch(`/api/t/${slug.trim()}/otp`, {
-        method: 'POST', headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ phone }),
-      })
-      const d = await r.json()
-      if (!r.ok) { setErr(d.error || 'خطا در ارسالِ کد'); return }
-      if (d.dev_code) setDevCode(String(d.dev_code)) // فقط وقتی OTP_ECHO_CODE=true
-      setStep('code')
-    } catch { setErr('اتصال برقرار نشد') } finally { setBusy(false) }
-  }
-
-  async function verify(e: React.FormEvent) {
-    e.preventDefault(); setErr(''); setBusy(true)
-    try {
-      const r = await fetch(`/api/t/${slug.trim()}/otp`, {
-        method: 'POST', headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ phone, code }),
-      })
-      const d = await r.json()
-      if (!r.ok) { setErr(d.error || 'کد نادرست است'); return }
-      window.location.href = `/${slug.trim()}/panel`
-    } catch { setErr('اتصال برقرار نشد') } finally { setBusy(false) }
+      const r = await fetch(`/api/t/${s}/niche`)
+      if (!r.ok) { setErr('کارگاهی با این نشانی پیدا نشد — نشانی را دوباره چک کن.'); return }
+      window.location.href = `/${s}/panel`
+    } catch {
+      setErr('اتصال برقرار نشد')
+    } finally {
+      setBusy(false)
+    }
   }
 
   const field = 'w-full text-[15px] px-3.5 py-3 border border-sand rounded-xl outline-none bg-white focus:border-ink focus:ring-2 focus:ring-ink/10 transition'
@@ -77,42 +59,21 @@ export default function Login() {
           <div className="w-full max-w-sm animate-nl-up">
             <h1 className="font-display font-extrabold text-3xl tracking-tightest mb-2">ورود به پنل</h1>
             <p className="text-sm text-soot leading-relaxed mb-7">
-              {step === 'id'
-                ? 'نشانیِ کارگاه و شماره‌ی موبایلت را وارد کن تا کدِ ورود برایت پیامک شود.'
-                : `کدِ ۵ رقمیِ ارسال‌شده به ${phone} را وارد کن.`.replace('۵', '5')}
+              نشانیِ کارگاهت را وارد کن؛ کدِ ورود (پیامکی) داخلِ همان پنل ازت پرسیده می‌شود.
             </p>
 
-            {step === 'id' ? (
-              <form onSubmit={requestCode}>
-                <label className="block text-[13px] font-semibold text-ink/80 mb-1.5">نشانیِ کارگاه</label>
-                <div className="flex items-stretch mb-4" dir="ltr">
-                  <span className="inline-flex items-center px-3 text-[13px] text-soot bg-paper border border-sand border-l-0 rounded-l-xl">nobatlink.com/</span>
-                  <input value={slug} onChange={e => setSlug(e.target.value)} placeholder="your-name" required
-                    className={field + ' rounded-l-none text-left'} />
-                </div>
-                <label className="block text-[13px] font-semibold text-ink/80 mb-1.5">شماره‌ی موبایل</label>
-                <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="0912 000 0000" inputMode="tel" required
-                  className={field + ' mb-5'} dir="ltr" />
-                {err && <p className="text-[13px] text-ink bg-sand rounded-lg px-3 py-2 mb-4">{err}</p>}
-                <button disabled={busy} className="w-full font-display font-bold text-white bg-ink py-3 rounded-xl shadow-sm hover:-translate-y-0.5 transition disabled:opacity-60">
-                  {busy ? 'در حالِ ارسال…' : 'ارسالِ کد'}
-                </button>
-              </form>
-            ) : (
-              <form onSubmit={verify}>
-                <label className="block text-[13px] font-semibold text-ink/80 mb-1.5">کدِ ورود</label>
-                <input value={code} onChange={e => setCode(e.target.value)} placeholder="- - - - -" inputMode="numeric" required
-                  className={field + ' mb-2 text-center tracking-[0.5em] font-display text-lg'} dir="ltr" />
-                {devCode && <p className="text-[12px] text-soot mb-3">کدِ تست (حالتِ توسعه): <b className="text-ink">{devCode}</b></p>}
-                {err && <p className="text-[13px] text-ink bg-sand rounded-lg px-3 py-2 mb-4">{err}</p>}
-                <button disabled={busy} className="w-full font-display font-bold text-white bg-ink py-3 rounded-xl shadow-sm hover:-translate-y-0.5 transition disabled:opacity-60 mb-3">
-                  {busy ? 'در حالِ بررسی…' : 'ورود'}
-                </button>
-                <button type="button" onClick={() => { setStep('id'); setErr(''); setCode('') }} className="w-full text-[13px] text-soot hover:text-ink">
-                  تغییرِ شماره یا نشانی
-                </button>
-              </form>
-            )}
+            <form onSubmit={goToPanel}>
+              <label className="block text-[13px] font-semibold text-ink/80 mb-1.5">نشانیِ کارگاه</label>
+              <div className="flex items-stretch mb-5" dir="ltr">
+                <span className="inline-flex items-center px-3 text-[13px] text-soot bg-paper border border-sand border-l-0 rounded-l-xl">nobatlink.com/</span>
+                <input value={slug} onChange={e => setSlug(e.target.value)} placeholder="your-name" required autoFocus
+                  className={field + ' rounded-l-none text-left'} />
+              </div>
+              {err && <p className="text-[13px] text-ink bg-sand rounded-lg px-3 py-2 mb-4">{err}</p>}
+              <button disabled={busy || !slug.trim()} className="w-full font-display font-bold text-white bg-ink py-3 rounded-xl shadow-sm hover:-translate-y-0.5 transition disabled:opacity-60">
+                {busy ? 'در حالِ بررسی…' : 'برو به پنل ←'}
+              </button>
+            </form>
 
             <p className="text-center text-[13px] text-soot mt-7">
               حساب نداری؟ <a href="/signup" className="font-semibold text-ink">ثبت‌نام رایگان</a>
