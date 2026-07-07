@@ -281,6 +281,14 @@ const NavIcons = {
  patient_settings: <svg {...iconProps}><circle cx="9" cy="8" r="2.8" /><path d="M4 19c0-2.8 2.2-4.3 5-4.3s5 1.5 5 4.3" /><path d="M16 8.5h4.5M16 12h4.5M16 15.5h3" /></svg>,
  staff: <svg {...iconProps}><circle cx="8" cy="8" r="3" /><circle cx="17" cy="9" r="2.4" /><path d="M3 20c0-3 2.3-4.6 5-4.6s5 1.6 5 4.6" /><path d="M14.5 15.5c2.2.2 3.8 1.5 3.8 4" /></svg>,
 }
+// ─── آیکون‌های تب‌های زیرِ پرونده (اطلاعات مراجع / پرداخت / پروتکل / جلسات) ─────
+const tabIconProps = { ...iconProps, className: 'w-3.5 h-3.5 shrink-0' }
+const PatientTabIcons = {
+ info: <svg {...tabIconProps}><path d="M4.5 19c0-3 3.3-4.6 7.5-4.6s7.5 1.6 7.5 4.6" /><circle cx="12" cy="7.7" r="3" /></svg>,
+ payment: <svg {...tabIconProps}><rect x="3" y="6" width="18" height="12.5" rx="1.8" /><path d="M3 10h18" /></svg>,
+ packages: <svg {...tabIconProps}><rect x="3.5" y="4" width="17" height="6.5" rx="1.3" /><rect x="3.5" y="13.5" width="17" height="6.5" rx="1.3" /></svg>,
+ sessions: <svg {...tabIconProps}><circle cx="12" cy="12" r="8.3" /><path d="M12 7.5V12l3 2" /></svg>,
+}
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
@@ -753,7 +761,7 @@ export function PsychologyAdmin() {
  // حذفِ کاملِ یک پروتکلِ درمان (مثلاً اگر دکتر اشتباهی ثبتش کرده بود). جلسه‌های
  // این پروتکل حذف نمی‌شوند، فقط از این پروتکل جدا می‌شوند (جلسه‌ی تکیِ بی‌عنوان).
  async function deletePackage(pkg: Package) {
-  if (!await uiConfirm(`پروتکل درمانِ «${PERSIAN_MONTHS[parseInt(pkg.month) - 1]} ${pkg.year}» برای همیشه حذف شود؟ جلسه‌های ثبت‌شده‌ی این پروتکل حذف نمی‌شوند، فقط از آن جدا می‌مانند.`)) return
+  if (!await uiConfirm(`پروتکل درمانِ «${PERSIAN_MONTHS[parseInt(pkg.month) - 1]} ${pkg.year}» برای همیشه حذف شود؟ جلسه‌های ثبت‌شده‌ی این پروتکل حذف نمی‌شوند، فقط از آن جدا می‌مانند.`, { danger: true, okText: 'حذفِ پروتکل' })) return
   const res = await fetch(api('/packages'), {
    method: 'DELETE', headers: { 'Content-Type': 'application/json' },
    body: JSON.stringify({ id: pkg.id }),
@@ -764,7 +772,7 @@ export function PsychologyAdmin() {
 
  // حذفِ کاملِ یک پرونده (با تأیید)
  async function deletePatient(p: Patient) {
-  if (!await uiConfirm(`پرونده‌ی «${p.child_name}» (${p.case_number}) و همه‌ی پروتکل‌های درمان و جلسه‌هایش برای همیشه حذف شود؟`)) return
+  if (!await uiConfirm(`پرونده‌ی «${p.child_name}» (${p.case_number}) و همه‌ی پروتکل‌های درمان و جلسه‌هایش برای همیشه حذف شود؟`, { danger: true, okText: 'حذفِ پرونده' })) return
   const res = await fetch(api('/cases'), {
    method: 'DELETE', headers: { 'Content-Type': 'application/json' },
    body: JSON.stringify({ id: p.id }),
@@ -866,7 +874,7 @@ export function PsychologyAdmin() {
  // حذفِ کاملِ یک جلسه (مثلاً اگر دکتر اشتباهی ثبتش کرده بود)
  async function deleteSession() {
   if (!editSession) return
-  if (!await uiConfirm('این جلسه برای همیشه حذف شود؟ این کار بازگشت‌پذیر نیست.')) return
+  if (!await uiConfirm('این جلسه برای همیشه حذف شود؟ این کار بازگشت‌پذیر نیست.', { danger: true, okText: 'حذفِ جلسه' })) return
   await fetch(api('/sessions'), {
    method: 'DELETE', headers: { 'Content-Type': 'application/json' },
    body: JSON.stringify({ id: editSession.id }),
@@ -1087,7 +1095,7 @@ export function PsychologyAdmin() {
  // لغوِ همه‌ی نوبت‌های یک روز
  async function cancelDay(dateStr: string, appts: { kind: 'interview' | 'assessment' | 'session'; id: string; name: string }[]) {
   if (appts.length === 0) return
-  if (!await uiConfirm(`همه‌ی ${appts.length} نوبتِ این روز لغو شود؟ به همه‌ی مراجعان اطلاع داده می‌شود تا دوباره وقت بگیرند.`)) return
+  if (!await uiConfirm(`همه‌ی ${appts.length} نوبتِ این روز لغو شود؟ به همه‌ی مراجعان اطلاع داده می‌شود تا دوباره وقت بگیرند.`, { danger: true, okText: 'لغوِ همه‌ی نوبت‌ها' })) return
   const msg = 'نوبتِ شما توسط مطب لغو شد. لطفاً بدون پرداختِ اضافه، زمانِ جدیدی انتخاب کنید.'
   for (const a of appts) {
    if (a.kind === 'session') {
@@ -1859,18 +1867,18 @@ export function PsychologyAdmin() {
         {/* Sub-tabs */}
         <div className="flex gap-1 mb-4 overflow-x-auto">
          {([
-          ['info', 'اطلاعات مراجع'],
-          ['payment', 'اطلاعات پرداخت'],
-          ['packages', 'پروتکل‌های درمان'],
-          ['sessions', 'جلسات تکی'],
-         ] as const).map(([k, label]) => (
+          ['info', 'اطلاعات مراجع', <svg key="i1" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><circle cx="12" cy="8" r="3.2" /><path d="M5 19.5c0-3 3.1-4.7 7-4.7s7 1.7 7 4.7" /></svg>],
+          ['payment', 'اطلاعات پرداخت', <svg key="i2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><rect x="3" y="6" width="18" height="12" rx="2" /><path d="M3 10h18" /></svg>],
+          ['packages', 'پروتکل‌های درمان', <svg key="i3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><path d="M6 4h9l3 3v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1Z" /><path d="M8.5 11h7M8.5 14.5h7M8.5 18h4" /></svg>],
+          ['sessions', 'جلسات تکی', <svg key="i4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><rect x="3.5" y="5" width="17" height="15" rx="2" /><path d="M3.5 9.5h17M8 3v3.5M16 3v3.5" /></svg>],
+         ] as const).map(([k, label, icon]) => (
           <button key={k} onClick={() => setPatientTab(k)}
-           className={`px-3 py-1.5 text-xs font-medium rounded-lg whitespace-nowrap transition-all ${
+           className={`px-3 py-1.5 text-xs font-medium rounded-lg whitespace-nowrap transition-all flex items-center gap-1.5 ${
             patientTab === k
              ? 'bg-ink text-white'
              : 'bg-white border border-sand text-soot hover:border-gray-300'
            }`}>
-           {label}
+           {icon}{label}
           </button>
          ))}
         </div>
@@ -2305,8 +2313,8 @@ export function PsychologyAdmin() {
        <>
         {/* راهنمای رنگ‌ها */}
         <div className="flex items-center justify-center gap-4 text-xs text-soot mb-3">
-         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-gray-200 border border-sand" /> روز کاری</span>
-         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-ink" /> نوبتِ رزروشده</span>
+         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-gray-100 border border-sand" /> روز کاری</span>
+         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-emerald-600" /> نوبتِ رزروشده</span>
         </div>
 
         <div className="bg-white rounded-2xl border border-sand p-5 mb-4">
@@ -2338,7 +2346,7 @@ export function PsychologyAdmin() {
               <span className="block text-[10px] mt-0.5 text-ink">{toFarsiNum(totalSlots)} ساعت</span>
              )}
              {booked > 0 && (
-              <span className="absolute top-1 left-1 min-w-4 h-4 px-1 bg-ink text-white text-[10px] rounded-full flex items-center justify-center font-medium">{toFarsiNum(booked)}</span>
+              <span className="absolute top-1 left-1 min-w-4 h-4 px-1 bg-emerald-600 text-white text-[10px] rounded-full flex items-center justify-center font-medium">{toFarsiNum(booked)}</span>
              )}
             </div>
            )
@@ -2447,7 +2455,7 @@ export function PsychologyAdmin() {
               className={`relative text-center py-2 border rounded-xl text-sm transition-all
                ${removeTimeMode ? 'cursor-pointer border-sand bg-gray-100 text-ink hover:bg-gray-200' :
                 isPastTime ? 'border-sand bg-gray-50 text-gray-300 cursor-not-allowed line-through' :
-                takenBy ? 'border-sand bg-gray-100 text-ink cursor-not-allowed' :
+                takenBy ? 'border-amber-200 bg-amber-50 text-amber-800 cursor-not-allowed' :
                 'cursor-pointer ' + (selected ? 'border-ink bg-sand text-ink font-medium' : 'border-sand text-soot hover:border-gray-300')}`}>
               {enTime(t)}
               {!removeTimeMode && takenBy && !isPastTime && <span className="block text-[10px] mt-0.5">{takenBy.name}</span>}
@@ -3050,7 +3058,7 @@ export function PsychologyAdmin() {
               <div className="bg-gray-50 rounded-xl p-5">
                <div className="flex items-center justify-between mb-4">
                 <span className="text-xs text-soot">ویرایشِ بخش — برای جابه‌جایی، از لیستِ کنار درگ کن</span>
-                <button onClick={async () => { if (await uiConfirm(`بخشِ «${section.title}» با همه‌ی سوال‌هایش حذف شود؟`)) removeFormSection(sIdx) }}
+                <button onClick={async () => { if (await uiConfirm(`بخشِ «${section.title}» با همه‌ی سوال‌هایش حذف شود؟`, { danger: true, okText: 'حذفِ بخش' })) removeFormSection(sIdx) }}
                  className="text-xs px-2.5 py-1.5 border border-sand text-ink rounded-lg hover:bg-gray-100 shrink-0">حذفِ بخش</button>
                </div>
                <label className="text-xs text-soot mb-1 block">عنوانِ بخش</label>
