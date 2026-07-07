@@ -41,7 +41,7 @@ const FEATURES = [
 ]
 
 const FAQS = [
-  { q: 'قیمتِ استفاده از نوبت‌لینک چقدر است؟', a: 'ثبت‌نام و راه‌اندازی کاملاً رایگان است و بدونِ نیاز به کارت بانکی شروع می‌شود. پلنِ رایگان برای شروع کافی است و پلن‌های حرفه‌ای با امکاناتِ بیشتر بعداً در دسترس خواهد بود.' },
+  { q: 'قیمتِ استفاده از نوبت‌لینک چقدر است؟', a: 'ثبت‌نام و راه‌اندازی کاملاً رایگان است و بدونِ نیاز به درگاه بانکی شروع می‌شود. پلنِ رایگان برای شروع کافی است و پلن‌های حرفه‌ای با امکاناتِ بیشتر بعداً در دسترس خواهد بود.' },
   { q: 'چه تفاوتی با نوبت‌دهیِ دستی و دفترچه دارد؟', a: 'در نوبت‌دهیِ دستی باید پاسخِ تماس‌ها و پیام‌ها را بدهی. با نوبت‌لینک مراجع خودش زمانِ خالی را می‌بیند و رزرو می‌کند، یادآوریِ پیامکیِ خودکار ارسال می‌شود و آمارِ نوبت‌ها همیشه در دسترس است.' },
   { q: 'اطلاعاتِ من و مراجعینم امن است؟', a: 'داده‌ها به‌صورتِ رمزنگاری‌شده نگهداری می‌شوند و دسترسی به اطلاعاتِ هر متخصص فقط برای خودش امکان‌پذیر است. شماره و اطلاعاتِ مراجعین هرگز در اختیارِ شخصِ دیگری قرار نمی‌گیرد.' },
   { q: 'الان از چه حوزه‌هایی پشتیبانی می‌کنید؟', a: 'در حالِ حاضر روی روانشناسی/مشاوره و سالنِ زیبایی تمرکز کرده‌ایم و این بخش‌ها فعال‌اند. حوزه‌های بیشتر به‌زودی اضافه می‌شوند.' },
@@ -108,7 +108,7 @@ export default function Landing() {
               <a href="/signup" className="font-display font-bold text-white bg-ink px-7 py-3.5 rounded-xl shadow-sm hover:-translate-y-0.5 hover:shadow-lg transition">ثبت‌نام رایگان</a>
               <a href="#how" className="text-sm font-medium text-ink">ببین چطور کار می‌کند ←</a>
             </div>
-            <p className="mt-4 text-[13px] text-soot/80">بدونِ نیاز به کارت بانکی · راه‌اندازی در کمتر از 5 دقیقه</p>
+            <p className="mt-4 text-[13px] text-soot/80">بدونِ نیاز به درگاه بانکی · راه‌اندازی در کمتر از 5 دقیقه</p>
           </div>
 
           {/* پیش‌نمایشِ تقویمِ رزرو */}
@@ -259,7 +259,7 @@ export default function Landing() {
           <h2 className="relative font-display font-extrabold text-4xl sm:text-[46px] tracking-tightest">نوبت‌دهیِ هوشمندتر، ساده‌تر</h2>
           <p className="relative mt-4 text-white/70 max-w-md mx-auto leading-relaxed">همین امروز صفحه‌ی رزروِ اختصاصی‌ات را بساز و اولین نوبت را دریافت کن.</p>
           <a href="/signup" className="relative inline-block mt-8 font-display font-bold text-ink bg-white px-8 py-3.5 rounded-xl hover:-translate-y-0.5 transition">شروع رایگان</a>
-          <p className="relative mt-4 text-xs text-white/50">بدونِ نیاز به کارت بانکی</p>
+          <p className="relative mt-4 text-xs text-white/50">بدونِ نیاز به درگاه بانکی</p>
         </div>
       </section>
 

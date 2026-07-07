@@ -85,7 +85,7 @@ export default function Signup() {
 
       <div className="max-w-md mx-auto px-6 py-10 animate-nl-up">
         <h1 className="font-display font-extrabold text-3xl tracking-tightest mb-2">ساختِ کارگاهِ رایگان</h1>
-        <p className="text-sm text-soot leading-relaxed mb-8">در کمتر از ۵ دقیقه صفحه‌ی رزروِ اختصاصی‌ات را بساز. بدونِ نیاز به کارت بانکی.</p>
+        <p className="text-sm text-soot leading-relaxed mb-8">در کمتر از ۵ دقیقه صفحه‌ی رزروِ اختصاصی‌ات را بساز. بدونِ نیاز به درگاه بانکی.</p>
 
         <form onSubmit={submit}>
           <label className="block text-[13px] font-semibold text-ink/80 mb-1.5">نام و نامِ خانوادگی</label>
