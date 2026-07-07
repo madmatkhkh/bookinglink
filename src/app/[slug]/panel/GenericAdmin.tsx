@@ -172,9 +172,9 @@ function GenericLogin({ slug, onSuccess }: { slug: string; onSuccess: () => void
         ) : (
           <div className="space-y-3">
             {dev && <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-2.5 text-center">کدِ تست: <strong className="text-base">{dev}</strong></div>}
-            <input value={code} onChange={e => setCode(e.target.value)} dir="ltr" inputMode="numeric" autoFocus placeholder="کد 4 رقمی"
+            <input value={code} onChange={e => setCode(e.target.value)} dir="ltr" inputMode="numeric" autoFocus placeholder="کد 5 رقمی"
               className="w-full p-3 rounded-xl border border-sand text-lg text-center tracking-widest" />
-            <button onClick={verify} disabled={busy || code.trim().length < 4} className="w-full py-3 rounded-xl bg-accent text-white font-medium disabled:opacity-40">ورود</button>
+            <button onClick={verify} disabled={busy || code.trim().length < 5} className="w-full py-3 rounded-xl bg-accent text-white font-medium disabled:opacity-40">ورود</button>
           </div>
         )}
       </div>

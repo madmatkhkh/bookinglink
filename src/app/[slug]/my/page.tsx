@@ -208,7 +208,7 @@ export default function PatientPanel() {
      placeholder="12345" dir="ltr" maxLength={5}
      className="w-full text-xl px-3 py-3 border border-sand rounded-xl text-center tracking-[0.5em] focus:outline-none focus:border-ink mb-3" />
     {error && <p className="text-xs text-ink mb-3 text-center">{error}</p>}
-    <button onClick={verifyOtp} disabled={loading || otpCode.length < 4}
+    <button onClick={verifyOtp} disabled={loading || otpCode.length < 5}
      className="w-full py-3 bg-ink text-white rounded-xl text-sm font-medium disabled:opacity-40">
      {loading ? 'در حال بررسی...' : 'ورود به پنل'}
     </button>

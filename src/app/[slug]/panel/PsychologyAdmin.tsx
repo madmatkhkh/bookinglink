@@ -3835,9 +3835,9 @@ function PanelLogin({ slug, onSuccess }: { slug: string; onSuccess: () => void }
        </div>
       )}
       <input value={code} onChange={e => setCode(e.target.value)} dir="ltr" inputMode="numeric" autoFocus
-       placeholder="کد 4 رقمی"
+       placeholder="کد 5 رقمی"
        className="w-full p-3 rounded-xl border border-sand text-lg text-center tracking-widest focus:outline-none focus:border-ink" />
-      <button onClick={verify} disabled={busy || code.trim().length < 4}
+      <button onClick={verify} disabled={busy || code.trim().length < 5}
        className="w-full py-3 rounded-xl bg-ink text-white font-medium disabled:opacity-40">
        ورود
       </button>

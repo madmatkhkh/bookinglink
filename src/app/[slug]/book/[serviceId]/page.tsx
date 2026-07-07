@@ -262,7 +262,7 @@ function BookingFlow() {
            </div>
           )}
           <input value={code} onChange={e => setCode(e.target.value)} dir="ltr" inputMode="numeric"
-           placeholder="کدِ 4 رقمی" className="w-full p-3 rounded-xl border border-sand bg-white text-sm tnum text-center" />
+           placeholder="کدِ 5 رقمی" className="w-full p-3 rounded-xl border border-sand bg-white text-sm tnum text-center" />
           <button onClick={verifyCode} disabled={busy}
            className="w-full py-3 rounded-2xl bg-accent text-white font-medium disabled:opacity-50">
            تاییدِ کد
