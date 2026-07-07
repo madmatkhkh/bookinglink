@@ -1678,7 +1678,7 @@ export function PsychologyAdmin() {
 
    {/* ── نوارِ بالا (موبایل) ────────────────────────────────────────── */}
    <div className="sm:hidden bg-white border-b border-sand sticky top-0 z-20 px-3 py-3 flex items-center justify-between">
-    <button onClick={() => setSidebarOpen(true)} className="text-xl text-soot w-8 h-8 flex items-center justify-center"></button>
+    <button onClick={() => setSidebarOpen(true)} className="text-xl text-soot w-8 h-8 flex items-center justify-center">☰</button>
     <div className="text-sm font-display font-semibold text-ink">پنل مدیریت</div>
     <div className="w-8" />
    </div>
@@ -1870,7 +1870,7 @@ export function PsychologyAdmin() {
           <div className="space-y-2">
            {/* همیشه بالا و بازِ: مشخصاتِ ثابت (نام/شماره — این‌ها بیرونِ فرم و برایِ OTP لازم‌اند) */}
            <div className="bg-white rounded-xl border border-sand p-4">
-            <Section title="مشخصاتِ ثابت و نوبت‌دهی" icon="">
+            <Section title="مشخصاتِ ثابت و نوبت‌دهی" icon="🗓">
              <InfoRow label="نام" value={selectedPatient.child_name} />
              <InfoRow label="شماره‌ی تماسِ ثابت" value={enTime(selectedPatient.father_phone)} />
              <InfoRow label="شماره‌ی پرونده" value={selectedPatient.case_number} />
@@ -1937,7 +1937,7 @@ export function PsychologyAdmin() {
             paid ? `پرداخت‌شده${ref ? ' — فیش: ' + ref : ''}` : sub ? 'منتظر تأیید' : '—'
            const typeCounts: Record<string, number> = {}
            return (
-            <Section title="اطلاعات پرداخت" icon="">
+            <Section title="اطلاعات پرداخت" icon="💳">
              {stages.map(s => {
               typeCounts[s.stage_type] = (typeCounts[s.stage_type] || 0) + 1
               const n = typeCounts[s.stage_type]
@@ -1977,7 +1977,7 @@ export function PsychologyAdmin() {
                <div className="flex items-center gap-2">
                 <span className="text-sm font-semibold text-ink">{total.toLocaleString('en-US')} ت</span>
                 <button onClick={() => deletePackage(pkg)}
-                 className="text-xs px-2 py-1 border border-sand text-ink rounded-lg hover:bg-gray-100"></button>
+                 className="text-xs px-2 py-1 border border-red-500/30 text-red-600 rounded-lg hover:bg-red-500/5">🗑</button>
                </div>
               </div>
               <div className="grid grid-cols-2 gap-2 text-xs text-soot">
@@ -2247,7 +2247,7 @@ export function PsychologyAdmin() {
          </PendingSection>
 
          {/* بخش 4: بازپرداختِ کنسلی‌ها */}
-         <PendingSection title="بازپرداختِ کنسلی" icon="" count={pendingRefunds.length}>
+         <PendingSection title="بازپرداختِ کنسلی" icon="💸" count={pendingRefunds.length}>
           {pendingRefunds.map(s => (
            <RefundPendingCard key={s.id} name={childOf(s.case_number)} caseNumber={s.case_number}
             card={s.refund_card || ''} amount={refundAmt(s)}
@@ -2513,7 +2513,7 @@ export function PsychologyAdmin() {
                <span className="text-xs text-soot">{toFarsiNum(appts.length)} از {toFarsiNum(allTimes.length)} رزرو</span>
                {appts.length > 0 && (
                 <button onClick={() => cancelDay(`${schedYear}/${schedMonth + 1}/${d}`, appts)}
-                 className="text-xs px-2 py-0.5 border border-sand text-ink rounded-lg hover:bg-gray-100">لغو روز</button>
+                 className="text-xs px-2 py-0.5 border border-red-500/30 text-red-600 rounded-lg hover:bg-red-500/5">لغو روز</button>
                )}
               </div>
              </div>
@@ -2535,9 +2535,9 @@ export function PsychologyAdmin() {
                      <span className="px-1.5 py-0.5 bg-amber-500/10 text-amber-600 border border-amber-500/20 rounded font-medium">⏱ {toFarsiNum(appt.delayMinutes)} د تاخیر</span>
                     )}
                     <button onClick={() => announceDelay(appt)}
-                     className="px-1.5 py-0.5 bg-white/70 border border-sand rounded text-soot hover:bg-white">⏱ تاخیر</button>
+                     className="px-1.5 py-0.5 bg-amber-500/10 border border-amber-500/20 rounded text-amber-600 hover:bg-amber-500/20">⏱ تاخیر</button>
                     <button onClick={() => cancelAppointment(appt)}
-                     className="px-1.5 py-0.5 bg-white/70 border border-sand rounded text-ink hover:bg-white">لغو</button>
+                     className="px-1.5 py-0.5 bg-red-500/10 border border-red-500/20 rounded text-red-600 hover:bg-red-500/20">لغو</button>
                    </span>
                   </span>
                  ) : (
@@ -2874,7 +2874,7 @@ export function PsychologyAdmin() {
               placeholder="نامِ مطب (مثلاً مطب ولنجک)"
               className="flex-1 text-sm px-3 py-2 border border-sand rounded-lg bg-white focus:outline-none focus:border-ink" />
              <button onClick={() => patchSettings({ office_locations: settings.office_locations.filter((_, j) => j !== i) })}
-              className="text-xs px-2.5 py-2 border border-sand text-ink rounded-lg shrink-0 hover:bg-gray-100">حذف</button>
+              className="text-xs px-2.5 py-2 border border-red-500/30 text-red-600 rounded-lg shrink-0 hover:bg-red-500/5">حذف</button>
             </div>
             <input value={loc.address}
              onChange={e => {
@@ -2907,7 +2907,7 @@ export function PsychologyAdmin() {
              dir="ltr" placeholder="6037-9900-0000-0000"
              className="flex-1 text-sm px-3 py-2 border border-sand rounded-lg bg-white font-mono tracking-wider focus:outline-none focus:border-ink" />
             <button onClick={() => patchProfile({ cards: profile.cards.filter((_, j) => j !== i) })}
-             className="text-xs px-2.5 py-2 border border-sand text-ink rounded-lg shrink-0 hover:bg-gray-100">حذف</button>
+             className="text-xs px-2.5 py-2 border border-red-500/30 text-red-600 rounded-lg shrink-0 hover:bg-red-500/5">حذف</button>
            </div>
            <div className="grid grid-cols-2 gap-2">
             <input value={c.holder}
@@ -3034,7 +3034,7 @@ export function PsychologyAdmin() {
                <div className="flex items-center justify-between mb-4">
                 <span className="text-xs text-soot">ویرایشِ بخش — برای جابه‌جایی، از لیستِ کنار درگ کن</span>
                 <button onClick={async () => { if (await uiConfirm(`بخشِ «${section.title}» با همه‌ی سوال‌هایش حذف شود؟`)) removeFormSection(sIdx) }}
-                 className="text-xs px-2.5 py-1.5 border border-sand text-ink rounded-lg hover:bg-gray-100 shrink-0">حذفِ بخش</button>
+                 className="text-xs px-2.5 py-1.5 border border-red-500/30 text-red-600 rounded-lg hover:bg-red-500/5 shrink-0">حذفِ بخش</button>
                </div>
                <label className="text-xs text-soot mb-1 block">عنوانِ بخش</label>
                <input value={section.title} onChange={e => updateFormSection(sIdx, { title: e.target.value })}
@@ -3064,7 +3064,7 @@ export function PsychologyAdmin() {
                   {field.hidden ? '🚫' : ''}
                  </button>
                  <button onClick={() => removeFormField(sIdx, fIdx)}
-                  className="text-xs px-2.5 py-1.5 border border-sand text-ink rounded-lg hover:bg-gray-100">حذفِ سوال</button>
+                  className="text-xs px-2.5 py-1.5 border border-red-500/30 text-red-600 rounded-lg hover:bg-red-500/5">حذفِ سوال</button>
                 </div>
                </div>
 
@@ -3113,7 +3113,7 @@ export function PsychologyAdmin() {
                   ⑂ این سوال فقط وقتی نشون داده می‌شه که پاسخِ «{triggerField?.label || '؟'}» برابرِ «{field.showIf.value}» باشد
                  </span>
                  <button onClick={() => updateFormField(sIdx, fIdx, { showIf: undefined })}
-                  className="text-soot hover:text-ink shrink-0">حذفِ شرط</button>
+                  className="text-red-500 hover:text-red-700 shrink-0">حذفِ شرط</button>
                 </div>
                )}
 
@@ -3487,7 +3487,7 @@ export function PsychologyAdmin() {
       </div>
       <div className="flex gap-2 mt-4">
        <button onClick={deleteSession}
-        className="py-2.5 px-4 border border-sand text-ink rounded-xl text-sm hover:bg-gray-100">حذف</button>
+        className="py-2.5 px-4 border border-red-500/30 text-red-600 rounded-xl text-sm hover:bg-red-500/5">حذف</button>
        <button onClick={() => setEditSession(null)}
         className="flex-1 py-2.5 border border-sand rounded-xl text-sm text-soot">انصراف</button>
        <button onClick={saveSession}

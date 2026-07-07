@@ -35,122 +35,80 @@ body { @apply bg-paper text-ink; }
 
 /* ══════════════════════════════════════════════════════════════════════════
    حالتِ تیره — فقط داخلِ پنل ادمین (.pb-admin-dark)
-   یک پالتِ خاکستریِ گرم برای زمینه/متن + نسخه‌های کم‌رنگ‌ و غیرِ زننده از هر
-   رنگِ لهجه‌ای (brand/red/amber/purple/blue/green) که در کدِ پنل استفاده شده.
+
+   طبقِ درخواستِ صریح: دقیقاً همان حالتِ روشن، فقط سفید⇄مشکی معکوس می‌شود —
+   نه یک پالتِ رنگیِ جداگانه (مثلِ Cal.com). بجِ وضعیت‌ها (سبز/کهربایی/قرمز/…)
+   دست‌نخورده می‌ماند چون بر پایه‌ی opacity (bg-{رنگ}-500/10) ساخته شده‌اند و
+   خودشان روی زمینه‌ی تیره هم درست دیده می‌شوند؛ فقط متنشان کمی روشن‌تر می‌شود
+   تا کنتراست کافی داشته باشد.
    ══════════════════════════════════════════════════════════════════════════ */
-.pb-admin-dark { background: #0f1115 !important; color: #e8eaed; }
+.pb-admin-dark { background: #0a0a0a !important; color: #fafafa; }
 
-/* زمینه‌های خنثی */
-.pb-admin-dark .bg-gray-50 { background: #0f1115 !important; }
-.pb-admin-dark .bg-gray-50\/50 { background: rgba(255,255,255,0.03) !important; }
-.pb-admin-dark .bg-white { background: #1a1d24 !important; }
-.pb-admin-dark .bg-white\/60 { background: rgba(26,29,36,0.6) !important; }
-.pb-admin-dark .bg-white\/95 { background: rgba(26,29,36,0.95) !important; }
-.pb-admin-dark .bg-gray-100 { background: #222630 !important; }
-.pb-admin-dark .bg-gray-200 { background: #2a303c !important; }
-.pb-admin-dark .bg-gray-200\/70 { background: rgba(42,48,60,0.7) !important; }
-.pb-admin-dark .bg-black\/50 { background: rgba(0,0,0,0.7) !important; }
-.pb-admin-dark .hover\:bg-gray-50:hover { background: #232833 !important; }
-.pb-admin-dark .hover\:bg-gray-100:hover { background: #262b34 !important; }
-.pb-admin-dark .hover\:bg-gray-200:hover { background: #2f3542 !important; }
+/* زمینه‌ها: سفید → مشکی، خاکستریِ روشن → خاکستریِ تیره (همان نسبت، معکوس) */
+.pb-admin-dark .bg-white { background: #171717 !important; }
+.pb-admin-dark .bg-white\/60 { background: rgba(23,23,23,.6) !important; }
+.pb-admin-dark .bg-white\/70 { background: rgba(23,23,23,.7) !important; }
+.pb-admin-dark .bg-white\/95 { background: rgba(23,23,23,.95) !important; }
+.pb-admin-dark .hover\:bg-white:hover { background: #1f1f1f !important; }
+.pb-admin-dark .bg-gray-50 { background: #0a0a0a !important; }
+.pb-admin-dark .bg-gray-50\/50 { background: rgba(255,255,255,.03) !important; }
+.pb-admin-dark .hover\:bg-gray-50:hover { background: #1a1a1a !important; }
+.pb-admin-dark .bg-gray-100 { background: #1f1f1f !important; }
+.pb-admin-dark .hover\:bg-gray-100:hover { background: #262626 !important; }
+.pb-admin-dark .bg-gray-200 { background: #292929 !important; }
+.pb-admin-dark .bg-gray-200\/70 { background: rgba(41,41,41,.7) !important; }
+.pb-admin-dark .hover\:bg-gray-200:hover { background: #333333 !important; }
+.pb-admin-dark .bg-black\/50 { background: rgba(0,0,0,.7) !important; }
 
-/* متن‌های خنثی */
-.pb-admin-dark .text-gray-900 { color: #e8eaed !important; }
-.pb-admin-dark .text-gray-800 { color: #dfe1e6 !important; }
-.pb-admin-dark .text-gray-700 { color: #c6cad3 !important; }
-.pb-admin-dark .text-gray-600 { color: #aab0bb !important; }
-.pb-admin-dark .text-gray-500 { color: #9aa0ab !important; }
-.pb-admin-dark .text-gray-400 { color: #757c88 !important; }
-.pb-admin-dark .text-gray-300 { color: #5b6270 !important; }
-.pb-admin-dark .hover\:text-gray-600:hover { color: #aab0bb !important; }
-.pb-admin-dark .hover\:text-gray-800:hover { color: #dfe1e6 !important; }
+/* متن: مشکی → سفید، خاکستریِ تیره → خاکستریِ روشن (همان نسبت، معکوس) */
+.pb-admin-dark .text-ink,
+.pb-admin-dark .text-gray-900 { color: #fafafa !important; }
+.pb-admin-dark .text-gray-800 { color: #f0f0f0 !important; }
+.pb-admin-dark .text-gray-700 { color: #e0e0e0 !important; }
+.pb-admin-dark .text-soot,
+.pb-admin-dark .text-gray-600 { color: #a3a3a3 !important; }
+.pb-admin-dark .text-gray-500 { color: #8a8a8a !important; }
+.pb-admin-dark .text-gray-400 { color: #6b6b6b !important; }
+.pb-admin-dark .text-gray-300 { color: #4a4a4a !important; }
+.pb-admin-dark .hover\:text-ink:hover,
+.pb-admin-dark .hover\:text-gray-800:hover { color: #fafafa !important; }
+.pb-admin-dark .hover\:text-gray-600:hover { color: #a3a3a3 !important; }
 
-/* حاشیه‌های خنثی */
-.pb-admin-dark .border-gray-50 { border-color: #1c2029 !important; }
-.pb-admin-dark .border-gray-100 { border-color: #262b34 !important; }
-.pb-admin-dark .border-gray-200 { border-color: #313845 !important; }
-.pb-admin-dark .border-gray-300 { border-color: #3a4150 !important; }
-.pb-admin-dark .border-gray-400 { border-color: #454d5e !important; }
-.pb-admin-dark .hover\:border-gray-300:hover { border-color: #3a4150 !important; }
-.pb-admin-dark .hover\:border-gray-400:hover { border-color: #454d5e !important; }
-.pb-admin-dark .ring-gray-300 { --tw-ring-color: #3a4150 !important; }
+/* حاشیه‌ها: خاکستریِ خیلی روشن → خاکستریِ خیلی تیره (همان نسبت، معکوس) */
+.pb-admin-dark .border-sand,
+.pb-admin-dark .border-gray-50,
+.pb-admin-dark .border-gray-100 { border-color: #262626 !important; }
+.pb-admin-dark .border-gray-200 { border-color: #333333 !important; }
+.pb-admin-dark .border-gray-300 { border-color: #404040 !important; }
+.pb-admin-dark .border-gray-400 { border-color: #525252 !important; }
+.pb-admin-dark .hover\:border-gray-300:hover { border-color: #404040 !important; }
+.pb-admin-dark .hover\:border-gray-400:hover { border-color: #525252 !important; }
+.pb-admin-dark .ring-gray-300 { --tw-ring-color: #404040 !important; }
 
-/* برند (خاکستری/مشکی — طبقِ پالتِ جدید؛ در حالتِ تاریک روشن‌تر می‌شود تا خوانا بماند) */
-.pb-admin-dark .bg-brand-50 { background: #1c1c1c !important; }
-.pb-admin-dark .bg-brand-100 { background: #262626 !important; }
-.pb-admin-dark .hover\:bg-brand-50:hover { background: #262626 !important; }
-.pb-admin-dark .hover\:bg-brand-700:hover { background: #e5e5e5 !important; }
-.pb-admin-dark .hover\:bg-brand-800:hover { background: #f5f5f5 !important; }
-.pb-admin-dark .border-brand-100 { border-color: #2e2e2e !important; }
-.pb-admin-dark .border-brand-200 { border-color: #3a3a3a !important; }
-.pb-admin-dark .border-brand-300 { border-color: #484848 !important; }
-.pb-admin-dark .border-brand-400 { border-color: #5c5c5c !important; }
-.pb-admin-dark .border-brand-500 { border-color: #737373 !important; }
-.pb-admin-dark .hover\:border-brand-200:hover { border-color: #3a3a3a !important; }
-.pb-admin-dark .hover\:border-brand-300:hover { border-color: #484848 !important; }
-.pb-admin-dark .text-brand-400 { color: #a3a3a3 !important; }
-.pb-admin-dark .text-brand-500 { color: #c2c2c2 !important; }
-.pb-admin-dark .text-brand-600 { color: #e5e5e5 !important; }
-.pb-admin-dark .text-brand-700 { color: #eeeeee !important; }
-.pb-admin-dark .text-brand-800 { color: #f5f5f5 !important; }
-.pb-admin-dark .hover\:text-brand-500:hover { color: #c2c2c2 !important; }
-.pb-admin-dark .hover\:text-brand-600:hover { color: #e5e5e5 !important; }
-.pb-admin-dark .ring-brand-500 { --tw-ring-color: #737373 !important; }
-/* دکمه‌های primary (bg-brand-600) در حالتِ تاریک: سفید روی تیره، نه خاکستریِ کم‌کنتراست */
-.pb-admin-dark .bg-brand-600 { background: #f5f5f5 !important; color: #0a0a0a !important; }
-.pb-admin-dark .hover\:bg-brand-600:hover { background: #f5f5f5 !important; }
+/* دکمه‌های اصلی (bg-ink / bg-brand-600 با متنِ سفید) — این‌ها هم سفید⇄مشکی
+   معکوس می‌شوند تا روی زمینه‌ی تیره ناپدید نشوند (وگرنه دکمه‌ی مشکی روی
+   پس‌زمینه‌ی مشکی دیده نمی‌شد) */
+.pb-admin-dark .bg-ink { background: #fafafa !important; color: #0a0a0a !important; }
+.pb-admin-dark .hover\:bg-ink\/90:hover,
+.pb-admin-dark .hover\:bg-ink:hover { background: #e0e0e0 !important; }
+.pb-admin-dark .bg-brand-600 { background: #fafafa !important; color: #0a0a0a !important; }
+.pb-admin-dark .hover\:bg-brand-700:hover,
+.pb-admin-dark .hover\:bg-brand-800:hover { background: #e0e0e0 !important; }
+.pb-admin-dark .ring-ink { --tw-ring-color: #fafafa !important; }
 
-/* قرمز (خطر/حذف) */
-.pb-admin-dark .bg-red-50 { background: #2a1416 !important; }
-.pb-admin-dark .hover\:bg-red-50:hover { background: #351a1d !important; }
-.pb-admin-dark .border-red-100 { border-color: #3a1c1f !important; }
-.pb-admin-dark .border-red-200 { border-color: #4a2328 !important; }
-.pb-admin-dark .text-red-400 { color: #e9938f !important; }
-.pb-admin-dark .text-red-500 { color: #e57a75 !important; }
-.pb-admin-dark .text-red-600 { color: #ef5350 !important; }
-.pb-admin-dark .text-red-700 { color: #f28b82 !important; }
-.pb-admin-dark .hover\:text-red-400:hover { color: #e9938f !important; }
-.pb-admin-dark .hover\:text-red-500:hover { color: #e57a75 !important; }
-
-/* کهربایی (اجباری/هشدار) */
-.pb-admin-dark .bg-amber-50 { background: #2b2410 !important; }
-.pb-admin-dark .bg-amber-100 { background: #332c14 !important; }
-.pb-admin-dark .border-amber-100 { border-color: #3d331a !important; }
-.pb-admin-dark .border-amber-200 { border-color: #4d3f1f !important; }
-.pb-admin-dark .border-amber-300 { border-color: #5e4d26 !important; }
-.pb-admin-dark .text-amber-600 { color: #d9a441 !important; }
-.pb-admin-dark .text-amber-700 { color: #e8b854 !important; }
-
-/* بنفش (سوال‌های شرطی) */
-.pb-admin-dark .bg-purple-50 { background: #1f1a2b !important; }
-.pb-admin-dark .bg-purple-50\/60 { background: rgba(31,26,43,0.6) !important; }
-.pb-admin-dark .hover\:bg-purple-50:hover { background: #251f34 !important; }
-.pb-admin-dark .border-purple-100 { border-color: #2e2740 !important; }
-.pb-admin-dark .text-purple-300 { color: #a48fd6 !important; }
-.pb-admin-dark .text-purple-400 { color: #b39fe0 !important; }
-.pb-admin-dark .text-purple-700 { color: #c7b6ea !important; }
-.pb-admin-dark .text-purple-800 { color: #d3c5ef !important; }
-
-/* آبی (در انتظار/اطلاعات) */
-.pb-admin-dark .bg-blue-50 { background: #12212e !important; }
-.pb-admin-dark .border-blue-100 { border-color: #1a2f40 !important; }
-.pb-admin-dark .border-blue-200 { border-color: #223e52 !important; }
-.pb-admin-dark .text-blue-600 { color: #5b9bd5 !important; }
-.pb-admin-dark .text-blue-700 { color: #7bafdd !important; }
-
-/* سبزِ موفقیت (جدا از برند) */
-.pb-admin-dark .bg-green-50 { background: #142a1a !important; }
-.pb-admin-dark .bg-green-100 { background: #1a3321 !important; }
-.pb-admin-dark .border-green-100 { border-color: #1f3d27 !important; }
-.pb-admin-dark .border-green-200 { border-color: #294d33 !important; }
-.pb-admin-dark .border-green-300 { border-color: #345f3f !important; }
-.pb-admin-dark .text-green-600 { color: #5cb86e !important; }
-.pb-admin-dark .text-green-700 { color: #7bc98a !important; }
+/* بجِ وضعیت‌ها (سبز/کهربایی/قرمز/آبی/بنفش) — پس‌زمینه/بوردرِ opacity-محور
+   دست‌نخورده می‌ماند (خودش روی تیره درست دیده می‌شود)؛ فقط متن یک پله
+   روشن‌تر می‌شود تا کنتراستِ کافی روی زمینه‌ی مشکی داشته باشد */
+.pb-admin-dark .text-emerald-600, .pb-admin-dark .text-emerald-700 { color: #34d399 !important; }
+.pb-admin-dark .text-amber-600, .pb-admin-dark .text-amber-700 { color: #fbbf24 !important; }
+.pb-admin-dark .text-red-600, .pb-admin-dark .text-red-700 { color: #f87171 !important; }
+.pb-admin-dark .text-sky-600 { color: #38bdf8 !important; }
+.pb-admin-dark .text-violet-600 { color: #a78bfa !important; }
 
 /* فیلدهای فرم */
 .pb-admin-dark input, .pb-admin-dark textarea, .pb-admin-dark select {
-  background: #14171d !important; color: #e8eaed !important; border-color: #313845 !important;
+  background: #141414 !important; color: #fafafa !important; border-color: #333333 !important;
 }
-.pb-admin-dark input::placeholder, .pb-admin-dark textarea::placeholder { color: #6b7280 !important; }
+.pb-admin-dark input::placeholder, .pb-admin-dark textarea::placeholder { color: #6b6b6b !important; }
 
 /* مخفی‌کردنِ اسکرول‌بار برای نوارهای افقی (موبایل) */

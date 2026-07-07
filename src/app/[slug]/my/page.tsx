@@ -295,7 +295,7 @@ export default function PatientPanel() {
        </button>
       </>
      ) : (
-      <StageInfo icon="" title="وقت ثبت شد"
+      <StageInfo icon="📅" title="وقت ثبت شد"
        desc="منتظرِ برگزاری باشید. پس از آن، دکتر مرحله‌ی بعد را مشخص می‌کند."
        date={currentStage.session_date} time={currentStage.session_time}
        label={`وقتِ ${STAGE_TYPE_LABEL[currentStage.stage_type] || ''}`}
@@ -664,7 +664,7 @@ function SessionCard({ session: s, num, phone, caseNumber, onUpdate }: {
       <div className="bg-sand border border-sand rounded-xl p-3 mb-2">
        <CardChooser cards={settings.cards} loaded={settings.loaded} />
       </div>
-      <label className="text-xs text-soot mb-1 block">متن فیش واریزی <span className="text-ink">*</span></label>
+      <label className="text-xs text-soot mb-1 block">متن فیش واریزی <span className="text-red-500">*</span></label>
       <textarea value={payRef} onChange={e => setPayRef(e.target.value)} rows={2} placeholder="اطلاعات فیش واریزی..."
        className="w-full text-sm px-3 py-2 border border-sand rounded-xl focus:outline-none focus:border-ink mb-2 resize-none" />
       <button onClick={paySession} disabled={paying || !payRef.trim()}
@@ -701,7 +701,7 @@ function SessionCard({ session: s, num, phone, caseNumber, onUpdate }: {
         {isPartial ? <>بیشتر از {toFarsiNum(policy.threshold_hours)} ساعت تا جلسه مانده.</> : <>کمتر از {toFarsiNum(policy.threshold_hours)} ساعت تا جلسه مانده.</>} با کنسل‌کردن{' '}
         <strong>{toFarsiNum(refundPercent)}٪ مبلغ ({refundAmount.toLocaleString()} تومان)</strong> پس از بررسی به کارتِ شما بازگردانده می‌شود.
        </p>
-       <label className="text-xs text-soot mb-1 block">شماره کارت برای واریزِ بازپرداخت <span className="text-ink">*</span></label>
+       <label className="text-xs text-soot mb-1 block">شماره کارت برای واریزِ بازپرداخت <span className="text-red-500">*</span></label>
        <input value={refundCard} onChange={e => setRefundCard(e.target.value)} dir="ltr"
         placeholder="6037-0000-0000-0000" inputMode="numeric"
         className="w-full text-sm px-3 py-2 border border-sand rounded-lg font-mono tracking-wider focus:outline-none focus:border-ink mb-3" />
@@ -716,7 +716,7 @@ function SessionCard({ session: s, num, phone, caseNumber, onUpdate }: {
       <button onClick={() => setShowConfirm(false)}
        className="flex-1 py-2 border border-sand rounded-lg text-xs text-soot">انصراف</button>
       <button onClick={cancelSession} disabled={cancelling}
-       className="flex-1 py-2 bg-ink text-white rounded-lg text-xs disabled:opacity-40">
+       className="flex-1 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs disabled:opacity-40">
        {cancelling ? 'در حال کنسل...' : !s.paid ? 'تایید کنسل' : needsRefundCard ? `تایید و کنسل (${toFarsiNum(refundPercent)}٪ بازپرداخت)` : 'تایید و سوختِ مبلغ'}
       </button>
      </div>
@@ -785,7 +785,7 @@ function PayButton({ pkg, phone, onSuccess, total }: { pkg: Package; phone: stri
    <div className="bg-sand border border-sand rounded-xl p-3 mb-2">
     <CardChooser cards={settings.cards} loaded={settings.loaded} />
    </div>
-   <label className="text-xs text-soot mb-1 block">متن فیش واریزی <span className="text-ink">*</span></label>
+   <label className="text-xs text-soot mb-1 block">متن فیش واریزی <span className="text-red-500">*</span></label>
    <textarea value={ref} onChange={e => setRef(e.target.value)} rows={3} placeholder="اطلاعات فیش واریزی را وارد کنید..."
     className="w-full text-sm px-3 py-2 border border-sand rounded-xl focus:outline-none focus:border-ink mb-2 resize-none" />
    <button onClick={pay} disabled={paying || !ref.trim()}
@@ -1306,7 +1306,7 @@ function StagePayment({ icon, title, desc, amount, onPaid, onDone, resourceId, c
      <div className="bg-sand border border-sand rounded-xl p-3 mb-3">
       <CardChooser cards={settings.cards} loaded={settings.loaded} />
      </div>
-     <label className="text-xs text-soot mb-1 block">متن فیش واریزی <span className="text-ink">*</span></label>
+     <label className="text-xs text-soot mb-1 block">متن فیش واریزی <span className="text-red-500">*</span></label>
      <textarea value={ref} onChange={e => setRef(e.target.value)} rows={3} placeholder="اطلاعات فیش واریزی را وارد کنید (کد پیگیری، شماره کارت مبدأ، تاریخ و ساعت واریز...)"
       className="w-full text-sm px-3 py-2.5 border border-sand rounded-xl focus:outline-none focus:border-ink mb-3 resize-none" />
      <button onClick={submit} disabled={submitting || !ref.trim()}
