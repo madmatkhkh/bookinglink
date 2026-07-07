@@ -270,6 +270,18 @@ const STATUS_COLOR: Record<string, string> = {
  active: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
 }
 
+// ─── آیکون‌های سایدبار (خطی/مینیمال، هم‌سبک با آیکونِ لوگو در صفحه‌ی ورود) ─────
+const iconProps = { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.7, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const, className: 'w-4 h-4 shrink-0' }
+const NavIcons = {
+ patients: <svg {...iconProps}><path d="M4 20c0-3.3 3.6-5 8-5s8 1.7 8 5" /><circle cx="12" cy="8" r="3.3" /></svg>,
+ schedule: <svg {...iconProps}><circle cx="12" cy="12" r="8.3" /><path d="M12 7.5V12l3 2" /></svg>,
+ bookings: <svg {...iconProps}><path d="M4.5 12l4.5 4.5L19.5 6" /></svg>,
+ finance: <svg {...iconProps}><path d="M4 19V10M10.5 19V5M17 19v-7" /></svg>,
+ settings: <svg {...iconProps}><circle cx="12" cy="12" r="8.3" /><path d="M12 8.3v7.4M8.3 12h7.4" /></svg>,
+ patient_settings: <svg {...iconProps}><circle cx="9" cy="8" r="2.8" /><path d="M4 19c0-2.8 2.2-4.3 5-4.3s5 1.5 5 4.3" /><path d="M16 8.5h4.5M16 12h4.5M16 15.5h3" /></svg>,
+ staff: <svg {...iconProps}><circle cx="8" cy="8" r="3" /><circle cx="17" cy="9" r="2.4" /><path d="M3 20c0-3 2.3-4.6 5-4.6s5 1.6 5 4.6" /><path d="M14.5 15.5c2.2.2 3.8 1.5 3.8 4" /></svg>,
+}
+
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 // کارتِ جلسه‌ی مصاحبه/ارزیابی در پرونده — یادداشت + تأیید برگزاری
@@ -1620,13 +1632,13 @@ export function PsychologyAdmin() {
  const showBookingsTab = profile.payment_methods.card_to_card || pendingActionCount > 0
 
  const navItems = [
-  { key: 'patients' as const, icon: '', label: 'پرونده‌ها', badge: 0 },
-  { key: 'schedule' as const, icon: '', label: 'روزهای کاری', badge: 0 },
-  ...(showBookingsTab ? [{ key: 'bookings' as const, icon: '', label: 'تأیید پرداخت‌ها', badge: pendingActionCount }] : []),
-  { key: 'finance' as const, icon: '', label: 'گزارشاتِ مالی', badge: 0 },
-  { key: 'settings' as const, icon: '', label: 'تنظیماتِ سایت', badge: 0 },
-  ...(me?.isOwner !== false ? [{ key: 'patient_settings' as const, icon: '', label: 'تنظیماتِ پنلِ مراجع', badge: 0 }] : []),
-  ...(me?.isOwner ? [{ key: 'staff' as const, icon: '', label: 'درمانگر', badge: 0 }] : []),
+  { key: 'patients' as const, icon: NavIcons.patients, label: 'پرونده‌ها', badge: 0 },
+  { key: 'schedule' as const, icon: NavIcons.schedule, label: 'روزهای کاری', badge: 0 },
+  ...(showBookingsTab ? [{ key: 'bookings' as const, icon: NavIcons.bookings, label: 'تأیید پرداخت‌ها', badge: pendingActionCount }] : []),
+  { key: 'finance' as const, icon: NavIcons.finance, label: 'گزارشاتِ مالی', badge: 0 },
+  { key: 'settings' as const, icon: NavIcons.settings, label: 'تنظیماتِ سایت', badge: 0 },
+  ...(me?.isOwner !== false ? [{ key: 'patient_settings' as const, icon: NavIcons.patient_settings, label: 'تنظیماتِ پنلِ مراجع', badge: 0 }] : []),
+  ...(me?.isOwner ? [{ key: 'staff' as const, icon: NavIcons.staff, label: 'درمانگر', badge: 0 }] : []),
  ]
 
  function NavList({ onNavigate }: { onNavigate?: () => void }) {
@@ -1810,7 +1822,7 @@ export function PsychologyAdmin() {
            ویرایش
           </button>
           <button onClick={() => deletePatient(selectedPatient)}
-           className="text-xs sm:text-sm px-3 py-2 border border-sand text-ink rounded-xl hover:bg-gray-100 whitespace-nowrap">
+           className="text-xs sm:text-sm px-3 py-2 border border-red-200 text-red-600 rounded-xl hover:bg-red-50 whitespace-nowrap">
            حذف
           </button>
          </div>
@@ -1831,9 +1843,10 @@ export function PsychologyAdmin() {
             </span>
             {selectedPatient.status !== 'cancelled' && (() => {
              const bk = bookings.find(b => b.case_number === selectedPatient.case_number)
+             const hasStage = !!bk?.current_stage
              return (
-              <span className="text-xs px-2 py-0.5 bg-sand text-ink rounded-full">
-               {bk?.current_stage ? stageLabel(bk.current_stage) : 'منتظرِ تعیینِ مرحله‌ی بعد'}
+              <span className={`text-xs px-2 py-0.5 rounded-full ${hasStage ? 'bg-sand text-ink' : 'bg-amber-50 text-amber-800 border border-amber-200'}`}>
+               {hasStage ? stageLabel(bk!.current_stage) : 'منتظرِ تعیینِ مرحله‌ی بعد'}
               </span>
              )
             })()}
@@ -1976,8 +1989,12 @@ export function PsychologyAdmin() {
                </h3>
                <div className="flex items-center gap-2">
                 <span className="text-sm font-semibold text-ink">{total.toLocaleString('en-US')} ت</span>
-                <button onClick={() => deletePackage(pkg)}
-                 className="text-xs px-2 py-1 border border-sand text-ink rounded-lg hover:bg-gray-100"></button>
+                <button onClick={() => deletePackage(pkg)} title="حذفِ این پروتکل"
+                 className="p-1.5 border border-red-200 text-red-600 rounded-lg hover:bg-red-50">
+                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
+                  <path d="M5 7h14M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2m-8 0 .8 12a1 1 0 0 0 1 .9h4.4a1 1 0 0 0 1-.9L17 7" />
+                 </svg>
+                </button>
                </div>
               </div>
               <div className="grid grid-cols-2 gap-2 text-xs text-soot">
@@ -3487,7 +3504,7 @@ export function PsychologyAdmin() {
       </div>
       <div className="flex gap-2 mt-4">
        <button onClick={deleteSession}
-        className="py-2.5 px-4 border border-sand text-ink rounded-xl text-sm hover:bg-gray-100">حذف</button>
+        className="py-2.5 px-4 border border-red-200 text-red-600 rounded-xl text-sm hover:bg-red-50">حذف</button>
        <button onClick={() => setEditSession(null)}
         className="flex-1 py-2.5 border border-sand rounded-xl text-sm text-soot">انصراف</button>
        <button onClick={saveSession}
