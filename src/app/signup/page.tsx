@@ -9,6 +9,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { useEffect, useState } from 'react'
 import { PLATFORM_NAME, RESERVED_SLUGS, SLUG_PATTERN } from '@/lib/config'
+import { useResendCooldown } from '@/lib/useResendCooldown'
 
 type NicheCard = { key: string; display_name: string; tagline: string }
 
@@ -24,6 +25,7 @@ export default function Signup() {
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
   const [done, setDone] = useState(false)
+  const resend = useResendCooldown()
 
   useEffect(() => {
     fetch('/api/niches').then(r => r.json()).then(d => {
@@ -50,7 +52,7 @@ export default function Signup() {
       const d = await r.json().catch(() => ({}))
       if (!r.ok) { setErr(d.error || 'خطا در ثبت‌نام'); return }
       if (d.dev_code) setDevCode(String(d.dev_code))
-      setStep('code')
+      setStep('code'); resend.start()
     } catch { setErr('اتصال برقرار نشد') } finally { setBusy(false) }
   }
 
@@ -147,6 +149,15 @@ export default function Signup() {
             <button disabled={busy} className="w-full font-display font-bold text-white bg-ink py-3.5 rounded-xl shadow-sm hover:-translate-y-0.5 transition disabled:opacity-60 mb-3">
               {busy ? 'در حالِ ساختِ کارگاه…' : 'تاییدِ کد و ساختِ کارگاه'}
             </button>
+            <div className="text-center mb-2">
+              {resend.canResend ? (
+                <button type="button" onClick={e => requestCode(e as any)} disabled={busy} className="text-[13px] text-ink font-semibold hover:underline disabled:opacity-40">
+                  ارسالِ دوباره‌ی کد
+                </button>
+              ) : (
+                <p className="text-[12px] text-soot">کد نیامد؟ تا <b className="text-ink">{resend.secondsLeft}</b> ثانیه‌ی دیگر می‌توانی دوباره درخواست کنی</p>
+              )}
+            </div>
             <button type="button" onClick={() => { setStep('details'); setErr(''); setCode('') }} className="w-full text-[13px] text-soot hover:text-ink">
               بازگشت و ویرایشِ اطلاعات
             </button>

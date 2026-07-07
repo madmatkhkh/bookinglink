@@ -6,6 +6,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useParams } from 'next/navigation'
 import { DialogProvider, useDialog } from '@/components/Dialog'
+import { useResendCooldown } from '@/lib/useResendCooldown'
 import { toFarsiNum, PERSIAN_MONTHS, getCurrentJalali } from '@/lib/calendar'
 import { BOOKING_STATUS_LABEL, MODE_LABEL } from '@/lib/config'
 
@@ -140,13 +141,14 @@ function GenericLogin({ slug, onSuccess }: { slug: string; onSuccess: () => void
   const [code, setCode] = useState('')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
+  const resend = useResendCooldown()
 
   async function send() {
     setBusy(true); setErr('')
     const r = await fetch(`/api/t/${slug}/panel/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) })
     const d = await r.json().catch(() => ({})); setBusy(false)
     if (!r.ok) { setErr(d.error || 'خطا'); return }
-    setSent(true); setDev(d.dev_code || '')
+    setSent(true); setDev(d.dev_code || ''); resend.start()
   }
   async function verify() {
     setBusy(true); setErr('')
@@ -175,6 +177,13 @@ function GenericLogin({ slug, onSuccess }: { slug: string; onSuccess: () => void
             <input value={code} onChange={e => setCode(e.target.value)} dir="ltr" inputMode="numeric" autoFocus placeholder="کد 5 رقمی"
               className="w-full p-3 rounded-xl border border-sand text-lg text-center tracking-widest" />
             <button onClick={verify} disabled={busy || code.trim().length < 5} className="w-full py-3 rounded-xl bg-accent text-white font-medium disabled:opacity-40">ورود</button>
+            <div className="text-center">
+              {resend.canResend ? (
+                <button onClick={send} disabled={busy} className="text-sm text-ink font-medium hover:underline disabled:opacity-40">ارسالِ دوباره‌ی کد</button>
+              ) : (
+                <p className="text-xs text-soot">کد نیامد؟ تا <span className="tnum font-medium text-ink">{toFarsiNum(resend.secondsLeft)}</span> ثانیه‌ی دیگر می‌توانی دوباره درخواست کنی</p>
+              )}
+            </div>
           </div>
         )}
       </div>

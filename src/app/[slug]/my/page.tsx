@@ -6,6 +6,7 @@ import { PSY_PRICING as PRICING, DEFAULT_CANCELLATION_POLICY } from '@/lib/psy'
 import { usePublicClinic, usePatientFeatures, CardChooser } from '@/components/PsyPublic'
 import { STAGE_TYPE_LABEL } from '@/lib/flow'
 import { DialogHost, uiAlert, uiConfirm } from '@/components/ui/Dialog'
+import { useResendCooldown } from '@/lib/useResendCooldown'
 
 type CaseStage = {
  id: string; case_number: string
@@ -66,13 +67,14 @@ export default function PatientPanel() {
  const [selectedPkg, setSelectedPkg] = useState<Package | null>(null)
  const [scheduleView, setScheduleView] = useState(false)
  const [showSlotPicker, setShowSlotPicker] = useState(false)
+ const resend = useResendCooldown()
 
  async function sendOtp() {
   if (!phone || phone.length < 10) { setError('شماره موبایل درست نیست'); return }
   setLoading(true); setError('')
   const res = await fetch(`/api/t/${slug}/psy/otp`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone }) })
   const data = await res.json()
-  if (data.success) { setDevCode(data.dev_code); setStep('otp') }
+  if (data.success) { setDevCode(data.dev_code); setStep('otp'); resend.start() }
   else setError(data.error || 'خطا')
   setLoading(false)
  }
@@ -199,8 +201,8 @@ export default function PatientPanel() {
      <h1 className="text-lg font-display font-semibold text-ink">کد تایید</h1>
      <p className="text-xs text-soot mt-1">کد ارسال شده به {phone} را وارد کنید</p>
      {devCode && (
-      <div className="mt-2 bg-gray-100 border border-sand rounded-lg px-3 py-2">
-       <p className="text-xs text-ink">کد تست: <strong className="font-mono text-base">{devCode}</strong></p>
+      <div className="mt-2 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
+       <p className="text-xs text-amber-700">کد تست: <strong className="font-mono text-base">{devCode}</strong></p>
       </div>
      )}
     </div>
@@ -212,8 +214,17 @@ export default function PatientPanel() {
      className="w-full py-3 bg-ink text-white rounded-xl text-sm font-medium disabled:opacity-40">
      {loading ? 'در حال بررسی...' : 'ورود به پنل'}
     </button>
+    <div className="text-center mt-3">
+     {resend.canResend ? (
+      <button onClick={sendOtp} disabled={loading} className="text-sm text-ink font-medium hover:underline disabled:opacity-40">
+       ارسالِ دوباره‌ی کد
+      </button>
+     ) : (
+      <p className="text-xs text-soot">کد نیامد؟ تا <span className="tnum font-medium text-ink">{toFarsiNum(resend.secondsLeft)}</span> ثانیه‌ی دیگر می‌توانی دوباره درخواست کنی</p>
+     )}
+    </div>
     <button onClick={() => { setStep('login'); setError(''); setOtpCode('') }}
-     className="w-full py-2 mt-2 text-sm text-soot">تغییر شماره</button>
+     className="w-full py-2 mt-1 text-sm text-soot">تغییر شماره</button>
    </div>
   </div>
  )

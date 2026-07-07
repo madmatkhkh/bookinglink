@@ -11,6 +11,7 @@ import MonthCalendar from '@/components/MonthCalendar'
 import { DialogProvider, useDialog } from '@/components/Dialog'
 import { getCurrentJalali, jalaliKey, toFarsiNum, toLatinNum, PERSIAN_MONTHS } from '@/lib/calendar'
 import { MODE_LABEL } from '@/lib/config'
+import { useResendCooldown } from '@/lib/useResendCooldown'
 
 type Service = { id: string; name: string; duration_minutes: number; price: number; mode: string }
 type Profile = { display_name: string; theme_color: string }
@@ -53,6 +54,7 @@ function BookingFlow() {
  const [name, setName] = useState('')
  const [note, setNote] = useState('')
  const [busy, setBusy] = useState(false)
+ const resend = useResendCooldown()
 
  // گام 3
  const [payInfo, setPayInfo] = useState<{ booking_id: string; amount: number; card_number: string; card_holder_name: string } | null>(null)
@@ -101,7 +103,7 @@ function BookingFlow() {
   })
   const d = await r.json(); setBusy(false)
   if (!r.ok) { uiAlert(d.error || 'خطا در ارسالِ کد'); return }
-  setOtpSent(true); setDevCode(d.dev_code || '')
+  setOtpSent(true); setDevCode(d.dev_code || ''); resend.start()
  }
 
  async function verifyCode() {
@@ -267,6 +269,13 @@ function BookingFlow() {
            className="w-full py-3 rounded-2xl bg-accent text-white font-medium disabled:opacity-50">
            تاییدِ کد
           </button>
+          <div className="text-center">
+           {resend.canResend ? (
+            <button onClick={sendOtp} disabled={busy} className="text-sm text-ink font-medium hover:underline disabled:opacity-40">ارسالِ دوباره‌ی کد</button>
+           ) : (
+            <p className="text-xs text-soot">کد نیامد؟ تا <span className="tnum font-medium text-ink">{resend.secondsLeft}</span> ثانیه‌ی دیگر می‌توانی دوباره درخواست کنی</p>
+           )}
+          </div>
          </div>
         )}
        </div>
@@ -320,7 +329,7 @@ function BookingFlow() {
     {/* ── پایان ── */}
     {done && (
      <div className="text-center py-10">
-      <div className="text-5xl mb-4"></div>
+      <div className="text-5xl mb-4">✅</div>
       <h2 className="font-display font-extrabold text-lg mb-2">پرداختِ شما ثبت شد</h2>
       <p className="text-sm text-soot leading-relaxed mb-6">
        نوبتِ {fmtDate(pickedDate)} ساعتِ <span className="tnum">{toFarsiNum(pickedTime)}</span> پس از تاییدِ پرداخت قطعی می‌شود.

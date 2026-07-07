@@ -7,6 +7,7 @@ import { PRICING } from '@/lib/config'
 import { ClinicSettings, DEFAULT_SETTINGS, SessionMode, OfficeLocation, PaymentCardInfo } from '@/lib/settings'
 import { IntakeForm, FormField, FormFieldType, DEFAULT_INTAKE_FORM, LEGACY_DETAIL_LABELS, CancellationPolicy, PaymentMethods, INTAKE_KNOWN_COLUMNS, fieldVisible } from '@/lib/psy'
 import { DialogHost, uiAlert, uiConfirm, uiPrompt } from '@/components/ui/Dialog'
+import { useResendCooldown } from '@/lib/useResendCooldown'
 
 // در پنلِ ادمین همه‌ی ارقام لاتین نمایش داده می‌شوند (فقط نمایش؛ فرمتِ ذخیره دست‌نخورده)
 const toFarsiNum = (n: number | string) => toLatinNum(String(n))
@@ -3731,6 +3732,7 @@ function PanelLogin({ slug, onSuccess }: { slug: string; onSuccess: () => void }
  const [code, setCode] = useState('')
  const [busy, setBusy] = useState(false)
  const [err, setErr] = useState('')
+ const resend = useResendCooldown()
 
  const loginPath = mode === 'owner' ? `/api/t/${slug}/panel/login` : `/api/t/${slug}/panel/staff-login`
 
@@ -3743,7 +3745,7 @@ function PanelLogin({ slug, onSuccess }: { slug: string; onSuccess: () => void }
   const d = await res.json().catch(() => ({}))
   setBusy(false)
   if (!res.ok) { setErr(d.error || 'خطا'); return }
-  setOtpSent(true); setDevCode(d.dev_code || '')
+  setOtpSent(true); setDevCode(d.dev_code || ''); resend.start()
  }
  async function verify() {
   setBusy(true); setErr('')
@@ -3786,7 +3788,7 @@ function PanelLogin({ slug, onSuccess }: { slug: string; onSuccess: () => void }
      </button>
     </div>
 
-    {err && <div className="text-xs text-ink bg-gray-100 border border-sand rounded-lg p-2.5 mb-3 text-center">{err}</div>}
+    {err && <div className="text-xs text-red-600 bg-red-500/10 border border-red-500/20 rounded-lg p-2.5 mb-3 text-center">{err}</div>}
 
     {!otpSent ? (
      <div className="space-y-3">
@@ -3803,7 +3805,7 @@ function PanelLogin({ slug, onSuccess }: { slug: string; onSuccess: () => void }
     ) : (
      <div className="space-y-3">
       {devCode && (
-       <div className="text-xs text-ink bg-gray-100 border border-sand rounded-lg p-2.5 text-center">
+       <div className="text-xs text-amber-700 bg-amber-500/10 border border-amber-500/20 rounded-lg p-2.5 text-center">
         کدِ تست (تا اتصالِ پیامک): <strong className="text-base">{devCode}</strong>
        </div>
       )}
@@ -3814,6 +3816,15 @@ function PanelLogin({ slug, onSuccess }: { slug: string; onSuccess: () => void }
        className="w-full py-3 rounded-xl bg-ink text-white font-medium disabled:opacity-40">
        ورود
       </button>
+      <div className="text-center">
+       {resend.canResend ? (
+        <button onClick={send} disabled={busy} className="text-sm text-ink font-medium hover:underline disabled:opacity-40">
+         ارسالِ دوباره‌ی کد
+        </button>
+       ) : (
+        <p className="text-xs text-soot">کد نیامد؟ تا <span className="tnum font-medium text-ink">{toFarsiNum(resend.secondsLeft)}</span> ثانیه‌ی دیگر می‌توانی دوباره درخواست کنی</p>
+       )}
+      </div>
      </div>
     )}
    </div>
