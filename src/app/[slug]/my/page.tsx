@@ -529,14 +529,14 @@ function SessionCard({ session: s, num, phone, caseNumber, onUpdate }: {
  }
 
  const STATUS_COLOR: Record<string, string> = {
-  confirmed: 'bg-gray-100 text-ink border-sand',
-  cancelled: 'bg-gray-100 text-ink border-sand',
-  forfeited: 'bg-gray-100 text-ink border-sand',
+  confirmed: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  cancelled: 'bg-red-50 text-red-600 border-red-100',
+  forfeited: 'bg-red-50 text-red-600 border-red-100',
   replaced: 'bg-gray-100 text-soot border-sand',
-  completed: 'bg-gray-100 text-ink border-sand',
-  pending: 'bg-gray-100 text-ink border-sand',
-  awaiting: 'bg-gray-100 text-ink border-sand',
-  awaiting_payment: 'bg-gray-100 text-ink border-sand',
+  completed: 'bg-gray-100 text-soot border-sand',
+  pending: 'bg-amber-50 text-amber-800 border-amber-200',
+  awaiting: 'bg-amber-50 text-amber-800 border-amber-200',
+  awaiting_payment: 'bg-amber-50 text-amber-800 border-amber-200',
  }
  const STATUS_LABEL: Record<string, string> = { confirmed: 'تایید شده', cancelled: 'کنسل شده', forfeited: 'سوخت شده', replaced: 'جایگزین شد', completed: 'برگزار شده', pending: 'در انتظار', awaiting: 'منتظر زمان‌بندی', awaiting_payment: 'منتظر پرداخت' }
 
