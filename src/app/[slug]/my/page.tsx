@@ -239,7 +239,7 @@ export default function PatientPanel() {
        <span className="text-xs font-mono text-ink bg-sand px-2 py-0.5 rounded">{booking.case_number}</span>
        {booking.session_type && (
         <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-soot">
-         {booking.session_type === 'online' ? 'آنلاین' : `حضوری${booking.office_location ? ` — ${booking.office_location}` : ''}`}
+         {booking.session_type === 'online' ? '🎥 آنلاین' : `🏥 حضوری${booking.office_location ? ` — ${booking.office_location}` : ''}`}
         </span>
        )}
       </div>
@@ -283,11 +283,11 @@ export default function PatientPanel() {
      ) : currentStage.status === 'awaiting_booking' ? (
       <>
        {currentStage.cancel_notice && (
-        <div className="bg-gray-100 border border-sand rounded-xl p-3 text-sm text-ink text-right mb-3">
+        <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 text-sm text-amber-700 text-right mb-3">
          ⚠️ {currentStage.cancel_notice}
         </div>
        )}
-       <StageHero icon="✅" title={currentStage.cancel_notice ? 'انتخاب زمانِ جدید' : 'پرداخت تأیید شد!'}
+       <StageHero icon={currentStage.cancel_notice ? '🗓' : '✅'} title={currentStage.cancel_notice ? 'انتخاب زمانِ جدید' : 'پرداخت تأیید شد!'}
         desc={`می‌توانید وقتِ ${STAGE_TYPE_LABEL[currentStage.stage_type] || ''} را انتخاب کنید.`} />
        <button onClick={() => setShowSlotPicker(true)}
         className="w-full py-3 bg-ink text-white rounded-xl text-sm font-medium hover:bg-ink/90">
@@ -295,7 +295,7 @@ export default function PatientPanel() {
        </button>
       </>
      ) : (
-      <StageInfo icon="📅" title="وقت ثبت شد"
+      <StageInfo icon="" title="وقت ثبت شد"
        desc="منتظرِ برگزاری باشید. پس از آن، دکتر مرحله‌ی بعد را مشخص می‌کند."
        date={currentStage.session_date} time={currentStage.session_time}
        label={`وقتِ ${STAGE_TYPE_LABEL[currentStage.stage_type] || ''}`}
@@ -529,14 +529,14 @@ function SessionCard({ session: s, num, phone, caseNumber, onUpdate }: {
  }
 
  const STATUS_COLOR: Record<string, string> = {
-  confirmed: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-  cancelled: 'bg-red-50 text-red-600 border-red-100',
-  forfeited: 'bg-red-50 text-red-600 border-red-100',
+  confirmed: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20',
+  cancelled: 'bg-red-500/10 text-red-600 border-red-500/20',
+  forfeited: 'bg-red-500/10 text-red-600 border-red-500/20',
   replaced: 'bg-gray-100 text-soot border-sand',
-  completed: 'bg-gray-100 text-soot border-sand',
-  pending: 'bg-amber-50 text-amber-800 border-amber-200',
-  awaiting: 'bg-amber-50 text-amber-800 border-amber-200',
-  awaiting_payment: 'bg-amber-50 text-amber-800 border-amber-200',
+  completed: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20',
+  pending: 'bg-amber-500/10 text-amber-600 border-amber-500/20',
+  awaiting: 'bg-amber-500/10 text-amber-600 border-amber-500/20',
+  awaiting_payment: 'bg-amber-500/10 text-amber-600 border-amber-500/20',
  }
  const STATUS_LABEL: Record<string, string> = { confirmed: 'تایید شده', cancelled: 'کنسل شده', forfeited: 'سوخت شده', replaced: 'جایگزین شد', completed: 'برگزار شده', pending: 'در انتظار', awaiting: 'منتظر زمان‌بندی', awaiting_payment: 'منتظر پرداخت' }
 
@@ -605,12 +605,12 @@ function SessionCard({ session: s, num, phone, caseNumber, onUpdate }: {
        : (s.status === 'forfeited' || s.status === 'replaced')
         ? (s.refund_percent && s.refund_percent > 0
           ? <span className="text-soot">{toFarsiNum(s.refund_percent || 0)}٪ بازپرداخت {s.refund_status === 'done' ? '— واریز شد ' : '— در انتظارِ بازپرداخت'}</span>
-          : <span className="text-ink">سوخت شد — مبلغ برنگشت</span>)
+          : <span className="text-red-600">سوخت شد — مبلغ برنگشت</span>)
         : <>{s.session_date} — {s.session_time}</>}
-      {' | '}{s.session_type === 'online' ? 'آنلاین' : 'حضوری'}
+      {' | '}{s.session_type === 'online' ? '🎥 آنلاین' : '🏥 حضوری'}
      </div>
      {!!s.delay_minutes && !isAwaiting && s.status !== 'forfeited' && s.status !== 'replaced' && (
-      <div className="text-xs text-ink bg-gray-100 border border-sand rounded-lg px-2 py-1 mt-1.5 inline-block">
+      <div className="text-xs text-amber-600 bg-amber-500/10 border border-amber-500/20 rounded-lg px-2 py-1 mt-1.5 inline-block font-medium">
        ⏱ این جلسه با {s.delay_minutes} دقیقه تاخیر برگزار می‌شود.
       </div>
      )}
@@ -716,7 +716,7 @@ function SessionCard({ session: s, num, phone, caseNumber, onUpdate }: {
       <button onClick={() => setShowConfirm(false)}
        className="flex-1 py-2 border border-sand rounded-lg text-xs text-soot">انصراف</button>
       <button onClick={cancelSession} disabled={cancelling}
-       className="flex-1 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg text-xs disabled:opacity-40">
+       className="flex-1 py-2 bg-ink text-white rounded-lg text-xs disabled:opacity-40">
        {cancelling ? 'در حال کنسل...' : !s.paid ? 'تایید کنسل' : needsRefundCard ? `تایید و کنسل (${toFarsiNum(refundPercent)}٪ بازپرداخت)` : 'تایید و سوختِ مبلغ'}
       </button>
      </div>
@@ -896,7 +896,7 @@ function SlotPicker({ session, phone, caseNumber, onClose, onDone, title = 'ان
     {(session?.session_type || sessionType) && (
      <div className="px-4 pt-3 space-y-2">
       <span className="inline-block text-xs px-2.5 py-1 rounded-full bg-sand text-ink border border-sand">
-       {(session?.session_type || sessionType) === 'online' ? 'این جلسه آنلاین است' : `این جلسه حضوری است${officeLocation ? ` — ${officeLocation}` : ''}`}
+       {(session?.session_type || sessionType) === 'online' ? '🎥 این جلسه آنلاین است' : `🏥 این جلسه حضوری است${officeLocation ? ` — ${officeLocation}` : ''}`}
       </span>
       {(session?.session_type || sessionType) === 'offline' && (
        <p className="text-[11px] text-soot leading-5">
@@ -1193,7 +1193,7 @@ function SchedulePicker({ pkg, existingSessions, phone, caseNumber, onClose, onD
 function StageHero({ icon, title, desc, red }: { icon: string; title: string; desc: string; red?: boolean }) {
  return (
   <>
-   <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 text-3xl ${red ? 'bg-gray-100' : 'bg-sand'}`}>{icon}</div>
+   <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 text-3xl ${red ? 'bg-red-500/10' : 'bg-sand'}`}>{icon}</div>
    <h2 className="text-base font-medium text-ink mb-2">{title}</h2>
    <p className="text-sm text-soot mb-4">{desc}</p>
   </>
@@ -1203,7 +1203,7 @@ function StageHero({ icon, title, desc, red }: { icon: string; title: string; de
 function StageWaiting({ title, desc }: { title: string; desc: string }) {
  return (
   <>
-   <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4 text-3xl">⏳</div>
+   <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4 text-3xl"></div>
    <h2 className="text-base font-medium text-ink mb-2">{title}</h2>
    <p className="text-sm text-soot">{desc}</p>
   </>
@@ -1323,12 +1323,12 @@ function StagePayment({ icon, title, desc, amount, onPaid, onDone, resourceId, c
 // نوارِ پیشرفتِ مراحل — حالا طولش متغیر است (هر تعداد مصاحبه/ارزیابی که واقعاً وجود دارد) + درمان در انتها
 function StageProgress({ stages, inTreatment }: { stages: CaseStage[]; inTreatment: boolean }) {
  const items = stages.map(s => ({
-  icon: s.stage_type === 'assessment' ? '📋' : '💬',
+  icon: s.stage_type === 'assessment' ? '' : '',
   label: STAGE_TYPE_LABEL[s.stage_type] || s.stage_type,
   done: s.status === 'booked' && !!s.held,
   current: !(s.status === 'booked' && !!s.held),
  }))
- items.push({ icon: '🧠', label: 'درمان', done: inTreatment, current: false })
+ items.push({ icon: '', label: 'درمان', done: inTreatment, current: false })
  return (
   <div className="bg-white rounded-2xl border border-sand p-3 flex items-center justify-between overflow-x-auto">
    {items.map((it, i) => (

@@ -257,7 +257,7 @@ function BookingFlow() {
         ) : (
          <div className="space-y-3">
           {devCode && (
-           <div className="text-xs text-ink bg-gray-100 border border-sand rounded-xl p-3">
+           <div className="text-xs text-amber-700 bg-amber-500/10 border border-amber-500/20 rounded-xl p-3">
             کدِ تست (تا اتصالِ پیامک): <strong className="tnum">{devCode}</strong>
            </div>
           )}
@@ -272,7 +272,7 @@ function BookingFlow() {
        </div>
       ) : (
        <div className="space-y-3">
-        <div className="text-xs text-ink bg-gray-100 border border-sand rounded-xl p-3">
+        <div className="text-xs text-emerald-700 bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-3">
          ✓ شماره‌ی <span className="tnum">{toFarsiNum(phone)}</span> تایید شد
         </div>
         <label className="block text-xs font-bold text-soot">نام و نام‌خانوادگی</label>

@@ -160,7 +160,7 @@ export default function InterviewPage() {
       <p className="text-xs text-soot mt-1">این شماره را نزد خود نگه دارید</p>
      </div>
     )}
-    <div className="bg-gray-100 border border-sand rounded-xl p-3 text-sm text-ink">
+    <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 text-sm text-amber-700">
      پرداختِ شما در انتظار <b>تأیید</b> است. پس از تأیید، از پنل مراجع می‌توانید <b>وقتِ مصاحبه</b> را انتخاب کنید.
     </div>
     <a href={`/${slug}/my`} className="block mt-3 w-full py-3 bg-ink text-white rounded-xl text-sm font-medium hover:bg-ink/90 transition-colors">ورود به پنل مراجع</a>
@@ -611,7 +611,7 @@ function InterviewPayScreen({ amount, cards, loaded, loading, onPay, paymentMeth
     {method === 'online' && online ? (
      <>
       <p className="text-xs text-soot mb-3 text-center">بعدِ پرداخت بلافاصله می‌توانید وقتِ مصاحبه را بگیرید.</p>
-      {onlineError && <div className="text-xs text-ink bg-gray-100 border border-sand rounded-lg p-2.5 mb-3 text-center">{onlineError}</div>}
+      {onlineError && <div className="text-xs text-red-600 bg-red-500/10 border border-red-500/20 rounded-lg p-2.5 mb-3 text-center">{onlineError}</div>}
       <button onClick={payOnline} disabled={onlineLoading}
        className="w-full py-3 bg-ink text-white rounded-xl text-sm font-medium disabled:opacity-40">
        {onlineLoading ? 'در حال اتصال به درگاه...' : 'پرداختِ آنلاین'}
@@ -623,7 +623,7 @@ function InterviewPayScreen({ amount, cards, loaded, loading, onPay, paymentMeth
       <div className="bg-sand border border-sand rounded-xl p-3 mb-3">
        <CardChooser cards={cards} loaded={loaded} />
       </div>
-      <label className="text-xs text-soot mb-1 block">متن فیش واریزی <span className="text-ink">*</span></label>
+      <label className="text-xs text-soot mb-1 block">متن فیش واریزی <span className="text-red-500">*</span></label>
       <textarea value={ref} onChange={e => setRef(e.target.value)} rows={3} placeholder="اطلاعات فیش واریزی را وارد کنید (کد پیگیری، شماره کارت مبدأ، تاریخ و ساعت واریز...)"
        className="w-full text-sm px-3 py-2.5 border border-sand rounded-xl focus:outline-none focus:border-ink mb-3 resize-none" />
       <button onClick={() => onPay(ref.trim())} disabled={loading || !ref.trim()}

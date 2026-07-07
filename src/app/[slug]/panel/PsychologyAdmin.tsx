@@ -261,33 +261,13 @@ const STATUS_LABEL: Record<string, string> = {
  active: 'فعال',
 }
 const STATUS_COLOR: Record<string, string> = {
- pending: 'bg-amber-50 text-amber-800 border border-amber-200',
- confirmed: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
- cancelled: 'bg-red-50 text-red-600 border border-red-100',
- forfeited: 'bg-red-50 text-red-600 border border-red-100',
+ pending: 'bg-amber-500/10 text-amber-600 border border-amber-500/20',
+ confirmed: 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20',
+ cancelled: 'bg-red-500/10 text-red-600 border border-red-500/20',
+ forfeited: 'bg-red-500/10 text-red-600 border border-red-500/20',
  replaced: 'bg-gray-100 text-soot border border-sand',
- completed: 'bg-gray-100 text-soot border border-sand',
- active: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
-}
-
-// ─── آیکون‌های سایدبار (خطی/مینیمال، هم‌سبک با آیکونِ لوگو در صفحه‌ی ورود) ─────
-const iconProps = { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.7, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const, className: 'w-4 h-4 shrink-0' }
-const NavIcons = {
- patients: <svg {...iconProps}><path d="M4 20c0-3.3 3.6-5 8-5s8 1.7 8 5" /><circle cx="12" cy="8" r="3.3" /></svg>,
- schedule: <svg {...iconProps}><circle cx="12" cy="12" r="8.3" /><path d="M12 7.5V12l3 2" /></svg>,
- bookings: <svg {...iconProps}><path d="M4.5 12l4.5 4.5L19.5 6" /></svg>,
- finance: <svg {...iconProps}><path d="M4 19V10M10.5 19V5M17 19v-7" /></svg>,
- settings: <svg {...iconProps}><circle cx="12" cy="12" r="8.3" /><path d="M12 8.3v7.4M8.3 12h7.4" /></svg>,
- patient_settings: <svg {...iconProps}><circle cx="9" cy="8" r="2.8" /><path d="M4 19c0-2.8 2.2-4.3 5-4.3s5 1.5 5 4.3" /><path d="M16 8.5h4.5M16 12h4.5M16 15.5h3" /></svg>,
- staff: <svg {...iconProps}><circle cx="8" cy="8" r="3" /><circle cx="17" cy="9" r="2.4" /><path d="M3 20c0-3 2.3-4.6 5-4.6s5 1.6 5 4.6" /><path d="M14.5 15.5c2.2.2 3.8 1.5 3.8 4" /></svg>,
-}
-// ─── آیکون‌های تب‌های زیرِ پرونده (اطلاعات مراجع / پرداخت / پروتکل / جلسات) ─────
-const tabIconProps = { ...iconProps, className: 'w-3.5 h-3.5 shrink-0' }
-const PatientTabIcons = {
- info: <svg {...tabIconProps}><path d="M4.5 19c0-3 3.3-4.6 7.5-4.6s7.5 1.6 7.5 4.6" /><circle cx="12" cy="7.7" r="3" /></svg>,
- payment: <svg {...tabIconProps}><rect x="3" y="6" width="18" height="12.5" rx="1.8" /><path d="M3 10h18" /></svg>,
- packages: <svg {...tabIconProps}><rect x="3.5" y="4" width="17" height="6.5" rx="1.3" /><rect x="3.5" y="13.5" width="17" height="6.5" rx="1.3" /></svg>,
- sessions: <svg {...tabIconProps}><circle cx="12" cy="12" r="8.3" /><path d="M12 7.5V12l3 2" /></svg>,
+ completed: 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20',
+ active: 'bg-sky-500/10 text-sky-600 border border-sky-500/20',
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -300,7 +280,7 @@ function StageSessionCard({ stage, index, onSave }: {
  const [val, setVal] = useState(stage.notes || '')
  const [saving, setSaving] = useState(false)
  const label = (STAGE_TYPE_LABEL[stage.stage_type] || stage.stage_type) + (index && index > 1 ? ` #${index}` : '')
- const icon = stage.stage_type === 'interview' ? '' : ''
+ const icon = stage.stage_type === 'interview' ? '🩺' : '🧩'
  const held = !!stage.held
  const canHold = stage.status === 'booked' && !held
  return (
@@ -313,8 +293,8 @@ function StageSessionCard({ stage, index, onSave }: {
       <div className="text-xs text-soot">{stage.session_date ? `${enTime(stage.session_date)} — ${enTime(stage.session_time)}` : 'زمان ثبت نشده'}</div>
      </div>
     </div>
-    <span className={`text-xs px-2 py-0.5 rounded-full ${held ? 'bg-gray-100 text-ink' : 'bg-gray-100 text-ink'}`}>
-     {held ? 'برگزار شد' : 'برگزار نشده'}
+    <span className={`text-xs px-2 py-0.5 rounded-full ${held ? 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20' : 'bg-amber-500/10 text-amber-600 border border-amber-500/20'}`}>
+     {held ? '✅ برگزار شد' : 'برگزار نشده'}
     </span>
    </div>
    <textarea value={val} onChange={e => setVal(e.target.value)} rows={2} placeholder="مطالب و یادداشتِ این جلسه..."
@@ -324,7 +304,7 @@ function StageSessionCard({ stage, index, onSave }: {
      className="flex-1 py-2 border border-sand text-soot rounded-lg text-sm disabled:opacity-40">ذخیره یادداشت</button>
     {!held && canHold && (
      <button onClick={async () => { if (!await uiConfirm('تأیید برگزاریِ این جلسه؟ پرونده برای تعیینِ مرحله‌ی بعد آزاد می‌شود.')) return; setSaving(true); await onSave(stage.id, val, true); setSaving(false) }} disabled={saving}
-      className="flex-1 py-2 bg-ink text-white rounded-lg text-sm disabled:opacity-40">تایید برگزاری</button>
+      className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm disabled:opacity-40">✅ تایید برگزاری</button>
     )}
    </div>
   </div>
@@ -337,7 +317,7 @@ function PendingSection({ title, icon, count, children }: { title: string; icon:
    <div className="flex items-center gap-2 mb-3">
     <span className="text-lg">{icon}</span>
     <h3 className="text-sm font-semibold text-ink">{title}</h3>
-    <span className={`text-xs px-2 py-0.5 rounded-full ${count > 0 ? 'bg-gray-200 text-ink' : 'bg-gray-100 text-soot'}`}>{toFarsiNum(count)}</span>
+    <span className={`text-xs px-2 py-0.5 rounded-full ${count > 0 ? 'bg-amber-500/10 text-amber-600 border border-amber-500/20' : 'bg-gray-100 text-soot'}`}>{toFarsiNum(count)}</span>
    </div>
    {count === 0 ? (
     <div className="text-center py-6 text-xs text-gray-300 bg-white rounded-xl border border-dashed border-sand">موردی نیست</div>
@@ -361,7 +341,7 @@ function PendingPayCard({ name, caseNumber, amount, receipt, sub, children }: {
      </div>
      {sub && <div className="text-xs text-soot mt-0.5">{sub}</div>}
     </div>
-    <span className="text-sm font-semibold text-ink shrink-0">{amount.toLocaleString('en-US')} ت</span>
+    <span className="text-sm font-semibold text-amber-600 shrink-0">{amount.toLocaleString('en-US')} ت</span>
    </div>
    {receipt && (
     <div className="bg-gray-50 rounded-lg p-2.5 border border-sand mb-3">
@@ -418,9 +398,9 @@ function RefundPendingCard({ name, caseNumber, card, amount, onDone }: {
      <span className="font-medium text-ink text-sm">{name}</span>
      <span className="text-xs px-2 py-0.5 bg-gray-100 text-soot rounded-md font-mono">{caseNumber}</span>
     </div>
-    <span className="text-sm font-semibold text-soot shrink-0">{amount.toLocaleString('en-US')} ت</span>
+    <span className="text-sm font-semibold text-amber-600 shrink-0">{amount.toLocaleString('en-US')} ت</span>
    </div>
-   <div className="bg-gray-100 rounded-lg p-2.5 border border-sand mb-3">
+   <div className="bg-amber-500/10 rounded-lg p-2.5 border border-amber-500/20 mb-3">
     <p className="text-xs text-soot mb-0.5">شماره کارتِ مراجع برای واریز:</p>
     <p dir="ltr" className="font-mono text-sm text-ink tracking-wider text-right">{card || '—'}</p>
    </div>
@@ -428,7 +408,7 @@ function RefundPendingCard({ name, caseNumber, card, amount, onDone }: {
     className="w-full text-sm px-3 py-2 border border-sand rounded-lg mb-2 focus:outline-none focus:border-ink" />
    <button disabled={saving || !ref.trim()}
     onClick={async () => { if (!await uiConfirm(`واریزِ بازپرداختِ ${amount.toLocaleString('en-US')} تومان به کارتِ مراجع ثبت شود؟`)) return; setSaving(true); await onDone(ref); setSaving(false) }}
-    className="w-full py-2 bg-ink text-white rounded-lg text-sm disabled:opacity-40">
+    className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm disabled:opacity-40">
     {saving ? 'در حال ثبت...' : '✓ ثبتِ واریزِ بازپرداخت'}
    </button>
   </div>
@@ -761,7 +741,7 @@ export function PsychologyAdmin() {
  // حذفِ کاملِ یک پروتکلِ درمان (مثلاً اگر دکتر اشتباهی ثبتش کرده بود). جلسه‌های
  // این پروتکل حذف نمی‌شوند، فقط از این پروتکل جدا می‌شوند (جلسه‌ی تکیِ بی‌عنوان).
  async function deletePackage(pkg: Package) {
-  if (!await uiConfirm(`پروتکل درمانِ «${PERSIAN_MONTHS[parseInt(pkg.month) - 1]} ${pkg.year}» برای همیشه حذف شود؟ جلسه‌های ثبت‌شده‌ی این پروتکل حذف نمی‌شوند، فقط از آن جدا می‌مانند.`, { danger: true, okText: 'حذفِ پروتکل' })) return
+  if (!await uiConfirm(`پروتکل درمانِ «${PERSIAN_MONTHS[parseInt(pkg.month) - 1]} ${pkg.year}» برای همیشه حذف شود؟ جلسه‌های ثبت‌شده‌ی این پروتکل حذف نمی‌شوند، فقط از آن جدا می‌مانند.`)) return
   const res = await fetch(api('/packages'), {
    method: 'DELETE', headers: { 'Content-Type': 'application/json' },
    body: JSON.stringify({ id: pkg.id }),
@@ -772,7 +752,7 @@ export function PsychologyAdmin() {
 
  // حذفِ کاملِ یک پرونده (با تأیید)
  async function deletePatient(p: Patient) {
-  if (!await uiConfirm(`پرونده‌ی «${p.child_name}» (${p.case_number}) و همه‌ی پروتکل‌های درمان و جلسه‌هایش برای همیشه حذف شود؟`, { danger: true, okText: 'حذفِ پرونده' })) return
+  if (!await uiConfirm(`پرونده‌ی «${p.child_name}» (${p.case_number}) و همه‌ی پروتکل‌های درمان و جلسه‌هایش برای همیشه حذف شود؟`)) return
   const res = await fetch(api('/cases'), {
    method: 'DELETE', headers: { 'Content-Type': 'application/json' },
    body: JSON.stringify({ id: p.id }),
@@ -874,7 +854,7 @@ export function PsychologyAdmin() {
  // حذفِ کاملِ یک جلسه (مثلاً اگر دکتر اشتباهی ثبتش کرده بود)
  async function deleteSession() {
   if (!editSession) return
-  if (!await uiConfirm('این جلسه برای همیشه حذف شود؟ این کار بازگشت‌پذیر نیست.', { danger: true, okText: 'حذفِ جلسه' })) return
+  if (!await uiConfirm('این جلسه برای همیشه حذف شود؟ این کار بازگشت‌پذیر نیست.')) return
   await fetch(api('/sessions'), {
    method: 'DELETE', headers: { 'Content-Type': 'application/json' },
    body: JSON.stringify({ id: editSession.id }),
@@ -1038,14 +1018,14 @@ export function PsychologyAdmin() {
      time: s.session_time, name: childNameOf(s.case_number),
      type: STAGE_TYPE_LABEL[s.stage_type] || s.stage_type,
      mode: b?.session_type, loc: b?.office_location,
-     color: s.stage_type === 'assessment' ? 'bg-gray-100 text-ink border-sand' : 'bg-gray-100 text-ink border-sand',
+     color: s.stage_type === 'assessment' ? 'bg-violet-500/10 text-violet-600 border-violet-500/20' : 'bg-sky-500/10 text-sky-600 border-sky-500/20',
      kind: s.stage_type, id: s.id, caseNumber: s.case_number, delayMinutes: s.delay_minutes,
     })
    }
   }
   for (const s of allSessions) {
    if (s.session_date === dateStr && s.session_time && s.status !== 'cancelled' && s.status !== 'forfeited' && s.status !== 'replaced')
-    out.push({ time: s.session_time, name: childNameOf(s.case_number), type: s.attendee === 'parent' ? 'جلسه (والدین)' : 'جلسه (کودک)', mode: s.session_type, color: 'bg-gray-100 text-ink border-sand', kind: 'session', id: s.id, caseNumber: s.case_number, delayMinutes: s.delay_minutes })
+    out.push({ time: s.session_time, name: childNameOf(s.case_number), type: s.attendee === 'parent' ? 'جلسه (والدین)' : 'جلسه (کودک)', mode: s.session_type, color: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20', kind: 'session', id: s.id, caseNumber: s.case_number, delayMinutes: s.delay_minutes })
   }
   return out.sort((a, b) => timeKey(a.time) - timeKey(b.time))
  }
@@ -1095,7 +1075,7 @@ export function PsychologyAdmin() {
  // لغوِ همه‌ی نوبت‌های یک روز
  async function cancelDay(dateStr: string, appts: { kind: 'interview' | 'assessment' | 'session'; id: string; name: string }[]) {
   if (appts.length === 0) return
-  if (!await uiConfirm(`همه‌ی ${appts.length} نوبتِ این روز لغو شود؟ به همه‌ی مراجعان اطلاع داده می‌شود تا دوباره وقت بگیرند.`, { danger: true, okText: 'لغوِ همه‌ی نوبت‌ها' })) return
+  if (!await uiConfirm(`همه‌ی ${appts.length} نوبتِ این روز لغو شود؟ به همه‌ی مراجعان اطلاع داده می‌شود تا دوباره وقت بگیرند.`)) return
   const msg = 'نوبتِ شما توسط مطب لغو شد. لطفاً بدون پرداختِ اضافه، زمانِ جدیدی انتخاب کنید.'
   for (const a of appts) {
    if (a.kind === 'session') {
@@ -1640,13 +1620,13 @@ export function PsychologyAdmin() {
  const showBookingsTab = profile.payment_methods.card_to_card || pendingActionCount > 0
 
  const navItems = [
-  { key: 'patients' as const, icon: NavIcons.patients, label: 'پرونده‌ها', badge: 0 },
-  { key: 'schedule' as const, icon: NavIcons.schedule, label: 'روزهای کاری', badge: 0 },
-  ...(showBookingsTab ? [{ key: 'bookings' as const, icon: NavIcons.bookings, label: 'تأیید پرداخت‌ها', badge: pendingActionCount }] : []),
-  { key: 'finance' as const, icon: NavIcons.finance, label: 'گزارشاتِ مالی', badge: 0 },
-  { key: 'settings' as const, icon: NavIcons.settings, label: 'تنظیماتِ سایت', badge: 0 },
-  ...(me?.isOwner !== false ? [{ key: 'patient_settings' as const, icon: NavIcons.patient_settings, label: 'تنظیماتِ پنلِ مراجع', badge: 0 }] : []),
-  ...(me?.isOwner ? [{ key: 'staff' as const, icon: NavIcons.staff, label: 'درمانگر', badge: 0 }] : []),
+  { key: 'patients' as const, icon: '', label: 'پرونده‌ها', badge: 0 },
+  { key: 'schedule' as const, icon: '', label: 'روزهای کاری', badge: 0 },
+  ...(showBookingsTab ? [{ key: 'bookings' as const, icon: '', label: 'تأیید پرداخت‌ها', badge: pendingActionCount }] : []),
+  { key: 'finance' as const, icon: '', label: 'گزارشاتِ مالی', badge: 0 },
+  { key: 'settings' as const, icon: '', label: 'تنظیماتِ سایت', badge: 0 },
+  ...(me?.isOwner !== false ? [{ key: 'patient_settings' as const, icon: '', label: 'تنظیماتِ پنلِ مراجع', badge: 0 }] : []),
+  ...(me?.isOwner ? [{ key: 'staff' as const, icon: '', label: 'درمانگر', badge: 0 }] : []),
  ]
 
  function NavList({ onNavigate }: { onNavigate?: () => void }) {
@@ -1830,7 +1810,7 @@ export function PsychologyAdmin() {
            ویرایش
           </button>
           <button onClick={() => deletePatient(selectedPatient)}
-           className="text-xs sm:text-sm px-3 py-2 border border-red-200 text-red-600 rounded-xl hover:bg-red-50 whitespace-nowrap">
+           className="text-xs sm:text-sm px-3 py-2 border border-sand text-ink rounded-xl hover:bg-gray-100 whitespace-nowrap">
            حذف
           </button>
          </div>
@@ -1851,10 +1831,9 @@ export function PsychologyAdmin() {
             </span>
             {selectedPatient.status !== 'cancelled' && (() => {
              const bk = bookings.find(b => b.case_number === selectedPatient.case_number)
-             const hasStage = !!bk?.current_stage
              return (
-              <span className={`text-xs px-2 py-0.5 rounded-full ${hasStage ? 'bg-sand text-ink' : 'bg-amber-50 text-amber-800 border border-amber-200'}`}>
-               {hasStage ? stageLabel(bk!.current_stage) : 'منتظرِ تعیینِ مرحله‌ی بعد'}
+              <span className="text-xs px-2 py-0.5 bg-sand text-ink rounded-full">
+               {bk?.current_stage ? stageLabel(bk.current_stage) : 'منتظرِ تعیینِ مرحله‌ی بعد'}
               </span>
              )
             })()}
@@ -1867,18 +1846,18 @@ export function PsychologyAdmin() {
         {/* Sub-tabs */}
         <div className="flex gap-1 mb-4 overflow-x-auto">
          {([
-          ['info', 'اطلاعات مراجع', <svg key="i1" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><circle cx="12" cy="8" r="3.2" /><path d="M5 19.5c0-3 3.1-4.7 7-4.7s7 1.7 7 4.7" /></svg>],
-          ['payment', 'اطلاعات پرداخت', <svg key="i2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><rect x="3" y="6" width="18" height="12" rx="2" /><path d="M3 10h18" /></svg>],
-          ['packages', 'پروتکل‌های درمان', <svg key="i3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><path d="M6 4h9l3 3v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1Z" /><path d="M8.5 11h7M8.5 14.5h7M8.5 18h4" /></svg>],
-          ['sessions', 'جلسات تکی', <svg key="i4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><rect x="3.5" y="5" width="17" height="15" rx="2" /><path d="M3.5 9.5h17M8 3v3.5M16 3v3.5" /></svg>],
-         ] as const).map(([k, label, icon]) => (
+          ['info', 'اطلاعات مراجع'],
+          ['payment', 'اطلاعات پرداخت'],
+          ['packages', 'پروتکل‌های درمان'],
+          ['sessions', 'جلسات تکی'],
+         ] as const).map(([k, label]) => (
           <button key={k} onClick={() => setPatientTab(k)}
-           className={`px-3 py-1.5 text-xs font-medium rounded-lg whitespace-nowrap transition-all flex items-center gap-1.5 ${
+           className={`px-3 py-1.5 text-xs font-medium rounded-lg whitespace-nowrap transition-all ${
             patientTab === k
              ? 'bg-ink text-white'
              : 'bg-white border border-sand text-soot hover:border-gray-300'
            }`}>
-           {icon}{label}
+           {label}
           </button>
          ))}
         </div>
@@ -1997,12 +1976,8 @@ export function PsychologyAdmin() {
                </h3>
                <div className="flex items-center gap-2">
                 <span className="text-sm font-semibold text-ink">{total.toLocaleString('en-US')} ت</span>
-                <button onClick={() => deletePackage(pkg)} title="حذفِ این پروتکل"
-                 className="p-1.5 border border-red-200 text-red-600 rounded-lg hover:bg-red-50">
-                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
-                  <path d="M5 7h14M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2m-8 0 .8 12a1 1 0 0 0 1 .9h4.4a1 1 0 0 0 1-.9L17 7" />
-                 </svg>
-                </button>
+                <button onClick={() => deletePackage(pkg)}
+                 className="text-xs px-2 py-1 border border-sand text-ink rounded-lg hover:bg-gray-100"></button>
                </div>
               </div>
               <div className="grid grid-cols-2 gap-2 text-xs text-soot">
@@ -2214,46 +2189,46 @@ export function PsychologyAdmin() {
          </p>
 
          {/* بخش 1: مصاحبه */}
-         <PendingSection title="مصاحبه‌ی اولیه" icon="" count={interviewPending.length}>
+         <PendingSection title="مصاحبه‌ی اولیه" icon="🩺" count={interviewPending.length}>
           {interviewPending.map(s => (
            <PendingPayCard key={s.id} name={childOf(s.case_number)} caseNumber={s.case_number}
             amount={s.price || PRICING.interview} receipt={s.payment_ref}>
             <div className="flex gap-2">
              <button onClick={() => confirmStagePayment(s.id, 'interview')}
-              className="flex-1 py-2 bg-ink text-white rounded-lg text-sm">تأیید پرداخت</button>
+              className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm">تأیید پرداخت</button>
              <button onClick={() => rejectStagePayment(s.id)}
-              className="flex-1 py-2 border border-sand text-ink rounded-lg text-sm">رد</button>
+              className="flex-1 py-2 border border-red-500/30 text-red-600 hover:bg-red-500/5 rounded-lg text-sm">رد</button>
             </div>
            </PendingPayCard>
           ))}
          </PendingSection>
 
          {/* بخش 2: ارزیابی */}
-         <PendingSection title="ارزیابیِ کودک" icon="" count={assessmentPending.length}>
+         <PendingSection title="ارزیابیِ کودک" icon="🧩" count={assessmentPending.length}>
           {assessmentPending.map(s => (
            <PendingPayCard key={s.id} name={childOf(s.case_number)} caseNumber={s.case_number}
             amount={s.price || PRICING.assessment} receipt={s.payment_ref}>
             <div className="flex gap-2">
              <button onClick={() => confirmStagePayment(s.id, 'assessment')}
-              className="flex-1 py-2 bg-ink text-white rounded-lg text-sm">تأیید پرداخت</button>
+              className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm">تأیید پرداخت</button>
              <button onClick={() => rejectStagePayment(s.id)}
-              className="flex-1 py-2 border border-sand text-ink rounded-lg text-sm">رد</button>
+              className="flex-1 py-2 border border-red-500/30 text-red-600 hover:bg-red-500/5 rounded-lg text-sm">رد</button>
             </div>
            </PendingPayCard>
           ))}
          </PendingSection>
 
          {/* بخش 3: پروتکل‌های درمان (و جلسه‌های جایگزین) */}
-         <PendingSection title="پروتکل درمان" icon="" count={pendingPkgs.length + pendingSess.length}>
+         <PendingSection title="پروتکل درمان" icon="📦" count={pendingPkgs.length + pendingSess.length}>
           {pendingPkgs.map(p => (
            <PendingPayCard key={p.id} name={childOf(p.case_number)} caseNumber={p.case_number}
             amount={pkgAmount(p)} receipt={p.payment_ref}
             sub={`${PERSIAN_MONTHS[parseInt(p.month) - 1]} ${p.year} • ${p.child_sessions + p.parent_sessions} جلسه`}>
             <div className="flex gap-2">
              <button onClick={() => confirmPackagePayment(p.id)}
-              className="flex-1 py-2 bg-ink text-white rounded-lg text-sm">تأیید پرداخت</button>
+              className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm">تأیید پرداخت</button>
              <button onClick={() => rejectPackagePayment(p.id)}
-              className="flex-1 py-2 border border-sand text-ink rounded-lg text-sm">رد</button>
+              className="flex-1 py-2 border border-red-500/30 text-red-600 hover:bg-red-500/5 rounded-lg text-sm">رد</button>
             </div>
            </PendingPayCard>
           ))}
@@ -2263,9 +2238,9 @@ export function PsychologyAdmin() {
             sub="جلسه‌ی جایگزین">
             <div className="flex gap-2">
              <button onClick={() => confirmSessionPayment(s.id)}
-              className="flex-1 py-2 bg-ink text-white rounded-lg text-sm">تأیید پرداخت</button>
+              className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm">تأیید پرداخت</button>
              <button onClick={() => rejectSessionPayment(s.id)}
-              className="flex-1 py-2 border border-sand text-ink rounded-lg text-sm">رد</button>
+              className="flex-1 py-2 border border-red-500/30 text-red-600 hover:bg-red-500/5 rounded-lg text-sm">رد</button>
             </div>
            </PendingPayCard>
           ))}
@@ -2313,8 +2288,8 @@ export function PsychologyAdmin() {
        <>
         {/* راهنمای رنگ‌ها */}
         <div className="flex items-center justify-center gap-4 text-xs text-soot mb-3">
-         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-gray-100 border border-sand" /> روز کاری</span>
-         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-emerald-600" /> نوبتِ رزروشده</span>
+         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-gray-200 border border-sand" /> روز کاری</span>
+         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-ink" /> نوبتِ رزروشده</span>
         </div>
 
         <div className="bg-white rounded-2xl border border-sand p-5 mb-4">
@@ -2346,7 +2321,7 @@ export function PsychologyAdmin() {
               <span className="block text-[10px] mt-0.5 text-ink">{toFarsiNum(totalSlots)} ساعت</span>
              )}
              {booked > 0 && (
-              <span className="absolute top-1 left-1 min-w-4 h-4 px-1 bg-emerald-600 text-white text-[10px] rounded-full flex items-center justify-center font-medium">{toFarsiNum(booked)}</span>
+              <span className="absolute top-1 left-1 min-w-4 h-4 px-1 bg-ink text-white text-[10px] rounded-full flex items-center justify-center font-medium">{toFarsiNum(booked)}</span>
              )}
             </div>
            )
@@ -2455,10 +2430,10 @@ export function PsychologyAdmin() {
               className={`relative text-center py-2 border rounded-xl text-sm transition-all
                ${removeTimeMode ? 'cursor-pointer border-sand bg-gray-100 text-ink hover:bg-gray-200' :
                 isPastTime ? 'border-sand bg-gray-50 text-gray-300 cursor-not-allowed line-through' :
-                takenBy ? 'border-amber-200 bg-amber-50 text-amber-800 cursor-not-allowed' :
+                takenBy ? 'border-amber-500/20 bg-amber-500/10 text-amber-600 cursor-not-allowed' :
                 'cursor-pointer ' + (selected ? 'border-ink bg-sand text-ink font-medium' : 'border-sand text-soot hover:border-gray-300')}`}>
               {enTime(t)}
-              {!removeTimeMode && takenBy && !isPastTime && <span className="block text-[10px] mt-0.5">{takenBy.name}</span>}
+              {!removeTimeMode && takenBy && !isPastTime && <span className="block text-[10px] mt-0.5">🔒 {takenBy.name}</span>}
               {!removeTimeMode && selected && !locked && (
                fixed
                 ? <span className="block text-[10px] mt-1 text-ink">{opts[0]?.label}</span>
@@ -2553,11 +2528,11 @@ export function PsychologyAdmin() {
                  <span className="font-mono text-xs text-soot w-12 shrink-0">{enTime(t)}</span>
                  {appt ? (
                   <span className={`flex-1 flex items-center justify-between px-3 py-1.5 rounded-lg border text-xs ${appt.color}`}>
-                   <span className="font-medium">{appt.mode === 'online' ? '' : appt.mode === 'offline' ? '' : ''}{appt.name}</span>
+                   <span className="font-medium">{appt.mode === 'online' ? '🎥 ' : appt.mode === 'offline' ? '🏥 ' : ''}{appt.name}</span>
                    <span className="flex items-center gap-2">
                     <span className="opacity-75">{appt.type}{appt.loc ? ` — ${appt.loc}` : ''}</span>
                     {!!appt.delayMinutes && (
-                     <span className="px-1.5 py-0.5 bg-gray-200 text-ink rounded font-medium">⏱ {toFarsiNum(appt.delayMinutes)} د تاخیر</span>
+                     <span className="px-1.5 py-0.5 bg-amber-500/10 text-amber-600 border border-amber-500/20 rounded font-medium">⏱ {toFarsiNum(appt.delayMinutes)} د تاخیر</span>
                     )}
                     <button onClick={() => announceDelay(appt)}
                      className="px-1.5 py-0.5 bg-white/70 border border-sand rounded text-soot hover:bg-white">⏱ تاخیر</button>
@@ -2863,7 +2838,7 @@ export function PsychologyAdmin() {
           </div>
           <input type="checkbox" checked={profile.payment_methods.card_to_card}
            onChange={e => patchProfile({ payment_methods: { ...profile.payment_methods, card_to_card: e.target.checked } })}
-           className="w-5 h-5 accent-emerald-600" />
+           className="w-5 h-5 accent-ink" />
          </label>
          <label className="flex items-center justify-between p-3 rounded-xl border border-sand cursor-pointer">
           <div>
@@ -2872,7 +2847,7 @@ export function PsychologyAdmin() {
           </div>
           <input type="checkbox" checked={profile.payment_methods.online}
            onChange={e => patchProfile({ payment_methods: { ...profile.payment_methods, online: e.target.checked } })}
-           className="w-5 h-5 accent-emerald-600" />
+           className="w-5 h-5 accent-ink" />
          </label>
          {!profile.payment_methods.card_to_card && !profile.payment_methods.online && (
           <p className="text-[11px] text-ink px-1">حداقل یک روش باید فعال بماند.</p>
@@ -3058,7 +3033,7 @@ export function PsychologyAdmin() {
               <div className="bg-gray-50 rounded-xl p-5">
                <div className="flex items-center justify-between mb-4">
                 <span className="text-xs text-soot">ویرایشِ بخش — برای جابه‌جایی، از لیستِ کنار درگ کن</span>
-                <button onClick={async () => { if (await uiConfirm(`بخشِ «${section.title}» با همه‌ی سوال‌هایش حذف شود؟`, { danger: true, okText: 'حذفِ بخش' })) removeFormSection(sIdx) }}
+                <button onClick={async () => { if (await uiConfirm(`بخشِ «${section.title}» با همه‌ی سوال‌هایش حذف شود؟`)) removeFormSection(sIdx) }}
                  className="text-xs px-2.5 py-1.5 border border-sand text-ink rounded-lg hover:bg-gray-100 shrink-0">حذفِ بخش</button>
                </div>
                <label className="text-xs text-soot mb-1 block">عنوانِ بخش</label>
@@ -3193,7 +3168,7 @@ export function PsychologyAdmin() {
                 <span className="text-sm text-ink">پاسخ به این سوال اجباری باشد</span>
                 <input type="checkbox" checked={field.required}
                  onChange={e => updateFormField(sIdx, fIdx, { required: e.target.checked })}
-                 className="w-5 h-5 accent-emerald-600" />
+                 className="w-5 h-5 accent-ink" />
                </label>
 
                {/* منطقِ شرطی — از اینجا (سوالِ گزینه‌ای) تعیین می‌کنی هر جواب چه سوال‌هایی رو بعدش باز کنه */}
@@ -3456,7 +3431,7 @@ export function PsychologyAdmin() {
        </div>
        <label className="flex items-center gap-2 text-sm text-ink cursor-pointer">
         <input type="checkbox" checked={newSess.paid} onChange={e => setNewSess({ ...newSess, paid: e.target.checked })}
-         className="w-4 h-4 accent-emerald-600" />
+         className="w-4 h-4 accent-ink" />
         این جلسه پرداخت‌شده است (اگر تیک نزنی، مراجع باید در پنل پرداخت کند)
        </label>
       </div>
@@ -3512,7 +3487,7 @@ export function PsychologyAdmin() {
       </div>
       <div className="flex gap-2 mt-4">
        <button onClick={deleteSession}
-        className="py-2.5 px-4 border border-red-200 text-red-600 rounded-xl text-sm hover:bg-red-50">حذف</button>
+        className="py-2.5 px-4 border border-sand text-ink rounded-xl text-sm hover:bg-gray-100">حذف</button>
        <button onClick={() => setEditSession(null)}
         className="flex-1 py-2.5 border border-sand rounded-xl text-sm text-soot">انصراف</button>
        <button onClick={saveSession}
@@ -3630,7 +3605,7 @@ export function PsychologyAdmin() {
           </div>
           <input type="checkbox" checked={!!patientFeatures.patient_buy_extra_session}
            onChange={e => togglePatientFeature('patient_buy_extra_session', e.target.checked)}
-           className="w-5 h-5 accent-emerald-600 shrink-0" />
+           className="w-5 h-5 accent-ink shrink-0" />
          </label>
          <p className="text-[11px] text-soot px-1">
           اجازه‌ی کنسل‌کردنِ خودکار پایینِ همین صفحه، کنارِ سیاستِ کنسلی، تنظیم می‌شود.
@@ -3691,7 +3666,7 @@ export function PsychologyAdmin() {
          <span className="text-sm text-ink">مراجع اجازه‌ی کنسل‌کردنِ خودکار داشته باشد</span>
          <input type="checkbox" checked={profile.cancellation_policy.enabled}
           onChange={e => patchProfile({ cancellation_policy: { ...profile.cancellation_policy, enabled: e.target.checked } })}
-          className="w-5 h-5 accent-emerald-600 shrink-0" />
+          className="w-5 h-5 accent-ink shrink-0" />
         </label>
         {profile.cancellation_policy.enabled && (
          <div className="space-y-3 bg-gray-50 rounded-xl p-3.5">
