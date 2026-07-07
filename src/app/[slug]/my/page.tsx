@@ -287,7 +287,7 @@ export default function PatientPanel() {
          ⚠️ {currentStage.cancel_notice}
         </div>
        )}
-       <StageHero icon="" title={currentStage.cancel_notice ? 'انتخاب زمانِ جدید' : 'پرداخت تأیید شد!'}
+       <StageHero icon="✅" title={currentStage.cancel_notice ? 'انتخاب زمانِ جدید' : 'پرداخت تأیید شد!'}
         desc={`می‌توانید وقتِ ${STAGE_TYPE_LABEL[currentStage.stage_type] || ''} را انتخاب کنید.`} />
        <button onClick={() => setShowSlotPicker(true)}
         className="w-full py-3 bg-ink text-white rounded-xl text-sm font-medium hover:bg-ink/90">
@@ -295,7 +295,7 @@ export default function PatientPanel() {
        </button>
       </>
      ) : (
-      <StageInfo icon="" title="وقت ثبت شد"
+      <StageInfo icon="📅" title="وقت ثبت شد"
        desc="منتظرِ برگزاری باشید. پس از آن، دکتر مرحله‌ی بعد را مشخص می‌کند."
        date={currentStage.session_date} time={currentStage.session_time}
        label={`وقتِ ${STAGE_TYPE_LABEL[currentStage.stage_type] || ''}`}
@@ -716,7 +716,7 @@ function SessionCard({ session: s, num, phone, caseNumber, onUpdate }: {
       <button onClick={() => setShowConfirm(false)}
        className="flex-1 py-2 border border-sand rounded-lg text-xs text-soot">انصراف</button>
       <button onClick={cancelSession} disabled={cancelling}
-       className="flex-1 py-2 bg-ink text-white rounded-lg text-xs disabled:opacity-40">
+       className="flex-1 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg text-xs disabled:opacity-40">
        {cancelling ? 'در حال کنسل...' : !s.paid ? 'تایید کنسل' : needsRefundCard ? `تایید و کنسل (${toFarsiNum(refundPercent)}٪ بازپرداخت)` : 'تایید و سوختِ مبلغ'}
       </button>
      </div>
@@ -1203,7 +1203,7 @@ function StageHero({ icon, title, desc, red }: { icon: string; title: string; de
 function StageWaiting({ title, desc }: { title: string; desc: string }) {
  return (
   <>
-   <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4 text-3xl"></div>
+   <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4 text-3xl">⏳</div>
    <h2 className="text-base font-medium text-ink mb-2">{title}</h2>
    <p className="text-sm text-soot">{desc}</p>
   </>
@@ -1323,12 +1323,12 @@ function StagePayment({ icon, title, desc, amount, onPaid, onDone, resourceId, c
 // نوارِ پیشرفتِ مراحل — حالا طولش متغیر است (هر تعداد مصاحبه/ارزیابی که واقعاً وجود دارد) + درمان در انتها
 function StageProgress({ stages, inTreatment }: { stages: CaseStage[]; inTreatment: boolean }) {
  const items = stages.map(s => ({
-  icon: s.stage_type === 'assessment' ? '' : '',
+  icon: s.stage_type === 'assessment' ? '📋' : '💬',
   label: STAGE_TYPE_LABEL[s.stage_type] || s.stage_type,
   done: s.status === 'booked' && !!s.held,
   current: !(s.status === 'booked' && !!s.held),
  }))
- items.push({ icon: '', label: 'درمان', done: inTreatment, current: false })
+ items.push({ icon: '🧠', label: 'درمان', done: inTreatment, current: false })
  return (
   <div className="bg-white rounded-2xl border border-sand p-3 flex items-center justify-between overflow-x-auto">
    {items.map((it, i) => (
