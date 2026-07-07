@@ -151,7 +151,7 @@ export default function InterviewPage() {
   <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
    <DialogHost />
    <div className="max-w-sm w-full bg-white rounded-2xl border border-sand p-8 text-center">
-    <div className="w-16 h-16 rounded-full bg-sand flex items-center justify-center mx-auto mb-4 text-3xl"></div>
+    <div className="w-16 h-16 rounded-full bg-emerald-500/10 flex items-center justify-center mx-auto mb-4 text-3xl">✅</div>
     <h1 className="text-xl font-display font-medium text-ink mb-2">پرداخت شما ثبت شد!</h1>
     {caseNumber && (
      <div className="bg-sand rounded-xl p-3 mb-4">
@@ -230,15 +230,19 @@ export default function InterviewPage() {
         )}
         <h2 className="text-base font-medium mb-4 text-ink">نوع جلسه را انتخاب کنید</h2>
         <div className={`grid gap-3 mb-5 ${sessionOptions.length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
-         {sessionOptions.map(o => (
-          <div key={o.key} onClick={() => { setSelKey(o.key); setSessionType(o.type); setOfficeLoc(o.loc) }}
-           className={`p-4 rounded-xl border cursor-pointer transition-all ${selKey === o.key ? 'border-ink border-2 bg-sand' : 'border-sand hover:border-gray-300'}`}>
-           <div className="text-2xl mb-2">{o.icon}</div>
-           <div className="font-medium text-ink text-sm">{o.label}</div>
-           <div className="text-xs text-soot mb-2">{o.desc}</div>
-           <div className="text-sm font-medium text-ink">{o.price} تومان</div>
-          </div>
-         ))}
+         {sessionOptions.map(o => {
+          const sel = selKey === o.key
+          const tint = o.type === 'online' ? 'border-sky-500 bg-sky-500/5' : 'border-emerald-500 bg-emerald-500/5'
+          return (
+           <div key={o.key} onClick={() => { setSelKey(o.key); setSessionType(o.type); setOfficeLoc(o.loc) }}
+            className={`p-4 rounded-xl border cursor-pointer transition-all ${sel ? `${tint} border-2` : 'border-sand hover:border-gray-300'}`}>
+            <div className="text-2xl mb-2">{o.icon}</div>
+            <div className="font-medium text-ink text-sm">{o.label}</div>
+            <div className="text-xs text-soot mb-2">{o.desc}</div>
+            <div className={`text-sm font-medium ${sel ? (o.type === 'online' ? 'text-sky-600' : 'text-emerald-600') : 'text-ink'}`}>{o.price} تومان</div>
+           </div>
+          )
+         })}
         </div>
         <button disabled={!selKey || (needsDoctorPick && !selectedDoctorId)} onClick={() => setStep(3)}
          className="w-full py-3 bg-ink text-white rounded-xl text-sm font-medium disabled:opacity-40 hover:bg-ink/90 transition-colors">
@@ -330,7 +334,7 @@ export default function InterviewPage() {
 
          {safeIdx === 0 ? (
           <div className="grid grid-cols-2 gap-3">
-           <Field label="نام و نام خانوادگیِ کودک *" value={childName} onChange={setChildName} placeholder="آرین رضایی" />
+           <Field label="نام و نام خانوادگی *" value={childName} onChange={setChildName} placeholder="آرین رضایی" />
            <Field label="شماره تماس *" value={fatherPhone} onChange={setFatherPhone} placeholder="0912..." dir="ltr" />
           </div>
          ) : (
@@ -539,18 +543,21 @@ function StepBar({ current }: { current: number }) {
  const steps = ['نوع جلسه','اطلاعات','پرداخت']
  return (
   <div className="flex items-center mb-6">
-   {steps.map((s, i) => (
+   {steps.map((s, i) => {
+    const done = current > i + 1
+    const active = current === i + 1
+    return (
     <div key={s} className="flex items-center flex-1 last:flex-none">
-     <div className={`flex items-center gap-1.5 text-xs ${current === i+1 ? 'text-ink font-medium' : current > i+1 ? 'text-soot' : 'text-gray-300'}`}>
+     <div className={`flex items-center gap-1.5 text-xs ${active ? 'text-ink font-medium' : done ? 'text-emerald-600' : 'text-gray-300'}`}>
       <div className={`w-5 h-5 rounded-full flex items-center justify-center text-xs border
-       ${current === i+1 ? 'border-ink bg-sand text-ink' : current > i+1 ? 'border-gray-300 bg-gray-100 text-soot' : 'border-sand text-gray-300'}`}>
-       {toFarsiNum(i+1)}
+       ${active ? 'border-ink bg-sand text-ink' : done ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-600' : 'border-sand text-gray-300'}`}>
+       {done ? '✓' : toFarsiNum(i+1)}
       </div>
       <span className="hidden sm:inline">{s}</span>
      </div>
-     {i < steps.length-1 && <div className="flex-1 h-px bg-gray-200 mx-2" />}
+     {i < steps.length-1 && <div className={`flex-1 h-px mx-2 ${current > i + 1 ? 'bg-emerald-300' : 'bg-gray-200'}`} />}
     </div>
-   ))}
+   )})}
   </div>
  )
 }
@@ -584,7 +591,7 @@ function InterviewPayScreen({ amount, cards, loaded, loading, onPay, paymentMeth
    <DialogHost />
    <div className="max-w-sm w-full bg-white rounded-2xl border border-sand p-6">
     <div className="text-center mb-4">
-     <div className="w-16 h-16 rounded-full bg-sand flex items-center justify-center mx-auto mb-3 text-3xl"></div>
+     <div className="w-16 h-16 rounded-full bg-sand flex items-center justify-center mx-auto mb-3 text-3xl">💳</div>
      <h1 className="text-lg font-display font-medium text-ink">پرداختِ هزینه‌ی مصاحبه</h1>
     </div>
 

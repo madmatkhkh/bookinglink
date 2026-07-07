@@ -169,7 +169,7 @@ export default function PatientPanel() {
    <DialogHost />
    <div className="bg-white rounded-2xl border border-sand p-8 w-full max-w-sm shadow-sm">
     <div className="text-center mb-6">
-     <div className="w-14 h-14 rounded-full bg-sand flex items-center justify-center mx-auto mb-3 text-2xl"></div>
+     <div className="w-14 h-14 rounded-full bg-sand flex items-center justify-center mx-auto mb-3 text-2xl">🩺</div>
      <h1 className="text-lg font-display font-semibold text-ink">پنل مراجع</h1>
      {settings.loaded
       ? <p className="text-xs text-soot mt-1">مطبِ {settings.doctor_name}</p>
@@ -181,7 +181,7 @@ export default function PatientPanel() {
       placeholder="09123456789" dir="ltr"
       className="w-full text-sm px-3 py-2.5 border border-sand rounded-xl text-center tracking-widest focus:outline-none focus:border-ink" />
     </div>
-    {error && <p className="text-xs text-ink mb-3 text-center">{error}</p>}
+    {error && <p className="text-xs text-red-600 mb-3 text-center">{error}</p>}
     <button onClick={sendOtp} disabled={loading}
      className="w-full py-3 bg-ink text-white rounded-xl text-sm font-medium disabled:opacity-40">
      {loading ? 'در حال ارسال...' : 'دریافت کد تایید'}
@@ -195,7 +195,7 @@ export default function PatientPanel() {
    <DialogHost />
    <div className="bg-white rounded-2xl border border-sand p-8 w-full max-w-sm shadow-sm">
     <div className="text-center mb-6">
-     <div className="w-14 h-14 rounded-full bg-sand flex items-center justify-center mx-auto mb-3 text-2xl"></div>
+     <div className="w-14 h-14 rounded-full bg-sand flex items-center justify-center mx-auto mb-3 text-2xl">📱</div>
      <h1 className="text-lg font-display font-semibold text-ink">کد تایید</h1>
      <p className="text-xs text-soot mt-1">کد ارسال شده به {phone} را وارد کنید</p>
      {devCode && (
@@ -207,7 +207,7 @@ export default function PatientPanel() {
     <input value={otpCode} onChange={e => setOtpCode(e.target.value)} onKeyDown={e => e.key === 'Enter' && verifyOtp()}
      placeholder="12345" dir="ltr" maxLength={5}
      className="w-full text-xl px-3 py-3 border border-sand rounded-xl text-center tracking-[0.5em] focus:outline-none focus:border-ink mb-3" />
-    {error && <p className="text-xs text-ink mb-3 text-center">{error}</p>}
+    {error && <p className="text-xs text-red-600 mb-3 text-center">{error}</p>}
     <button onClick={verifyOtp} disabled={loading || otpCode.length < 5}
      className="w-full py-3 bg-ink text-white rounded-xl text-sm font-medium disabled:opacity-40">
      {loading ? 'در حال بررسی...' : 'ورود به پنل'}
@@ -357,7 +357,7 @@ export default function PatientPanel() {
      <div className="space-y-3">
       {packages.length === 0 ? (
        <div className="text-center py-12 bg-white rounded-xl border border-sand text-soot">
-        <div className="text-3xl mb-2"></div>
+        <div className="text-3xl mb-2">📦</div>
         <p className="text-sm">هنوز پروتکلی تعریف نشده</p>
         <p className="text-xs mt-1">دکتر به زودی پروتکل درمانی شما را تنظیم می‌کند</p>
        </div>
@@ -376,8 +376,8 @@ export default function PatientPanel() {
           </div>
           <div className="text-left">
            <div className="text-sm font-bold text-ink">{total.toLocaleString()} تومان</div>
-           <div className={`text-xs mt-0.5 ${pkg.paid ? 'text-ink' : pkg.payment_submitted ? 'text-ink' : 'text-soot'}`}>
-            {pkg.paid ? 'پرداخت تأیید شد' : pkg.payment_submitted ? 'در انتظار تأیید' : 'در انتظار پرداخت'}
+           <div className={`text-xs mt-0.5 font-medium ${pkg.paid ? 'text-emerald-600' : 'text-amber-600'}`}>
+            {pkg.paid ? '✓ پرداخت تأیید شد' : pkg.payment_submitted ? 'در انتظار تأیید' : 'در انتظار پرداخت'}
            </div>
           </div>
          </div>
@@ -400,7 +400,7 @@ export default function PatientPanel() {
           !pkg.payment_submitted ? (
            <PayButton pkg={pkg} phone={phone} onSuccess={() => loadData(booking.case_number)} total={total} />
           ) : (
-           <div className="text-center py-2 text-xs text-ink bg-gray-100 rounded-xl border border-sand">پرداخت ثبت شد — در انتظار تأیید</div>
+           <div className="text-center py-2 text-xs text-amber-600 bg-amber-500/10 rounded-xl border border-amber-500/20">پرداخت ثبت شد — در انتظار تأیید</div>
           )
          ) : booked < total_sessions ? (
           <button onClick={() => { setSelectedPkg(pkg); setScheduleView(true) }}
@@ -408,7 +408,7 @@ export default function PatientPanel() {
            انتخاب روزهای جلسات ({toFarsiNum(total_sessions - booked)} باقی‌مانده)
           </button>
          ) : (
-          <div className="text-center py-2 text-xs text-ink bg-gray-100 rounded-xl border border-sand">همه‌ی جلسات انتخاب شد</div>
+          <div className="text-center py-2 text-xs text-emerald-600 bg-emerald-500/10 rounded-xl border border-emerald-500/20">✓ همه‌ی جلسات انتخاب شد</div>
          )}
         </div>
        )
@@ -421,7 +421,7 @@ export default function PatientPanel() {
      <div className="space-y-3">
       {sessions.length === 0 ? (
        <div className="text-center py-12 bg-white rounded-xl border border-sand text-soot">
-        <div className="text-3xl mb-2"></div>
+        <div className="text-3xl mb-2">🗓</div>
         <p className="text-sm">هنوز جلسه‌ای ثبت نشده</p>
        </div>
       ) : (() => {
@@ -924,7 +924,7 @@ function SlotPicker({ session, phone, caseNumber, onClose, onDone, title = 'ان
         <div key={d} onClick={() => { if (hasSlot) { setSelectedDay(d); setSelectedSlot('') } }}
          className={`text-center py-2 rounded-lg text-sm ${hasSlot ? 'cursor-pointer hover:bg-sand' : 'text-gray-300'} ${isSel ? 'bg-sand text-ink font-medium' : 'text-ink'}`}>
          {toFarsiNum(d)}
-         {hasSlot && <span className="block w-1 h-1 rounded-full bg-ink mx-auto mt-0.5" />}
+         {hasSlot && <span className="block w-1 h-1 rounded-full bg-emerald-500 mx-auto mt-0.5" />}
         </div>
        )
       })}
@@ -939,8 +939,8 @@ function SlotPicker({ session, phone, caseNumber, onClose, onDone, title = 'ان
       <div className="grid grid-cols-3 gap-2 mb-4">
        {slotsForDay(selectedDay).map(slot => (
         <div key={slot} onClick={() => setSelectedSlot(slot)}
-         className={`text-center py-2 border rounded-lg text-sm cursor-pointer ${selectedSlot === slot ? 'border-ink bg-sand text-ink font-medium' : 'border-sand text-soot'}`}>
-         {slot}
+         className={`text-center py-2 border rounded-lg text-sm cursor-pointer ${selectedSlot === slot ? 'border-emerald-500 bg-emerald-500/10 text-emerald-700 font-medium' : 'border-sand text-soot'}`}>
+         {selectedSlot === slot && '✓ '}{slot}
         </div>
        ))}
       </div>
@@ -1089,7 +1089,7 @@ function SchedulePicker({ pkg, existingSessions, phone, caseNumber, onClose, onD
     <div className="p-4">
      {/* Progress */}
      <div className="bg-gray-100 rounded-full h-2 mb-4">
-      <div className="bg-ink h-2 rounded-full transition-all" style={{ width: `${(totalSelected / remaining) * 100}%` }} />
+      <div className="bg-emerald-500 h-2 rounded-full transition-all" style={{ width: `${(totalSelected / remaining) * 100}%` }} />
      </div>
 
      {/* Calendar */}
@@ -1116,9 +1116,9 @@ function SchedulePicker({ pkg, existingSessions, phone, caseNumber, onClose, onD
           ${isSelected ? 'bg-sand text-ink font-medium ring-1 ring-ink' : ''}
          `}>
          {toFarsiNum(d)}
-         {hasSlots && !isPast && <span className="block w-1 h-1 rounded-full bg-ink mx-auto mt-0.5" />}
+         {hasSlots && !isPast && <span className="block w-1 h-1 rounded-full bg-emerald-500 mx-auto mt-0.5" />}
          {daySelections > 0 && (
-          <span className="absolute -top-1 -left-1 w-4 h-4 bg-ink text-white text-xs rounded-full flex items-center justify-center">
+          <span className="absolute -top-1 -left-1 w-4 h-4 bg-emerald-500 text-white text-xs rounded-full flex items-center justify-center">
            {daySelections}
           </span>
          )}
@@ -1142,8 +1142,8 @@ function SchedulePicker({ pkg, existingSessions, phone, caseNumber, onClose, onD
          return (
           <div key={slot}>
            <div onClick={() => selectSlot(selectedDay, slot)}
-            className={`text-center py-2 border rounded-lg text-sm cursor-pointer transition-all ${isChosen ? 'border-ink bg-sand text-ink font-medium' : 'border-sand text-soot hover:border-gray-300'}`}>
-            {slot}
+            className={`text-center py-2 border rounded-lg text-sm cursor-pointer transition-all ${isChosen ? 'border-emerald-500 bg-emerald-500/10 text-emerald-700 font-medium' : 'border-sand text-soot hover:border-gray-300'}`}>
+            {isChosen && '✓ '}{slot}
            </div>
            {isChosen && pkg.parent_sessions > 0 && (
             <div className="flex mt-1 gap-1">
@@ -1203,7 +1203,7 @@ function StageHero({ icon, title, desc, red }: { icon: string; title: string; de
 function StageWaiting({ title, desc }: { title: string; desc: string }) {
  return (
   <>
-   <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4 text-3xl"></div>
+   <div className="w-16 h-16 rounded-full bg-amber-500/10 flex items-center justify-center mx-auto mb-4 text-3xl">⏳</div>
    <h2 className="text-base font-medium text-ink mb-2">{title}</h2>
    <p className="text-sm text-soot">{desc}</p>
   </>
