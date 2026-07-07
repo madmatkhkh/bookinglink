@@ -916,19 +916,6 @@ export function PsychologyAdmin() {
   if (selectedPatient) await loadPatientData(selectedPatient.case_number)
  }
 
- // دکتر مرحله‌ی بعدِ پرونده را مشخص می‌کند (مصاحبه‌ی دیگر یا ارزیابی) — کاملاً
- // آزاد: هر تعداد بار، به هر ترتیب. فقط وقتی ممکن است که مرحله‌ی بازِ دیگری نباشد.
- async function addNextStage(caseNumber: string, stageType: 'interview' | 'assessment') {
-  const res = await fetch(api('/stages'), {
-   method: 'POST', headers: { 'Content-Type': 'application/json' },
-   body: JSON.stringify({ case_number: caseNumber, stage_type: stageType }),
-  })
-  const d = await res.json().catch(() => ({}))
-  if (!res.ok) { uiAlert(d.error || 'خطا در ثبتِ مرحله'); return }
-  fetchAll()
-  if (selectedPatient?.case_number === caseNumber) await loadPatientData(caseNumber)
- }
-
  // ذخیره‌ی یادداشت و/یا تأییدِ برگزاریِ یک مرحله — بعد از این، پرونده آزاد می‌شود
  // تا دکتر مرحله‌ی بعد را (اگر خواست) مشخص کند
  async function saveStageSession(stageId: string, notes: string, markHeld: boolean) {
@@ -967,7 +954,7 @@ export function PsychologyAdmin() {
         {s.title && <div className="text-xs font-medium text-ink mb-0.5">{s.title}</div>}
         <div className="text-sm font-medium text-ink">
          {s.session_date ? `${enTime(s.session_date)} — ${enTime(s.session_time)}` : (
-          <span className="text-soot font-normal">{s.paid ? 'منتظرِ نوبت‌گیریِ مراجع' : 'منتظرِ پرداخت و نوبت‌گیریِ مراجع'}</span>
+          <span className="text-amber-600 font-normal">{s.paid ? 'منتظرِ نوبت‌گیریِ مراجع' : 'منتظرِ پرداخت و نوبت‌گیریِ مراجع'}</span>
          )}
         </div>
         <div className="text-xs text-soot">
@@ -1620,13 +1607,13 @@ export function PsychologyAdmin() {
  const showBookingsTab = profile.payment_methods.card_to_card || pendingActionCount > 0
 
  const navItems = [
-  { key: 'patients' as const, icon: '', label: 'پرونده‌ها', badge: 0 },
-  { key: 'schedule' as const, icon: '', label: 'روزهای کاری', badge: 0 },
-  ...(showBookingsTab ? [{ key: 'bookings' as const, icon: '', label: 'تأیید پرداخت‌ها', badge: pendingActionCount }] : []),
-  { key: 'finance' as const, icon: '', label: 'گزارشاتِ مالی', badge: 0 },
-  { key: 'settings' as const, icon: '', label: 'تنظیماتِ سایت', badge: 0 },
-  ...(me?.isOwner !== false ? [{ key: 'patient_settings' as const, icon: '', label: 'تنظیماتِ پنلِ مراجع', badge: 0 }] : []),
-  ...(me?.isOwner ? [{ key: 'staff' as const, icon: '', label: 'درمانگر', badge: 0 }] : []),
+  { key: 'patients' as const, icon: '📁', label: 'پرونده‌ها', badge: 0 },
+  { key: 'schedule' as const, icon: '🗓', label: 'روزهای کاری', badge: 0 },
+  ...(showBookingsTab ? [{ key: 'bookings' as const, icon: '💳', label: 'تأیید پرداخت‌ها', badge: pendingActionCount }] : []),
+  { key: 'finance' as const, icon: '📊', label: 'گزارشاتِ مالی', badge: 0 },
+  { key: 'settings' as const, icon: '🌐', label: 'تنظیماتِ سایت', badge: 0 },
+  ...(me?.isOwner !== false ? [{ key: 'patient_settings' as const, icon: '👤', label: 'تنظیماتِ پنلِ مراجع', badge: 0 }] : []),
+  ...(me?.isOwner ? [{ key: 'staff' as const, icon: '👥', label: 'درمانگر', badge: 0 }] : []),
  ]
 
  function NavList({ onNavigate }: { onNavigate?: () => void }) {
@@ -1638,7 +1625,7 @@ export function PsychologyAdmin() {
        mainTab === item.key ? 'bg-sand text-ink font-medium' : 'text-soot hover:bg-gray-50'}`}>
       <span className="flex items-center gap-2">{item.icon} {item.label}</span>
       {item.badge > 0 && (
-       <span className="min-w-5 h-5 px-1.5 bg-ink text-white text-[11px] rounded-full flex items-center justify-center font-medium">
+       <span className="min-w-5 h-5 px-1.5 bg-amber-400 text-white text-[11px] rounded-full flex items-center justify-center font-medium">
         {toFarsiNum(item.badge)}
        </span>
       )}
@@ -1810,7 +1797,7 @@ export function PsychologyAdmin() {
            ویرایش
           </button>
           <button onClick={() => deletePatient(selectedPatient)}
-           className="text-xs sm:text-sm px-3 py-2 border border-sand text-ink rounded-xl hover:bg-gray-100 whitespace-nowrap">
+           className="text-xs sm:text-sm px-3 py-2 border border-red-500/30 text-red-600 rounded-xl hover:bg-red-500/5 whitespace-nowrap">
            حذف
           </button>
          </div>
@@ -1831,9 +1818,13 @@ export function PsychologyAdmin() {
             </span>
             {selectedPatient.status !== 'cancelled' && (() => {
              const bk = bookings.find(b => b.case_number === selectedPatient.case_number)
+             const st = bk?.current_stage
+             const color = !st ? 'bg-amber-500/10 text-amber-600 border border-amber-500/20'
+               : st.status === 'booked' ? 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20'
+               : 'bg-amber-500/10 text-amber-600 border border-amber-500/20'
              return (
-              <span className="text-xs px-2 py-0.5 bg-sand text-ink rounded-full">
-               {bk?.current_stage ? stageLabel(bk.current_stage) : 'منتظرِ تعیینِ مرحله‌ی بعد'}
+              <span className={`text-xs px-2 py-0.5 rounded-full ${color}`}>
+               {st ? stageLabel(st) : 'منتظرِ تعیینِ مرحله‌ی بعد'}
               </span>
              )
             })()}
@@ -1846,18 +1837,18 @@ export function PsychologyAdmin() {
         {/* Sub-tabs */}
         <div className="flex gap-1 mb-4 overflow-x-auto">
          {([
-          ['info', 'اطلاعات مراجع'],
-          ['payment', 'اطلاعات پرداخت'],
-          ['packages', 'پروتکل‌های درمان'],
-          ['sessions', 'جلسات تکی'],
-         ] as const).map(([k, label]) => (
+          ['info', '👤', 'اطلاعات مراجع'],
+          ['payment', '💳', 'اطلاعات پرداخت'],
+          ['packages', '📦', 'پروتکل‌های درمان'],
+          ['sessions', '🗓', 'جلسات تکی'],
+         ] as const).map(([k, icon, label]) => (
           <button key={k} onClick={() => setPatientTab(k)}
-           className={`px-3 py-1.5 text-xs font-medium rounded-lg whitespace-nowrap transition-all ${
+           className={`px-3 py-1.5 text-xs font-medium rounded-lg whitespace-nowrap transition-all flex items-center gap-1.5 ${
             patientTab === k
              ? 'bg-ink text-white'
              : 'bg-white border border-sand text-soot hover:border-gray-300'
            }`}>
-           {label}
+           <span>{icon}</span>{label}
           </button>
          ))}
         </div>
@@ -1991,7 +1982,7 @@ export function PsychologyAdmin() {
                  پرداخت تأیید شد{pkg.payment_ref ? ` — فیش: ${pkg.payment_ref}` : ''}
                 </div>
                ) : pkg.payment_submitted ? (
-                <div className="text-xs text-soot text-center bg-gray-50 rounded-lg py-2 border border-sand">
+                <div className="text-xs text-amber-600 text-center bg-amber-500/10 rounded-lg py-2 border border-amber-500/20">
                  مراجع اعلام کرده پرداخت کرده{pkg.payment_ref ? ` — فیش: ${pkg.payment_ref}` : ''} — تأیید از تبِ «تأیید پرداخت‌ها»
                 </div>
                ) : (
@@ -2029,24 +2020,6 @@ export function PsychologyAdmin() {
             })()}
            </div>
           )}
-
-          {/* وقتی مرحله‌ی بازی نیست، دکتر آزادانه مرحله‌ی بعد را مشخص می‌کند
-            (مصاحبه/ارزیابیِ دیگر، یا مستقیم پروتکل درمانِ زیر) */}
-          {(() => {
-           const bk = bookings.find(b => b.case_number === selectedPatient.case_number)
-           if (!bk || bk.current_stage_id || bk.status === 'cancelled') return null
-           return (
-            <div className="bg-white rounded-xl border border-dashed border-sand p-3 mb-4">
-             <div className="text-xs text-soot mb-2">مرحله‌ی بازی نیست — مرحله‌ی بعد را مشخص کنید (یا مستقیم پروتکلِ درمان زیر را تعریف کنید):</div>
-             <div className="flex gap-2">
-              <button onClick={() => addNextStage(selectedPatient.case_number, 'interview')}
-               className="flex-1 py-2 bg-ink text-white rounded-lg text-sm">مصاحبه‌ی دیگر</button>
-              <button onClick={() => addNextStage(selectedPatient.case_number, 'assessment')}
-               className="flex-1 py-2 bg-ink text-white rounded-lg text-sm">ارزیابی</button>
-             </div>
-            </div>
-           )
-          })()}
 
           <div className="text-xs text-soot mb-2 px-1">جلسه‌های تکی (مصاحبه، ارزیابی، یا دلخواهِ دکتر — جدا از پروتکل درمان)</div>
           <button onClick={() => setShowNewSession(true)}
@@ -2184,7 +2157,7 @@ export function PsychologyAdmin() {
 
        return (
         <div className="space-y-6">
-         <p className="text-sm text-soot">
+         <p className={`text-sm ${totalPending === 0 ? 'text-soot' : 'text-amber-600 font-medium'}`}>
           {totalPending === 0 ? 'موردِ منتظرِ اقدامی وجود ندارد.' : `${toFarsiNum(totalPending)} مورد منتظر اقدام است.`}
          </p>
 
@@ -3525,7 +3498,7 @@ export function PsychologyAdmin() {
            <div className="text-sm font-medium text-ink truncate">{r.name}{r.title ? ` — ${r.title}` : ''}</div>
            <div className="text-xs text-soot mt-0.5" dir="ltr">
             {r.phone ? toFarsiNum(r.phone) : 'بدونِ ورودِ مستقل'}
-            {!r.is_active && <span className="text-soot"> · غیرفعال</span>}
+            {!r.is_active && <span className="text-red-500"> · غیرفعال</span>}
            </div>
           </div>
          </div>
@@ -3534,7 +3507,7 @@ export function PsychologyAdmin() {
            className="text-xs px-2.5 py-1.5 border border-sand rounded-lg text-soot hover:bg-gray-50">ویرایش</button>
           {r.is_active && (
            <button onClick={() => deactivateStaffMember(r.id)}
-            className="text-xs px-2.5 py-1.5 border border-sand text-ink rounded-lg hover:bg-gray-100">غیرفعال</button>
+            className="text-xs px-2.5 py-1.5 border border-red-500/30 text-red-600 rounded-lg hover:bg-red-500/5">غیرفعال</button>
           )}
          </div>
         </div>
