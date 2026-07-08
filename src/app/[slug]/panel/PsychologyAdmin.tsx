@@ -3,7 +3,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { PERSIAN_MONTHS, toLatinNum, getCurrentJalali, getDaysInJalaliMonth, jalaliDateTimeToTimestamp } from '@/lib/calendar'
 import { STAGE_TYPE_LABEL, STAGE_STATUS_LABEL } from '@/lib/flow'
-import { PRICING } from '@/lib/config'
+import { PRICING, PLATFORM_NAME } from '@/lib/config'
 import { ClinicSettings, DEFAULT_SETTINGS, SessionMode, OfficeLocation, PaymentCardInfo } from '@/lib/settings'
 import { IntakeForm, FormField, FormFieldType, DEFAULT_INTAKE_FORM, LEGACY_DETAIL_LABELS, CancellationPolicy, PaymentMethods, INTAKE_KNOWN_COLUMNS, fieldVisible } from '@/lib/psy'
 import { DialogHost, uiAlert, uiConfirm, uiPrompt } from '@/components/ui/Dialog'
@@ -438,7 +438,8 @@ export function PsychologyAdmin() {
  const { slug } = useParams<{ slug: string }>()
  const api = (path: string) => `/api/t/${slug}/panel/psy${path}`
  const panelApi = (path: string) => `/api/t/${slug}/panel${path}`
- const [mainTab, setMainTab] = useState<'patients' | 'bookings' | 'schedule' | 'settings' | 'finance' | 'patient_settings' | 'staff'>('patients')
+ const [mainTab, setMainTab] = useState<'patients' | 'bookings' | 'schedule' | 'settings_hub' | 'finance'>('patients')
+ const [settingsSubTab, setSettingsSubTab] = useState<'profile' | 'payments' | 'locations' | 'form' | 'patient_panel' | 'staff' | 'account'>('profile')
  const [sidebarOpen, setSidebarOpen] = useState(false)
 
  // ── Patients state ─────────────────────────────────────────────
@@ -1154,10 +1155,14 @@ export function PsychologyAdmin() {
  // با ورود به تب برنامه، داده‌های ماه و جلسه‌ها را بارگذاری کن
  useEffect(() => {
   if (mainTab === 'schedule') { loadMonthSchedules(schedMonth, schedYear); loadAllSessions(); loadAllStages(); refreshBookings(); if (!profileLoaded) loadProfile() }
-  if (mainTab === 'settings') { if (!settingsLoaded) loadSettings(); loadProfile(); loadIntakeForm() }
-  if (mainTab === 'patient_settings') { if (!patientFeaturesLoaded) loadPatientFeatures(); loadProfile() }
+  if (mainTab === 'settings_hub') {
+   if (!settingsLoaded) loadSettings()
+   loadProfile()
+   loadIntakeForm()
+   if (me?.isOwner !== false && !patientFeaturesLoaded) loadPatientFeatures()
+   if (me?.isOwner && !staffLoaded) loadStaff()
+  }
   if (mainTab === 'finance') loadFinance()
-  if (mainTab === 'staff' && !staffLoaded) loadStaff()
   // eslint-disable-next-line react-hooks/exhaustive-deps
  }, [mainTab, viewingResourceId])
 
@@ -1617,9 +1622,6 @@ export function PsychologyAdmin() {
   { key: 'schedule' as const, icon: '🗓', label: 'روزهای کاری', badge: 0 },
   ...(showBookingsTab ? [{ key: 'bookings' as const, icon: '💳', label: 'تأیید پرداخت‌ها', badge: pendingActionCount }] : []),
   { key: 'finance' as const, icon: '📊', label: 'گزارشاتِ مالی', badge: 0 },
-  { key: 'settings' as const, icon: '🌐', label: 'تنظیماتِ سایت', badge: 0 },
-  ...(me?.isOwner !== false ? [{ key: 'patient_settings' as const, icon: '👤', label: 'تنظیماتِ پنلِ مراجع', badge: 0 }] : []),
-  ...(me?.isOwner ? [{ key: 'staff' as const, icon: '👥', label: 'درمانگر', badge: 0 }] : []),
  ]
 
  function NavList({ onNavigate }: { onNavigate?: () => void }) {
@@ -1641,38 +1643,94 @@ export function PsychologyAdmin() {
   )
  }
 
+ // ─── ناوبریِ حالتِ «تنظیمات» — به سبکِ Cal.com: گروه‌بندی‌شده، با بازگشتِ صریح به پنلِ اصلی ───
+ type SettingsGroup = { title: string; items: { key: typeof settingsSubTab; icon: string; label: string }[] }
+ const settingsGroups: SettingsGroup[] = [
+  {
+   title: 'شخصی', items: [
+    { key: 'profile', icon: '👤', label: 'پروفایل' },
+    { key: 'payments', icon: '💳', label: 'پرداخت‌ها' },
+    { key: 'form', icon: '📝', label: 'فرمِ رزرو' },
+    ...(me?.isOwner !== false ? [{ key: 'locations' as const, icon: '🏢', label: 'مکان‌های حضوری' }] : []),
+   ],
+  },
+  ...(me?.isOwner !== false ? [{
+   title: 'پنلِ مراجع', items: [
+    { key: 'patient_panel' as const, icon: '⚙️', label: 'ماژول‌ها و سیاست‌ها' },
+   ],
+  }] : []),
+  ...(me?.isOwner ? [{
+   title: 'تیم', items: [
+    { key: 'staff' as const, icon: '👥', label: 'درمانگرها' },
+   ],
+  }] : []),
+  { title: 'حساب', items: [{ key: 'account', icon: '🪪', label: 'پلن و ظاهر' }] },
+ ]
+
+ function SettingsNavList({ onNavigate }: { onNavigate?: () => void }) {
+  return (
+   <nav className="flex-1 p-2 space-y-3 overflow-y-auto">
+    {settingsGroups.map(group => (
+     <div key={group.title}>
+      <div className="px-3 py-1 text-[11px] font-medium text-soot">{group.title}</div>
+      <div className="space-y-0.5">
+       {group.items.map(item => (
+        <button key={item.key} onClick={() => { setSettingsSubTab(item.key); onNavigate?.() }}
+         className={`w-full text-right px-3 py-2.5 rounded-lg text-sm flex items-center gap-2 transition-colors ${
+          settingsSubTab === item.key ? 'bg-sand text-ink font-medium' : 'text-soot hover:bg-gray-50'}`}>
+         {item.icon} {item.label}
+        </button>
+       ))}
+      </div>
+     </div>
+    ))}
+   </nav>
+  )
+ }
+
+ // هدرِ سایدبار (هردو حالت) — نامِ دکتر/کلینیک؛ در حالتِ تنظیمات یک ردیفِ «← بازگشت» هم دارد
+ function SidebarHeader() {
+  return (
+   <div className="p-4 border-b border-sand">
+    {mainTab === 'settings_hub' ? (
+     <button onClick={() => setMainTab('patients')} className="text-xs text-soot hover:text-ink flex items-center gap-1 mb-2">
+      ← بازگشت به پنل
+     </button>
+    ) : null}
+    <div className="text-sm font-display font-semibold text-ink">{mainTab === 'settings_hub' ? 'تنظیمات' : 'پنل مدیریت'}</div>
+    <div className="text-xs text-soot truncate mt-0.5">
+     {profile.name || me?.resourceName || 'دکتر'}{profile.title ? ` — ${profile.title}` : ''}
+     {me && !me.isOwner && <span className="text-soot"> (درمانگر)</span>}
+    </div>
+   </div>
+  )
+ }
+
  return (
   <div className={`min-h-screen bg-gray-50 sm:pr-56 ${darkMode ? 'pb-admin-dark' : ''}`} dir="rtl">
    <DialogHost />
 
    {/* ── سایدبار (دسکتاپ) ───────────────────────────────────────────── */}
    <aside className="hidden sm:flex sm:flex-col fixed top-0 right-0 h-full w-56 bg-white border-l border-sand z-20">
-    <div className="p-4 border-b border-sand">
-     <div className="text-sm font-display font-semibold text-ink">پنل مدیریت</div>
-     <div className="text-xs text-soot truncate mt-0.5">
-      {profile.name || me?.resourceName || 'دکتر'}{profile.title ? ` — ${profile.title}` : ''}
-      {me && !me.isOwner && <span className="text-soot"> (درمانگر)</span>}
-     </div>
-    </div>
-    <NavList />
+    <SidebarHeader />
+    {mainTab === 'settings_hub' ? <SettingsNavList /> : <NavList />}
     <div className="p-2 border-t border-sand space-y-1">
      <a href={`/${slug}`} target="_blank" rel="noopener noreferrer"
       className="block text-right text-xs px-3 py-2 rounded-lg text-soot hover:bg-gray-50">
       سایتِ من
      </a>
-     <button onClick={() => toggleDark(!darkMode)} className="w-full text-right text-xs px-3 py-2 rounded-lg text-soot hover:bg-gray-50">
-      {darkMode ? 'حالتِ روشن' : 'حالتِ تیره'}
-     </button>
-     <button onClick={doLogout} className="w-full text-right text-xs px-3 py-2 rounded-lg text-soot hover:bg-gray-50">
-      خروج
-     </button>
+     {mainTab !== 'settings_hub' && (
+      <button onClick={() => setMainTab('settings_hub')} className="w-full text-right text-xs px-3 py-2 rounded-lg text-soot hover:bg-gray-50 flex items-center gap-2">
+       ⚙️ تنظیمات
+      </button>
+     )}
     </div>
    </aside>
 
    {/* ── نوارِ بالا (موبایل) ────────────────────────────────────────── */}
    <div className="sm:hidden bg-white border-b border-sand sticky top-0 z-20 px-3 py-3 flex items-center justify-between">
     <button onClick={() => setSidebarOpen(true)} className="text-xl text-soot w-8 h-8 flex items-center justify-center">☰</button>
-    <div className="text-sm font-display font-semibold text-ink">پنل مدیریت</div>
+    <div className="text-sm font-display font-semibold text-ink">{mainTab === 'settings_hub' ? 'تنظیمات' : 'پنل مدیریت'}</div>
     <div className="w-8" />
    </div>
 
@@ -1681,28 +1739,21 @@ export function PsychologyAdmin() {
     <>
      <div className="fixed inset-0 bg-black/30 z-40 sm:hidden" onClick={() => setSidebarOpen(false)} />
      <aside className="fixed top-0 right-0 h-full w-64 bg-white z-50 sm:hidden flex flex-col">
-      <div className="p-4 border-b border-sand flex items-center justify-between">
-       <div>
-        <div className="text-sm font-display font-semibold text-ink">پنل مدیریت</div>
-        <div className="text-xs text-soot truncate mt-0.5">
-         {profile.name || me?.resourceName || 'دکتر'}{profile.title ? ` — ${profile.title}` : ''}
-         {me && !me.isOwner && <span className="text-soot"> (درمانگر)</span>}
-        </div>
-       </div>
-       <button onClick={() => setSidebarOpen(false)} className="text-soot text-xl w-8 h-8 shrink-0">✕</button>
+      <div className="flex items-center justify-between border-b border-sand">
+       <div className="flex-1"><SidebarHeader /></div>
+       <button onClick={() => setSidebarOpen(false)} className="text-soot text-xl w-8 h-8 shrink-0 ml-2">✕</button>
       </div>
-      <NavList onNavigate={() => setSidebarOpen(false)} />
+      {mainTab === 'settings_hub' ? <SettingsNavList onNavigate={() => setSidebarOpen(false)} /> : <NavList onNavigate={() => setSidebarOpen(false)} />}
       <div className="p-2 border-t border-sand space-y-1">
        <a href={`/${slug}`} target="_blank" rel="noopener noreferrer"
         className="block text-right text-xs px-3 py-2 rounded-lg text-soot hover:bg-gray-50">
         سایتِ من
        </a>
-       <button onClick={() => toggleDark(!darkMode)} className="w-full text-right text-xs px-3 py-2 rounded-lg text-soot hover:bg-gray-50">
-        {darkMode ? 'حالتِ روشن' : 'حالتِ تیره'}
-       </button>
-       <button onClick={doLogout} className="w-full text-right text-xs px-3 py-2 rounded-lg text-soot hover:bg-gray-50">
-        خروج
-       </button>
+       {mainTab !== 'settings_hub' && (
+        <button onClick={() => { setMainTab('settings_hub'); setSidebarOpen(false) }} className="w-full text-right text-xs px-3 py-2 rounded-lg text-soot hover:bg-gray-50 flex items-center gap-2">
+         ⚙️ تنظیمات
+        </button>
+       )}
       </div>
      </aside>
     </>
@@ -2725,14 +2776,14 @@ export function PsychologyAdmin() {
     {/* ════════════════════════════════════════════════════════════════
       TAB: SETTINGS
     ════════════════════════════════════════════════════════════════ */}
-    {mainTab === 'settings' && (
+    {mainTab === 'settings_hub' && (
      <div className="space-y-4 pb-24">
       {!settingsLoaded || !profileLoaded ? (
        <div className="text-center py-16 text-soot">در حال بارگذاری تنظیمات...</div>
       ) : (
       <>
        {/* سوییچرِ دکتر — فقط وقتی owner است و بیش از یک نفر پرسنل دارد */}
-       {me?.isOwner && staffList.filter(r => r.is_active).length > 1 && (
+       {['profile', 'payments', 'form'].includes(settingsSubTab) && me?.isOwner && staffList.filter(r => r.is_active).length > 1 && (
         <section className="bg-white rounded-2xl border border-sand p-5">
          <h2 className="text-sm font-display font-semibold text-ink mb-1">پروفایلِ کدام دکتر؟</h2>
          <p className="text-xs text-soot mb-3">مجموعه‌ی شما چند نفر پرسنل دارد؛ اول انتخاب کنید پروفایل و برنامه‌ی کاریِ کدام‌شان را ویرایش می‌کنید.</p>
@@ -2746,6 +2797,7 @@ export function PsychologyAdmin() {
        )}
 
        {/* پروفایلِ عمومی — حالا per-resource؛ دقیقاً شبیه‌سازیِ سرِ صفحه‌ی مصاحبه، مستقیم روی خودش ویرایش می‌شود */}
+       {settingsSubTab === 'profile' && (
        <section className="bg-white rounded-2xl border border-sand p-5">
         <h2 className="text-sm font-display font-semibold text-ink mb-1">پروفایلِ عمومی</h2>
         <p className="text-xs text-soot mb-4">دقیقاً همین‌طور بالای صفحه‌ی مصاحبه به مراجع نمایش داده می‌شود — روی هرکدام بزنید تا ویرایش کنید.</p>
@@ -2779,8 +2831,10 @@ export function PsychologyAdmin() {
          </div>
         </div>
        </section>
+       )}
 
        {/* نوعِ جلسات — per-resource (هر دکتر مدِ خودش را دارد) */}
+       {settingsSubTab === 'profile' && (
        <section className="bg-white rounded-2xl border border-sand p-5">
         <h2 className="text-sm font-display font-semibold text-ink mb-1">نوعِ جلساتِ قابلِ ارائه</h2>
         <p className="text-xs text-soot mb-4">تعیین می‌کند مراجع هنگامِ رزرو چه گزینه‌هایی ببیند.</p>
@@ -2801,8 +2855,10 @@ export function PsychologyAdmin() {
          ))}
         </div>
        </section>
+       )}
 
        {/* روش‌های پرداخت — per-resource؛ حداقل یکی باید روشن بماند */}
+       {settingsSubTab === 'payments' && (
        <section className="bg-white rounded-2xl border border-sand p-5">
         <h2 className="text-sm font-display font-semibold text-ink mb-1">روش‌های پرداخت</h2>
         <p className="text-xs text-soot mb-4">
@@ -2839,8 +2895,10 @@ export function PsychologyAdmin() {
          )}
         </div>
        </section>
+       )}
 
        {/* شبایِ تسویه — برایِ واریزِ خودکارِ سهمِ خودتان از پرداختِ آنلاین */}
+       {settingsSubTab === 'payments' && (
        <section className="bg-white rounded-2xl border border-sand p-5">
         <h2 className="text-sm font-display font-semibold text-ink mb-1">شبایِ دریافتِ سهم از پرداختِ آنلاین</h2>
         <p className="text-xs text-soot mb-4">
@@ -2862,9 +2920,10 @@ export function PsychologyAdmin() {
          />
         </div>
        </section>
+       )}
 
        {/* مکان‌های حضوری — سطحِ tenant، مشترکِ همه‌ی دکترها؛ فقط owner ویرایش می‌کند */}
-       {me?.isOwner !== false && (
+       {settingsSubTab === 'locations' && me?.isOwner !== false && (
         <section className="bg-white rounded-2xl border border-sand p-5">
          <div className="flex items-center justify-between mb-1">
           <h2 className="text-sm font-display font-semibold text-ink">مکان‌های جلسه‌ی حضوری</h2>
@@ -2900,6 +2959,7 @@ export function PsychologyAdmin() {
        )}
 
        {/* شماره کارت‌ها — per-resource (کارتِ دریافتِ وجه/بازپرداختِ خودِ هر دکتر) */}
+       {settingsSubTab === 'payments' && (
        <section className="bg-white rounded-2xl border border-sand p-5">
         <h2 className="text-sm font-display font-semibold text-ink mb-1">شماره کارت‌های واریزی</h2>
         <p className="text-xs text-soot mb-4">این کارت‌ها در صفحه‌ی پرداختِ کارت‌به‌کارت به مراجع نمایش داده می‌شوند.</p>
@@ -2939,8 +2999,10 @@ export function PsychologyAdmin() {
         <button onClick={() => patchProfile({ cards: [...profile.cards, { id: genId('card'), number: '', holder: '' }] })}
          className="mt-3 text-xs px-3 py-1.5 border border-sand text-ink rounded-lg hover:bg-sand">+ افزودنِ کارت</button>
        </section>
+       )}
 
        {/* فرمِ رزرو — استادو-جزئیات: لیستِ سوال‌ها + پنلِ ویرایشِ متمرکز */}
+       {settingsSubTab === 'form' && (
        <section className="bg-white rounded-2xl border border-sand p-5">
         <h2 className="text-sm font-display font-semibold text-ink mb-1">فرمِ رزرو</h2>
         <p className="text-xs text-soot mb-4">
@@ -3227,9 +3289,10 @@ export function PsychologyAdmin() {
          </div>
         )}
        </section>
+       )}
 
-       {/* نوارِ ذخیره (چسبیده به پایین) — فقط وقتی چیزی واقعاً عوض شده باشد */}
-       {(isSettingsTabDirty || settingsSaved || profileSaved || intakeSaved) && (
+       {/* نوارِ ذخیره (چسبیده به پایین) — فقط وقتی چیزی واقعاً عوض شده باشد، و فقط رویِ زیرتب‌هایی که این دکمه ذخیره‌شان می‌کند */}
+       {['profile', 'payments', 'locations', 'form'].includes(settingsSubTab) && (isSettingsTabDirty || settingsSaved || profileSaved || intakeSaved) && (
         <div className="fixed bottom-0 inset-x-0 z-30 bg-white/95 border-t border-sand backdrop-blur">
          <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-end gap-3">
           {(settingsSaved || profileSaved || intakeSaved) && <span className="text-xs text-emerald-600 font-medium">✓ تنظیمات ذخیره شد</span>}
@@ -3508,7 +3571,7 @@ export function PsychologyAdmin() {
    {/* ════════════════════════════════════════════════════════════════
      TAB: STAFF (کارمندها) — فقط owner می‌بیند
    ════════════════════════════════════════════════════════════════ */}
-   {mainTab === 'staff' && me?.isOwner && (
+   {mainTab === 'settings_hub' && settingsSubTab === 'staff' && me?.isOwner && (
     <div className="max-w-lg mx-auto pb-24">
      <div className="bg-white rounded-2xl border border-sand p-5 mb-4">
       <h2 className="text-sm font-display font-bold text-ink mb-1">درمانگرها</h2>
@@ -3594,7 +3657,7 @@ export function PsychologyAdmin() {
    {/* ════════════════════════════════════════════════════════════════
      TAB: PATIENT PANEL SETTINGS (ماژول‌هایی که مراجع می‌بیند)
    ════════════════════════════════════════════════════════════════ */}
-   {mainTab === 'patient_settings' && (
+   {mainTab === 'settings_hub' && settingsSubTab === 'patient_panel' && (
     <div className="max-w-3xl mx-auto">
      <div className="grid sm:grid-cols-2 gap-4">
       <div className="bg-white rounded-2xl border border-sand p-5">
@@ -3711,6 +3774,42 @@ export function PsychologyAdmin() {
        </>
       )}
      </div>
+    </div>
+   )}
+
+   {/* ════════════════════════════════════════════════════════════════
+     TAB: ACCOUNT (پلن + ظاهر) — زیرِ تنظیمات، برایِ همه (owner و درمانگر)
+   ════════════════════════════════════════════════════════════════ */}
+   {mainTab === 'settings_hub' && settingsSubTab === 'account' && (
+    <div className="max-w-lg mx-auto space-y-4 pb-24">
+     <section className="bg-white rounded-2xl border border-sand p-5">
+      <h2 className="text-sm font-display font-bold text-ink mb-1">پلنِ مجموعه</h2>
+      <p className="text-xs text-soot mb-4">
+       تغییرِ پلن فقط از سمتِ پشتیبانیِ {PLATFORM_NAME} انجام می‌شود؛ برای ارتقا با پشتیبانی تماس بگیرید.
+      </p>
+      <div className="flex items-center justify-between p-3.5 rounded-xl border border-sand">
+       <span className="text-sm text-ink">پلنِ فعلی</span>
+       <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${tenantPlan === 'pro' ? 'bg-emerald-100 text-emerald-800' : 'bg-sand text-soot'}`}>
+        {tenantPlan === 'pro' ? 'حرفه‌ای' : 'رایگان'}
+       </span>
+      </div>
+      {tenantPlan !== 'pro' && (
+       <p className="text-[11px] text-soot mt-3">در پلنِ رایگان، پرداخت فقط به‌صورتِ آنلاین (زیبال) ممکن است.</p>
+      )}
+     </section>
+
+     <section className="bg-white rounded-2xl border border-sand p-5">
+      <h2 className="text-sm font-display font-bold text-ink mb-3">ظاهرِ پنل</h2>
+      <label className="flex items-center justify-between p-3 rounded-xl border border-sand cursor-pointer">
+       <span className="text-sm text-ink">حالتِ تیره</span>
+       <input type="checkbox" checked={darkMode} onChange={e => toggleDark(e.target.checked)} className="w-5 h-5 accent-ink" />
+      </label>
+     </section>
+
+     <button onClick={doLogout}
+      className="w-full text-sm px-4 py-3 rounded-xl border border-red-200 text-red-700 hover:bg-red-50 transition-colors">
+      خروج از پنل
+     </button>
     </div>
    )}
   </div>
