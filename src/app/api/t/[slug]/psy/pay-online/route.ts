@@ -42,7 +42,9 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   if (!c.resource_id) return NextResponse.json({ error: 'منبعی برای این پرونده ثبت نشده' }, { status: 400 })
 
   const methods = await getPaymentMethods(c.resource_id)
-  if (!methods.online) return NextResponse.json({ error: 'پرداختِ آنلاین برای این مجموعه فعال نیست' }, { status: 400 })
+  // پلنِ رایگان اجازه‌ی پرداختِ آنلاین ندارد — این چک مستقل از سوییچِ پنلِ دکتر است
+  // (دفاعِ دوم: اگر مجموعه بعداً از حرفه‌ای به رایگان برگردد و به‌هردلیل toggle خاموش نشده باشد).
+  if (!methods.online || t.plan !== 'pro') return NextResponse.json({ error: 'پرداختِ آنلاین برای این مجموعه فعال نیست' }, { status: 400 })
 
   let amount = 0
   let description = ''

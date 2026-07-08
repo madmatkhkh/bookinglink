@@ -531,6 +531,7 @@ export function PsychologyAdmin() {
  const [profileLoaded, setProfileLoaded] = useState(false)
  const [profileSaving, setProfileSaving] = useState(false)
  const [profileSaved, setProfileSaved] = useState(false)
+ const [tenantPlan, setTenantPlan] = useState<string>('pro')
  // فرمِ رزروِ per-resource (بخش‌ها/سوال‌ها/نوع/اجباری‌بودن — کاملاً دیتایی)
  const [intakeForm, setIntakeForm] = useState<IntakeForm>(DEFAULT_INTAKE_FORM)
  const [intakeLoaded, setIntakeLoaded] = useState(false)
@@ -1221,6 +1222,7 @@ export function PsychologyAdmin() {
    const next = { ...DEFAULT_PROFILE, ...(data.profile || {}) }
    setProfile(next)
    setProfileSnapshot(JSON.stringify(next))
+   if (data.plan) setTenantPlan(data.plan)
   } catch {}
   setProfileLoaded(true)
  }
@@ -2814,14 +2816,17 @@ export function PsychologyAdmin() {
            onChange={e => patchProfile({ payment_methods: { ...profile.payment_methods, card_to_card: e.target.checked } })}
            className="w-5 h-5 accent-ink" />
          </label>
-         <label className="flex items-center justify-between p-3 rounded-xl border border-sand cursor-pointer">
+         <label className={'flex items-center justify-between p-3 rounded-xl border border-sand ' + (tenantPlan === 'pro' ? 'cursor-pointer' : 'opacity-60')}>
           <div>
            <span className="text-sm text-ink block">پرداختِ آنلاین (زیبال)</span>
-           <span className="text-[11px] text-soot">تاییدِ خودکار — مراجع بلافاصله می‌تواند نوبت بگیرد</span>
+           <span className="text-[11px] text-soot">
+            {tenantPlan === 'pro' ? 'تاییدِ خودکار — مراجع بلافاصله می‌تواند نوبت بگیرد' : 'نیازِ پلنِ حرفه‌ای — برایِ فعال‌کردن با پشتیبانی تماس بگیر'}
+           </span>
           </div>
           <input type="checkbox" checked={profile.payment_methods.online}
+           disabled={tenantPlan !== 'pro'}
            onChange={e => patchProfile({ payment_methods: { ...profile.payment_methods, online: e.target.checked } })}
-           className="w-5 h-5 accent-ink" />
+           className="w-5 h-5 accent-ink disabled:opacity-50" />
          </label>
          {!profile.payment_methods.card_to_card && !profile.payment_methods.online && (
           <p className="text-[11px] text-ink px-1">حداقل یک روش باید فعال بماند.</p>

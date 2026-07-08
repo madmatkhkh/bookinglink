@@ -37,6 +37,7 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
     profile: { resource_id: r.id, name: r.name, title: r.title, avatar_url: r.avatar_url, phone: r.phone,
       badges: prof.badges, session_modes: prof.session_modes, cards: prof.cards,
       cancellation_policy: prof.cancellation_policy, payment_methods: prof.payment_methods, quick_times: prof.quick_times },
+    plan: a.tenant.plan,
   }, { headers: NO_STORE })
 }
 
@@ -65,6 +66,9 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   if ('cancellation_policy' in body) profilePatch.cancellation_policy = mergeCancellationPolicy(body.cancellation_policy)
   if ('payment_methods' in body) {
     const pm = mergePaymentMethods(body.payment_methods)
+    // پرداختِ آنلاینِ زیبال فقط پلنِ حرفه‌ای — سمتِ سرور، نه فقط UI (پیام واضح، نه یک 400ِ عمومی)
+    if (pm.online && a.tenant.plan !== 'pro')
+      return NextResponse.json({ error: 'پرداختِ آنلاین (زیبال) فقط در پلنِ حرفه‌ای در دسترس است — برایِ فعال‌کردنش با پشتیبانی تماس بگیر.' }, { status: 403 })
     if (!pm.card_to_card && !pm.online)
       return NextResponse.json({ error: 'حداقل یک روشِ پرداخت باید فعال بماند' }, { status: 400 })
     profilePatch.payment_methods = pm
