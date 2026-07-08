@@ -213,6 +213,8 @@ type ResourceProfileView = {
  cancellation_policy: CancellationPolicy
  payment_methods: PaymentMethods
  quick_times: string[]
+ settlement_sheba: string
+ settlement_sheba_holder_name: string
 }
 
 const ALL_TIMES = ['8:00','9:00','10:00','11:00','12:00','13:00','14:00','15:00','16:00','17:00','18:00']
@@ -222,6 +224,7 @@ const DEFAULT_PROFILE: ResourceProfileView = {
  cancellation_policy: { enabled: true, threshold_hours: 12, early_refund_percent: 50, late_refund_percent: 0 },
  payment_methods: { card_to_card: true, online: false },
  quick_times: ALL_TIMES,
+ settlement_sheba: '', settlement_sheba_holder_name: '',
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -531,7 +534,7 @@ export function PsychologyAdmin() {
  const [profileLoaded, setProfileLoaded] = useState(false)
  const [profileSaving, setProfileSaving] = useState(false)
  const [profileSaved, setProfileSaved] = useState(false)
- const [tenantPlan, setTenantPlan] = useState<string>('pro')
+ const [tenantPlan, setTenantPlan] = useState<string>('free')
  // فرمِ رزروِ per-resource (بخش‌ها/سوال‌ها/نوع/اجباری‌بودن — کاملاً دیتایی)
  const [intakeForm, setIntakeForm] = useState<IntakeForm>(DEFAULT_INTAKE_FORM)
  const [intakeLoaded, setIntakeLoaded] = useState(false)
@@ -2807,20 +2810,23 @@ export function PsychologyAdmin() {
          کارت‌به‌کارت مثلِ قبل: مراجع فیشش را می‌فرستد و شما تایید می‌کنید.
         </p>
         <div className="space-y-2">
-         <label className="flex items-center justify-between p-3 rounded-xl border border-sand cursor-pointer">
+         <label className={'flex items-center justify-between p-3 rounded-xl border border-sand ' + (tenantPlan === 'pro' ? 'cursor-pointer' : 'opacity-60')}>
           <div>
            <span className="text-sm text-ink block">کارت‌به‌کارت</span>
-           <span className="text-[11px] text-soot">نیاز به تاییدِ دستیِ شما دارد</span>
+           <span className="text-[11px] text-soot">
+            {tenantPlan === 'pro' ? 'نیاز به تاییدِ دستیِ شما دارد' : 'در پلنِ رایگان در دسترس نیست — نیازِ پلنِ حرفه‌ای دارد'}
+           </span>
           </div>
           <input type="checkbox" checked={profile.payment_methods.card_to_card}
+           disabled={tenantPlan !== 'pro'}
            onChange={e => patchProfile({ payment_methods: { ...profile.payment_methods, card_to_card: e.target.checked } })}
-           className="w-5 h-5 accent-ink" />
+           className="w-5 h-5 accent-ink disabled:opacity-50" />
          </label>
          <label className={'flex items-center justify-between p-3 rounded-xl border border-sand ' + (tenantPlan === 'pro' ? 'cursor-pointer' : 'opacity-60')}>
           <div>
            <span className="text-sm text-ink block">پرداختِ آنلاین (زیبال)</span>
            <span className="text-[11px] text-soot">
-            {tenantPlan === 'pro' ? 'تاییدِ خودکار — مراجع بلافاصله می‌تواند نوبت بگیرد' : 'نیازِ پلنِ حرفه‌ای — برایِ فعال‌کردن با پشتیبانی تماس بگیر'}
+            {tenantPlan === 'pro' ? 'تاییدِ خودکار — مراجع بلافاصله می‌تواند نوبت بگیرد' : 'در پلنِ رایگان همیشه روشن است'}
            </span>
           </div>
           <input type="checkbox" checked={profile.payment_methods.online}
@@ -2831,6 +2837,29 @@ export function PsychologyAdmin() {
          {!profile.payment_methods.card_to_card && !profile.payment_methods.online && (
           <p className="text-[11px] text-ink px-1">حداقل یک روش باید فعال بماند.</p>
          )}
+        </div>
+       </section>
+
+       {/* شبایِ تسویه — برایِ واریزِ خودکارِ سهمِ خودتان از پرداختِ آنلاین */}
+       <section className="bg-white rounded-2xl border border-sand p-5">
+        <h2 className="text-sm font-display font-semibold text-ink mb-1">شبایِ دریافتِ سهم از پرداختِ آنلاین</h2>
+        <p className="text-xs text-soot mb-4">
+         چون پرداختِ آنلاین از حسابِ پلتفرم رد می‌شود، سهمِ شما برایِ واریزِ خودکار به این شبا نیاز دارد. تا وقتی این را ثبت نکنید، تسویه به‌صورتِ دستی هماهنگ می‌شود.
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+         <input
+          dir="ltr"
+          placeholder="IR00 0000 0000 0000 0000 0000 00"
+          value={profile.settlement_sheba}
+          onChange={e => patchProfile({ settlement_sheba: e.target.value })}
+          className="border border-sand rounded-xl px-3 py-2 text-sm tnum"
+         />
+         <input
+          placeholder="نامِ صاحبِ حساب"
+          value={profile.settlement_sheba_holder_name}
+          onChange={e => patchProfile({ settlement_sheba_holder_name: e.target.value })}
+          className="border border-sand rounded-xl px-3 py-2 text-sm"
+         />
         </div>
        </section>
 

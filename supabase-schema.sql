@@ -429,6 +429,9 @@ create table psy_resource_profiles (
   cancellation_policy jsonb not null default '{"enabled":true,"threshold_hours":12,"early_refund_percent":50,"late_refund_percent":0}',
   -- کدام روش‌های پرداخت برای این دکتر فعال است (حداقل یکی باید روشن بماند)
   payment_methods jsonb not null default '{"card_to_card":true,"online":false}',
+  -- شبایِ تسویه برایِ دریافتِ خودکارِ سهم از تراکنشِ آنلاین (سرویسِ تسهیمِ زیبال)
+  settlement_sheba text not null default '',
+  settlement_sheba_holder_name text not null default '',
   -- ساعت‌های سریعِ پیشنهادی در تبِ «روزهای کاری» — قابلِ ویرایش (افزودن/حذف) توسطِ خودِ دکتر
   quick_times jsonb not null default '["8:00","9:00","10:00","11:00","12:00","13:00","14:00","15:00","16:00","17:00","18:00"]',
   updated_at timestamptz not null default now()
@@ -447,6 +450,11 @@ create table psy_payment_intents (
   amount int not null,         -- تومان
   authority text,              -- trackId برگشتی از زیبال (اسمِ ستون از قبل مانده، مقدارش trackId است)
   status text not null default 'pending',  -- pending | paid | failed
+  -- کارمزدِ پلتفرم روی این تراکنش (بایگانی/حسابرسی، مستقل از موفقیتِ تسهیمِ خودکار)
+  commission_percent numeric,
+  commission_amount bigint,
+  settlement_sheba text,
+  split_applied boolean not null default false,
   created_at timestamptz not null default now()
 );
 create index on psy_payment_intents (tenant_id, authority);

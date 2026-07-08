@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { sb } from '@/lib/supabase'
 import { requirePanelAuth, isPanelAuthResponse } from '@/lib/tenant'
-import { mergeResourceProfile, mergeCancellationPolicy, mergePaymentMethods } from '@/lib/psy'
+import { mergeResourceProfile, mergeCancellationPolicy, mergePaymentMethods, effectivePaymentMethods, isValidSheba } from '@/lib/psy'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -36,7 +36,10 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
   return NextResponse.json({
     profile: { resource_id: r.id, name: r.name, title: r.title, avatar_url: r.avatar_url, phone: r.phone,
       badges: prof.badges, session_modes: prof.session_modes, cards: prof.cards,
-      cancellation_policy: prof.cancellation_policy, payment_methods: prof.payment_methods, quick_times: prof.quick_times },
+      cancellation_policy: prof.cancellation_policy,
+      payment_methods: effectivePaymentMethods(prof.payment_methods, a.tenant.plan),
+      quick_times: prof.quick_times,
+      settlement_sheba: prof.settlement_sheba, settlement_sheba_holder_name: prof.settlement_sheba_holder_name },
     plan: a.tenant.plan,
   }, { headers: NO_STORE })
 }
@@ -64,13 +67,23 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   const profilePatch: Record<string, unknown> = { resource_id: targetId, updated_at: new Date().toISOString() }
   for (const k of ['badges', 'session_modes', 'cards', 'quick_times'] as const) if (k in body) profilePatch[k] = body[k]
   if ('cancellation_policy' in body) profilePatch.cancellation_policy = mergeCancellationPolicy(body.cancellation_policy)
+  if ('settlement_sheba' in body) {
+    const sheba = String(body.settlement_sheba || '').trim().toUpperCase().replace(/\s/g, '')
+    if (sheba && !isValidSheba(sheba))
+      return NextResponse.json({ error: 'فرمتِ شماره‌شبا درست نیست (باید IR و ۲۴ رقم باشد)' }, { status: 400 })
+    profilePatch.settlement_sheba = sheba
+  }
+  if ('settlement_sheba_holder_name' in body) profilePatch.settlement_sheba_holder_name = String(body.settlement_sheba_holder_name || '').trim().slice(0, 80)
   if ('payment_methods' in body) {
-    const pm = mergePaymentMethods(body.payment_methods)
-    // پرداختِ آنلاینِ زیبال فقط پلنِ حرفه‌ای — سمتِ سرور، نه فقط UI (پیام واضح، نه یک 400ِ عمومی)
-    if (pm.online && a.tenant.plan !== 'pro')
-      return NextResponse.json({ error: 'پرداختِ آنلاین (زیبال) فقط در پلنِ حرفه‌ای در دسترس است — برایِ فعال‌کردنش با پشتیبانی تماس بگیر.' }, { status: 403 })
-    if (!pm.card_to_card && !pm.online)
+    let pm = mergePaymentMethods(body.payment_methods)
+    if (a.tenant.plan !== 'pro') {
+      // پلنِ رایگان: فقط پرداختِ آنلاین مجاز است — هرچه دکتر بفرستد نادیده گرفته و
+      // به مقدارِ درست force می‌شود (نه خطا، چون این فیلد همیشه همراهِ کلِ پروفایل
+      // ارسال می‌شود و نباید ذخیره‌ی بقیه‌ی تنظیمات را خراب کند).
+      pm = { card_to_card: false, online: true }
+    } else if (!pm.card_to_card && !pm.online) {
       return NextResponse.json({ error: 'حداقل یک روشِ پرداخت باید فعال بماند' }, { status: 400 })
+    }
     profilePatch.payment_methods = pm
   }
   if (Object.keys(profilePatch).length > 2) {

@@ -16,7 +16,7 @@ type Detail = {
     created_at: string; display_name: string; theme_color: string
   }
   niche: { key: string; display_name: string; resource_label: string; client_label: string; booking_label: string } | null
-  resources: { id: string; name: string; title: string; phone: string | null; is_active: boolean; is_selectable: boolean; created_at: string }[]
+  resources: { id: string; name: string; title: string; phone: string | null; is_active: boolean; is_selectable: boolean; created_at: string; has_sheba: boolean }[]
   stats: Record<string, number>
   features: { feature_key: string; label: string; enabled: boolean }[]
 }
@@ -67,8 +67,8 @@ function Inner() {
     })
     const j = await res.json().catch(() => ({}))
     if (!res.ok) { await dialog.uiAlert(j.error || 'ذخیره ناموفق بود'); return false }
-    if (j.forced_online_disabled_count > 0) {
-      await dialog.uiAlert(`پرداختِ آنلاین برایِ ${j.forced_online_disabled_count} درمانگر (که روشن بود) به‌خاطرِ برگشت به پلنِ رایگان خاموش شد.`)
+    if (j.forced_card_disabled_count > 0) {
+      await dialog.uiAlert(`کارت‌به‌کارتِ ${j.forced_card_disabled_count} درمانگر (که روشن بود) به‌خاطرِ برگشت به پلنِ رایگان خاموش شد؛ پرداختِ آنلاین برایشان اجباری شد.`)
     }
     return true
   }
@@ -264,7 +264,7 @@ function Inner() {
           ))}
         </div>
         <p className="text-[11px] text-soot -mt-2">
-          پلنِ رایگان: پرداختِ آنلاینِ زیبال غیرفعال است (فقط کارت‌به‌کارت). با برگشت به رایگان، اگر پرداختِ آنلاین برایِ درمانگری روشن بود، خودکار خاموش می‌شود.
+          پلنِ رایگان: فقط پرداختِ آنلاینِ زیبال (کارت‌به‌کارت غیرفعال است). با برگشت به رایگان، اگر کارت‌به‌کارت برایِ درمانگری روشن بود، خودکار خاموش و آنلاین اجباری می‌شود.
         </p>
 
         <div className="text-xs text-soot pt-2 border-t border-sand">
@@ -317,6 +317,11 @@ function Inner() {
               <div className="flex gap-1.5 shrink-0">
                 {!r.is_active && <span className="text-[11px] px-2 py-0.5 rounded-full bg-red-50 text-red-700">غیرفعال</span>}
                 {r.is_selectable && <span className="text-[11px] px-2 py-0.5 rounded-full bg-sand text-soot">قابلِ انتخاب</span>}
+                {d.niche?.key === 'psychology' && (
+                  r.has_sheba
+                    ? <span className="text-[11px] px-2 py-0.5 rounded-full bg-green-100 text-green-800">شبا ثبت‌شده</span>
+                    : <span className="text-[11px] px-2 py-0.5 rounded-full bg-amber-50 text-amber-700">بدونِ شبا</span>
+                )}
               </div>
             </div>
           ))}

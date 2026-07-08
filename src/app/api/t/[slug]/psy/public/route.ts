@@ -11,7 +11,7 @@ export const revalidate = 0
 export async function GET(_req: NextRequest, { params }: { params: { slug: string } }) {
   const t = await getActiveTenant(params.slug)
   if (!t) return NextResponse.json({ error: 'یافت نشد' }, { status: 404 })
-  const [settings, doctors] = await Promise.all([getClinicSettings(t.id), listPublicDoctors(t.id)])
+  const [settings, doctors] = await Promise.all([getClinicSettings(t.id), listPublicDoctors(t.id, t.plan)])
 
   const { data } = await sb().from('tenant_features').select('feature_key, enabled')
     .eq('tenant_id', t.id).in('feature_key', PATIENT_FEATURE_KEYS)

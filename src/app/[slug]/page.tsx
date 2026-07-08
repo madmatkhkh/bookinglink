@@ -17,7 +17,7 @@ export const revalidate = 0
 
 async function loadTenant(slug: string) {
  const { data: tenant } = await sb().from('tenants')
-  .select('id, slug, status, niche_key').eq('slug', slug).single()
+  .select('id, slug, status, niche_key, plan').eq('slug', slug).single()
  if (!tenant || tenant.status !== 'active') return null
  return tenant
 }
@@ -26,7 +26,7 @@ export async function generateMetadata({ params }: { params: { slug: string } })
  const tenant = await loadTenant(params.slug)
  if (!tenant) return { title: 'یافت نشد' }
  if (tenant.niche_key === 'psychology') {
-  const [doctors] = await Promise.all([listPublicDoctors(tenant.id)])
+  const [doctors] = await Promise.all([listPublicDoctors(tenant.id, tenant.plan)])
   const primary = doctors[0]
   return { title: `${primary?.name || 'رزروِ نوبت'} — نوبت‌دهی`, description: primary?.title || '' }
  }
@@ -43,7 +43,7 @@ export default async function PublicProfile({ params }: { params: { slug: string
 
  // ── نیچِ روانشناسی: تجربه‌ی مصاحبه/پنلِ مراجع ──
  if (tenant.niche_key === 'psychology') {
-  const [clinic, doctors] = await Promise.all([getClinicSettings(tenant.id), listPublicDoctors(tenant.id)])
+  const [clinic, doctors] = await Promise.all([getClinicSettings(tenant.id), listPublicDoctors(tenant.id, tenant.plan)])
   const primary = doctors[0]
   const c = {
    office_locations: clinic.office_locations,

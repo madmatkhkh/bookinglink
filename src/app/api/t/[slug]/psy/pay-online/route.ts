@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { sb } from '@/lib/supabase'
 import { getActiveTenant } from '@/lib/tenant'
-import { PSY_PRICING, getPaymentMethods } from '@/lib/psy'
-import { requestZibalPayment } from '@/lib/zibal'
+import { PSY_PRICING, getPaymentMethods, effectivePaymentMethods, getResourceProfile, isValidSheba } from '@/lib/psy'
+import { requestZibalPayment, PLATFORM_COMMISSION_PERCENT, MULTIPLEXING_ENABLED } from '@/lib/zibal'
 import { getClientPhone, getPayCase } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
@@ -41,10 +41,8 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   const phone = c.father_phone
   if (!c.resource_id) return NextResponse.json({ error: 'منبعی برای این پرونده ثبت نشده' }, { status: 400 })
 
-  const methods = await getPaymentMethods(c.resource_id)
-  // پلنِ رایگان اجازه‌ی پرداختِ آنلاین ندارد — این چک مستقل از سوییچِ پنلِ دکتر است
-  // (دفاعِ دوم: اگر مجموعه بعداً از حرفه‌ای به رایگان برگردد و به‌هردلیل toggle خاموش نشده باشد).
-  if (!methods.online || t.plan !== 'pro') return NextResponse.json({ error: 'پرداختِ آنلاین برای این مجموعه فعال نیست' }, { status: 400 })
+  const methods = effectivePaymentMethods(await getPaymentMethods(c.resource_id), t.plan)
+  if (!methods.online) return NextResponse.json({ error: 'پرداختِ آنلاین برای این مجموعه فعال نیست' }, { status: 400 })
 
   let amount = 0
   let description = ''
@@ -72,17 +70,30 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
     return NextResponse.json({ error: 'نوعِ پرداخت نامعتبر است' }, { status: 400 })
   }
 
+  const commissionPercent = PLATFORM_COMMISSION_PERCENT
+  const commissionAmount = Math.round(amount * (commissionPercent / 100))
+  const profile = await getResourceProfile(c.resource_id)
+  const shebaOk = isValidSheba(profile.settlement_sheba)
+  const doctorAmount = amount - commissionAmount
+
   const { data: intent, error: intentErr } = await sb().from('psy_payment_intents').insert({
     tenant_id: t.id, resource_id: c.resource_id, case_number, phone, purpose, ref_id: ref_id || null, amount,
+    commission_percent: commissionPercent, commission_amount: commissionAmount,
+    settlement_sheba: shebaOk ? profile.settlement_sheba : null,
   }).select().single()
   if (intentErr || !intent) return NextResponse.json({ error: 'خطا در ایجادِ پرداخت' }, { status: 500 })
 
   const callbackUrl = `${req.nextUrl.origin}/api/t/${params.slug}/psy/pay-online/callback?intent=${intent.id}`
-  const result = await requestZibalPayment(amount, description, callbackUrl, phone)
+  const willSplit = MULTIPLEXING_ENABLED && shebaOk && doctorAmount > 0
+  const result = await requestZibalPayment(
+    amount, description, callbackUrl, phone,
+    willSplit ? { sheba: profile.settlement_sheba, doctorAmountToman: doctorAmount } : undefined
+  )
   if (!result.ok) {
     await sb().from('psy_payment_intents').update({ status: 'failed' }).eq('id', intent.id)
     return NextResponse.json({ error: result.error }, { status: 502 })
   }
-  await sb().from('psy_payment_intents').update({ authority: String(result.trackId) }).eq('id', intent.id)
+  await sb().from('psy_payment_intents')
+    .update({ authority: String(result.trackId), split_applied: willSplit }).eq('id', intent.id)
   return NextResponse.json({ success: true, url: result.url })
 }

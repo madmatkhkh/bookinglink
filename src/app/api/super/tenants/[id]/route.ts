@@ -33,6 +33,14 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     .select('id, name, title, phone, is_active, is_selectable, sort_order, created_at')
     .eq('tenant_id', id).order('sort_order').order('created_at')
 
+  // وضعیتِ شبایِ تسویه (فقط روانشناسی، فقط برایِ نمایش — تصمیم‌گیریِ تسویه‌ی دستی)
+  let shebaByResource = new Map<string, boolean>()
+  if (tenant.niche_key === 'psychology' && resources?.length) {
+    const { data: profiles } = await sb().from('psy_resource_profiles')
+      .select('resource_id, settlement_sheba').in('resource_id', resources.map(r => r.id))
+    shebaByResource = new Map((profiles || []).map(p => [p.resource_id, !!p.settlement_sheba]))
+  }
+
   // آمار: هرکدام از دو خانواده‌ی نیچ، جدول‌های خودشان را دارند.
   let stats: Record<string, number> = {}
   if (tenant.niche_key === 'psychology') {
@@ -74,7 +82,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
       key: niche.key, display_name: niche.display_name,
       resource_label: niche.resource_label, client_label: niche.client_label, booking_label: niche.booking_label,
     } : null,
-    resources: resources || [],
+    resources: (resources || []).map(r => ({ ...r, has_sheba: shebaByResource.get(r.id) || false })),
     stats,
     features,
   })
@@ -120,22 +128,25 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     }
   }
 
-  // برگشت به پلنِ رایگان: پرداختِ آنلاین برایِ همه‌ی درمانگرهایِ این مجموعه خاموش می‌شود —
-  // وگرنه toggle تو پنل روشن می‌ماند ولی خودِ درگاه (پلن‌محور) رد می‌کند، که برایِ
-  // مراجع/دکتر گیج‌کننده است. کارت‌به‌کارت همیشه روشن می‌ماند (حداقل یک روش لازم است).
-  let forcedOnlineDisabledCount = 0
+  // برگشت به پلنِ رایگان: کارت‌به‌کارت برایِ همه‌ی درمانگرهایِ این مجموعه خاموش و
+  // آنلاین اجباراً روشن می‌شود (سیاستِ کسب‌وکاری: کارمزدِ پلتفرم فقط از تراکنشِ
+  // آنلاین قابلِ‌دریافت است). این فقط برایِ پاکیزگیِ دیتاست — دفاعِ واقعی در
+  // effectivePaymentMethods (lib/psy.ts) است که در لحظه‌ی مصرف همیشه این را اعمال می‌کند.
+  let forcedCardDisabledCount = 0
   if (tenantPatch.plan === 'free' && existing.niche_key === 'psychology') {
     const { data: resources } = await sb().from('resources').select('id').eq('tenant_id', id)
     const ids = (resources || []).map(r => r.id)
     if (ids.length) {
       const { data: profiles } = await sb().from('psy_resource_profiles')
         .select('resource_id, payment_methods').in('resource_id', ids)
-      const onlineOnIds = (profiles || []).filter(p => (p.payment_methods as any)?.online).map(p => p.resource_id)
-      if (onlineOnIds.length) {
+      const needsFixIds = (profiles || [])
+        .filter(p => (p.payment_methods as any)?.card_to_card || !(p.payment_methods as any)?.online)
+        .map(p => p.resource_id)
+      if (needsFixIds.length) {
         await sb().from('psy_resource_profiles')
-          .update({ payment_methods: { card_to_card: true, online: false }, updated_at: new Date().toISOString() })
-          .in('resource_id', onlineOnIds)
-        forcedOnlineDisabledCount = onlineOnIds.length
+          .update({ payment_methods: { card_to_card: false, online: true }, updated_at: new Date().toISOString() })
+          .in('resource_id', needsFixIds)
+        forcedCardDisabledCount = needsFixIds.length
       }
     }
   }
@@ -149,7 +160,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     }
   }
 
-  return NextResponse.json({ success: true, forced_online_disabled_count: forcedOnlineDisabledCount })
+  return NextResponse.json({ success: true, forced_card_disabled_count: forcedCardDisabledCount })
 }
 
 // حذفِ کاملِ tenant (بازگشت‌ناپذیر — همه‌ی جدول‌های وابسته با on delete cascade پاک می‌شوند)

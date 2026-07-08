@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { sb } from '@/lib/supabase'
 import { getActiveTenant } from '@/lib/tenant'
-import { getPaymentMethods } from '@/lib/psy'
+import { getPaymentMethods, effectivePaymentMethods } from '@/lib/psy'
 import { getClientPhone, getPayCase } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
@@ -26,7 +26,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
     return NextResponse.json({ error: 'ابتدا با کدِ یک‌بارمصرف وارد شوید' }, { status: 401 })
 
   if (booking.resource_id) {
-    const methods = await getPaymentMethods(booking.resource_id)
+    const methods = effectivePaymentMethods(await getPaymentMethods(booking.resource_id), t.plan)
     if (!methods.card_to_card) return NextResponse.json({ error: 'پرداختِ کارت‌به‌کارت برای این مجموعه فعال نیست' }, { status: 400 })
   }
 

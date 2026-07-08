@@ -92,6 +92,25 @@ export function mergePaymentMethods(raw: Partial<PaymentMethods> | null | undefi
   return { card_to_card: card || !online, online }
 }
 
+// ── محدودیتِ پلنِ رایگان: فقط پرداختِ آنلاین (تصمیمِ کسب‌وکاریِ صریح) ─────────
+// کارمزدِ پلتفرم فقط از تراکنشِ آنلاین (که از مرچنتِ خودِ پلتفرم رد می‌شود) قابلِ
+// دریافت است؛ کارت‌به‌کارت مستقیم بینِ مراجع و دکتر است و ردی برایِ پلتفرم نمی‌ماند.
+// این محاسبه در لحظه‌ی مصرف انجام می‌شود (نه فقط روی مقدارِ ذخیره‌شده) تا حتی اگر
+// دکتر تنظیماتش را دوباره ذخیره نکرده باشد یا پلن تازه عوض شده باشد، همیشه درست
+// باشد — دفاعِ اصلی در نقاطی است که واقعاً پول حرکت می‌کند (pay/pay-online).
+export function effectivePaymentMethods(pm: PaymentMethods, plan: string): PaymentMethods {
+  if (plan !== 'pro') return { card_to_card: false, online: true }
+  return pm
+}
+
+// اعتبارسنجیِ فرمتِ شماره‌شبا: IR + ۲۴ رقم (استانداردِ ایران). فقط فرمت را چک
+// می‌کند، نه اینکه حسابِ واقعی وجود دارد یا نام صاحبش درست است (آن را خودِ
+// زیبال هنگامِ تعریفِ ذی‌نفع تایید می‌کند).
+export function isValidSheba(raw: string): boolean {
+  const s = String(raw || '').trim().toUpperCase().replace(/\s/g, '')
+  return /^IR\d{24}$/.test(s)
+}
+
 // ── سطحِ resource/شخص: پروفایلِ هرکارمند (دکتر) — نام/عنوان/آواتار از خودِ
 // جدولِ resources می‌آید (اینجا تکرار نشده)؛ این‌ها فقط چیزهایی‌اند که هر دکتر
 // مستقل از بقیه مدیریت می‌کند.
@@ -108,6 +127,8 @@ export type ResourceProfile = {
   cancellation_policy: CancellationPolicy
   payment_methods: PaymentMethods
   quick_times: string[]
+  settlement_sheba: string
+  settlement_sheba_holder_name: string
 }
 
 export const DEFAULT_RESOURCE_PROFILE: Omit<ResourceProfile, 'resource_id'> = {
@@ -117,6 +138,8 @@ export const DEFAULT_RESOURCE_PROFILE: Omit<ResourceProfile, 'resource_id'> = {
   cancellation_policy: DEFAULT_CANCELLATION_POLICY,
   payment_methods: DEFAULT_PAYMENT_METHODS,
   quick_times: DEFAULT_QUICK_TIMES,
+  settlement_sheba: '',
+  settlement_sheba_holder_name: '',
 }
 
 export function mergeResourceProfile(resourceId: string, raw: Partial<ResourceProfile> | null | undefined): ResourceProfile {
@@ -130,6 +153,8 @@ export function mergeResourceProfile(resourceId: string, raw: Partial<ResourcePr
     cancellation_policy: mergeCancellationPolicy(raw?.cancellation_policy),
     payment_methods: mergePaymentMethods(raw?.payment_methods),
     quick_times: Array.isArray(raw?.quick_times) && raw!.quick_times.length > 0 ? raw!.quick_times : DEFAULT_QUICK_TIMES,
+    settlement_sheba: typeof raw?.settlement_sheba === 'string' ? raw.settlement_sheba : '',
+    settlement_sheba_holder_name: typeof raw?.settlement_sheba_holder_name === 'string' ? raw.settlement_sheba_holder_name : '',
   }
 }
 
@@ -177,7 +202,7 @@ export type PublicDoctor = {
   cancellation_policy: CancellationPolicy
 }
 
-export async function listPublicDoctors(tenantId: string): Promise<PublicDoctor[]> {
+export async function listPublicDoctors(tenantId: string, plan: string): Promise<PublicDoctor[]> {
   const { data: resources } = await sb().from('resources').select('id, name, title, avatar_url, sort_order')
     .eq('tenant_id', tenantId).eq('is_active', true).eq('is_selectable', true)
     .order('sort_order').order('created_at')
@@ -191,7 +216,7 @@ export async function listPublicDoctors(tenantId: string): Promise<PublicDoctor[
     return {
       id: r.id, name: r.name, title: r.title, avatar_url: r.avatar_url,
       badges: prof.badges, session_modes: prof.session_modes, cards: prof.cards,
-      payment_methods: prof.payment_methods, cancellation_policy: prof.cancellation_policy,
+      payment_methods: effectivePaymentMethods(prof.payment_methods, plan), cancellation_policy: prof.cancellation_policy,
     }
   })
 }
