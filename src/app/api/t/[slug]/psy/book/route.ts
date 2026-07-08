@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { sb } from '@/lib/supabase'
 import { getActiveTenant } from '@/lib/tenant'
-import { PSY_PRICING, getDefaultResourceId, getIntakeForm, missingIntakeFields, INTAKE_KNOWN_COLUMNS } from '@/lib/psy'
+import { getDefaultResourceId, getIntakeForm, missingIntakeFields, INTAKE_KNOWN_COLUMNS, getResourcePricing } from '@/lib/psy'
 import { setPayCookie } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
@@ -92,10 +92,12 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
     }, { status: 500 })
   }
 
-  // مرحله‌ی اولِ پرونده همیشه «مصاحبه» است — خودِ ثبتِ فرم همین مرحله را می‌سازد
+  // مرحله‌ی اولِ پرونده همیشه «مصاحبه» است — خودِ ثبتِ فرم همین مرحله را می‌سازد.
+  // قیمت از رویِ تنظیماتِ خودِ همین دکتر خوانده می‌شود (نه ثابتِ سراسری).
+  const interviewPrice = (await getResourcePricing(finalResourceId)).interview
   const { data: stage, error: stageErr } = await sb().from('psy_stages').insert({
     tenant_id: t.id, resource_id: finalResourceId, case_number: caseNumber,
-    stage_type: 'interview', price: PSY_PRICING.interview, status: 'awaiting_payment',
+    stage_type: 'interview', price: interviewPrice, status: 'awaiting_payment',
   }).select().single()
   if (stageErr || !stage) {
     console.error('psy/book stage insert error:', stageErr)

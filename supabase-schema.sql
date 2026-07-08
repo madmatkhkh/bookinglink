@@ -432,6 +432,8 @@ create table psy_resource_profiles (
   -- شبایِ تسویه برایِ دریافتِ خودکارِ سهم از تراکنشِ آنلاین (سرویسِ تسهیمِ زیبال)
   settlement_sheba text not null default '',
   settlement_sheba_holder_name text not null default '',
+  -- قیمت‌گذاریِ خودِ این دکتر — جایگزینِ ثابتِ سراسریِ PSY_PRICING
+  pricing jsonb not null default '{"interview":800000,"assessment":1500000,"sessionOnline":850000,"sessionOffline":1200000}',
   -- ساعت‌های سریعِ پیشنهادی در تبِ «روزهای کاری» — قابلِ ویرایش (افزودن/حذف) توسطِ خودِ دکتر
   quick_times jsonb not null default '["8:00","9:00","10:00","11:00","12:00","13:00","14:00","15:00","16:00","17:00","18:00"]',
   updated_at timestamptz not null default now()
@@ -486,6 +488,23 @@ create table psy_intake_forms (
   updated_at timestamptz not null default now()
 );
 alter table psy_intake_forms enable row level security;
+
+-- تیکتِ پشتیبانی — سطحِ پلتفرم (نه فقط psychology)
+create table support_tickets (
+  id uuid primary key default uuid_generate_v4(),
+  tenant_id uuid not null references tenants(id) on delete cascade,
+  resource_id uuid references resources(id),
+  submitted_by_name text not null default '',
+  category text not null default 'other',   -- 'bug' | 'feature' | 'billing' | 'other'
+  subject text not null,
+  message text not null,
+  status text not null default 'open',      -- 'open' | 'in_progress' | 'resolved' | 'closed'
+  admin_reply text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index support_tickets_tenant_idx on support_tickets(tenant_id);
+create index support_tickets_status_idx on support_tickets(status);
 
 alter table psy_cases enable row level security;
 alter table psy_sessions enable row level security;

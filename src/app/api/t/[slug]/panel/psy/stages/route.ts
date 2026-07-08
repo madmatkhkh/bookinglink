@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { sb } from '@/lib/supabase'
 import { requirePanelAuth, isPanelAuthResponse } from '@/lib/tenant'
 import { STAGE_TYPES, STAGE_STATUS } from '@/lib/flow'
-import { stagePrice } from '@/lib/psy'
+import { stagePrice, getResourcePricing } from '@/lib/psy'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -58,7 +58,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
 
   const { data: stage, error } = await sb().from('psy_stages').insert({
     tenant_id: a.tenant.id, resource_id: c.resource_id, case_number, stage_type,
-    price: typeof price === 'number' && price >= 0 ? price : stagePrice(stage_type),
+    price: typeof price === 'number' && price >= 0 ? price : stagePrice(stage_type, await getResourcePricing(c.resource_id)),
     status: STAGE_STATUS.AWAITING_PAYMENT,
   }).select().single()
   if (error || !stage) {

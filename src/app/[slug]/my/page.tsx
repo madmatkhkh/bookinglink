@@ -32,6 +32,7 @@ type Package = {
  child_sessions: number; parent_sessions: number
  child_session_type: string; parent_session_type: string
  notes: string; paid: boolean; payment_submitted?: boolean; status: string
+ price?: number
  resource_id?: string | null
 }
 type Session = {
@@ -39,6 +40,7 @@ type Session = {
  session_date: string; session_time: string; session_type: string
  attendee: string; status: string; doctor_note_for_patient: string
  paid: boolean; payment_submitted?: boolean
+ price?: number
  refund_percent?: number; refund_status?: string; refund_card?: string
  resource_id?: string | null
  delay_minutes?: number | null
@@ -151,8 +153,8 @@ export default function PatientPanel() {
  }
 
  const pkgPrice = (p: Package) =>
-  (p.child_sessions * (p.child_session_type === 'online' ? PRICING.sessionOnline : PRICING.sessionOffline)) +
-  (p.parent_sessions * (p.parent_session_type === 'online' ? PRICING.sessionOnline : PRICING.sessionOffline))
+  p.price || ((p.child_sessions * (p.child_session_type === 'online' ? PRICING.sessionOnline : PRICING.sessionOffline)) +
+  (p.parent_sessions * (p.parent_session_type === 'online' ? PRICING.sessionOnline : PRICING.sessionOffline)))
 
  const pkgSessions = (pkgId: string) => sessions.filter(s => s.package_id === pkgId)
 
@@ -499,7 +501,10 @@ function SessionCard({ session: s, num, phone, caseNumber, onUpdate }: {
  const { slug } = useParams<{ slug: string }>()
  const settings = usePublicClinic(slug)
 
- const sessionPrice = s.session_type === 'online' ? PRICING.sessionOnline : PRICING.sessionOffline
+ const doctorForSession = settings.doctors.find(d => d.id === s.resource_id)
+ const sessionPrice = doctorForSession
+  ? (s.session_type === 'online' ? doctorForSession.pricing.sessionOnline : doctorForSession.pricing.sessionOffline)
+  : (s.session_type === 'online' ? PRICING.sessionOnline : PRICING.sessionOffline)
 
  async function buyReplacement() {
   setBuying(true)

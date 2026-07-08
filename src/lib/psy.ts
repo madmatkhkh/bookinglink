@@ -4,7 +4,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { sb } from './supabase'
 
-// قیمت‌گذاریِ پیش‌فرضِ مرحله‌ها (تومان) — هر tenant می‌تواند در تنظیماتش عوض کند
+// قیمت‌گذاریِ پیش‌فرضِ مرحله‌ها (تومان) — پیش‌فرضِ سراسری برایِ دکترهایی که هنوز
+// قیمتِ خودشان را تنظیم نکرده‌اند؛ قیمتِ واقعیِ هر دکتر per-resource است (پایین‌تر).
 export const PSY_PRICING = {
   interview: 800000,
   assessment: 1500000,
@@ -12,9 +13,41 @@ export const PSY_PRICING = {
   sessionOffline: 1200000,
 }
 
-// قیمتِ پیش‌فرضِ هر نوعِ مرحله‌ی پیش‌ازدرمان (وقتی دکتر خودش قیمتِ دیگری نداده)
-export function stagePrice(stageType: string): number {
-  return stageType === 'assessment' ? PSY_PRICING.assessment : PSY_PRICING.interview
+// قیمتِ پیش‌فرضِ هر نوعِ مرحله‌ی پیش‌ازدرمان — با گرفتنِ Pricing اختیاری (قیمتِ
+// خودِ دکتر)؛ بدونِ آن، به ثابتِ سراسری برمی‌گردد (سازگاریِ عقب‌رو).
+export function stagePrice(stageType: string, pricing: Pricing = PSY_PRICING): number {
+  return stageType === 'assessment' ? pricing.assessment : pricing.interview
+}
+
+// ── قیمت‌گذاریِ خودِ دکتر (per-resource) ──────────────────────────────────────
+export type Pricing = { interview: number; assessment: number; sessionOnline: number; sessionOffline: number }
+export const DEFAULT_PRICING: Pricing = { ...PSY_PRICING }
+
+export function mergePricing(raw: Partial<Pricing> | null | undefined): Pricing {
+  const clamp = (v: unknown, fallback: number) => (typeof v === 'number' && Number.isFinite(v) && v >= 0 ? Math.round(v) : fallback)
+  return {
+    interview: clamp(raw?.interview, DEFAULT_PRICING.interview),
+    assessment: clamp(raw?.assessment, DEFAULT_PRICING.assessment),
+    sessionOnline: clamp(raw?.sessionOnline, DEFAULT_PRICING.sessionOnline),
+    sessionOffline: clamp(raw?.sessionOffline, DEFAULT_PRICING.sessionOffline),
+  }
+}
+
+// قیمتِ فعلیِ یک دکترِ مشخص (برایِ محاسبه‌ی مبلغ در لحظه‌ی ساختِ مرحله/جلسه/پروتکل)
+export async function getResourcePricing(resourceId: string | null | undefined): Promise<Pricing> {
+  if (!resourceId) return DEFAULT_PRICING
+  try {
+    const { data } = await sb().from('psy_resource_profiles').select('pricing').eq('resource_id', resourceId).maybeSingle()
+    return mergePricing(data?.pricing)
+  } catch {
+    return DEFAULT_PRICING
+  }
+}
+
+// مبلغِ کلِ یک پروتکلِ درمان از رویِ ترکیبِ جلساتِ کودک/والدین + قیمتِ داده‌شده
+export function packageAmount(p: { child_sessions: number; child_session_type: string; parent_sessions: number; parent_session_type: string }, pricing: Pricing = DEFAULT_PRICING): number {
+  return (p.child_sessions * (p.child_session_type === 'online' ? pricing.sessionOnline : pricing.sessionOffline))
+    + (p.parent_sessions * (p.parent_session_type === 'online' ? pricing.sessionOnline : pricing.sessionOffline))
 }
 
 // قانونِ کنسلی: اگر ≥ partialHours ساعت مانده کنسل شود، partialPercent٪ سوخت
@@ -129,6 +162,7 @@ export type ResourceProfile = {
   quick_times: string[]
   settlement_sheba: string
   settlement_sheba_holder_name: string
+  pricing: Pricing
 }
 
 export const DEFAULT_RESOURCE_PROFILE: Omit<ResourceProfile, 'resource_id'> = {
@@ -140,6 +174,7 @@ export const DEFAULT_RESOURCE_PROFILE: Omit<ResourceProfile, 'resource_id'> = {
   quick_times: DEFAULT_QUICK_TIMES,
   settlement_sheba: '',
   settlement_sheba_holder_name: '',
+  pricing: DEFAULT_PRICING,
 }
 
 export function mergeResourceProfile(resourceId: string, raw: Partial<ResourceProfile> | null | undefined): ResourceProfile {
@@ -155,6 +190,7 @@ export function mergeResourceProfile(resourceId: string, raw: Partial<ResourcePr
     quick_times: Array.isArray(raw?.quick_times) && raw!.quick_times.length > 0 ? raw!.quick_times : DEFAULT_QUICK_TIMES,
     settlement_sheba: typeof raw?.settlement_sheba === 'string' ? raw.settlement_sheba : '',
     settlement_sheba_holder_name: typeof raw?.settlement_sheba_holder_name === 'string' ? raw.settlement_sheba_holder_name : '',
+    pricing: mergePricing(raw?.pricing),
   }
 }
 
@@ -200,6 +236,7 @@ export type PublicDoctor = {
   cards: PaymentCardInfo[]
   payment_methods: PaymentMethods
   cancellation_policy: CancellationPolicy
+  pricing: Pricing
 }
 
 export async function listPublicDoctors(tenantId: string, plan: string): Promise<PublicDoctor[]> {
@@ -217,6 +254,7 @@ export async function listPublicDoctors(tenantId: string, plan: string): Promise
       id: r.id, name: r.name, title: r.title, avatar_url: r.avatar_url,
       badges: prof.badges, session_modes: prof.session_modes, cards: prof.cards,
       payment_methods: effectivePaymentMethods(prof.payment_methods, plan), cancellation_policy: prof.cancellation_policy,
+      pricing: prof.pricing,
     }
   })
 }

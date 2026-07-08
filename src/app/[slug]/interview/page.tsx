@@ -144,7 +144,7 @@ export default function InterviewPage() {
   setLoading(false)
  }
 
- if (step === 'pay') return <InterviewPayScreen amount={PRICING.interview} cards={settings.cards} loaded={settings.loaded} loading={loading}
+ if (step === 'pay') return <InterviewPayScreen amount={displayDoctor?.pricing.interview ?? PRICING.interview} cards={settings.cards} loaded={settings.loaded} loading={loading}
   onPay={submitInterviewPayment} paymentMethods={displayDoctor?.payment_methods} slug={slug} caseNumber={caseNumber} phone={fatherPhone} stageId={stageId} />
 
  if (step === 'done') return (
@@ -312,7 +312,7 @@ export default function InterviewPage() {
           <span>نوع جلسه</span><span className="font-medium">{sessionType === 'online' ? 'آنلاین ' : `حضوری ${officeLoc ? ` — ${officeLoc}` : ''}`}</span>
          </div>
          <div className="flex justify-between border-t border-sand pt-2 mt-2">
-          <span className="font-medium">هزینه‌ی مصاحبه‌ی اولیه</span><span className="font-medium text-ink">{PRICING.interview.toLocaleString()} تومان</span>
+          <span className="font-medium">هزینه‌ی مصاحبه‌ی اولیه</span><span className="font-medium text-ink">{(displayDoctor?.pricing.interview ?? PRICING.interview).toLocaleString()} تومان</span>
          </div>
         </div>
        )}

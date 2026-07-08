@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { sb } from '@/lib/supabase'
 import { requirePanelAuth, isPanelAuthResponse } from '@/lib/tenant'
+import { getResourcePricing } from '@/lib/psy'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -54,10 +55,16 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
 
   const count = await sb().from('psy_sessions').select('id', { count: 'exact' })
     .eq('tenant_id', a.tenant.id).eq('case_number', body.case_number)
-  const { paid, resource_id: _ignored, ...rest } = body
+  const { paid, price, resource_id: _ignored, ...rest } = body
+  // قیمت: اگر دکتر خودش عددی داده همان، وگرنه از رویِ تنظیماتِ خودش برایِ نوعِ این جلسه
+  let finalPrice = typeof price === 'number' && price >= 0 ? price : undefined
+  if (finalPrice === undefined) {
+    const pricing = await getResourcePricing(parentCase.resource_id)
+    finalPrice = rest.session_type === 'online' ? pricing.sessionOnline : pricing.sessionOffline
+  }
   const { data } = await sb().from('psy_sessions').insert([{
     ...rest, tenant_id: a.tenant.id, resource_id: parentCase.resource_id,
-    session_number: (count.count || 0) + 1,
+    session_number: (count.count || 0) + 1, price: finalPrice,
     status: 'confirmed', paid: paid === true,
   }]).select().single()
   return NextResponse.json({ session: data })

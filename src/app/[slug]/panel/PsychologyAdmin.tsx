@@ -5,7 +5,7 @@ import { PERSIAN_MONTHS, toLatinNum, getCurrentJalali, getDaysInJalaliMonth, jal
 import { STAGE_TYPE_LABEL, STAGE_STATUS_LABEL } from '@/lib/flow'
 import { PRICING, PLATFORM_NAME } from '@/lib/config'
 import { ClinicSettings, DEFAULT_SETTINGS, SessionMode, OfficeLocation, PaymentCardInfo } from '@/lib/settings'
-import { IntakeForm, FormField, FormFieldType, DEFAULT_INTAKE_FORM, LEGACY_DETAIL_LABELS, CancellationPolicy, PaymentMethods, INTAKE_KNOWN_COLUMNS, fieldVisible } from '@/lib/psy'
+import { IntakeForm, FormField, FormFieldType, DEFAULT_INTAKE_FORM, LEGACY_DETAIL_LABELS, CancellationPolicy, PaymentMethods, Pricing, DEFAULT_PRICING, INTAKE_KNOWN_COLUMNS, fieldVisible } from '@/lib/psy'
 import { DialogHost, uiAlert, uiConfirm, uiPrompt } from '@/components/ui/Dialog'
 import { useResendCooldown } from '@/lib/useResendCooldown'
 
@@ -142,6 +142,7 @@ type Package = {
  parent_session_type: string
  notes: string
  status: string
+ price?: number
  paid: boolean
  payment_submitted?: boolean
  payment_ref?: string
@@ -162,6 +163,7 @@ type Session = {
  session_summary: string
  doctor_notes_private: string
  doctor_note_for_patient: string
+ price?: number
  paid: boolean
  payment_submitted?: boolean
  payment_ref?: string
@@ -215,6 +217,7 @@ type ResourceProfileView = {
  quick_times: string[]
  settlement_sheba: string
  settlement_sheba_holder_name: string
+ pricing: Pricing
 }
 
 const ALL_TIMES = ['8:00','9:00','10:00','11:00','12:00','13:00','14:00','15:00','16:00','17:00','18:00']
@@ -225,6 +228,7 @@ const DEFAULT_PROFILE: ResourceProfileView = {
  payment_methods: { card_to_card: true, online: false },
  quick_times: ALL_TIMES,
  settlement_sheba: '', settlement_sheba_holder_name: '',
+ pricing: DEFAULT_PRICING,
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -439,7 +443,7 @@ export function PsychologyAdmin() {
  const api = (path: string) => `/api/t/${slug}/panel/psy${path}`
  const panelApi = (path: string) => `/api/t/${slug}/panel${path}`
  const [mainTab, setMainTab] = useState<'patients' | 'bookings' | 'schedule' | 'settings_hub' | 'finance'>('patients')
- const [settingsSubTab, setSettingsSubTab] = useState<'profile' | 'payments' | 'locations' | 'form' | 'patient_panel' | 'staff' | 'account'>('profile')
+ const [settingsSubTab, setSettingsSubTab] = useState<'profile' | 'payments' | 'pricing' | 'locations' | 'form' | 'patient_panel' | 'staff' | 'account' | 'tickets'>('profile')
  const [sidebarOpen, setSidebarOpen] = useState(false)
 
  // ── Patients state ─────────────────────────────────────────────
@@ -501,12 +505,76 @@ export function PsychologyAdmin() {
  // ── Loading ────────────────────────────────────────────────────
  const [loading, setLoading] = useState(true)
  const [needsLogin, setNeedsLogin] = useState(false)
+ // ── تیکتِ پشتیبانی ────────────────────────────────────────────────────────────
+ type Ticket = { id: string; category: string; subject: string; message: string; status: string; admin_reply?: string | null; created_at: string }
+ const [tickets, setTickets] = useState<Ticket[]>([])
+ const [ticketsLoaded, setTicketsLoaded] = useState(false)
+ const [ticketForm, setTicketForm] = useState({ category: 'bug', subject: '', message: '' })
+ const [ticketSubmitting, setTicketSubmitting] = useState(false)
+
+ async function loadTickets() {
+  try {
+   const res = await fetch(panelApi('/tickets'), { cache: 'no-store' })
+   const d = await res.json().catch(() => ({}))
+   setTickets(d.tickets || [])
+  } catch {}
+  setTicketsLoaded(true)
+ }
+
+ async function submitTicket() {
+  if (!ticketForm.subject.trim() || !ticketForm.message.trim()) { uiAlert('موضوع و متنِ پیام را بنویسید'); return }
+  setTicketSubmitting(true)
+  try {
+   const res = await fetch(panelApi('/tickets'), {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(ticketForm),
+   })
+   const d = await res.json().catch(() => ({}))
+   if (!res.ok) { uiAlert(d.error || 'ثبتِ تیکت ناموفق بود'); setTicketSubmitting(false); return }
+   setTicketForm({ category: 'bug', subject: '', message: '' })
+   await loadTickets()
+  } catch { uiAlert('خطا در ارتباط با سرور') }
+  setTicketSubmitting(false)
+ }
+
  async function doLogout() {
   const ok = await uiConfirm('از پنل خارج شوید؟')
   if (!ok) return
   await fetch(panelApi('/logout'), { method: 'POST' })
   setMe(null)
   setNeedsLogin(true)
+ }
+
+ // ── تغییرِ خودسرویسِ شماره‌ی ورود (owner یا خودِ درمانگر) با تاییدِ OTP ──────────
+ async function sendChangePhoneCode() {
+  if (!/^09\d{9}$/.test(newPhoneInput.trim())) { uiAlert('شماره‌ی موبایل معتبر نیست'); return }
+  setChangePhoneBusy(true)
+  try {
+   const res = await fetch(panelApi('/change-phone'), {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ new_phone: newPhoneInput.trim() }),
+   })
+   const d = await res.json().catch(() => ({}))
+   if (!res.ok) { uiAlert(d.error || 'ارسالِ کد ناموفق بود'); setChangePhoneBusy(false); return }
+   setChangePhoneDevCode(d.devCode || '')
+   setChangePhoneStep('code')
+  } catch { uiAlert('خطا در ارتباط با سرور') }
+  setChangePhoneBusy(false)
+ }
+
+ async function verifyChangePhoneCode() {
+  if (changePhoneCode.trim().length < 5) { uiAlert('کد را کامل وارد کنید'); return }
+  setChangePhoneBusy(true)
+  try {
+   const res = await fetch(panelApi('/change-phone'), {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ new_phone: newPhoneInput.trim(), code: changePhoneCode.trim() }),
+   })
+   const d = await res.json().catch(() => ({}))
+   if (!res.ok) { uiAlert(d.error || 'تاییدِ کد ناموفق بود'); setChangePhoneBusy(false); return }
+   setChangePhoneOpen(false); setChangePhoneStep('phone'); setNewPhoneInput(''); setChangePhoneCode(''); setChangePhoneDevCode('')
+   await loadMe()
+   uiAlert('شماره‌ی ورود با موفقیت تغییر کرد.')
+  } catch { uiAlert('خطا در ارتباط با سرور') }
+  setChangePhoneBusy(false)
  }
 
  // ── Settings (تنظیماتِ کلینیک + ظاهر) ──────────────────────────
@@ -525,7 +593,13 @@ export function PsychologyAdmin() {
  const [toJ, setToJ] = useState(() => { const t = getCurrentJalali(); return { y: t.year, m: t.month + 1, d: t.day } })
 
  // ── چندکارمندی: کی وارد شده (صاحبِ مجموعه یا یک کارمندِ مشخص)؟ ──
- const [me, setMe] = useState<{ isOwner: boolean; resourceId: string | null; resourceName: string | null } | null>(null)
+ const [me, setMe] = useState<{ isOwner: boolean; resourceId: string | null; resourceName: string | null; phone: string | null; slug: string | null } | null>(null)
+ const [changePhoneOpen, setChangePhoneOpen] = useState(false)
+ const [newPhoneInput, setNewPhoneInput] = useState('')
+ const [changePhoneCode, setChangePhoneCode] = useState('')
+ const [changePhoneStep, setChangePhoneStep] = useState<'phone' | 'code'>('phone')
+ const [changePhoneBusy, setChangePhoneBusy] = useState(false)
+ const [changePhoneDevCode, setChangePhoneDevCode] = useState('')
  const [staffList, setStaffList] = useState<ResourceRow[]>([])
  const [staffLoaded, setStaffLoaded] = useState(false)
  // owner: کدام کارمند را می‌بینیم؟ '' = همه (پرونده‌ها) — برنامه/پروفایل همیشه یک نفرِ مشخص لازم دارد
@@ -576,7 +650,7 @@ export function PsychologyAdmin() {
    const r = await fetch(panelApi('/whoami'), { cache: 'no-store' })
    if (r.status === 401) { setNeedsLogin(true); return }
    const d = await r.json()
-   setMe({ isOwner: !!d.isOwner, resourceId: d.resourceId || null, resourceName: d.resourceName || null })
+   setMe({ isOwner: !!d.isOwner, resourceId: d.resourceId || null, resourceName: d.resourceName || null, phone: d.phone || null, slug: d.slug || null })
    if (d.isOwner) loadStaff()
    loadProfile()
   } catch {}
@@ -663,7 +737,7 @@ export function PsychologyAdmin() {
   } catch {}
  }
 
- useEffect(() => { fetchAll(); loadSettings() }, [fetchAll])
+ useEffect(() => { fetchAll(); loadSettings(); loadProfile() }, [fetchAll])
 
  async function loadPatientData(case_number: string) {
   const [pkgRes, sessRes, stageRes] = await Promise.all([
@@ -1161,6 +1235,7 @@ export function PsychologyAdmin() {
    loadIntakeForm()
    if (me?.isOwner !== false && !patientFeaturesLoaded) loadPatientFeatures()
    if (me?.isOwner && !staffLoaded) loadStaff()
+   loadTickets()
   }
   if (mainTab === 'finance') loadFinance()
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1647,9 +1722,10 @@ export function PsychologyAdmin() {
  type SettingsGroup = { title: string; items: { key: typeof settingsSubTab; icon: string; label: string }[] }
  const settingsGroups: SettingsGroup[] = [
   {
-   title: 'شخصی', items: [
+   title: 'صفحه‌ی عمومی', items: [
     { key: 'profile', icon: '👤', label: 'پروفایل' },
     { key: 'payments', icon: '💳', label: 'پرداخت‌ها' },
+    { key: 'pricing', icon: '💰', label: 'قیمت‌گذاری' },
     { key: 'form', icon: '📝', label: 'فرمِ رزرو' },
     ...(me?.isOwner !== false ? [{ key: 'locations' as const, icon: '🏢', label: 'مکان‌های حضوری' }] : []),
    ],
@@ -1664,26 +1740,39 @@ export function PsychologyAdmin() {
     { key: 'staff' as const, icon: '👥', label: 'درمانگرها' },
    ],
   }] : []),
-  { title: 'حساب', items: [{ key: 'account', icon: '🪪', label: 'پلن و ظاهر' }] },
+  { title: 'حساب', items: [{ key: 'account', icon: '🪪', label: 'مشخصاتِ حساب' }] },
+  { title: 'پشتیبانی', items: [{ key: 'tickets', icon: '🎫', label: 'تیکت' }] },
  ]
+
+ // آکاردئون: فقط یک گروه هم‌زمان باز — پیش‌فرض همان گروهی که زیرتبِ فعلی داخلش است
+ const [openGroup, setOpenGroup] = useState(() => settingsGroups.find(g => g.items.some(i => i.key === settingsSubTab))?.title || settingsGroups[0].title)
 
  function SettingsNavList({ onNavigate }: { onNavigate?: () => void }) {
   return (
-   <nav className="flex-1 p-2 space-y-3 overflow-y-auto">
-    {settingsGroups.map(group => (
-     <div key={group.title}>
-      <div className="px-3 py-1 text-[11px] font-medium text-soot">{group.title}</div>
-      <div className="space-y-0.5">
-       {group.items.map(item => (
-        <button key={item.key} onClick={() => { setSettingsSubTab(item.key); onNavigate?.() }}
-         className={`w-full text-right px-3 py-2.5 rounded-lg text-sm flex items-center gap-2 transition-colors ${
-          settingsSubTab === item.key ? 'bg-sand text-ink font-medium' : 'text-soot hover:bg-gray-50'}`}>
-         {item.icon} {item.label}
-        </button>
-       ))}
+   <nav className="flex-1 p-2 space-y-1 overflow-y-auto">
+    {settingsGroups.map(group => {
+     const isOpen = openGroup === group.title
+     return (
+      <div key={group.title}>
+       <button onClick={() => setOpenGroup(isOpen ? '' : group.title)}
+        className="w-full flex items-center justify-between px-3 py-2 text-[11px] font-medium text-soot hover:text-ink">
+        <span>{group.title}</span>
+        <span className={`transition-transform ${isOpen ? '-rotate-90' : ''}`}>◂</span>
+       </button>
+       {isOpen && (
+        <div className="space-y-0.5 mb-1">
+         {group.items.map(item => (
+          <button key={item.key} onClick={() => { setSettingsSubTab(item.key); onNavigate?.() }}
+           className={`w-full text-right px-3 py-2.5 rounded-lg text-sm flex items-center gap-2 transition-colors ${
+            settingsSubTab === item.key ? 'bg-sand text-ink font-medium' : 'text-soot hover:bg-gray-50'}`}>
+           {item.icon} {item.label}
+          </button>
+         ))}
+        </div>
+       )}
       </div>
-     </div>
-    ))}
+     )
+    })}
    </nav>
   )
  }
@@ -2014,8 +2103,8 @@ export function PsychologyAdmin() {
             const pkgSessions = sessions.filter(s => s.package_id === pkg.id)
             const childSess = pkgSessions.filter(s => s.attendee === 'child')
             const parentSess = pkgSessions.filter(s => s.attendee === 'parent')
-            const total = (pkg.child_sessions * (pkg.child_session_type === 'online' ? PRICING.sessionOnline : PRICING.sessionOffline)) +
-             (pkg.parent_sessions * (pkg.parent_session_type === 'online' ? PRICING.sessionOnline : PRICING.sessionOffline))
+            const total = pkg.price || ((pkg.child_sessions * (pkg.child_session_type === 'online' ? PRICING.sessionOnline : PRICING.sessionOffline)) +
+             (pkg.parent_sessions * (pkg.parent_session_type === 'online' ? PRICING.sessionOnline : PRICING.sessionOffline)))
             return (
              <div key={pkg.id} className="bg-white rounded-xl border border-sand p-4">
               <div className="flex items-center justify-between mb-3">
@@ -2202,11 +2291,11 @@ export function PsychologyAdmin() {
        const interviewPending = pendingStages.filter(s => s.stage_type === 'interview')
        const assessmentPending = pendingStages.filter(s => s.stage_type === 'assessment')
        const pkgAmount = (p: Package) =>
-        (p.child_sessions * (p.child_session_type === 'online' ? PRICING.sessionOnline : PRICING.sessionOffline)) +
-        (p.parent_sessions * (p.parent_session_type === 'online' ? PRICING.sessionOnline : PRICING.sessionOffline))
+        p.price || ((p.child_sessions * (p.child_session_type === 'online' ? PRICING.sessionOnline : PRICING.sessionOffline)) +
+        (p.parent_sessions * (p.parent_session_type === 'online' ? PRICING.sessionOnline : PRICING.sessionOffline)))
        const totalPending = pendingStages.length + pendingPkgs.length + pendingSess.length + pendingRefunds.length
        const refundAmt = (s: Session) => {
-        const full = s.session_type === 'online' ? PRICING.sessionOnline : PRICING.sessionOffline
+        const full = s.price || (s.session_type === 'online' ? PRICING.sessionOnline : PRICING.sessionOffline)
         return Math.round(full * (s.refund_percent || 50) / 100)
        }
 
@@ -2264,7 +2353,7 @@ export function PsychologyAdmin() {
           ))}
           {pendingSess.map(s => (
            <PendingPayCard key={s.id} name={childOf(s.case_number)} caseNumber={s.case_number}
-            amount={s.session_type === 'online' ? PRICING.sessionOnline : PRICING.sessionOffline} receipt={s.payment_ref}
+            amount={s.price || (s.session_type === 'online' ? PRICING.sessionOnline : PRICING.sessionOffline)} receipt={s.payment_ref}
             sub="جلسه‌ی جایگزین">
             <div className="flex gap-2">
              <button onClick={() => confirmSessionPayment(s.id)}
@@ -2783,7 +2872,7 @@ export function PsychologyAdmin() {
       ) : (
       <>
        {/* سوییچرِ دکتر — فقط وقتی owner است و بیش از یک نفر پرسنل دارد */}
-       {['profile', 'payments', 'form'].includes(settingsSubTab) && me?.isOwner && staffList.filter(r => r.is_active).length > 1 && (
+       {['profile', 'payments', 'pricing', 'form'].includes(settingsSubTab) && me?.isOwner && staffList.filter(r => r.is_active).length > 1 && (
         <section className="bg-white rounded-2xl border border-sand p-5">
          <h2 className="text-sm font-display font-semibold text-ink mb-1">پروفایلِ کدام دکتر؟</h2>
          <p className="text-xs text-soot mb-3">مجموعه‌ی شما چند نفر پرسنل دارد؛ اول انتخاب کنید پروفایل و برنامه‌ی کاریِ کدام‌شان را ویرایش می‌کنید.</p>
@@ -2998,6 +3087,40 @@ export function PsychologyAdmin() {
         </div>
         <button onClick={() => patchProfile({ cards: [...profile.cards, { id: genId('card'), number: '', holder: '' }] })}
          className="mt-3 text-xs px-3 py-1.5 border border-sand text-ink rounded-lg hover:bg-sand">+ افزودنِ کارت</button>
+       </section>
+       )}
+
+       {/* قیمت‌گذاری — per-resource؛ هر دکتر قیمتِ جلساتِ خودش را تعیین می‌کند */}
+       {settingsSubTab === 'pricing' && (
+       <section className="bg-white rounded-2xl border border-sand p-5">
+        <h2 className="text-sm font-display font-semibold text-ink mb-1">قیمت‌گذاری</h2>
+        <p className="text-xs text-soot mb-4">قیمتِ هرکدام از این‌ها را خودتان تعیین می‌کنید؛ روی رزروهای تازه اعمال می‌شود (رزروهای قبلی با همان قیمتِ زمانِ ثبت‌شان می‌مانند).</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+         <div>
+          <label className="text-xs text-soot mb-1 block">هزینه‌ی مصاحبه‌ی اولیه (تومان)</label>
+          <input type="number" min={0} value={profile.pricing.interview}
+           onChange={e => patchProfile({ pricing: { ...profile.pricing, interview: Math.max(0, Number(e.target.value) || 0) } })}
+           className="w-full text-sm px-3 py-2 border border-sand rounded-lg tnum focus:outline-none focus:border-ink" />
+         </div>
+         <div>
+          <label className="text-xs text-soot mb-1 block">هزینه‌ی ارزیابی (تومان)</label>
+          <input type="number" min={0} value={profile.pricing.assessment}
+           onChange={e => patchProfile({ pricing: { ...profile.pricing, assessment: Math.max(0, Number(e.target.value) || 0) } })}
+           className="w-full text-sm px-3 py-2 border border-sand rounded-lg tnum focus:outline-none focus:border-ink" />
+         </div>
+         <div>
+          <label className="text-xs text-soot mb-1 block">هزینه‌ی هر جلسه‌ی آنلاین (تومان)</label>
+          <input type="number" min={0} value={profile.pricing.sessionOnline}
+           onChange={e => patchProfile({ pricing: { ...profile.pricing, sessionOnline: Math.max(0, Number(e.target.value) || 0) } })}
+           className="w-full text-sm px-3 py-2 border border-sand rounded-lg tnum focus:outline-none focus:border-ink" />
+         </div>
+         <div>
+          <label className="text-xs text-soot mb-1 block">هزینه‌ی هر جلسه‌ی حضوری (تومان)</label>
+          <input type="number" min={0} value={profile.pricing.sessionOffline}
+           onChange={e => patchProfile({ pricing: { ...profile.pricing, sessionOffline: Math.max(0, Number(e.target.value) || 0) } })}
+           className="w-full text-sm px-3 py-2 border border-sand rounded-lg tnum focus:outline-none focus:border-ink" />
+         </div>
+        </div>
        </section>
        )}
 
@@ -3292,7 +3415,7 @@ export function PsychologyAdmin() {
        )}
 
        {/* نوارِ ذخیره (چسبیده به پایین) — فقط وقتی چیزی واقعاً عوض شده باشد، و فقط رویِ زیرتب‌هایی که این دکمه ذخیره‌شان می‌کند */}
-       {['profile', 'payments', 'locations', 'form'].includes(settingsSubTab) && (isSettingsTabDirty || settingsSaved || profileSaved || intakeSaved) && (
+       {['profile', 'payments', 'pricing', 'locations', 'form'].includes(settingsSubTab) && (isSettingsTabDirty || settingsSaved || profileSaved || intakeSaved) && (
         <div className="fixed bottom-0 inset-x-0 z-30 bg-white/95 border-t border-sand backdrop-blur">
          <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-end gap-3">
           {(settingsSaved || profileSaved || intakeSaved) && <span className="text-xs text-emerald-600 font-medium">✓ تنظیمات ذخیره شد</span>}
@@ -3374,8 +3497,8 @@ export function PsychologyAdmin() {
         <div className="flex justify-between text-sm">
          <span className="text-soot">مجموع مبلغ پروتکل درمان:</span>
          <span className="font-semibold text-ink">
-          {((newPkg.child_sessions * (newPkg.child_session_type === 'online' ? PRICING.sessionOnline : PRICING.sessionOffline)) +
-           (newPkg.parent_sessions * (newPkg.parent_session_type === 'online' ? PRICING.sessionOnline : PRICING.sessionOffline))).toLocaleString('en-US')} تومان
+          {((newPkg.child_sessions * (newPkg.child_session_type === 'online' ? profile.pricing.sessionOnline : profile.pricing.sessionOffline)) +
+           (newPkg.parent_sessions * (newPkg.parent_session_type === 'online' ? profile.pricing.sessionOnline : profile.pricing.sessionOffline))).toLocaleString('en-US')} تومان
          </span>
         </div>
        </div>
@@ -3783,6 +3906,64 @@ export function PsychologyAdmin() {
    {mainTab === 'settings_hub' && settingsSubTab === 'account' && (
     <div className="max-w-lg mx-auto space-y-4 pb-24">
      <section className="bg-white rounded-2xl border border-sand p-5">
+      <h2 className="text-sm font-display font-bold text-ink mb-1">مشخصاتِ حساب</h2>
+      <p className="text-xs text-soot mb-4">
+       ورود به این پنل با پسورد یا یوزرنیم نیست — فقط با کدِ پیامکی به همین شماره. یوزرنیم/پسوردی برایِ نگه‌داشتن وجود ندارد.
+      </p>
+      <div className="space-y-2">
+       <div className="flex items-center justify-between p-3 rounded-xl border border-sand">
+        <span className="text-sm text-ink">نشانیِ کارگاه</span>
+        <a href={`/${slug}`} target="_blank" dir="ltr" className="text-xs text-soot underline">/{me?.slug || slug}</a>
+       </div>
+       <div className="flex items-center justify-between p-3 rounded-xl border border-sand">
+        <span className="text-sm text-ink">شماره‌ی ورود{me && !me.isOwner ? ' (شما، به‌عنوانِ درمانگر)' : ''}</span>
+        <span dir="ltr" className="text-xs text-soot tnum">{me?.phone || '—'}</span>
+       </div>
+      </div>
+
+      {!changePhoneOpen ? (
+       <button onClick={() => setChangePhoneOpen(true)} className="mt-3 text-xs text-ink underline">تغییرِ شماره‌ی ورود</button>
+      ) : (
+       <div className="mt-3 p-3 rounded-xl border border-sand bg-gray-50 space-y-2">
+        {changePhoneStep === 'phone' ? (
+         <>
+          <label className="text-xs text-soot block">شماره‌ی جدید</label>
+          <input dir="ltr" inputMode="numeric" placeholder="09xxxxxxxxx" value={newPhoneInput}
+           onChange={e => setNewPhoneInput(e.target.value)}
+           className="w-full text-sm px-3 py-2 border border-sand rounded-lg tnum focus:outline-none focus:border-ink" />
+          <div className="flex gap-2">
+           <button onClick={sendChangePhoneCode} disabled={changePhoneBusy}
+            className="flex-1 py-2 bg-ink text-white rounded-lg text-sm disabled:opacity-50">
+            {changePhoneBusy ? 'در حالِ ارسال…' : 'ارسالِ کدِ تایید'}
+           </button>
+           <button onClick={() => setChangePhoneOpen(false)} className="px-4 py-2 border border-sand rounded-lg text-sm text-soot">انصراف</button>
+          </div>
+         </>
+        ) : (
+         <>
+          {changePhoneDevCode && (
+           <p className="text-xs text-amber-700 bg-amber-500/10 border border-amber-500/20 rounded-lg p-2 text-center">
+            کدِ تست (تا اتصالِ پیامک): <strong className="text-base">{changePhoneDevCode}</strong>
+           </p>
+          )}
+          <label className="text-xs text-soot block">کدِ ارسال‌شده به {newPhoneInput}</label>
+          <input dir="ltr" inputMode="numeric" placeholder="کدِ ۵ رقمی" value={changePhoneCode}
+           onChange={e => setChangePhoneCode(e.target.value)}
+           className="w-full text-sm px-3 py-2 border border-sand rounded-lg tnum tracking-widest text-center focus:outline-none focus:border-ink" />
+          <div className="flex gap-2">
+           <button onClick={verifyChangePhoneCode} disabled={changePhoneBusy}
+            className="flex-1 py-2 bg-ink text-white rounded-lg text-sm disabled:opacity-50">
+            {changePhoneBusy ? 'در حالِ تایید…' : 'تاییدِ کد'}
+           </button>
+           <button onClick={() => { setChangePhoneStep('phone'); setChangePhoneCode('') }} className="px-4 py-2 border border-sand rounded-lg text-sm text-soot">بازگشت</button>
+          </div>
+         </>
+        )}
+       </div>
+      )}
+     </section>
+
+     <section className="bg-white rounded-2xl border border-sand p-5">
       <h2 className="text-sm font-display font-bold text-ink mb-1">پلنِ مجموعه</h2>
       <p className="text-xs text-soot mb-4">
        تغییرِ پلن فقط از سمتِ پشتیبانیِ {PLATFORM_NAME} انجام می‌شود؛ برای ارتقا با پشتیبانی تماس بگیرید.
@@ -3810,6 +3991,71 @@ export function PsychologyAdmin() {
       className="w-full text-sm px-4 py-3 rounded-xl border border-red-200 text-red-700 hover:bg-red-50 transition-colors">
       خروج از پنل
      </button>
+    </div>
+   )}
+
+   {/* ════════════════════════════════════════════════════════════════
+     TAB: SUPPORT TICKETS (تیکتِ پشتیبانی)
+   ════════════════════════════════════════════════════════════════ */}
+   {mainTab === 'settings_hub' && settingsSubTab === 'tickets' && (
+    <div className="max-w-lg mx-auto space-y-4 pb-24">
+     <section className="bg-white rounded-2xl border border-sand p-5">
+      <h2 className="text-sm font-display font-bold text-ink mb-1">ثبتِ تیکتِ تازه</h2>
+      <p className="text-xs text-soot mb-4">اگه مشکلی داشتی یا قابلیتی می‌خواستی اضافه بشه، همین‌جا بنویس — مستقیم به تیمِ {PLATFORM_NAME} می‌رسد.</p>
+      <div className="space-y-3">
+       <div className="grid grid-cols-4 gap-1.5">
+        {([
+         ['bug', '🐞 مشکل/باگ'], ['feature', '💡 قابلیتِ تازه'], ['billing', '💳 مالی/پلن'], ['other', '❓ سایر'],
+        ] as [string, string][]).map(([val, label]) => (
+         <button key={val} onClick={() => setTicketForm(s => ({ ...s, category: val }))}
+          className={`py-2 rounded-lg text-[11px] font-medium transition-colors ${ticketForm.category === val ? 'bg-ink text-white' : 'bg-gray-100 text-soot'}`}>
+          {label}
+         </button>
+        ))}
+       </div>
+       <input value={ticketForm.subject} onChange={e => setTicketForm(s => ({ ...s, subject: e.target.value }))}
+        placeholder="موضوع (خلاصه در یک جمله)"
+        className="w-full text-sm px-3 py-2 border border-sand rounded-lg focus:outline-none focus:border-ink" />
+       <textarea value={ticketForm.message} onChange={e => setTicketForm(s => ({ ...s, message: e.target.value }))}
+        rows={5} placeholder="توضیحِ کامل..."
+        className="w-full text-sm px-3 py-2 border border-sand rounded-lg resize-none focus:outline-none focus:border-ink" />
+       <button onClick={submitTicket} disabled={ticketSubmitting}
+        className="w-full py-2.5 bg-ink text-white rounded-xl text-sm font-medium disabled:opacity-50">
+        {ticketSubmitting ? 'در حالِ ارسال…' : 'ارسالِ تیکت'}
+       </button>
+      </div>
+     </section>
+
+     <section className="bg-white rounded-2xl border border-sand p-5">
+      <h2 className="text-sm font-display font-bold text-ink mb-3">تیکت‌هایِ من</h2>
+      {!ticketsLoaded ? (
+       <p className="text-sm text-soot text-center py-6">در حالِ بارگذاری…</p>
+      ) : tickets.length === 0 ? (
+       <p className="text-sm text-soot text-center py-6">هنوز تیکتی ثبت نکرده‌اید.</p>
+      ) : (
+       <div className="space-y-2">
+        {tickets.map(tk => (
+         <div key={tk.id} className="border border-sand rounded-xl p-3">
+          <div className="flex items-center justify-between gap-2">
+           <span className="text-sm font-medium text-ink">{tk.subject}</span>
+           <span className={`text-[11px] px-2 py-0.5 rounded-full shrink-0 ${
+            tk.status === 'resolved' || tk.status === 'closed' ? 'bg-emerald-100 text-emerald-800'
+             : tk.status === 'in_progress' ? 'bg-amber-100 text-amber-800' : 'bg-sand text-soot'}`}>
+            {tk.status === 'open' ? 'ثبت‌شده' : tk.status === 'in_progress' ? 'در حالِ بررسی' : tk.status === 'resolved' ? 'حل‌شده' : 'بسته‌شده'}
+           </span>
+          </div>
+          <p className="text-xs text-soot mt-1 leading-relaxed">{tk.message}</p>
+          {tk.admin_reply && (
+           <div className="mt-2 pt-2 border-t border-sand">
+            <p className="text-[11px] text-soot mb-0.5">پاسخِ پشتیبانی:</p>
+            <p className="text-xs text-ink leading-relaxed">{tk.admin_reply}</p>
+           </div>
+          )}
+         </div>
+        ))}
+       </div>
+      )}
+     </section>
     </div>
    )}
   </div>

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { sb } from '@/lib/supabase'
 import { requirePanelAuth, isPanelAuthResponse } from '@/lib/tenant'
-import { mergeResourceProfile, mergeCancellationPolicy, mergePaymentMethods, effectivePaymentMethods, isValidSheba } from '@/lib/psy'
+import { mergeResourceProfile, mergeCancellationPolicy, mergePaymentMethods, effectivePaymentMethods, mergePricing, isValidSheba } from '@/lib/psy'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -39,7 +39,8 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
       cancellation_policy: prof.cancellation_policy,
       payment_methods: effectivePaymentMethods(prof.payment_methods, a.tenant.plan),
       quick_times: prof.quick_times,
-      settlement_sheba: prof.settlement_sheba, settlement_sheba_holder_name: prof.settlement_sheba_holder_name },
+      settlement_sheba: prof.settlement_sheba, settlement_sheba_holder_name: prof.settlement_sheba_holder_name,
+      pricing: prof.pricing },
     plan: a.tenant.plan,
   }, { headers: NO_STORE })
 }
@@ -74,6 +75,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
     profilePatch.settlement_sheba = sheba
   }
   if ('settlement_sheba_holder_name' in body) profilePatch.settlement_sheba_holder_name = String(body.settlement_sheba_holder_name || '').trim().slice(0, 80)
+  if ('pricing' in body) profilePatch.pricing = mergePricing(body.pricing)
   if ('payment_methods' in body) {
     let pm = mergePaymentMethods(body.payment_methods)
     if (a.tenant.plan !== 'pro') {

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { sb } from '@/lib/supabase'
 import { getActiveTenant } from '@/lib/tenant'
-import { PSY_PRICING, getPaymentMethods, effectivePaymentMethods, getResourceProfile, isValidSheba } from '@/lib/psy'
+import { getPaymentMethods, effectivePaymentMethods, getResourceProfile, isValidSheba, getResourcePricing, packageAmount } from '@/lib/psy'
 import { requestZibalPayment, PLATFORM_COMMISSION_PERCENT, MULTIPLEXING_ENABLED } from '@/lib/zibal'
 import { getClientPhone, getPayCase } from '@/lib/auth'
 
@@ -9,11 +9,6 @@ export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 type Purpose = 'stage' | 'package' | 'session'
-
-function pkgAmount(p: any): number {
-  return (p.child_sessions * (p.child_session_type === 'online' ? PSY_PRICING.sessionOnline : PSY_PRICING.sessionOffline))
-    + (p.parent_sessions * (p.parent_session_type === 'online' ? PSY_PRICING.sessionOnline : PSY_PRICING.sessionOffline))
-}
 
 // نقطه‌ی واحد برای شروعِ پرداختِ آنلاین در همه‌ی مراحل (مصاحبه/ارزیابی/پروتکل/جلسه).
 // موفقیت‌آمیز بودنِ پرداخت را callback تایید می‌کند و همان کاری را می‌کند که تاییدِ
@@ -46,6 +41,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
 
   let amount = 0
   let description = ''
+  const resourcePricing = await getResourcePricing(c.resource_id)
   if (purpose === 'stage') {
     if (!ref_id || c.current_stage_id !== ref_id) return NextResponse.json({ error: 'این مرحله در دسترس نیست' }, { status: 400 })
     const { data: stage } = await sb().from('psy_stages').select('*').eq('id', ref_id).eq('tenant_id', t.id).single()
@@ -57,14 +53,16 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
     const { data: pkg } = await sb().from('psy_packages').select('*').eq('id', ref_id).eq('tenant_id', t.id).eq('case_number', case_number).single()
     if (!pkg) return NextResponse.json({ error: 'پروتکل یافت نشد' }, { status: 404 })
     if (pkg.paid) return NextResponse.json({ error: 'قبلاً پرداخت شده' }, { status: 400 })
-    amount = pkgAmount(pkg)
+    // ردیف‌هایِ قدیمی ممکن است price ذخیره‌شده نداشته باشند (۰) — برایِ آن‌ها با
+    // قیمتِ فعلیِ دکتر بازمحاسبه می‌شود؛ ردیف‌هایِ تازه از رویِ price ذخیره‌شده‌ی خودشان می‌آیند.
+    amount = pkg.price || packageAmount(pkg, resourcePricing)
     description = 'هزینه‌ی پروتکلِ درمان'
   } else if (purpose === 'session') {
     if (!ref_id) return NextResponse.json({ error: 'شناسه‌ی جلسه لازم است' }, { status: 400 })
     const { data: s } = await sb().from('psy_sessions').select('*').eq('id', ref_id).eq('tenant_id', t.id).eq('case_number', case_number).single()
     if (!s) return NextResponse.json({ error: 'جلسه یافت نشد' }, { status: 404 })
     if (s.paid) return NextResponse.json({ error: 'قبلاً پرداخت شده' }, { status: 400 })
-    amount = s.price || PSY_PRICING.sessionOffline
+    amount = s.price || (s.session_type === 'online' ? resourcePricing.sessionOnline : resourcePricing.sessionOffline)
     description = 'هزینه‌ی جلسه'
   } else {
     return NextResponse.json({ error: 'نوعِ پرداخت نامعتبر است' }, { status: 400 })
