@@ -1,7 +1,7 @@
 'use client'
 // ─── پنلِ سوپرادمینِ پلتفرم ──────────────────────────────────────
-// ورود با SUPER_SECRET، لیست/ساخت/تعلیقِ tenantها (فاز 1: آنبوردینگِ دستی)
-import { useCallback, useEffect, useState } from 'react'
+// ورود با SUPER_SECRET، داشبوردِ خلاصه، فیلتر/جست‌وجو، لیست/ساخت/تعلیقِ tenantها
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { DialogProvider, useDialog } from '@/components/Dialog'
 import { PLATFORM_NAME } from '@/lib/config'
 
@@ -10,9 +10,16 @@ type Tenant = {
   slug: string
   status: 'active' | 'suspended' | 'pending'
   plan: string
+  niche_key: string
   owner_phone: string
   created_at: string
+  records_count: number
   tenant_profiles: { display_name: string | null }[] | { display_name: string | null } | null
+}
+
+type Summary = {
+  total: number; active: number; suspended: number; pending: number
+  recent_7d: number; inactive: number; by_niche: Record<string, number>
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -21,11 +28,17 @@ const STATUS_LABEL: Record<string, string> = {
   pending: 'در انتظار',
 }
 
+const RECENT_MS = 7 * 24 * 60 * 60 * 1000
+
 function displayName(t: Tenant): string {
   const p = t.tenant_profiles
   if (!p) return '—'
   const row = Array.isArray(p) ? p[0] : p
   return row?.display_name || '—'
+}
+
+function isRecent(t: Tenant): boolean {
+  return Date.now() - new Date(t.created_at).getTime() < RECENT_MS
 }
 
 function SuperInner() {
@@ -35,7 +48,13 @@ function SuperInner() {
   const [busy, setBusy] = useState(false)
 
   const [tenants, setTenants] = useState<Tenant[]>([])
+  const [summary, setSummary] = useState<Summary | null>(null)
   const [loading, setLoading] = useState(false)
+
+  // فیلتر/جست‌وجویِ لیست
+  const [search, setSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'suspended' | 'pending'>('all')
+  const [nicheFilter, setNicheFilter] = useState('all')
 
   // فرمِ ساختِ tenant تازه
   const [slug, setSlug] = useState('')
@@ -51,9 +70,26 @@ function SuperInner() {
     if (res.status === 401) { setAuthed(false); setLoading(false); return }
     const data = await res.json()
     setTenants(data.tenants || [])
+    setSummary(data.summary || null)
     setAuthed(true)
     setLoading(false)
   }, [])
+
+  const nicheLabel = useCallback(
+    (key: string) => niches.find(n => n.key === key)?.display_name || key,
+    [niches]
+  )
+
+  const filteredTenants = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    return tenants.filter(t => {
+      if (statusFilter !== 'all' && t.status !== statusFilter) return false
+      if (nicheFilter !== 'all' && t.niche_key !== nicheFilter) return false
+      if (!q) return true
+      const name = displayName(t).toLowerCase()
+      return t.slug.toLowerCase().includes(q) || name.includes(q) || t.owner_phone.includes(q)
+    })
+  }, [tenants, search, statusFilter, nicheFilter])
 
   useEffect(() => { load() }, [load])
   useEffect(() => {
@@ -148,6 +184,49 @@ function SuperInner() {
         <span className="text-sm text-soot tnum">{tenants.length} متخصص</span>
       </header>
 
+      {/* داشبوردِ خلاصه */}
+      {summary && (
+        <section className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+          <button
+            onClick={() => setStatusFilter('all')}
+            className={'bg-white border rounded-2xl p-4 text-center ' + (statusFilter === 'all' ? 'border-ink' : 'border-sand')}
+          >
+            <div className="text-2xl font-bold text-ink tnum">{summary.total}</div>
+            <div className="text-xs text-soot mt-1">کل</div>
+          </button>
+          <button
+            onClick={() => setStatusFilter('active')}
+            className={'bg-white border rounded-2xl p-4 text-center ' + (statusFilter === 'active' ? 'border-ink' : 'border-sand')}
+          >
+            <div className="text-2xl font-bold text-green-700 tnum">{summary.active}</div>
+            <div className="text-xs text-soot mt-1">فعال</div>
+          </button>
+          <button
+            onClick={() => setStatusFilter('suspended')}
+            className={'bg-white border rounded-2xl p-4 text-center ' + (statusFilter === 'suspended' ? 'border-ink' : 'border-sand')}
+          >
+            <div className="text-2xl font-bold text-red-700 tnum">{summary.suspended}</div>
+            <div className="text-xs text-soot mt-1">معلق</div>
+          </button>
+          <button
+            onClick={() => setStatusFilter('pending')}
+            className={'bg-white border rounded-2xl p-4 text-center ' + (statusFilter === 'pending' ? 'border-ink' : 'border-sand')}
+          >
+            <div className="text-2xl font-bold text-amber-700 tnum">{summary.pending}</div>
+            <div className="text-xs text-soot mt-1">در انتظار</div>
+          </button>
+          <div className="bg-white border border-sand rounded-2xl p-4 text-center">
+            <div className="text-2xl font-bold text-ink tnum">{summary.recent_7d}</div>
+            <div className="text-xs text-soot mt-1">تازه (۷ روز)</div>
+          </div>
+        </section>
+      )}
+      {summary && summary.inactive > 0 && (
+        <p className="text-xs text-amber-700 -mt-4">
+          {summary.inactive} متخصص هنوز هیچ پرونده/رزروی ثبت نکرده‌اند — کاندیدِ پیگیریِ آنبوردینگ.
+        </p>
+      )}
+
       {/* ساختِ tenant تازه */}
       <section className="bg-white border border-sand rounded-2xl p-5 space-y-3">
         <h2 className="font-bold text-ink text-sm">افزودنِ متخصصِ جدید</h2>
@@ -190,13 +269,34 @@ function SuperInner() {
         </button>
       </section>
 
+      {/* جست‌وجو/فیلتر */}
+      <section className="flex flex-col sm:flex-row gap-3">
+        <input
+          className="flex-1 border border-sand rounded-xl px-3 py-2 text-sm bg-white"
+          placeholder="جست‌وجو: نام، slug یا شماره…"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+        />
+        <select
+          className="border border-sand rounded-xl px-3 py-2 text-sm bg-white"
+          value={nicheFilter}
+          onChange={e => setNicheFilter(e.target.value)}
+        >
+          <option value="all">همه‌ی نیچ‌ها</option>
+          {niches.map(n => <option key={n.key} value={n.key}>{n.display_name}</option>)}
+        </select>
+      </section>
+
       {/* لیستِ tenantها */}
       <section className="space-y-3">
         {loading && <p className="text-sm text-soot">در حالِ بارگذاری…</p>}
         {!loading && tenants.length === 0 && (
           <p className="text-sm text-soot">هنوز متخصصی ثبت نشده.</p>
         )}
-        {tenants.map(t => (
+        {!loading && tenants.length > 0 && filteredTenants.length === 0 && (
+          <p className="text-sm text-soot">با این فیلتر چیزی پیدا نشد.</p>
+        )}
+        {filteredTenants.map(t => (
           <div key={t.id} className="bg-white border border-sand rounded-2xl p-4 flex flex-wrap items-center gap-3">
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
@@ -204,9 +304,17 @@ function SuperInner() {
                 <a href={`/${t.slug}`} target="_blank" dir="ltr" className="text-xs text-soot underline">
                   /{t.slug}
                 </a>
+                {isRecent(t) && (
+                  <span className="text-[11px] px-2 py-0.5 rounded-full bg-blue-50 text-blue-700">تازه</span>
+                )}
+                {t.records_count === 0 && (
+                  <span className="text-[11px] px-2 py-0.5 rounded-full bg-amber-50 text-amber-700">بدونِ فعالیت</span>
+                )}
               </div>
               <div className="text-xs text-soot mt-1 flex items-center gap-3 flex-wrap">
                 <span dir="ltr" className="tnum">{t.owner_phone}</span>
+                <span className="tnum">{t.records_count} پرونده/رزرو</span>
+                <span>{nicheLabel(t.niche_key)}</span>
                 <span
                   className={
                     'px-2 py-0.5 rounded-full ' +
@@ -222,6 +330,12 @@ function SuperInner() {
               </div>
             </div>
             <div className="flex gap-2">
+              <a
+                href={`/super/${t.id}`}
+                className="text-xs border border-sand rounded-xl px-3 py-1.5 text-ink"
+              >
+                جزئیات
+              </a>
               <a
                 href={`/${t.slug}/panel`}
                 target="_blank"

@@ -7,12 +7,50 @@ import { getNiche } from '@/lib/niche'
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
+// شمارشِ سبکِ «آیا این tenant واقعاً استفاده می‌شود؟» — هر نیچ جدولِ رکوردِ اصلیِ
+// خودش را دارد (روانشناسی → پرونده، جنریک → رزرو). برایِ تعدادِ کمِ فعلیِ
+// tenantها (فازِ آنبوردینگِ دستی)، یک شمارشِ جدا per-tenant به‌صرفه‌تر از یک
+// ویو/RPCِ تازه است؛ اگر تعدادِ tenantها زیاد شد، این نقطه کاندیدِ بهینه‌سازی است.
+async function withRecordsCount<T extends { id: string; niche_key: string }>(tenants: T[]) {
+  const psyIds = tenants.filter(t => t.niche_key === 'psychology').map(t => t.id)
+  const genericIds = tenants.filter(t => t.niche_key !== 'psychology').map(t => t.id)
+  const counts = new Map<string, number>()
+
+  await Promise.all([
+    ...psyIds.map(async id => {
+      const { count } = await sb().from('psy_cases').select('id', { count: 'exact', head: true }).eq('tenant_id', id)
+      counts.set(id, count || 0)
+    }),
+    ...genericIds.map(async id => {
+      const { count } = await sb().from('bookings').select('id', { count: 'exact', head: true }).eq('tenant_id', id)
+      counts.set(id, count || 0)
+    }),
+  ])
+  return tenants.map(t => ({ ...t, records_count: counts.get(t.id) || 0 }))
+}
+
 export async function GET(req: NextRequest) {
   if (!isSuperAuthed(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  const { data: tenants } = await sb().from('tenants')
+  const { data } = await sb().from('tenants')
     .select('id, slug, status, plan, niche_key, owner_phone, custom_domain, domain_verified, created_at, tenant_profiles(display_name)')
     .order('created_at', { ascending: false })
-  return NextResponse.json({ tenants: tenants || [] })
+  const tenants = await withRecordsCount(data || [])
+
+  const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000
+  const byNiche: Record<string, number> = {}
+  for (const t of tenants) byNiche[t.niche_key] = (byNiche[t.niche_key] || 0) + 1
+
+  const summary = {
+    total: tenants.length,
+    active: tenants.filter(t => t.status === 'active').length,
+    suspended: tenants.filter(t => t.status === 'suspended').length,
+    pending: tenants.filter(t => t.status === 'pending').length,
+    recent_7d: tenants.filter(t => new Date(t.created_at).getTime() >= sevenDaysAgo).length,
+    inactive: tenants.filter(t => t.records_count === 0).length,
+    by_niche: byNiche,
+  }
+
+  return NextResponse.json({ tenants, summary })
 }
 
 // ساختِ tenant تازه با نیچِ انتخابی: {slug, owner_phone, display_name, niche_key}
