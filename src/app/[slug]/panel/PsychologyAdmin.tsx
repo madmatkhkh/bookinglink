@@ -187,6 +187,8 @@ type FinanceData = {
  split: { online: number; offline: number }
  monthly: { month: string; amount: number }[]
  topCases: { case_number: string; name: string; amount: number }[]
+ refundsList: { case_number: string; name: string; amount: number; percent: number; date: string; card: string | null }[]
+ settlement: { totalOnline: number; totalCommission: number; autoSettled: number; owed: number; count: number }
 }
 
 // یک «منبع» = یک کارمند/دکتر. name/title/avatar_url هویتِ نمایشی؛ phone برای
@@ -442,7 +444,7 @@ export function PsychologyAdmin() {
  const { slug } = useParams<{ slug: string }>()
  const api = (path: string) => `/api/t/${slug}/panel/psy${path}`
  const panelApi = (path: string) => `/api/t/${slug}/panel${path}`
- const [mainTab, setMainTab] = useState<'patients' | 'bookings' | 'schedule' | 'settings_hub' | 'finance'>('patients')
+ const [mainTab, setMainTab] = useState<'dashboard' | 'patients' | 'bookings' | 'schedule' | 'settings_hub' | 'finance'>('dashboard')
  const [settingsSubTab, setSettingsSubTab] = useState<'profile' | 'payments' | 'pricing' | 'locations' | 'form' | 'patient_panel' | 'staff' | 'account' | 'tickets'>('profile')
  const [sidebarOpen, setSidebarOpen] = useState(false)
 
@@ -584,6 +586,8 @@ export function PsychologyAdmin() {
  const [settingsSaved, setSettingsSaved] = useState(false)
  const [darkMode, setDarkMode] = useState(false)
  const [finance, setFinance] = useState<FinanceData | null>(null)
+ const [dashboardFinance, setDashboardFinance] = useState<FinanceData | null>(null)
+ const [dashboardLoaded, setDashboardLoaded] = useState(false)
  const [financeLoaded, setFinanceLoaded] = useState(false)
  const [financeRange, setFinanceRange] = useState<'all' | '1m' | '3m' | '6m' | '12m' | 'custom'>('6m')
  const [financeFromIso, setFinanceFromIso] = useState('')
@@ -1228,6 +1232,7 @@ export function PsychologyAdmin() {
 
  // با ورود به تب برنامه، داده‌های ماه و جلسه‌ها را بارگذاری کن
  useEffect(() => {
+  if (mainTab === 'dashboard') { loadAllSessions(); loadAllStages(); if (!profileLoaded) loadProfile(); loadDashboardFinance() }
   if (mainTab === 'schedule') { loadMonthSchedules(schedMonth, schedYear); loadAllSessions(); loadAllStages(); refreshBookings(); if (!profileLoaded) loadProfile() }
   if (mainTab === 'settings_hub') {
    if (!settingsLoaded) loadSettings()
@@ -1562,6 +1567,19 @@ export function PsychologyAdmin() {
   setFinanceLoaded(true)
  }
 
+ // گزارشِ مالیِ داشبورد — stateِ کاملاً جدا از تبِ «گزارشاتِ مالی» تا انتخابِ
+ // بازه‌ی کاربر تویِ اون تب با فچِ داشبورد قاطی/بازنویسی نشود
+ async function loadDashboardFinance() {
+  try {
+   const fromIso = new Date(Date.now() - 180 * 86400000).toISOString()
+   const res = await fetch(api('/finance') + `?from=${encodeURIComponent(fromIso)}`, { cache: 'no-store' })
+   if (res.status === 401) { setNeedsLogin(true); return }
+   const data = await res.json()
+   setDashboardFinance(data)
+  } catch {}
+  setDashboardLoaded(true)
+ }
+
  // اعمالِ بازه‌ی دقیقِ جلالی
  function applyCustomRange() {
   const fromTs = jalaliDateTimeToTimestamp(`${fromJ.y}/${fromJ.m}/${fromJ.d}`, '00:00')
@@ -1693,6 +1711,7 @@ export function PsychologyAdmin() {
  const showBookingsTab = profile.payment_methods.card_to_card || pendingActionCount > 0
 
  const navItems = [
+  { key: 'dashboard' as const, icon: '🏠', label: 'داشبورد', badge: 0 },
   { key: 'patients' as const, icon: '📁', label: 'پرونده‌ها', badge: 0 },
   { key: 'schedule' as const, icon: '🗓', label: 'روزهای کاری', badge: 0 },
   ...(showBookingsTab ? [{ key: 'bookings' as const, icon: '💳', label: 'تأیید پرداخت‌ها', badge: pendingActionCount }] : []),
@@ -1849,6 +1868,129 @@ export function PsychologyAdmin() {
    )}
 
    <div className="max-w-5xl mx-auto p-3 sm:p-4">
+
+    {/* ════════════════════════════════════════════════════════════════
+      TAB: DASHBOARD (نمایِ کلی)
+    ════════════════════════════════════════════════════════════════ */}
+    {mainTab === 'dashboard' && (() => {
+      const todayJ = getCurrentJalali()
+      const todayStr = `${todayJ.year}/${todayJ.month + 1}/${todayJ.day}`
+      const todayAppts = apptsForDate(todayStr).sort((a, b) => a.time.localeCompare(b.time))
+      const thisMonthKey = `${todayJ.year}/${String(todayJ.month + 1).padStart(2, '0')}`
+      const monthAmount = dashboardFinance?.monthly.find(m => m.month === thisMonthKey)?.amount || 0
+      const money = (n: number) => n.toLocaleString('en-US')
+      const activeCases = bookings.length
+      const trend = dashboardFinance?.monthly.slice(-6) || []
+      const maxTrend = Math.max(1, ...trend.map(m => m.amount))
+      const needsSheba = tenantPlan !== 'pro' || profile.payment_methods.online
+      const missingSheba = needsSheba && !profile.settlement_sheba
+
+      return (
+       <div className="space-y-4">
+        {/* خوش‌آمد + تاریخِ امروز */}
+        <div className="flex items-center justify-between flex-wrap gap-2">
+         <div>
+          <h1 className="text-lg font-display font-bold text-ink">
+           سلام{profile.name ? `، ${profile.name}` : ''} 👋
+          </h1>
+          <p className="text-xs text-soot mt-0.5">
+           {PERSIAN_MONTHS[todayJ.month]} {toFarsiNum(todayJ.day)}، {toFarsiNum(todayJ.year)}
+          </p>
+         </div>
+        </div>
+
+        {/* هشدارها — فقط وقتی واقعاً اقدامی لازم است */}
+        {pendingActionCount > 0 && (
+         <button onClick={() => setMainTab('bookings')}
+          className="w-full flex items-center justify-between bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 text-right hover:bg-amber-100 transition-colors">
+          <span className="text-sm text-amber-800">
+           <strong className="tnum">{toFarsiNum(pendingActionCount)}</strong> مورد منتظرِ تأییدِ پرداختِ شماست
+          </span>
+          <span className="text-amber-700 text-xs">بررسی ←</span>
+         </button>
+        )}
+        {missingSheba && (
+         <button onClick={() => { setMainTab('settings_hub'); setSettingsSubTab('payments'); setOpenGroup('صفحه‌ی عمومی') }}
+          className="w-full flex items-center justify-between bg-sky-50 border border-sky-200 rounded-2xl px-4 py-3 text-right hover:bg-sky-100 transition-colors">
+          <span className="text-sm text-sky-800">برای دریافتِ خودکارِ سهمتان از پرداختِ آنلاین، شماره‌شبا ثبت نکرده‌اید</span>
+          <span className="text-sky-700 text-xs">تنظیم ←</span>
+         </button>
+        )}
+
+        {/* کارت‌هایِ KPI */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+         <button onClick={() => setMainTab('patients')} className="bg-white rounded-2xl border border-sand p-4 text-right hover:border-ink transition-colors">
+          <div className="text-2xl">📁</div>
+          <div className="text-xl font-bold text-ink mt-1 tnum">{toFarsiNum(activeCases)}</div>
+          <div className="text-[11px] text-soot">پرونده‌ی فعال</div>
+         </button>
+         <div className="bg-white rounded-2xl border border-sand p-4">
+          <div className="text-2xl">🗓</div>
+          <div className="text-xl font-bold text-ink mt-1 tnum">{toFarsiNum(todayAppts.length)}</div>
+          <div className="text-[11px] text-soot">نوبتِ امروز</div>
+         </div>
+         <button onClick={() => setMainTab('bookings')} className="bg-white rounded-2xl border border-sand p-4 text-right hover:border-ink transition-colors">
+          <div className="text-2xl">💳</div>
+          <div className={`text-xl font-bold mt-1 tnum ${pendingActionCount > 0 ? 'text-amber-700' : 'text-ink'}`}>{toFarsiNum(pendingActionCount)}</div>
+          <div className="text-[11px] text-soot">منتظرِ تأیید</div>
+         </button>
+         <button onClick={() => setMainTab('finance')} className="bg-white rounded-2xl border border-sand p-4 text-right hover:border-ink transition-colors">
+          <div className="text-2xl">📊</div>
+          <div className="text-xl font-bold text-ink mt-1 tnum">{money(monthAmount)}</div>
+          <div className="text-[11px] text-soot">درآمدِ این ماه (تومان)</div>
+         </button>
+        </div>
+
+        {/* نمودارِ روندِ ۶ماهه */}
+        <div className="bg-white rounded-2xl border border-sand p-5">
+         <h2 className="text-sm font-display font-semibold text-ink mb-4">روندِ درآمد (۶ ماهِ اخیر)</h2>
+         {!dashboardLoaded ? (
+          <p className="text-xs text-soot text-center py-8">در حالِ بارگذاری…</p>
+         ) : trend.length === 0 ? (
+          <p className="text-xs text-soot text-center py-8">هنوز درآمدی ثبت نشده.</p>
+         ) : (
+          <svg viewBox={`0 0 ${trend.length * 60} 160`} className="w-full h-40" preserveAspectRatio="xMidYMax meet">
+           {trend.map((m, i) => {
+            const h = Math.max(4, (m.amount / maxTrend) * 120)
+            const x = i * 60 + 12
+            const [y, mm] = m.month.split('/')
+            const isCurrent = m.month === thisMonthKey
+            return (
+             <g key={m.month}>
+              <rect x={x} y={140 - h} width={36} height={h} rx={6} className={isCurrent ? 'fill-ink' : 'fill-sand'} />
+              <text x={x + 18} y={155} textAnchor="middle" className="fill-current text-soot" style={{ fontSize: 9 }}>
+               {PERSIAN_MONTHS[parseInt(mm) - 1]?.slice(0, 3)}
+              </text>
+             </g>
+            )
+           })}
+          </svg>
+         )}
+        </div>
+
+        {/* برنامه‌ی امروز */}
+        <div className="bg-white rounded-2xl border border-sand p-5">
+         <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-display font-semibold text-ink">برنامه‌ی امروز</h2>
+          <button onClick={() => setMainTab('schedule')} className="text-xs text-soot hover:text-ink">مشاهده‌ی همه ←</button>
+         </div>
+         {todayAppts.length === 0 ? (
+          <p className="text-xs text-soot text-center py-6">امروز نوبتی ثبت نشده.</p>
+         ) : (
+          <div className="space-y-2">
+           {todayAppts.map(a => (
+            <div key={a.id} className={`flex items-center gap-3 p-2.5 rounded-xl border ${a.color}`}>
+             <span className="text-sm font-bold tnum shrink-0">{toFarsiNum(a.time)}</span>
+             <span className="text-sm text-ink flex-1">{a.name}</span>
+             <span className="text-[11px] text-soot shrink-0">{a.type}{a.mode === 'online' ? ' · آنلاین' : a.loc ? ` · ${a.loc}` : ''}</span>
+            </div>
+           ))}
+          </div>
+         )}
+        </div>
+       </div>
+      )
+    })()}
 
     {/* ════════════════════════════════════════════════════════════════
       TAB: PATIENTS
@@ -2689,10 +2831,10 @@ export function PsychologyAdmin() {
        const f = finance
        const money = (n: number) => n.toLocaleString('en-US') + ' تومان'
        const cats = [
-        { key: 'interview', label: 'مصاحبه‌ی اولیه', icon: '', amount: f.paid.interview, count: f.paidCount.interview },
-        { key: 'assessment', label: 'ارزیابی', icon: '', amount: f.paid.assessment, count: f.paidCount.assessment },
-        { key: 'packages', label: 'پروتکل درمان', icon: '', amount: f.paid.packages, count: f.paidCount.packages },
-        { key: 'sessions', label: 'جلسه‌ی جداگانه', icon: '', amount: f.paid.sessions, count: f.paidCount.sessions },
+        { key: 'interview', label: 'مصاحبه‌ی اولیه', icon: '🩺', amount: f.paid.interview, count: f.paidCount.interview },
+        { key: 'assessment', label: 'ارزیابی', icon: '🧩', amount: f.paid.assessment, count: f.paidCount.assessment },
+        { key: 'packages', label: 'پروتکل درمان', icon: '📦', amount: f.paid.packages, count: f.paidCount.packages },
+        { key: 'sessions', label: 'جلسه‌ی جداگانه', icon: '📅', amount: f.paid.sessions, count: f.paidCount.sessions },
        ]
        const maxCat = Math.max(1, ...cats.map(c => c.amount))
        const maxMonth = Math.max(1, ...f.monthly.map(m => m.amount))
@@ -2743,8 +2885,17 @@ export function PsychologyAdmin() {
           )}
          </div>
 
+         {/* ناوبریِ سریع — برای پیداکردنِ فوریِ هر بخش بدونِ اسکرول‌کردنِ کور */}
+         <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1">
+          {[['#fin-summary', 'خلاصه'], ['#fin-settlement', 'تسویه‌ی آنلاین'], ['#fin-refunds', 'بازپرداخت‌ها'], ['#fin-cats', 'دسته‌ها'], ['#fin-trend', 'روند'], ['#fin-cases', 'پرونده‌ها']].map(([href, lbl]) => (
+           <a key={href} href={href} className="shrink-0 text-[11px] px-3 py-1.5 rounded-full bg-white border border-sand text-soot hover:text-ink hover:border-ink transition-colors">
+            {lbl}
+           </a>
+          ))}
+         </div>
+
          {/* خلاصه */}
-         <div className="grid grid-cols-2 gap-3">
+         <div id="fin-summary" className="grid grid-cols-1 sm:grid-cols-3 gap-3 scroll-mt-4">
           <div className="bg-white rounded-2xl border border-sand p-5">
            <div className="text-xs text-soot mb-1">درآمدِ خالص</div>
            <div className="text-2xl font-bold text-ink">{money(f.netPaid)}</div>
@@ -2756,17 +2907,71 @@ export function PsychologyAdmin() {
            <div className="text-xs text-soot mb-1">در انتظارِ تأیید</div>
            <div className="text-2xl font-bold text-soot">{money(f.totalPending)}</div>
           </div>
+          <div className={`rounded-2xl border p-5 ${f.settlement.owed > 0 ? 'bg-amber-50 border-amber-200' : 'bg-white border-sand'}`}>
+           <div className="text-xs text-soot mb-1">تسویه‌ی معوقِ آنلاین</div>
+           <div className={`text-2xl font-bold ${f.settlement.owed > 0 ? 'text-amber-800' : 'text-ink'}`}>{money(f.settlement.owed)}</div>
+           {f.settlement.owed > 0 && <div className="text-[11px] text-amber-700 mt-1">هنوز از {PLATFORM_NAME} به شما واریز نشده</div>}
+          </div>
          </div>
 
-         {f.refundsTotal > 0 && (
-          <div className="bg-white rounded-2xl border border-sand p-4 flex items-center justify-between">
-           <span className="text-sm text-ink">بازپرداختِ کنسلی‌ها <span className="text-xs text-soot">({toFarsiNum(f.refundsCount)} مورد)</span></span>
-           <span className="text-sm font-semibold text-ink">− {money(f.refundsTotal)}</span>
+         {/* تسویه‌ی پرداختِ آنلاین — چون همه‌ی تراکنش‌هایِ آنلاین اول به حسابِ پلتفرم می‌رود */}
+         {f.settlement.count > 0 && (
+          <div id="fin-settlement" className="bg-white rounded-2xl border border-sand p-5 scroll-mt-4">
+           <h2 className="text-sm font-display font-semibold text-ink mb-1">تسویه‌ی پرداختِ آنلاین</h2>
+           <p className="text-xs text-soot mb-4">
+            پرداختِ آنلاین (زیبال) اول به حسابِ خودِ {PLATFORM_NAME} می‌نشیند، بعد سهمِ شما (منهایِ کارمزدِ توافق‌شده) تسویه می‌شود.
+           </p>
+           <div className="grid grid-cols-2 gap-3 text-sm">
+            <div className="flex justify-between p-3 rounded-xl border border-sand">
+             <span className="text-soot">کلِ تراکنش‌هایِ آنلاین</span>
+             <span className="font-medium text-ink tnum">{money(f.settlement.totalOnline)}</span>
+            </div>
+            <div className="flex justify-between p-3 rounded-xl border border-sand">
+             <span className="text-soot">کارمزدِ پلتفرم</span>
+             <span className="font-medium text-soot tnum">− {money(f.settlement.totalCommission)}</span>
+            </div>
+            {f.settlement.autoSettled > 0 && (
+             <div className="flex justify-between p-3 rounded-xl border border-emerald-200 bg-emerald-50">
+              <span className="text-emerald-800">خودکار واریزشده به شما</span>
+              <span className="font-medium text-emerald-800 tnum">{money(f.settlement.autoSettled)}</span>
+             </div>
+            )}
+            <div className="flex justify-between p-3 rounded-xl border border-amber-200 bg-amber-50">
+             <span className="text-amber-800">معوق (هنوز واریز نشده)</span>
+             <span className="font-medium text-amber-800 tnum">{money(f.settlement.owed)}</span>
+            </div>
+           </div>
+           <p className="text-[11px] text-soot mt-3">تسویه‌ی معوق فعلاً دستی هماهنگ می‌شود — برایِ زمان‌بندیِ واریز با پشتیبانی در تماس باشید.</p>
           </div>
          )}
 
+         {/* بازپرداختِ کنسلی‌ها — حالا با فهرستِ تک‌به‌تک، نه فقط جمعِ کل */}
+         <div id="fin-refunds" className="bg-white rounded-2xl border border-sand p-5 scroll-mt-4">
+          <div className="flex items-center justify-between mb-1">
+           <h2 className="text-sm font-display font-semibold text-ink">بازپرداختِ کنسلی‌ها</h2>
+           {f.refundsTotal > 0 && <span className="text-sm font-semibold text-ink">− {money(f.refundsTotal)}</span>}
+          </div>
+          {f.refundsList.length === 0 ? (
+           <p className="text-xs text-soot mt-2">در این بازه بازپرداختی ثبت نشده.</p>
+          ) : (
+           <div className="space-y-2 mt-3">
+            {f.refundsList.map((r, i) => (
+             <div key={i} className="flex items-center justify-between text-sm p-2.5 rounded-xl border border-sand">
+              <div>
+               <span className="text-ink">{r.name}</span>
+               <span className="text-[11px] text-soot block mt-0.5">
+                {toFarsiNum(r.percent)}٪ بازگشت · {new Date(r.date).toLocaleDateString('fa-IR')}{r.card ? ` · کارت ${r.card}` : ''}
+               </span>
+              </div>
+              <span className="font-medium text-ink tnum shrink-0">{money(r.amount)}</span>
+             </div>
+            ))}
+           </div>
+          )}
+         </div>
+
          {/* درآمد به تفکیکِ دسته */}
-         <div className="bg-white rounded-2xl border border-sand p-5">
+         <div id="fin-cats" className="bg-white rounded-2xl border border-sand p-5 scroll-mt-4">
           <h2 className="text-sm font-display font-semibold text-ink mb-4">درآمد به تفکیکِ دسته</h2>
           <div className="space-y-3">
            {cats.map(c => (
@@ -2785,7 +2990,7 @@ export function PsychologyAdmin() {
          </div>
 
          {/* روندِ ماهانه */}
-         <div className="bg-white rounded-2xl border border-sand p-5">
+         <div id="fin-trend" className="bg-white rounded-2xl border border-sand p-5 scroll-mt-4">
           <h2 className="text-sm font-display font-semibold text-ink mb-4">روندِ درآمدِ ماهانه</h2>
           {f.monthly.length === 0 ? (
            <p className="text-xs text-soot">هنوز درآمدی ثبت نشده است.</p>
@@ -2840,7 +3045,7 @@ export function PsychologyAdmin() {
          )}
 
          {/* پرونده‌های برتر */}
-         <div className="bg-white rounded-2xl border border-sand p-5">
+         <div id="fin-cases" className="bg-white rounded-2xl border border-sand p-5 scroll-mt-4">
           <h2 className="text-sm font-display font-semibold text-ink mb-3">پرونده‌های با بیشترین پرداخت</h2>
           {f.topCases.length === 0 ? (
            <p className="text-xs text-soot">—</p>

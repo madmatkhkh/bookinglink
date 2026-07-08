@@ -102,11 +102,14 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
   const totalPending = pending.interview + pending.assessment + pending.packages + pending.sessions
 
   let refundsTotal = 0, refundsCount = 0
+  const refundsList: { case_number: string; name: string; amount: number; percent: number; date: string; card: string | null }[] = []
   for (const s of S) {
     if (s.paid && s.refund_percent && s.refund_percent > 0) {
       const full = sessPrice(s, pricingFor(s.resource_id))
-      refundsTotal += Math.round(full * (100 - s.refund_percent) / 100)
+      const amt = Math.round(full * (100 - s.refund_percent) / 100)
+      refundsTotal += amt
       refundsCount++
+      refundsList.push({ case_number: s.case_number, name: '', amount: amt, percent: s.refund_percent, date: s.created_at, card: s.refund_card || null })
     }
   }
   const netPaid = totalPaid - refundsTotal
@@ -123,9 +126,29 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
   for (const b of cases || []) if (b.case_number) nameByCase[b.case_number] = b.child_name || b.case_number
   const topCases = Object.entries(perCase).sort((a, b) => b[1] - a[1]).slice(0, 8)
     .map(([case_number, amount]) => ({ case_number, name: nameByCase[case_number] || case_number, amount }))
+  for (const r of refundsList) r.name = nameByCase[r.case_number] || r.case_number
+  refundsList.sort((a, b) => (a.date < b.date ? 1 : -1))
+
+  // تسویه‌ی پرداختِ آنلاین — چقدر پول از تراکنش‌هایِ آنلاین (که همه‌شان اول به
+  // حسابِ خودِ پلتفرم می‌رود) بابتِ سهمِ همین دکتر مانده، و چقدرش خودکار
+  // (سرویسِ تسهیمِ زیبال) مستقیم به شبایِ او واریز شده.
+  let intentsQ = sb().from('psy_payment_intents').select('*').eq('tenant_id', t.id).eq('status', 'paid')
+  if (resourceFilter) intentsQ = intentsQ.eq('resource_id', resourceFilter)
+  const { data: intents } = await intentsQ
+  const paidIntents = (intents || []).filter(x => inRange(x.created_at))
+  const settlement = paidIntents.reduce((acc, i) => {
+    const commission = i.commission_amount || 0
+    const doctorShare = (i.amount || 0) - commission
+    acc.totalOnline += i.amount || 0
+    acc.totalCommission += commission
+    if (i.split_applied) acc.autoSettled += doctorShare
+    else acc.owed += doctorShare
+    acc.count++
+    return acc
+  }, { totalOnline: 0, totalCommission: 0, autoSettled: 0, owed: 0, count: 0 })
 
   return NextResponse.json({
-    totalPaid, totalPending, refundsTotal, refundsCount, netPaid,
-    paid, paidCount, pending, pendingCount, split, monthly: monthlySorted, topCases,
+    totalPaid, totalPending, refundsTotal, refundsCount, netPaid, refundsList,
+    paid, paidCount, pending, pendingCount, split, monthly: monthlySorted, topCases, settlement,
   }, { headers: NO_STORE })
 }
