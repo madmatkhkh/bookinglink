@@ -182,6 +182,9 @@ function SuperInner() {
       <header className="flex items-center justify-between">
         <h1 className="text-xl font-bold text-ink">مدیریتِ {PLATFORM_NAME}</h1>
         <div className="flex items-center gap-3">
+          <a href="/super/accounting" className="text-xs border border-sand rounded-xl px-3 py-1.5 text-ink">
+            حسابداری
+          </a>
           <a href="/super/tickets" className="text-xs border border-sand rounded-xl px-3 py-1.5 text-ink">
             تیکت‌ها
           </a>

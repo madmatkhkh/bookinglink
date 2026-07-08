@@ -506,6 +506,49 @@ create table support_tickets (
 create index support_tickets_tenant_idx on support_tickets(tenant_id);
 create index support_tickets_status_idx on support_tickets(status);
 
+-- دفترِ حساب (ledger) — هر تراکنشِ نهایی‌شده یک ردیفِ تغییرناپذیر؛ منبعِ حقیقتِ حسابداری
+create table ledger_entries (
+  id uuid primary key default uuid_generate_v4(),
+  tenant_id uuid not null references tenants(id) on delete cascade,
+  resource_id uuid references resources(id),
+  case_number text,
+  purpose text not null,          -- 'interview' | 'assessment' | 'package' | 'session' | 'refund'
+  method text not null,           -- 'online' | 'card_to_card'
+  direction text not null default 'inflow',  -- 'inflow' | 'outflow'
+  amount bigint not null,
+  commission_amount bigint not null default 0,
+  doctor_amount bigint not null default 0,
+  source_table text,
+  source_id uuid,
+  payment_intent_id uuid,
+  split_applied boolean not null default false,
+  recorded_by text,
+  note text,
+  created_at timestamptz not null default now()
+);
+create index ledger_tenant_idx on ledger_entries(tenant_id);
+create index ledger_resource_idx on ledger_entries(resource_id);
+create index ledger_created_idx on ledger_entries(created_at);
+create unique index ledger_source_uniq on ledger_entries(source_table, source_id, purpose)
+  where source_table is not null and source_id is not null;
+
+-- دفترِ تسویه — واریزِ سهمِ دکتر توسطِ پلتفرم
+create table settlements (
+  id uuid primary key default uuid_generate_v4(),
+  tenant_id uuid not null references tenants(id) on delete cascade,
+  resource_id uuid references resources(id),
+  amount bigint not null,
+  method text not null default 'manual',
+  covers_from timestamptz,
+  covers_to timestamptz,
+  reference text,
+  note text,
+  recorded_by text default 'super',
+  created_at timestamptz not null default now()
+);
+create index settlements_tenant_idx on settlements(tenant_id);
+create index settlements_resource_idx on settlements(resource_id);
+
 alter table psy_cases enable row level security;
 alter table psy_sessions enable row level security;
 alter table psy_packages enable row level security;

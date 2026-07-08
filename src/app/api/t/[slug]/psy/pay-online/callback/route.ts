@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { sb } from '@/lib/supabase'
 import { getActiveTenant } from '@/lib/tenant'
 import { verifyZibalPayment } from '@/lib/zibal'
+import { recordLedgerEntry, LedgerPurpose } from '@/lib/ledger'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -48,6 +49,33 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
   }
 
   await sb().from('psy_payment_intents').update({ status: 'paid' }).eq('id', intentId)
+
+  // ثبت در دفترِ حساب — منبعِ حقیقتِ حسابداری. purpose از خودِ intent می‌آید؛
+  // «stage» به interview/assessment ترجمه می‌شود چون ledger این دو را جدا نگه می‌دارد.
+  let ledgerPurpose: LedgerPurpose = 'session'
+  let stageCase: string | null = null
+  if (intent.purpose === 'stage' && intent.ref_id) {
+    const { data: st } = await sb().from('psy_stages').select('case_number, stage_type').eq('id', intent.ref_id).maybeSingle()
+    stageCase = st?.case_number || null
+    ledgerPurpose = st?.stage_type === 'assessment' ? 'assessment' : 'interview'
+  } else if (intent.purpose === 'package') ledgerPurpose = 'package'
+  else if (intent.purpose === 'session') ledgerPurpose = 'session'
+
+  await recordLedgerEntry({
+    tenantId: t.id,
+    resourceId: intent.resource_id || null,
+    caseNumber: intent.case_number || stageCase,
+    purpose: ledgerPurpose,
+    method: 'online',
+    amount: intent.amount || 0,
+    commissionAmount: intent.commission_amount || 0,
+    doctorAmount: (intent.amount || 0) - (intent.commission_amount || 0),
+    sourceTable: 'psy_payment_intents',
+    sourceId: intent.id,
+    paymentIntentId: intent.id,
+    splitApplied: intent.split_applied || false,
+    recordedBy: 'zibal_callback',
+  })
 
   // finalize — دقیقاً معادلِ تاییدِ دستیِ دکتر برای همان نوع پرداخت
   if (intent.purpose === 'stage' && intent.ref_id) {

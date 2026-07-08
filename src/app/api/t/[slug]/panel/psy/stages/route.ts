@@ -3,6 +3,7 @@ import { sb } from '@/lib/supabase'
 import { requirePanelAuth, isPanelAuthResponse } from '@/lib/tenant'
 import { STAGE_TYPES, STAGE_STATUS } from '@/lib/flow'
 import { stagePrice, getResourcePricing } from '@/lib/psy'
+import { recordLedgerEntry } from '@/lib/ledger'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -103,6 +104,21 @@ export async function PATCH(req: NextRequest, { params }: { params: { slug: stri
   // تأییدِ پرداختِ اولین مرحله (همیشه مصاحبه) پرونده را از pending به confirmed می‌برد
   if (body.confirm_payment) {
     await sb().from('psy_cases').update({ status: 'confirmed' }).eq('tenant_id', a.tenant.id).eq('case_number', stage.case_number).eq('status', 'pending')
+    // ثبت در دفترِ حساب — پرداختِ کارت‌به‌کارت مستقیم بینِ مراجع و دکتر است، سهمِ
+    // پلتفرم = 0. idempotent: اگر قبلاً ثبت شده (دابل‌کلیک) دوباره ثبت نمی‌شود.
+    await recordLedgerEntry({
+      tenantId: a.tenant.id,
+      resourceId: stage.resource_id || null,
+      caseNumber: stage.case_number,
+      purpose: stage.stage_type === 'assessment' ? 'assessment' : 'interview',
+      method: 'card_to_card',
+      amount: stage.price || 0,
+      commissionAmount: 0,
+      doctorAmount: stage.price || 0,
+      sourceTable: 'psy_stages',
+      sourceId: stage.id,
+      recordedBy: a.isOwner ? 'owner' : 'staff',
+    })
   }
 
   // وقتی مرحله برگزار شد (held)، پرونده آزاد می‌شود تا دکتر مرحله‌ی بعد را مشخص کند

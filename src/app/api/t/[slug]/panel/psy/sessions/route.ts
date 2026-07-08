@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { sb } from '@/lib/supabase'
 import { requirePanelAuth, isPanelAuthResponse } from '@/lib/tenant'
 import { getResourcePricing } from '@/lib/psy'
+import { recordLedgerEntry } from '@/lib/ledger'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -67,6 +68,23 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
     session_number: (count.count || 0) + 1, price: finalPrice,
     status: 'confirmed', paid: paid === true,
   }]).select().single()
+
+  // اگر دکتر جلسه را همان لحظه paid ثبت کرد (کارت‌به‌کارتِ حضوری) → دفترِ حساب
+  if (paid === true && data) {
+    await recordLedgerEntry({
+      tenantId: a.tenant.id,
+      resourceId: data.resource_id || null,
+      caseNumber: data.case_number,
+      purpose: 'session',
+      method: 'card_to_card',
+      amount: data.price || 0,
+      commissionAmount: 0,
+      doctorAmount: data.price || 0,
+      sourceTable: 'psy_sessions',
+      sourceId: data.id,
+      recordedBy: a.isOwner ? 'owner' : 'staff',
+    })
+  }
   return NextResponse.json({ session: data })
 }
 
@@ -75,10 +93,37 @@ export async function PATCH(req: NextRequest, { params }: { params: { slug: stri
   if (isPanelAuthResponse(a)) return a
   const { id, resource_id: _ignored, ...updates } = await req.json()
   if (!id) return NextResponse.json({ error: 'id لازم است' }, { status: 400 })
+
+  const { data: before } = await sb().from('psy_sessions').select('*').eq('id', id).eq('tenant_id', a.tenant.id).maybeSingle()
+
   let q = sb().from('psy_sessions').update(updates).eq('id', id).eq('tenant_id', a.tenant.id)
   if (!a.isOwner) q = q.eq('resource_id', a.resourceId)
   const { data, error } = await q.select().single()
   if (error) { console.error('src/app/api/t/[slug]/panel/psy/sessions/route.ts error:', error); return NextResponse.json({ error: 'مشکلی پیش آمد. دوباره تلاش کنید.' }, { status: 500 }) }
+
+  // گذار به paid (تاییدِ کارت‌به‌کارتِ جلسه‌ی جایگزین) → دفترِ حساب
+  if (updates.paid === true && before && !before.paid && data) {
+    await recordLedgerEntry({
+      tenantId: a.tenant.id, resourceId: data.resource_id || null, caseNumber: data.case_number,
+      purpose: 'session', method: 'card_to_card', amount: data.price || 0,
+      commissionAmount: 0, doctorAmount: data.price || 0,
+      sourceTable: 'psy_sessions', sourceId: data.id, recordedBy: a.isOwner ? 'owner' : 'staff',
+    })
+  }
+  // ثبتِ بازپرداخت وقتی refund نهایی می‌شود → ردیفِ outflow (پولِ برگشتی به مراجع)
+  if (updates.refund_status === 'done' && before && before.refund_status !== 'done' && data) {
+    const full = data.price || 0
+    const refundAmount = data.refund_amount || Math.round(full * (100 - (data.refund_percent || 0)) / 100)
+    if (refundAmount > 0) {
+      await recordLedgerEntry({
+        tenantId: a.tenant.id, resourceId: data.resource_id || null, caseNumber: data.case_number,
+        purpose: 'refund', method: 'card_to_card', direction: 'outflow', amount: refundAmount,
+        commissionAmount: 0, doctorAmount: refundAmount,
+        sourceTable: 'psy_sessions', sourceId: data.id, note: `بازپرداختِ ${data.refund_percent || 0}٪`,
+        recordedBy: a.isOwner ? 'owner' : 'staff',
+      })
+    }
+  }
   return NextResponse.json({ session: data })
 }
 
