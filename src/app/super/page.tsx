@@ -181,7 +181,12 @@ function SuperInner() {
     <main className="min-h-screen max-w-3xl mx-auto px-4 py-8 space-y-8">
       <header className="flex items-center justify-between">
         <h1 className="text-xl font-bold text-ink">مدیریتِ {PLATFORM_NAME}</h1>
-        <span className="text-sm text-soot tnum">{tenants.length} متخصص</span>
+        <div className="flex items-center gap-3">
+          <a href="/super/niches" className="text-xs border border-sand rounded-xl px-3 py-1.5 text-ink">
+            مدیریتِ نیچ‌ها
+          </a>
+          <span className="text-sm text-soot tnum">{tenants.length} متخصص</span>
+        </div>
       </header>
 
       {/* داشبوردِ خلاصه */}
