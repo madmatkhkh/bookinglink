@@ -347,13 +347,6 @@ function SuperInner() {
               >
                 جزئیات
               </a>
-              <a
-                href={`/${t.slug}/panel`}
-                target="_blank"
-                className="text-xs border border-sand rounded-xl px-3 py-1.5 text-ink"
-              >
-                پنل
-              </a>
               {t.status === 'active' ? (
                 <button
                   onClick={() => setStatus(t, 'suspended')}

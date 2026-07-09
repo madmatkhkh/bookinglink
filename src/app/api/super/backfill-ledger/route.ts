@@ -12,7 +12,7 @@ export const revalidate = 0
 // intentهایِ آنلاینِ paid را می‌خواند و به ledger منتقل می‌کند. چون recordLedgerEntry
 // idempotent است، اجرای چندباره‌ی این اسکریپت ردیفِ تکراری نمی‌سازد — امن است.
 //
-// نکته: برایِ کارت‌به‌کارتِ قدیمی، method='card_to_card' و کلِ مبلغ سهمِ دکتر است.
+// نکته: برایِ کارت‌به‌کارتِ قدیمی، method='card_to_card' و کلِ مبلغ سهمِ متخصص است.
 // برایِ آنلاینِ قدیمی که از psy_payment_intents می‌آید، کارمزد/سهم از خودِ intent.
 // چون همان source (مثلاً یک psy_session) هم ممکن است paid باشد و هم یک intentِ paid
 // داشته باشد، اول intentها را ثبت می‌کنیم؛ چون unique index رویِ

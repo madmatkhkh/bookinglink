@@ -6,7 +6,11 @@ export const dynamic = 'force-dynamic'
 export const revalidate = 0
 const NO_STORE = { 'Cache-Control': 'no-store, max-age=0, must-revalidate' }
 
-// دفترِ حسابِ کاملِ پلتفرم + وضعیتِ تسویه‌ی سهمِ دکترها.
+// دفترِ حسابِ کاملِ پلتفرم + خلاصه‌ی «بر اساسِ متخصص» (هر متخصص چقدر گردش داشته،
+// چقدرش سهمِ نوبت‌لینک بوده، چقدرش سهمِ خودِ متخصص). پلتفرم چندنیچی است (روانشناسی،
+// سالن، ...) پس این‌جا از واژه‌ی خنثیِ «متخصص» استفاده می‌شود، نه واژه‌ای مثلِ «دکتر»
+// که فقط مالِ یک نیچ است.
+//
 // پارامترها: ?tenant_id=&resource_id=&method=&purpose=&from=&to=&limit=
 export async function GET(req: NextRequest) {
   if (!isSuperAuthed(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -19,14 +23,23 @@ export async function GET(req: NextRequest) {
   const to = q.get('to')
   const limit = Math.min(2000, Number(q.get('limit')) || 500)
 
-  let ledgerQ = sb().from('ledger_entries').select('*').order('created_at', { ascending: false }).limit(limit)
-  if (tenantId) ledgerQ = ledgerQ.eq('tenant_id', tenantId)
-  if (resourceId) ledgerQ = ledgerQ.eq('resource_id', resourceId)
-  if (method) ledgerQ = ledgerQ.eq('method', method)
-  if (purpose) ledgerQ = ledgerQ.eq('purpose', purpose)
-  if (from) ledgerQ = ledgerQ.gte('created_at', from)
-  if (to) ledgerQ = ledgerQ.lte('created_at', to)
-  const { data: entries } = await ledgerQ
+  function applyFilters<T>(query: T): T {
+    let x: any = query
+    if (tenantId) x = x.eq('tenant_id', tenantId)
+    if (resourceId) x = x.eq('resource_id', resourceId)
+    if (method) x = x.eq('method', method)
+    if (purpose) x = x.eq('purpose', purpose)
+    if (from) x = x.gte('created_at', from)
+    if (to) x = x.lte('created_at', to)
+    return x
+  }
+
+  const [{ data: entries }, { data: aggRows }] = await Promise.all([
+    applyFilters(sb().from('ledger_entries').select('*').order('created_at', { ascending: false })).limit(limit),
+    // ردیفِ سبک، بدونِ سقفِ نمایش — پایه‌ی محاسبه‌ی «بر اساسِ متخصص» تا با محدودیتِ
+    // لیستِ نمایشی قاطی نشود و همیشه دقیق بماند
+    applyFilters(sb().from('ledger_entries').select('resource_id, tenant_id, method, direction, amount, commission_amount, doctor_amount')),
+  ])
 
   // نام‌هایِ tenant و resource برایِ نمایش
   const [{ data: tenants }, { data: resources }, { data: profiles }] = await Promise.all([
@@ -62,5 +75,38 @@ export async function GET(req: NextRequest) {
     return acc
   }, { gross: 0, commission: 0, doctorShare: 0, online: 0, cardToCard: 0, refunds: 0 })
 
-  return NextResponse.json({ entries: rows, totals, sheba: Object.fromEntries(shebaByResource) }, { headers: NO_STORE })
+  // خلاصه‌ی «بر اساسِ متخصص» — هر متخصص چقدر گردش داشته/چقدرش سهمِ نوبت‌لینک/چقدرش سهمِ خودش
+  const byResourceMap = new Map<string, {
+    resource_id: string; tenant_id: string; gross: number; commission: number
+    specialistShare: number; online: number; cardToCard: number; refunds: number; count: number
+  }>()
+  for (const e of aggRows || []) {
+    if (!e.resource_id) continue
+    if (!byResourceMap.has(e.resource_id)) {
+      byResourceMap.set(e.resource_id, {
+        resource_id: e.resource_id, tenant_id: e.tenant_id, gross: 0, commission: 0,
+        specialistShare: 0, online: 0, cardToCard: 0, refunds: 0, count: 0,
+      })
+    }
+    const agg = byResourceMap.get(e.resource_id)!
+    if (e.direction === 'outflow') { agg.refunds += e.amount; continue }
+    agg.gross += e.amount
+    agg.commission += e.commission_amount || 0
+    agg.specialistShare += e.doctor_amount || 0
+    if (e.method === 'online') agg.online += e.amount; else agg.cardToCard += e.amount
+    agg.count++
+  }
+  const byResource = Array.from(byResourceMap.values())
+    .map(a => {
+      const tn = tenantName.get(a.tenant_id)
+      return {
+        ...a,
+        resource_name: resourceName.get(a.resource_id) || null,
+        tenant_name: tn?.name || null,
+        tenant_slug: tn?.slug || null,
+      }
+    })
+    .sort((a, b) => b.gross - a.gross)
+
+  return NextResponse.json({ entries: rows, totals, byResource, sheba: Object.fromEntries(shebaByResource) }, { headers: NO_STORE })
 }

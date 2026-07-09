@@ -6,11 +6,11 @@ export const dynamic = 'force-dynamic'
 export const revalidate = 0
 const NO_STORE = { 'Cache-Control': 'no-store, max-age=0, must-revalidate' }
 
-// وضعیتِ تسویه‌ی سهمِ دکترها از تراکنش‌هایِ آنلاین.
+// وضعیتِ تسویه‌ی سهمِ متخصص‌ها از تراکنش‌هایِ آنلاین.
 //
-// منطق: در پرداختِ آنلاین کلِ پول اول به حسابِ پلتفرم می‌رود. سهمِ دکتر (doctor_amount)
+// منطق: در پرداختِ آنلاین کلِ پول اول به حسابِ پلتفرم می‌رود. سهمِ متخصص (doctor_amount)
 // یا خودکار (تسهیمِ زیبال، split_applied=true) واریز شده، یا پلتفرم باید دستی
-// واریز کند. «بدهیِ معوق» = مجموعِ سهمِ دکتر از تراکنش‌هایِ آنلاینی که split نشده،
+// واریز کند. «بدهیِ معوق» = مجموعِ سهمِ متخصص از تراکنش‌هایِ آنلاینی که split نشده،
 // منهایِ آنچه قبلاً در settlements برایش ثبتِ تسویه شده.
 export async function GET(req: NextRequest) {
   if (!isSuperAuthed(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
