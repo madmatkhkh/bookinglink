@@ -5,7 +5,7 @@
 // و حذفِ کاملِ tenant.
 // ─────────────────────────────────────────────────────────────────────────────
 import { useCallback, useEffect, useState } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { DialogProvider, useDialog } from '@/components/Dialog'
 import { PLATFORM_NAME } from '@/lib/config'
 
@@ -29,6 +29,7 @@ const STAT_LABEL: Record<string, string> = {
 function Inner() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const dialog = useDialog()
 
   const [d, setD] = useState<Detail | null>(null)
@@ -41,7 +42,6 @@ function Inner() {
   const [savingPhone, setSavingPhone] = useState(false)
   const [savingName, setSavingName] = useState(false)
   const [savingDomain, setSavingDomain] = useState(false)
-  const [impersonating, setImpersonating] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [confirmSlug, setConfirmSlug] = useState('')
 
@@ -60,6 +60,13 @@ function Inner() {
 
   useEffect(() => { load() }, [load])
   useEffect(() => { if (notAuthed) router.replace('/super') }, [notAuthed, router])
+  useEffect(() => {
+    const err = searchParams.get('impersonate_error')
+    if (!err) return
+    dialog.uiAlert(err === 'suspended' ? 'این مجموعه فعال نیست — فقط برایِ مجموعه‌هایِ فعال ممکن است.' : 'مجموعه یافت نشد.')
+    router.replace(`/super/${id}`)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams])
 
   async function patch(body: Record<string, unknown>) {
     const res = await fetch(`/api/super/tenants/${id}`, {
@@ -120,16 +127,10 @@ function Inner() {
     load()
   }
 
-  async function impersonate() {
+  function impersonate() {
     if (!d) return
-    const ok = await dialog.uiConfirm('واردِ پنلِ این متخصص می‌شوید (به‌جایِ او). اگر خودش همین الان از جایی دیگر لاگین باشد، نشستش باطل می‌شود. ادامه؟')
-    if (!ok) return
-    setImpersonating(true)
-    const res = await fetch(`/api/super/tenants/${id}/impersonate`, { method: 'POST' })
-    const j = await res.json().catch(() => ({}))
-    setImpersonating(false)
-    if (!res.ok) { await dialog.uiAlert(j.error || 'ورود ناموفق بود'); return }
-    window.open(`/${j.slug}/panel`, '_blank')
+    dialog.uiConfirm('واردِ پنلِ این متخصص می‌شوید (به‌جایِ او). اگر خودش همین الان از جایی دیگر لاگین باشد، نشستش باطل می‌شود. ادامه؟')
+      .then(ok => { if (ok) window.open(`/api/super/tenants/${id}/impersonate`, '_blank') })
   }
 
   async function doDelete() {
@@ -351,10 +352,10 @@ function Inner() {
         <h2 className="font-bold text-ink text-sm">پشتیبانی</h2>
         <button
           onClick={impersonate}
-          disabled={impersonating || t.status !== 'active'}
+          disabled={t.status !== 'active'}
           className="bg-ink text-white rounded-xl px-5 py-2 text-sm font-medium disabled:opacity-50"
         >
-          {impersonating ? 'در حالِ ورود…' : 'ورود به پنل به‌جایِ owner'}
+          ورود به پنل به‌جایِ owner (تبِ تازه)
         </button>
         {t.status !== 'active' && <p className="text-[11px] text-soot">فقط برایِ مجموعه‌هایِ فعال ممکن است.</p>}
       </section>
