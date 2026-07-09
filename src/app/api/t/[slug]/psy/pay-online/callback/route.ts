@@ -3,6 +3,7 @@ import { sb } from '@/lib/supabase'
 import { getActiveTenant } from '@/lib/tenant'
 import { verifyZibalPayment } from '@/lib/zibal'
 import { recordLedgerEntry, LedgerPurpose } from '@/lib/ledger'
+import { redeemDiscountCode } from '@/lib/psy'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -78,17 +79,21 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
   })
 
   // finalize — دقیقاً معادلِ تاییدِ دستیِ دکتر برای همان نوع پرداخت
+  const discountPatch = intent.discount_code_id
+    ? { discount_code: intent.discount_code, original_price: intent.original_amount }
+    : {}
   if (intent.purpose === 'stage' && intent.ref_id) {
-    await sb().from('psy_stages').update({ paid: true, status: 'awaiting_booking' }).eq('id', intent.ref_id).eq('tenant_id', t.id)
+    await sb().from('psy_stages').update({ paid: true, status: 'awaiting_booking', price: intent.amount, ...discountPatch }).eq('id', intent.ref_id).eq('tenant_id', t.id)
     const { data: stage } = await sb().from('psy_stages').select('case_number').eq('id', intent.ref_id).maybeSingle()
     if (stage) {
       await sb().from('psy_cases').update({ status: 'confirmed' }).eq('tenant_id', t.id).eq('case_number', stage.case_number).eq('status', 'pending')
     }
   } else if (intent.purpose === 'package' && intent.ref_id) {
-    await sb().from('psy_packages').update({ paid: true }).eq('id', intent.ref_id).eq('tenant_id', t.id)
+    await sb().from('psy_packages').update({ paid: true, price: intent.amount, ...discountPatch }).eq('id', intent.ref_id).eq('tenant_id', t.id)
   } else if (intent.purpose === 'session' && intent.ref_id) {
-    await sb().from('psy_sessions').update({ paid: true }).eq('id', intent.ref_id).eq('tenant_id', t.id)
+    await sb().from('psy_sessions').update({ paid: true, price: intent.amount, ...discountPatch }).eq('id', intent.ref_id).eq('tenant_id', t.id)
   }
+  if (intent.discount_code_id) await redeemDiscountCode(intent.discount_code_id)
 
   return NextResponse.redirect(`${redirectBase}?payment=success`)
 }

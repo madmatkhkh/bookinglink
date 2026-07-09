@@ -298,6 +298,8 @@ create table psy_stages (
   cancel_notice text,            -- پیامِ لغوِ نوبت توسطِ مطب (اگر مطب نوبت را لغو کرد)
   delay_minutes int,             -- تاخیرِ اعلام‌شده به مراجع (دقیقه) — برای نوبتِ رزروشده
   resource_id uuid references resources(id),
+  discount_code text,
+  original_price bigint,
   created_at timestamptz not null default now()
 );
 create index on psy_stages (tenant_id, case_number);
@@ -364,6 +366,8 @@ create table psy_packages (
   status text not null default 'pending',
   notes text,
   resource_id uuid references resources(id),
+  discount_code text,
+  original_price bigint,
   created_at timestamptz not null default now()
 );
 create index on psy_packages (tenant_id, case_number);
@@ -400,6 +404,8 @@ create table psy_sessions (
   refund_card text,            -- شماره‌کارتی که مراجع برای بازپرداخت داده
   notes text,
   resource_id uuid references resources(id),
+  discount_code text,
+  original_price bigint,
   created_at timestamptz not null default now()
 );
 create index on psy_sessions (tenant_id, case_number);
@@ -457,6 +463,10 @@ create table psy_payment_intents (
   commission_amount bigint,
   settlement_sheba text,
   split_applied boolean not null default false,
+  discount_code_id uuid,
+  discount_code text,
+  discount_amount bigint,
+  original_amount bigint,
   created_at timestamptz not null default now()
 );
 create index on psy_payment_intents (tenant_id, authority);
@@ -505,6 +515,22 @@ create table support_tickets (
 );
 create index support_tickets_tenant_idx on support_tickets(tenant_id);
 create index support_tickets_status_idx on support_tickets(status);
+
+-- کدهایِ تخفیف — per-resource
+create table psy_discount_codes (
+  id uuid primary key default uuid_generate_v4(),
+  tenant_id uuid not null references tenants(id) on delete cascade,
+  resource_id uuid not null references resources(id) on delete cascade,
+  code text not null,
+  discount_type text not null default 'percent',  -- 'percent' | 'fixed'
+  discount_value numeric not null,
+  is_active boolean not null default true,
+  max_uses int,
+  used_count int not null default 0,
+  expires_at timestamptz,
+  created_at timestamptz not null default now()
+);
+create unique index psy_discount_codes_uniq on psy_discount_codes(resource_id, code);
 
 -- دفترِ حساب (ledger) — هر تراکنشِ نهایی‌شده یک ردیفِ تغییرناپذیر؛ منبعِ حقیقتِ حسابداری
 create table ledger_entries (

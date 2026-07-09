@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { sb } from '@/lib/supabase'
 import { isSuperAuthed } from '@/lib/auth'
 import { recordLedgerEntry } from '@/lib/ledger'
-import { getResourcePricing, packageAmount } from '@/lib/psy'
+import { getResourcePricing, packageAmount, resolvePrice } from '@/lib/psy'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -80,7 +80,7 @@ export async function POST(req: NextRequest) {
   for (const s of sessions || []) {
     if (onlineRefIds.has(s.id)) { result.skipped++; continue }
     let price = s.price || 0
-    if (!price) { const pr = await getResourcePricing(s.resource_id); price = s.session_type === 'online' ? pr.sessionOnline : pr.sessionOffline }
+    if (!price) { const pr = await getResourcePricing(s.resource_id); price = resolvePrice(s.session_type, pr) }
     const created = await recordLedgerEntry({
       tenantId: s.tenant_id, resourceId: s.resource_id || null, caseNumber: s.case_number,
       purpose: 'session', method: 'card_to_card', amount: price, commissionAmount: 0, doctorAmount: price,

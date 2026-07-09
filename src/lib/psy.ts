@@ -4,36 +4,43 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { sb } from './supabase'
 
-// قیمت‌گذاریِ پیش‌فرضِ مرحله‌ها (تومان) — پیش‌فرضِ سراسری برایِ دکترهایی که هنوز
-// قیمتِ خودشان را تنظیم نکرده‌اند؛ قیمتِ واقعیِ هر دکتر per-resource است (پایین‌تر).
+// قیمت‌گذاریِ پیش‌فرضِ سراسری (تومان) — برایِ متخصص‌هایی که هنوز قیمتِ خودشان را
+// تنظیم نکرده‌اند. قیمتِ واقعیِ هر متخصص per-resource است (پایین‌تر).
+// مدل عمداً ساده است: فقط دو قیمت — آنلاین و حضوری. نوعِ کار (مصاحبه/ارزیابی/
+// جلسه/پروتکل) فرقی نمی‌کند؛ فقط اینکه حضوری برگزار شود یا آنلاین قیمت را
+// تعیین می‌کند (تصمیمِ صریحِ صاحبِ پروژه، جولای ۲۰۲۶).
 export const PSY_PRICING = {
-  interview: 800000,
-  assessment: 1500000,
-  sessionOnline: 850000,
-  sessionOffline: 1200000,
+  online: 850000,
+  offline: 1200000,
 }
 
-// قیمتِ پیش‌فرضِ هر نوعِ مرحله‌ی پیش‌ازدرمان — با گرفتنِ Pricing اختیاری (قیمتِ
-// خودِ دکتر)؛ بدونِ آن، به ثابتِ سراسری برمی‌گردد (سازگاریِ عقب‌رو).
-export function stagePrice(stageType: string, pricing: Pricing = PSY_PRICING): number {
-  return stageType === 'assessment' ? pricing.assessment : pricing.interview
-}
-
-// ── قیمت‌گذاریِ خودِ دکتر (per-resource) ──────────────────────────────────────
-export type Pricing = { interview: number; assessment: number; sessionOnline: number; sessionOffline: number }
+// ── قیمت‌گذاریِ خودِ متخصص (per-resource) ────────────────────────────────────
+export type Pricing = { online: number; offline: number }
 export const DEFAULT_PRICING: Pricing = { ...PSY_PRICING }
 
-export function mergePricing(raw: Partial<Pricing> | null | undefined): Pricing {
+// قیمت بر اساسِ نوعِ حضور (نه نوعِ کار) — مصاحبه/ارزیابی/جلسه/پروتکل همه از همین برمی‌آیند
+export function resolvePrice(mode: string, pricing: Pricing = DEFAULT_PRICING): number {
+  return mode === 'online' ? pricing.online : pricing.offline
+}
+
+export function mergePricing(raw: any): Pricing {
   const clamp = (v: unknown, fallback: number) => (typeof v === 'number' && Number.isFinite(v) && v >= 0 ? Math.round(v) : fallback)
+  // سازگاریِ عقب‌رو: داده‌هایِ قدیمی (پیش از تصمیمِ «فقط دو قیمت») ممکن است
+  // شکلِ قدیمی داشته باشند {interview, assessment, sessionOnline, sessionOffline}؛
+  // در آن صورت sessionOnline/sessionOffline را به‌عنوانِ نزدیک‌ترین معادل مهاجرت می‌دهیم.
+  if (raw && typeof raw.online !== 'number' && typeof raw?.sessionOnline === 'number') {
+    return {
+      online: clamp(raw.sessionOnline, DEFAULT_PRICING.online),
+      offline: clamp(raw.sessionOffline, DEFAULT_PRICING.offline),
+    }
+  }
   return {
-    interview: clamp(raw?.interview, DEFAULT_PRICING.interview),
-    assessment: clamp(raw?.assessment, DEFAULT_PRICING.assessment),
-    sessionOnline: clamp(raw?.sessionOnline, DEFAULT_PRICING.sessionOnline),
-    sessionOffline: clamp(raw?.sessionOffline, DEFAULT_PRICING.sessionOffline),
+    online: clamp(raw?.online, DEFAULT_PRICING.online),
+    offline: clamp(raw?.offline, DEFAULT_PRICING.offline),
   }
 }
 
-// قیمتِ فعلیِ یک دکترِ مشخص (برایِ محاسبه‌ی مبلغ در لحظه‌ی ساختِ مرحله/جلسه/پروتکل)
+// قیمتِ فعلیِ یک متخصصِ مشخص (برایِ محاسبه‌ی مبلغ در لحظه‌ی ساختِ مرحله/جلسه/پروتکل)
 export async function getResourcePricing(resourceId: string | null | undefined): Promise<Pricing> {
   if (!resourceId) return DEFAULT_PRICING
   try {
@@ -46,8 +53,40 @@ export async function getResourcePricing(resourceId: string | null | undefined):
 
 // مبلغِ کلِ یک پروتکلِ درمان از رویِ ترکیبِ جلساتِ کودک/والدین + قیمتِ داده‌شده
 export function packageAmount(p: { child_sessions: number; child_session_type: string; parent_sessions: number; parent_session_type: string }, pricing: Pricing = DEFAULT_PRICING): number {
-  return (p.child_sessions * (p.child_session_type === 'online' ? pricing.sessionOnline : pricing.sessionOffline))
-    + (p.parent_sessions * (p.parent_session_type === 'online' ? pricing.sessionOnline : pricing.sessionOffline))
+  return (p.child_sessions * resolvePrice(p.child_session_type, pricing))
+    + (p.parent_sessions * resolvePrice(p.parent_session_type, pricing))
+}
+
+// ── کدِ تخفیف — per-resource، اختیاری برایِ بعضی مراجعان ─────────────────────
+export type DiscountCheckResult =
+  | { ok: true; id: string; discountedAmount: number; discountAmount: number; code: string }
+  | { ok: false; error: string }
+
+// چکِ اعتبار + محاسبه‌ی مبلغِ تخفیف‌خورده — used_count را خودش +۱ نمی‌کند (آن را
+// صدازننده بعد از موفقیتِ قطعیِ پرداخت انجام می‌دهد تا کدهایِ ناموفق/رهاشده مصرف نشوند)
+export async function checkDiscountCode(resourceId: string, rawCode: string, amount: number): Promise<DiscountCheckResult> {
+  const code = String(rawCode || '').trim().toUpperCase()
+  if (!code) return { ok: false, error: 'کد را وارد کنید' }
+  const { data: dc } = await sb().from('psy_discount_codes').select('*')
+    .eq('resource_id', resourceId).eq('code', code).maybeSingle()
+  if (!dc) return { ok: false, error: 'کدِ تخفیف یافت نشد' }
+  if (!dc.is_active) return { ok: false, error: 'این کد دیگر فعال نیست' }
+  if (dc.expires_at && new Date(dc.expires_at).getTime() < Date.now()) return { ok: false, error: 'این کد منقضی شده' }
+  if (dc.max_uses !== null && dc.used_count >= dc.max_uses) return { ok: false, error: 'ظرفیتِ استفاده از این کد تمام شده' }
+
+  const discountAmount = dc.discount_type === 'percent'
+    ? Math.round(amount * (Number(dc.discount_value) / 100))
+    : Math.min(amount, Math.round(Number(dc.discount_value)))
+  const discountedAmount = Math.max(0, amount - discountAmount)
+  return { ok: true, id: dc.id, discountedAmount, discountAmount, code }
+}
+
+// بعد از قطعی‌شدنِ پرداخت با این کد، مصرفش را ثبت کن (idempotent نیست — فقط یک‌بار صدا زده شود)
+export async function redeemDiscountCode(id: string): Promise<void> {
+  try {
+    const { data } = await sb().from('psy_discount_codes').select('used_count').eq('id', id).maybeSingle()
+    if (data) await sb().from('psy_discount_codes').update({ used_count: (data.used_count || 0) + 1 }).eq('id', id)
+  } catch { /* شکستِ ثبتِ مصرف نباید پرداختِ موفق را خراب کند */ }
 }
 
 // قانونِ کنسلی: اگر ≥ partialHours ساعت مانده کنسل شود، partialPercent٪ سوخت

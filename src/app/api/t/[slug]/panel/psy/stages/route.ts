@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { sb } from '@/lib/supabase'
 import { requirePanelAuth, isPanelAuthResponse } from '@/lib/tenant'
 import { STAGE_TYPES, STAGE_STATUS } from '@/lib/flow'
-import { stagePrice, getResourcePricing } from '@/lib/psy'
+import { getResourcePricing, resolvePrice } from '@/lib/psy'
 import { recordLedgerEntry } from '@/lib/ledger'
 
 export const dynamic = 'force-dynamic'
@@ -51,7 +51,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   if (!case_number || !(STAGE_TYPES as readonly string[]).includes(stage_type))
     return NextResponse.json({ error: 'نوعِ مرحله نامعتبر است' }, { status: 400 })
 
-  let caseQ = sb().from('psy_cases').select('id, resource_id, current_stage_id').eq('tenant_id', a.tenant.id).eq('case_number', case_number)
+  let caseQ = sb().from('psy_cases').select('id, resource_id, current_stage_id, session_type').eq('tenant_id', a.tenant.id).eq('case_number', case_number)
   if (!a.isOwner) caseQ = caseQ.eq('resource_id', a.resourceId)
   const { data: c } = await caseQ.maybeSingle()
   if (!c) return NextResponse.json({ error: 'پرونده یافت نشد یا دسترسی ندارید' }, { status: 404 })
@@ -59,7 +59,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
 
   const { data: stage, error } = await sb().from('psy_stages').insert({
     tenant_id: a.tenant.id, resource_id: c.resource_id, case_number, stage_type,
-    price: typeof price === 'number' && price >= 0 ? price : stagePrice(stage_type, await getResourcePricing(c.resource_id)),
+    price: typeof price === 'number' && price >= 0 ? price : resolvePrice(c.session_type, await getResourcePricing(c.resource_id)),
     status: STAGE_STATUS.AWAITING_PAYMENT,
   }).select().single()
   if (error || !stage) {

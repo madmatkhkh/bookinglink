@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { sb } from '@/lib/supabase'
 import { getActiveTenant } from '@/lib/tenant'
-import { getResourcePricing } from '@/lib/psy'
+import { getResourcePricing, resolvePrice } from '@/lib/psy'
 import { getClientPhone } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
@@ -21,7 +21,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
 
   const type = session_type === 'online' ? 'online' : 'offline'
   const pricing = await getResourcePricing(booking.resource_id)
-  const price = type === 'online' ? pricing.sessionOnline : pricing.sessionOffline
+  const price = resolvePrice(type, pricing)
 
   const { count } = await sb().from('psy_sessions').select('id', { count: 'exact' })
     .eq('tenant_id', t.id).eq('case_number', case_number)

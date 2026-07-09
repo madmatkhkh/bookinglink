@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { sb } from '@/lib/supabase'
 import { getActiveTenant } from '@/lib/tenant'
-import { getPaymentMethods, effectivePaymentMethods, getResourceProfile, isValidSheba, getResourcePricing, packageAmount } from '@/lib/psy'
+import { getPaymentMethods, effectivePaymentMethods, getResourceProfile, isValidSheba, getResourcePricing, packageAmount, resolvePrice, checkDiscountCode } from '@/lib/psy'
 import { requestZibalPayment, PLATFORM_COMMISSION_PERCENT, MULTIPLEXING_ENABLED } from '@/lib/zibal'
 import { getClientPhone, getPayCase } from '@/lib/auth'
 
@@ -17,7 +17,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   const t = await getActiveTenant(params.slug)
   if (!t) return NextResponse.json({ error: 'یافت نشد' }, { status: 404 })
 
-  const { case_number, purpose, ref_id } = await req.json() as { case_number: string; purpose: Purpose; ref_id?: string }
+  const { case_number, purpose, ref_id, discount_code } = await req.json() as { case_number: string; purpose: Purpose; ref_id?: string; discount_code?: string }
   // auth با کوکیِ امضاشده — نه شماره‌ای که کلاینت در body می‌فرستد. دو راهِ مجاز:
   // 1) کوکیِ مراجعِ OTPشده که شماره‌اش روی پرونده باشد (پنلِ /my)
   // 2) کوکیِ مجوزِ پرداختِ همین پرونده (فلوِ مصاحبه‌ی اولیه، درست بعد از ثبتِ فرم)
@@ -62,10 +62,17 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
     const { data: s } = await sb().from('psy_sessions').select('*').eq('id', ref_id).eq('tenant_id', t.id).eq('case_number', case_number).single()
     if (!s) return NextResponse.json({ error: 'جلسه یافت نشد' }, { status: 404 })
     if (s.paid) return NextResponse.json({ error: 'قبلاً پرداخت شده' }, { status: 400 })
-    amount = s.price || (s.session_type === 'online' ? resourcePricing.sessionOnline : resourcePricing.sessionOffline)
+    amount = s.price || resolvePrice(s.session_type, resourcePricing)
     description = 'هزینه‌ی جلسه'
   } else {
     return NextResponse.json({ error: 'نوعِ پرداخت نامعتبر است' }, { status: 400 })
+  }
+
+  const originalAmount = amount
+  let discountCodeCheck: Awaited<ReturnType<typeof checkDiscountCode>> | null = null
+  if (discount_code) {
+    discountCodeCheck = await checkDiscountCode(c.resource_id, discount_code, amount)
+    if (discountCodeCheck.ok) amount = discountCodeCheck.discountedAmount
   }
 
   const commissionPercent = PLATFORM_COMMISSION_PERCENT
@@ -78,6 +85,10 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
     tenant_id: t.id, resource_id: c.resource_id, case_number, phone, purpose, ref_id: ref_id || null, amount,
     commission_percent: commissionPercent, commission_amount: commissionAmount,
     settlement_sheba: shebaOk ? profile.settlement_sheba : null,
+    ...(discountCodeCheck?.ok ? {
+      discount_code_id: discountCodeCheck.id, discount_code: discountCodeCheck.code,
+      discount_amount: discountCodeCheck.discountAmount, original_amount: originalAmount,
+    } : {}),
   }).select().single()
   if (intentErr || !intent) return NextResponse.json({ error: 'خطا در ایجادِ پرداخت' }, { status: 500 })
 

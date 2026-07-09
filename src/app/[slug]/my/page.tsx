@@ -153,8 +153,8 @@ export default function PatientPanel() {
  }
 
  const pkgPrice = (p: Package) =>
-  p.price || ((p.child_sessions * (p.child_session_type === 'online' ? PRICING.sessionOnline : PRICING.sessionOffline)) +
-  (p.parent_sessions * (p.parent_session_type === 'online' ? PRICING.sessionOnline : PRICING.sessionOffline)))
+  p.price || ((p.child_sessions * (p.child_session_type === 'online' ? PRICING.online : PRICING.offline)) +
+  (p.parent_sessions * (p.parent_session_type === 'online' ? PRICING.online : PRICING.offline)))
 
  const pkgSessions = (pkgId: string) => sessions.filter(s => s.package_id === pkgId)
 
@@ -281,7 +281,7 @@ export default function PatientPanel() {
        icon={currentStage.stage_type === 'assessment' ? '' : ''}
        title={`هزینه‌ی ${STAGE_TYPE_LABEL[currentStage.stage_type] || ''}`}
        desc="برای ادامه، هزینه‌ی این مرحله را پرداخت کنید. پس از تأیید پرداخت، می‌توانید وقت بگیرید."
-       amount={currentStage.price || (currentStage.stage_type === 'assessment' ? PRICING.assessment : PRICING.interview)}
+       amount={currentStage.price || (booking.session_type === 'online' ? PRICING.online : PRICING.offline)}
        resourceId={booking.resource_id} caseNumber={booking.case_number} phone={phone} stageId={currentStage.id}
        onPaid={async (ref) => {
         const res = await fetch(`/api/t/${slug}/psy/pay`, {
@@ -503,8 +503,8 @@ function SessionCard({ session: s, num, phone, caseNumber, onUpdate }: {
 
  const doctorForSession = settings.doctors.find(d => d.id === s.resource_id)
  const sessionPrice = doctorForSession
-  ? (s.session_type === 'online' ? doctorForSession.pricing.sessionOnline : doctorForSession.pricing.sessionOffline)
-  : (s.session_type === 'online' ? PRICING.sessionOnline : PRICING.sessionOffline)
+  ? (s.session_type === 'online' ? doctorForSession.pricing.online : doctorForSession.pricing.offline)
+  : (s.session_type === 'online' ? PRICING.online : PRICING.offline)
 
  async function buyReplacement() {
   setBuying(true)

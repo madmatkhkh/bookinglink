@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { sb } from '@/lib/supabase'
 import { requirePanelAuth, isPanelAuthResponse } from '@/lib/tenant'
-import { getResourcePricing } from '@/lib/psy'
+import { getResourcePricing, resolvePrice } from '@/lib/psy'
 import { recordLedgerEntry } from '@/lib/ledger'
 
 export const dynamic = 'force-dynamic'
@@ -61,7 +61,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   let finalPrice = typeof price === 'number' && price >= 0 ? price : undefined
   if (finalPrice === undefined) {
     const pricing = await getResourcePricing(parentCase.resource_id)
-    finalPrice = rest.session_type === 'online' ? pricing.sessionOnline : pricing.sessionOffline
+    finalPrice = resolvePrice(rest.session_type, pricing)
   }
   const { data } = await sb().from('psy_sessions').insert([{
     ...rest, tenant_id: a.tenant.id, resource_id: parentCase.resource_id,

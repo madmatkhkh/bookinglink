@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { sb } from '@/lib/supabase'
 import { getActiveTenant } from '@/lib/tenant'
-import { getDefaultResourceId, getIntakeForm, missingIntakeFields, INTAKE_KNOWN_COLUMNS, getResourcePricing } from '@/lib/psy'
+import { getDefaultResourceId, getIntakeForm, missingIntakeFields, INTAKE_KNOWN_COLUMNS, getResourcePricing, resolvePrice } from '@/lib/psy'
 import { setPayCookie } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
@@ -93,8 +93,10 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   }
 
   // مرحله‌ی اولِ پرونده همیشه «مصاحبه» است — خودِ ثبتِ فرم همین مرحله را می‌سازد.
-  // قیمت از رویِ تنظیماتِ خودِ همین دکتر خوانده می‌شود (نه ثابتِ سراسری).
-  const interviewPrice = (await getResourcePricing(finalResourceId)).interview
+  // قیمت بر اساسِ نوعِ حضورِ انتخابیِ مراجع (آنلاین/حضوری) و تنظیماتِ خودِ همین
+  // متخصص است — نه یک قیمتِ ثابتِ جدا برایِ «مصاحبه» (تصمیمِ صریحِ صاحبِ پروژه:
+  // فقط دو قیمت در کل، بر اساسِ حضوری/آنلاین بودن).
+  const interviewPrice = resolvePrice(sessionType, await getResourcePricing(finalResourceId))
   const { data: stage, error: stageErr } = await sb().from('psy_stages').insert({
     tenant_id: t.id, resource_id: finalResourceId, case_number: caseNumber,
     stage_type: 'interview', price: interviewPrice, status: 'awaiting_payment',

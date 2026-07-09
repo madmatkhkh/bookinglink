@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { sb } from '@/lib/supabase'
 import { requirePanelAuth, isPanelAuthResponse } from '@/lib/tenant'
-import { getResourcePricing, packageAmount, DEFAULT_PRICING, Pricing } from '@/lib/psy'
+import { getResourcePricing, packageAmount, DEFAULT_PRICING, Pricing, resolvePrice } from '@/lib/psy'
 import { gregorianToJalali } from '@/lib/calendar'
 
 export const dynamic = 'force-dynamic'
@@ -12,7 +12,7 @@ const NO_STORE = { 'Cache-Control': 'no-store, max-age=0, must-revalidate' }
 // چیزی که واقعاً از دکتر/مراجع در آن لحظه‌ی خاص خواسته شده)؛ فقط برایِ ردیف‌هایِ
 // خیلی قدیمی که price ذخیره‌شده صفر است (پیش از پیاده‌شدنِ قیمت‌گذاریِ per-resource)
 // با قیمتِ فعلیِ همان دکتر بازمحاسبه می‌شود — تقریبی، نه قیمتِ واقعیِ آن زمان.
-const sessPrice = (s: any, pricing: any) => s.price || (s.session_type === 'online' ? pricing.sessionOnline : pricing.sessionOffline)
+const sessPrice = (s: any, pricing: any) => s.price || resolvePrice(s.session_type, pricing)
 const pkgTotal = (p: any, pricing: any) => p.price || packageAmount(p, pricing)
 
 function jalaliMonthKey(iso?: string): string | null {
@@ -84,10 +84,10 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
     const total = pkgTotal(p, pricing)
     if (p.paid) {
       paid.packages += total; paidCount.packages++; addMonthly(p.created_at, total)
-      split.online += (p.child_sessions || 0) * (p.child_session_type === 'online' ? pricing.sessionOnline : 0)
-        + (p.parent_sessions || 0) * (p.parent_session_type === 'online' ? pricing.sessionOnline : 0)
-      split.offline += (p.child_sessions || 0) * (p.child_session_type !== 'online' ? pricing.sessionOffline : 0)
-        + (p.parent_sessions || 0) * (p.parent_session_type !== 'online' ? pricing.sessionOffline : 0)
+      split.online += (p.child_sessions || 0) * (p.child_session_type === 'online' ? pricing.online : 0)
+        + (p.parent_sessions || 0) * (p.parent_session_type === 'online' ? pricing.online : 0)
+      split.offline += (p.child_sessions || 0) * (p.child_session_type !== 'online' ? pricing.offline : 0)
+        + (p.parent_sessions || 0) * (p.parent_session_type !== 'online' ? pricing.offline : 0)
     } else if (p.payment_submitted) { pending.packages += total; pendingCount.packages++ }
   }
   for (const s of S) {

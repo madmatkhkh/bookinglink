@@ -33,7 +33,6 @@ export default function InterviewPage() {
  // فرمِ درازِ قدیمی به یک ویزاردِ چندمرحله‌ای تبدیل شد — مرحله‌ی 0 = مشخصاتِ تماس، بقیه = هر بخش یک صفحه
  const [pageIdx, setPageIdx] = useState(0)
 
- const price = sessionType === 'online' ? '850,000' : '1,200,000'
 
  // گزینه‌های نوعِ جلسه: آنلاین (در صورتِ فعال‌بودن) + یک کارت به‌ازای هر مکانِ حضوری
  const sessionOptions = useMemo(() => {
@@ -131,12 +130,12 @@ export default function InterviewPage() {
  }
 
  // پرداختِ کارت‌به‌کارتِ مصاحبه (پس از ثبت فرم)
- async function submitInterviewPayment(ref: string) {
+ async function submitInterviewPayment(ref: string, discountCode?: string) {
   setLoading(true)
   try {
    const res = await fetch(`/api/t/${slug}/psy/pay`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ case_number: caseNumber, phone: fatherPhone, stage_id: stageId, payment_ref: ref })
+    body: JSON.stringify({ case_number: caseNumber, phone: fatherPhone, stage_id: stageId, payment_ref: ref, discount_code: discountCode || undefined })
    })
    if (res.ok) setStep('done')
    else uiAlert('ثبتِ پرداخت ناموفق بود')
@@ -144,8 +143,8 @@ export default function InterviewPage() {
   setLoading(false)
  }
 
- if (step === 'pay') return <InterviewPayScreen amount={displayDoctor?.pricing.interview ?? PRICING.interview} cards={settings.cards} loaded={settings.loaded} loading={loading}
-  onPay={submitInterviewPayment} paymentMethods={displayDoctor?.payment_methods} slug={slug} caseNumber={caseNumber} phone={fatherPhone} stageId={stageId} />
+ if (step === 'pay') return <InterviewPayScreen amount={sessionType === 'online' ? (displayDoctor?.pricing.online ?? PRICING.online) : (displayDoctor?.pricing.offline ?? PRICING.offline)} cards={settings.cards} loaded={settings.loaded} loading={loading}
+  onPay={submitInterviewPayment} paymentMethods={displayDoctor?.payment_methods} slug={slug} caseNumber={caseNumber} phone={fatherPhone} stageId={stageId} resourceId={displayDoctor?.id} />
 
  if (step === 'done') return (
   <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
@@ -312,7 +311,7 @@ export default function InterviewPage() {
           <span>نوع جلسه</span><span className="font-medium">{sessionType === 'online' ? 'آنلاین ' : `حضوری ${officeLoc ? ` — ${officeLoc}` : ''}`}</span>
          </div>
          <div className="flex justify-between border-t border-sand pt-2 mt-2">
-          <span className="font-medium">هزینه‌ی مصاحبه‌ی اولیه</span><span className="font-medium text-ink">{(displayDoctor?.pricing.interview ?? PRICING.interview).toLocaleString()} تومان</span>
+          <span className="font-medium">هزینه‌ی مصاحبه‌ی اولیه</span><span className="font-medium text-ink">{(sessionType === 'online' ? (displayDoctor?.pricing.online ?? PRICING.online) : (displayDoctor?.pricing.offline ?? PRICING.offline)).toLocaleString()} تومان</span>
          </div>
         </div>
        )}
@@ -562,9 +561,9 @@ function StepBar({ current }: { current: number }) {
  )
 }
 // صفحه‌ی پرداختِ کارت‌به‌کارتِ مصاحبه‌ی اولیه
-function InterviewPayScreen({ amount, cards, loaded, loading, onPay, paymentMethods, slug, caseNumber, phone, stageId }: {
- amount: number; cards: PaymentCardInfo[]; loaded: boolean; loading: boolean; onPay: (ref: string) => void
- paymentMethods?: PaymentMethods; slug: string; caseNumber: string; phone: string; stageId: string
+function InterviewPayScreen({ amount, cards, loaded, loading, onPay, paymentMethods, slug, caseNumber, phone, stageId, resourceId }: {
+ amount: number; cards: PaymentCardInfo[]; loaded: boolean; loading: boolean; onPay: (ref: string, discountCode?: string) => void
+ paymentMethods?: PaymentMethods; slug: string; caseNumber: string; phone: string; stageId: string; resourceId?: string
 }) {
  const [ref, setRef] = useState('')
  const online = !!paymentMethods?.online
@@ -573,12 +572,30 @@ function InterviewPayScreen({ amount, cards, loaded, loading, onPay, paymentMeth
  const [onlineLoading, setOnlineLoading] = useState(false)
  const [onlineError, setOnlineError] = useState('')
 
+ // کدِ تخفیف — اختیاری، فقط اگر دکتر چیزی به مراجع گفته باشد
+ const [showDiscount, setShowDiscount] = useState(false)
+ const [discountCode, setDiscountCode] = useState('')
+ const [discountChecking, setDiscountChecking] = useState(false)
+ const [discountResult, setDiscountResult] = useState<{ ok: true; discountedAmount: number; discountAmount: number } | { ok: false; error: string } | null>(null)
+ const finalAmount = discountResult?.ok ? discountResult.discountedAmount : amount
+
+ async function checkDiscount() {
+  if (!discountCode.trim() || !resourceId) return
+  setDiscountChecking(true)
+  try {
+   const res = await fetch(`/api/t/${slug}/psy/discount-check?resource_id=${resourceId}&code=${encodeURIComponent(discountCode.trim())}&amount=${amount}`)
+   const d = await res.json()
+   setDiscountResult(d)
+  } catch { setDiscountResult({ ok: false, error: 'خطا در بررسیِ کد' }) }
+  setDiscountChecking(false)
+ }
+
  async function payOnline() {
   setOnlineLoading(true); setOnlineError('')
   try {
    const res = await fetch(`/api/t/${slug}/psy/pay-online`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ case_number: caseNumber, phone, purpose: 'stage', ref_id: stageId }),
+    body: JSON.stringify({ case_number: caseNumber, phone, purpose: 'stage', ref_id: stageId, discount_code: discountResult?.ok ? discountCode.trim() : undefined }),
    })
    const data = await res.json()
    if (data.url) window.location.href = data.url
@@ -598,9 +615,34 @@ function InterviewPayScreen({ amount, cards, loaded, loading, onPay, paymentMeth
     <div className="bg-sand border border-sand rounded-xl p-4 mb-3">
      <div className="flex items-center justify-between">
       <span className="text-xs text-soot">مبلغ قابل پرداخت</span>
-      <span className="text-base font-bold text-ink">{amount.toLocaleString()} تومان</span>
+      <span className="text-base font-bold text-ink">
+       {discountResult?.ok && <span className="text-soot line-through text-xs ml-1.5">{amount.toLocaleString()}</span>}
+       {finalAmount.toLocaleString()} تومان
+      </span>
      </div>
     </div>
+
+    {resourceId && (
+     <div className="mb-3">
+      {!showDiscount ? (
+       <button onClick={() => setShowDiscount(true)} className="text-xs text-soot underline">کدِ تخفیف دارید؟</button>
+      ) : (
+       <div className="flex gap-2">
+        <input value={discountCode} onChange={e => { setDiscountCode(e.target.value.toUpperCase()); setDiscountResult(null) }}
+         dir="ltr" placeholder="کدِ تخفیف" className="flex-1 text-sm px-3 py-2 border border-sand rounded-lg tnum" />
+        <button onClick={checkDiscount} disabled={discountChecking || !discountCode.trim()}
+         className="px-3 py-2 border border-sand rounded-lg text-xs text-ink disabled:opacity-50">
+         {discountChecking ? '...' : 'اعمال'}
+        </button>
+       </div>
+      )}
+      {discountResult && (
+       <p className={`text-xs mt-1.5 ${discountResult.ok ? 'text-emerald-700' : 'text-red-600'}`}>
+        {discountResult.ok ? `کد اعمال شد — ${discountResult.discountAmount.toLocaleString()} تومان تخفیف` : discountResult.error}
+       </p>
+      )}
+     </div>
+    )}
 
     {online && cardToCard && (
      <div className="grid grid-cols-2 gap-2 mb-3 p-1 bg-gray-100 rounded-xl">
@@ -633,7 +675,7 @@ function InterviewPayScreen({ amount, cards, loaded, loading, onPay, paymentMeth
       <label className="text-xs text-soot mb-1 block">متن فیش واریزی <span className="text-red-500">*</span></label>
       <textarea value={ref} onChange={e => setRef(e.target.value)} rows={3} placeholder="اطلاعات فیش واریزی را وارد کنید (کد پیگیری، شماره کارت مبدأ، تاریخ و ساعت واریز...)"
        className="w-full text-sm px-3 py-2.5 border border-sand rounded-xl focus:outline-none focus:border-ink mb-3 resize-none" />
-      <button onClick={() => onPay(ref.trim())} disabled={loading || !ref.trim()}
+      <button onClick={() => onPay(ref.trim(), discountResult?.ok ? discountCode.trim() : undefined)} disabled={loading || !ref.trim()}
        className="w-full py-3 bg-ink text-white rounded-xl text-sm font-medium disabled:opacity-40">
        {loading ? 'در حال ثبت...' : 'پرداخت کردم'}
       </button>
