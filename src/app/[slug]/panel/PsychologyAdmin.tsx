@@ -4328,23 +4328,35 @@ function DiscountCodesSection({ slug, isOwner, viewingResourceId }: { slug: stri
       <p className="text-xs text-soot mb-4">اختیاری — اگر خواستی به بعضی مراجعان تخفیف بدهی، یک کد بساز و به آن‌ها بگو موقعِ پرداخت وارد کنند.</p>
 
       {showForm && (
-        <div className="border border-sand rounded-xl p-3 mb-3 space-y-2">
-          <input dir="ltr" value={form.code} onChange={e => setForm(s => ({ ...s, code: e.target.value.toUpperCase() }))}
-            placeholder="مثلاً SUMMER10" className="w-full text-sm px-3 py-2 border border-sand rounded-lg tnum" />
-          <div className="grid grid-cols-2 gap-2">
-            <select value={form.discount_type} onChange={e => setForm(s => ({ ...s, discount_type: e.target.value }))}
-              className="text-sm px-3 py-2 border border-sand rounded-lg bg-white">
-              <option value="percent">درصدی</option>
-              <option value="fixed">مبلغِ ثابت (تومان)</option>
-            </select>
-            <input type="number" value={form.discount_value} onChange={e => setForm(s => ({ ...s, discount_value: e.target.value }))}
-              placeholder={form.discount_type === 'percent' ? 'مثلاً ۲۰' : 'مثلاً ۱۰۰۰۰۰'}
-              className="text-sm px-3 py-2 border border-sand rounded-lg tnum" />
+        <div className="border border-sand rounded-xl p-3 mb-3 space-y-3">
+          <div>
+            <label className="text-xs text-soot mb-1 block">کد</label>
+            <input dir="ltr" value={form.code} onChange={e => setForm(s => ({ ...s, code: e.target.value.toUpperCase() }))}
+              placeholder="SUMMER10" className="w-36 text-sm px-3 py-2 border border-sand rounded-lg tnum" />
           </div>
-          <input type="number" value={form.max_uses} onChange={e => setForm(s => ({ ...s, max_uses: e.target.value }))}
-            placeholder="سقفِ تعدادِ استفاده (خالی = نامحدود)" className="w-full text-sm px-3 py-2 border border-sand rounded-lg tnum" />
+          <div className="flex gap-2 items-end flex-wrap">
+            <div>
+              <label className="text-xs text-soot mb-1 block">نوع</label>
+              <select value={form.discount_type} onChange={e => setForm(s => ({ ...s, discount_type: e.target.value }))}
+                className="w-32 text-sm px-3 py-2 border border-sand rounded-lg bg-white">
+                <option value="percent">درصدی</option>
+                <option value="fixed">مبلغِ ثابت</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-xs text-soot mb-1 block">{form.discount_type === 'percent' ? 'درصد' : 'مبلغ (تومان)'}</label>
+              <input type="number" value={form.discount_value} onChange={e => setForm(s => ({ ...s, discount_value: e.target.value }))}
+                placeholder={form.discount_type === 'percent' ? '۲۰' : '۱۰۰۰۰۰'}
+                className="w-24 text-sm px-3 py-2 border border-sand rounded-lg tnum" />
+            </div>
+            <div>
+              <label className="text-xs text-soot mb-1 block">سقفِ استفاده</label>
+              <input type="number" value={form.max_uses} onChange={e => setForm(s => ({ ...s, max_uses: e.target.value }))}
+                placeholder="نامحدود" className="w-24 text-sm px-3 py-2 border border-sand rounded-lg tnum" />
+            </div>
+          </div>
           <div className="flex gap-2">
-            <button onClick={save} disabled={saving} className="flex-1 py-2 bg-ink text-white rounded-lg text-xs font-medium disabled:opacity-50">
+            <button onClick={save} disabled={saving} className="px-5 py-2 bg-ink text-white rounded-lg text-xs font-medium disabled:opacity-50">
               {saving ? '...' : 'ساختِ کد'}
             </button>
             <button onClick={() => setShowForm(false)} className="px-4 py-2 border border-sand rounded-lg text-xs text-soot">انصراف</button>
