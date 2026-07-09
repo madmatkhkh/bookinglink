@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { sb } from '@/lib/supabase'
 import { getActiveTenant } from '@/lib/tenant'
 import { getDefaultResourceId, getIntakeForm, missingIntakeFields, INTAKE_KNOWN_COLUMNS, getResourcePricing, resolvePrice } from '@/lib/psy'
-import { setPayCookie, normalizePhone } from '@/lib/auth'
+import { setPayCookie, normalizePhone, isValidEmail } from '@/lib/auth'
 import { randomInt } from 'crypto'
 
 export const dynamic = 'force-dynamic'
@@ -25,6 +25,12 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   const { contactPhone, sessionType, officeLocation, resourceId, answers } = b
   const clientName = String(b.clientName || '').trim().replace(/\s+/g, ' ')
   const rawAnswers: Record<string, any> = answers && typeof answers === 'object' ? answers : {}
+
+  // ایمیلِ اختیاری — برایِ مراجعِ خارج از ایران که پیامکِ ایرانی بهش نمی‌رسد.
+  // اگر پر شده باشد باید فرمتش معتبر باشد؛ خالی کاملاً مجاز است (شماره کافی است).
+  const email = b.contactEmail ? String(b.contactEmail).trim().toLowerCase() : ''
+  if (email && !isValidEmail(email))
+    return NextResponse.json({ error: 'ایمیل معتبر نیست' }, { status: 400 })
 
   // نرمال‌سازیِ شماره یک بار و همین‌جا — هم برایِ چک هم برایِ ذخیره. (باگِ قبلی:
   // چک روی نسخه‌ی نرمال‌شده بود ولی نسخه‌ی خام ذخیره می‌شد؛ مراجعی که با ارقامِ
@@ -82,6 +88,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
     reason: known.reason || '',
     contact_name: known.contact_name || '',
     contact_phone: phone,
+    contact_email: email || null,
     contact2_name: known.contact2_name || '',
     contact2_phone: known.contact2_phone ? normalizePhone(known.contact2_phone) : '',
     session_type: sessionType,

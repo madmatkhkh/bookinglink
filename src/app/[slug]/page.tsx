@@ -57,6 +57,7 @@ export default async function PublicProfile({ params }: { params: { slug: string
    office_locations: clinic.office_locations,
    doctor_name: primary?.name || '', doctor_title: primary?.title || '',
    avatar_url: primary?.avatar_url || '', badges: primary?.badges || [],
+   rating_avg: primary?.rating_avg || 0, rating_count: primary?.rating_count || 0,
   }
   return <PsychologyLanding slug={params.slug} c={c} />
  }
@@ -85,6 +86,9 @@ function PsychologyLanding({ slug, c }: { slug: string; c: any }) {
      </div>
      <h1 className="text-xl font-display font-bold text-ink mb-1">{c.doctor_name || 'پنلِ نوبت‌دهی'}</h1>
      {c.doctor_title && <p className="text-sm text-soot">{c.doctor_title}</p>}
+     {c.rating_count > 0 && (
+      <p className="text-xs text-amber-600 mt-1.5">★ {c.rating_avg.toFixed(1)} <span className="text-soot">({toFarsiNum(c.rating_count)} نظر)</span></p>
+     )}
      {c.badges?.length > 0 && (
       <div className="flex gap-2 justify-center mt-3 flex-wrap">
        {c.badges.map((b: string, i: number) => (

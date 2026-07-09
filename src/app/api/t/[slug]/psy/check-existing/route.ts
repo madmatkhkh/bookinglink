@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { sb } from '@/lib/supabase'
 import { getActiveTenant } from '@/lib/tenant'
-import { checkThrottle, requestIp, normalizePhone } from '@/lib/auth'
+import { checkThrottle, requestIp, normalizePhone, isValidEmail } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -10,8 +10,8 @@ function normalizeName(s: string): string {
   return String(s || '').trim().replace(/\s+/g, ' ')
 }
 
-// چک می‌کند آیا پرونده‌ای با همین «نامِ مراجع + شماره‌تماس» از قبل ثبت شده — تا
-// مراجع قبل از پرکردنِ کلِ فرم بفهمد، نه بعدِ زدنِ دکمه‌ی نهایی.
+// چک می‌کند آیا پرونده‌ای با همین «نامِ مراجع + شماره‌تماس/ایمیل» از قبل ثبت شده
+// — تا مراجع قبل از پرکردنِ کلِ فرم بفهمد، نه بعدِ زدنِ دکمه‌ی نهایی.
 //
 // ⚠️ حریمِ خصوصی: پاسخِ این route عملاً تایید می‌کند که «فلانی مراجعِ این کلینیکِ
 // روانشناسی هست» — برای یک محصولِ سلامتِ روان حساس است. به همین دلیل:
@@ -28,12 +28,16 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   if (!(await checkThrottle(`psy:exists:${requestIp(req)}`, 10, 600)))
     return NextResponse.json({ exists: false })
 
-  const { clientName, phone } = await req.json()
+  const { clientName, phone, email } = await req.json()
   const name = normalizeName(clientName)
-  const ph = normalizePhone(phone || '')
-  if (!name || !ph) return NextResponse.json({ exists: false })
+  const ph = phone ? normalizePhone(phone) : ''
+  const em = email && isValidEmail(email) ? String(email).trim().toLowerCase() : ''
+  if (!name || (!ph && !em)) return NextResponse.json({ exists: false })
 
-  const { data } = await sb().from('psy_cases').select('id')
-    .eq('tenant_id', t.id).eq('client_name', name).eq('contact_phone', ph).maybeSingle()
-  return NextResponse.json({ exists: !!data })
+  const db = sb()
+  const [{ data: byPhone }, { data: byEmail }] = await Promise.all([
+    ph ? db.from('psy_cases').select('id').eq('tenant_id', t.id).eq('client_name', name).eq('contact_phone', ph).maybeSingle() : Promise.resolve({ data: null }),
+    em ? db.from('psy_cases').select('id').eq('tenant_id', t.id).eq('client_name', name).eq('contact_email', em).maybeSingle() : Promise.resolve({ data: null }),
+  ])
+  return NextResponse.json({ exists: !!(byPhone || byEmail) })
 }

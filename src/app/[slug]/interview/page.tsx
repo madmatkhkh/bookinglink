@@ -26,6 +26,9 @@ export default function InterviewPage() {
  // دیتایی‌اند و از فرمِ تنظیم‌شده‌ی همین دکتر می‌آیند.
  const [clientName, setClientName] = useState('')
  const [contactPhone, setContactPhone] = useState('')
+ // ایمیلِ اختیاری — برایِ مراجعِ خارج از ایران که پیامکِ ایرانی بهش نمی‌رسد؛
+ // اگر پر شود، هم برایِ ورودِ جایگزین هم برایِ یادآوریِ ایمیلی استفاده می‌شود.
+ const [contactEmail, setContactEmail] = useState('')
  const [intakeForm, setIntakeForm] = useState<IntakeForm>({ sections: [] })
  const [intakeLoaded, setIntakeLoaded] = useState(false)
  const [answers, setAnswers] = useState<Record<string, any>>({})
@@ -96,6 +99,10 @@ export default function InterviewPage() {
   return /^09\d{9}$/.test(toLatinNum(v).trim())
  }
 
+ function isValidEmailFmt(v: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim())
+ }
+
  // اعتبارسنجی: نام/تماس همیشه اجباری + هرچه در فرمِ این دکتر اجباری علامت خورده
  // (طبقِ همان تابعِ مشترکی که سمتِ سرور هم استفاده می‌شود — فیلدهای مخفیِ شرطی حساب نمی‌شوند)
  function missingFields(): string[] {
@@ -103,6 +110,7 @@ export default function InterviewPage() {
   if (!clientName.trim()) miss.push('نام')
   if (!contactPhone.trim()) miss.push('شماره تماس')
   else if (!isValidIranPhone(contactPhone)) miss.push('شماره تماس (باید 11 رقم و با 09 شروع شود)')
+  if (contactEmail.trim() && !isValidEmailFmt(contactEmail)) miss.push('ایمیل (فرمت نامعتبر است)')
   return [...miss, ...missingIntakeFields(intakeForm, answers)]
  }
 
@@ -118,7 +126,7 @@ export default function InterviewPage() {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-     clientName, contactPhone, sessionType, officeLocation: officeLoc,
+     clientName, contactPhone, contactEmail: contactEmail.trim() || undefined, sessionType, officeLocation: officeLoc,
      resourceId: selectedDoctorId || undefined, answers,
     })
    })
@@ -267,6 +275,7 @@ export default function InterviewPage() {
        if (!clientName.trim()) miss.push('نام')
        if (!contactPhone.trim()) miss.push('شماره تماس')
        else if (!isValidIranPhone(contactPhone)) miss.push('شماره تماس (باید 11 رقم و با 09 شروع شود)')
+       if (contactEmail.trim() && !isValidEmailFmt(contactEmail)) miss.push('ایمیل (فرمت نامعتبر است)')
        return miss
       }
       if (!currentSection) return []
@@ -276,6 +285,7 @@ export default function InterviewPage() {
        const empty = f.type === 'multiselect' ? !Array.isArray(v) || v.length === 0 : !String(v ?? '').trim()
        if (f.required && empty) { miss.push(f.label); continue }
        if (f.type === 'phone' && !empty && !isValidIranPhone(String(v))) miss.push(`${f.label} (فرمتِ شماره نامعتبر است)`)
+       if (f.type === 'email' && !empty && !isValidEmailFmt(String(v))) miss.push(`${f.label} (فرمتِ ایمیل نامعتبر است)`)
       }
       return miss
      }
@@ -288,7 +298,7 @@ export default function InterviewPage() {
        try {
         const res = await fetch(`/api/t/${slug}/psy/check-existing`, {
          method: 'POST', headers: { 'Content-Type': 'application/json' },
-         body: JSON.stringify({ clientName, phone: contactPhone }),
+         body: JSON.stringify({ clientName, phone: contactPhone, email: contactEmail.trim() || undefined }),
         })
         const d = await res.json()
         if (d.exists) { uiAlert('پرونده‌ای با همین نام و شماره‌تماس قبلاً ثبت شده است. اگر برای شخصِ دیگری است، نام را متفاوت وارد کنید.'); return }
@@ -335,6 +345,9 @@ export default function InterviewPage() {
           <div className="grid grid-cols-2 gap-3">
            <Field label="نام و نام خانوادگی *" value={clientName} onChange={setClientName} placeholder="آرین رضایی" />
            <Field label="شماره تماس *" value={contactPhone} onChange={setContactPhone} placeholder="0912..." dir="ltr" />
+           <div className="col-span-2">
+            <Field label="ایمیل (اختیاری — برایِ مراجعِ خارج از ایران)" value={contactEmail} onChange={setContactEmail} placeholder="example@gmail.com" dir="ltr" />
+           </div>
           </div>
          ) : (
           <div className="space-y-3">
@@ -402,6 +415,9 @@ function DynamicField({ field, value, onChange, onToggle }: {
  )
  if (field.type === 'phone') return (
   <Field label={label} value={value || ''} onChange={onChange} placeholder="0912..." dir="ltr" />
+ )
+ if (field.type === 'email') return (
+  <Field label={label} value={value || ''} onChange={onChange} placeholder="example@gmail.com" dir="ltr" />
  )
  if (field.type === 'select') return (
   <div>

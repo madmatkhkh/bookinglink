@@ -95,3 +95,44 @@ export async function sendOtpSms(phone: string, code: string): Promise<SmsSendRe
     return { ok: false, error: 'اتصال به سرویسِ پیامک برقرار نشد' }
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ارسالِ پیامکِ آزادِ متنی (نه قالب‌دار) — برایِ «اطلاع‌رسانیِ لیستِ انتظار» و
+// «کمپینِ بازاریابی». برخلافِ send/verify (که فقط قالب‌های ازپیش‌تاییدشده را
+// می‌فرستد)، این نوع پیامک نیازمندِ یک «خطِ اختصاصی» در پنلِ sms.ir است — طبقِ
+// مقرراتِ ارتباطات، پیامکِ آزاد/تبلیغاتی بدونِ خطِ ثبت‌شده مجاز نیست.
+//
+// ⚠️ این پیاده‌سازی بر پایه‌ی الگویِ عمومیِ APIِ ارسالِ گروهیِ sms.ir نوشته شده
+// (endpoint: /v1/send/bulk)، نه یک تستِ زنده با اکانتِ واقعی — چون مستنداتِ
+// sms.ir برایِ fetchِ خودکار مسدودند. قبل از استفاده‌ی واقعی: یک بار با یک
+// شماره‌ی تستی بزن و پاسخ را چک کن؛ اگر فرمتِ درخواست را sms.ir رد کرد، با
+// پشتیبانیِ sms.ir (تیکت) دقیقِ همین endpoint/بدنه را تایید بگیر.
+//
+// پیش‌نیاز: SMS_IR_LINE_NUMBER (شماره‌خطِ اختصاصی‌ات از پنلِ sms.ir). بدونِ این
+// env، این تابع کاری نمی‌کند (silent no-op) — یعنی لیستِ انتظار و کمپین همچنان
+// در پنل قابلِ‌مشاهده‌اند، فقط پیامک واقعی نمی‌رود.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function freeTextSmsConfigured(): boolean {
+  return !!(process.env.SMS_IR_API_KEY && process.env.SMS_IR_LINE_NUMBER)
+}
+
+export async function sendFreeTextSms(phone: string, message: string): Promise<SmsSendResult> {
+  const apiKey = process.env.SMS_IR_API_KEY
+  const lineNumber = process.env.SMS_IR_LINE_NUMBER
+  if (!apiKey || !lineNumber) return { ok: false, error: 'پیامکِ آزاد تنظیم نشده (نیازمندِ SMS_IR_LINE_NUMBER)' }
+  try {
+    const res = await fetch('https://api.sms.ir/v1/send/bulk', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'text/plain', 'x-api-key': apiKey },
+      body: JSON.stringify({ lineNumber: Number(lineNumber), messageText: message, mobiles: [phone] }),
+    })
+    const data = await res.json().catch(() => null)
+    if (res.ok && data?.status === 1) return { ok: true }
+    console.error('sms.ir bulk send failed:', res.status, data)
+    return { ok: false, error: data?.message || 'ارسالِ پیامک ناموفق بود' }
+  } catch (err) {
+    console.error('sms.ir network error:', err)
+    return { ok: false, error: 'اتصال به سرویسِ پیامک برقرار نشد' }
+  }
+}

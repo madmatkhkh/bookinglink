@@ -14,7 +14,7 @@ type CaseStage = {
  status: 'awaiting_payment' | 'payment_submitted' | 'awaiting_booking' | 'booked'
  price: number; paid: boolean; payment_submitted?: boolean; payment_ref?: string
  session_date?: string; session_time?: string; held?: boolean
- cancel_notice?: string; payment_reject_reason?: string; resource_id?: string | null; created_at: string
+ cancel_notice?: string; payment_reject_reason?: string; meet_link?: string; resource_id?: string | null; created_at: string
  delay_minutes?: number | null
 }
 
@@ -40,7 +40,7 @@ type Session = {
  session_date: string; session_time: string; session_type: string
  attendee: string; status: string; doctor_note_for_patient: string
  paid: boolean; payment_submitted?: boolean
- price?: number; payment_reject_reason?: string
+ price?: number; payment_reject_reason?: string; meet_link?: string
  refund_percent?: number; refund_status?: string; refund_card?: string
  resource_id?: string | null
  delay_minutes?: number | null
@@ -57,6 +57,8 @@ export default function PatientPanel() {
  const [step, setStep] = useState<Step>('login')
  const [restoring, setRestoring] = useState(true) // تا وقتی localStorage چک شود، به‌جای لاگین اسپلش نشان بده
  const [phone, setPhone] = useState('')
+ const [loginMode, setLoginMode] = useState<'phone' | 'email'>('phone')
+ const [emailInput, setEmailInput] = useState('')
  const [otpCode, setOtpCode] = useState('')
  const [devCode, setDevCode] = useState('')
  const [loading, setLoading] = useState(false)
@@ -72,9 +74,12 @@ export default function PatientPanel() {
  const resend = useResendCooldown()
 
  async function sendOtp() {
-  if (!phone || phone.length < 10) { setError('شماره موبایل درست نیست'); return }
+  if (loginMode === 'email') {
+   if (!emailInput || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailInput.trim())) { setError('ایمیل درست نیست'); return }
+  } else if (!phone || phone.length < 10) { setError('شماره موبایل درست نیست'); return }
   setLoading(true); setError('')
-  const res = await fetch(`/api/t/${slug}/psy/otp`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone }) })
+  const body = loginMode === 'email' ? { email: emailInput.trim() } : { phone }
+  const res = await fetch(`/api/t/${slug}/psy/otp`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
   const data = await res.json()
   if (data.success) { setDevCode(data.dev_code); setStep('otp'); resend.start() }
   else setError(data.error || 'خطا')
@@ -83,12 +88,15 @@ export default function PatientPanel() {
 
  async function verifyOtp() {
   setLoading(true); setError('')
-  const res = await fetch(`/api/t/${slug}/psy/otp`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone, code: otpCode }) })
+  const identity = loginMode === 'email' ? emailInput.trim() : phone
+  const body = loginMode === 'email' ? { email: identity, code: otpCode } : { phone: identity, code: otpCode }
+  const res = await fetch(`/api/t/${slug}/psy/otp`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
   const data = await res.json()
   if (data.success) {
    setBooking(data.booking)
-   await loadData(data.booking.case_number, phone)
-   try { localStorage.setItem('pb_phone', phone); localStorage.setItem('pb_case', data.booking.case_number) } catch {}
+   setPhone(identity) // ذخیره‌ی هویتِ نهایی (شماره یا ایمیل) برایِ درخواست‌هایِ بعدی — نامِ state تاریخی است
+   await loadData(data.booking.case_number, identity)
+   try { localStorage.setItem('pb_phone', identity); localStorage.setItem('pb_case', data.booking.case_number) } catch {}
    setStep('panel')
   }
   else setError(data.error || 'کد اشتباه است')
@@ -193,11 +201,31 @@ export default function PatientPanel() {
       ? <p className="text-xs text-soot mt-1">مطبِ {settings.doctor_name}</p>
       : <div className="h-3.5 w-32 mx-auto bg-gray-100 rounded animate-pulse mt-2" />}
     </div>
+    <div className="flex bg-gray-100 rounded-xl p-1 mb-4">
+     {(['phone', 'email'] as const).map(m => (
+      <button key={m} onClick={() => { setLoginMode(m); setError('') }}
+       className={`flex-1 text-xs py-2 rounded-lg font-medium transition-all ${loginMode === m ? 'bg-white text-ink shadow-sm' : 'text-soot'}`}>
+       {m === 'phone' ? 'شماره موبایل' : 'ایمیل'}
+      </button>
+     ))}
+    </div>
     <div className="mb-4">
-     <label className="text-xs text-soot mb-1.5 block">شماره موبایل</label>
-     <input value={phone} onChange={e => setPhone(e.target.value)} onKeyDown={e => e.key === 'Enter' && sendOtp()}
-      placeholder="09123456789" dir="ltr"
-      className="w-full text-sm px-3 py-2.5 border border-sand rounded-xl text-center tracking-widest focus:outline-none focus:border-ink" />
+     {loginMode === 'phone' ? (
+      <>
+       <label className="text-xs text-soot mb-1.5 block">شماره موبایل</label>
+       <input value={phone} onChange={e => setPhone(e.target.value)} onKeyDown={e => e.key === 'Enter' && sendOtp()}
+        placeholder="09123456789" dir="ltr"
+        className="w-full text-sm px-3 py-2.5 border border-sand rounded-xl text-center tracking-widest focus:outline-none focus:border-ink" />
+      </>
+     ) : (
+      <>
+       <label className="text-xs text-soot mb-1.5 block">ایمیل</label>
+       <input value={emailInput} onChange={e => setEmailInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && sendOtp()}
+        placeholder="example@gmail.com" dir="ltr"
+        className="w-full text-sm px-3 py-2.5 border border-sand rounded-xl text-center focus:outline-none focus:border-ink" />
+       <p className="text-[11px] text-soot mt-1.5">برایِ مراجعینِ خارج از ایران — اگر ایمیلت را موقعِ ثبت‌نام داده باشی.</p>
+      </>
+     )}
     </div>
     {error && <p className="text-xs text-red-600 mb-3 text-center">{error}</p>}
     <button onClick={sendOtp} disabled={loading}
@@ -215,7 +243,7 @@ export default function PatientPanel() {
     <div className="text-center mb-6">
      <div className="w-14 h-14 rounded-full bg-sand flex items-center justify-center mx-auto mb-3 text-2xl">📱</div>
      <h1 className="text-lg font-display font-semibold text-ink">کد تایید</h1>
-     <p className="text-xs text-soot mt-1">کد ارسال شده به {phone} را وارد کنید</p>
+     <p className="text-xs text-soot mt-1">کد ارسال شده به {loginMode === 'email' ? emailInput : phone} را وارد کنید</p>
      {devCode && (
       <div className="mt-2 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
        <p className="text-xs text-amber-700">کد تست: <strong className="font-mono text-base">{devCode}</strong></p>
@@ -333,7 +361,8 @@ export default function PatientPanel() {
        desc="منتظرِ برگزاری باشید. پس از آن، دکتر مرحله‌ی بعد را مشخص می‌کند."
        date={currentStage.session_date} time={currentStage.session_time}
        label={`وقتِ ${STAGE_TYPE_LABEL[currentStage.stage_type] || ''}`}
-       delayMinutes={currentStage.delay_minutes} />
+       delayMinutes={currentStage.delay_minutes}
+       meetLink={booking.session_type === 'online' ? (currentStage.meet_link || settings.doctors.find(d => d.id === booking.resource_id)?.meet_link) : undefined} />
      )}
 
      <button onClick={() => loadData(booking.case_number)}
@@ -478,21 +507,24 @@ export default function PatientPanel() {
 
     {/* INFO TAB */}
     {activeTab === 'info' && (
-     <div className="bg-white rounded-xl border border-sand p-4 space-y-3">
-      <h3 className="text-sm font-medium text-ink pb-2 border-b border-sand">اطلاعات پرونده</h3>
-      {[
-       ['نام مراجع', booking.client_name],
-       ['تاریخ تولد', booking.birth_date],
-       ['پایه تحصیلی', booking.grade],
-       ['نامِ تماس', booking.contact_name],
-       [settings.doctors.find(d => d.id === booking.resource_id)?.companion_label || 'همراه', booking.contact2_name],
-       ['شماره پرونده', booking.case_number],
-      ].map(([label, value]) => value ? (
-       <div key={label} className="flex justify-between text-sm border-b border-sand pb-2 last:border-0">
-        <span className="text-soot">{label}</span>
-        <span className="text-ink font-medium">{value}</span>
-       </div>
-      ) : null)}
+     <div className="space-y-3">
+      <div className="bg-white rounded-xl border border-sand p-4 space-y-3">
+       <h3 className="text-sm font-medium text-ink pb-2 border-b border-sand">اطلاعات پرونده</h3>
+       {[
+        ['نام مراجع', booking.client_name],
+        ['تاریخ تولد', booking.birth_date],
+        ['پایه تحصیلی', booking.grade],
+        ['نامِ تماس', booking.contact_name],
+        [settings.doctors.find(d => d.id === booking.resource_id)?.companion_label || 'همراه', booking.contact2_name],
+        ['شماره پرونده', booking.case_number],
+       ].map(([label, value]) => value ? (
+        <div key={label} className="flex justify-between text-sm border-b border-sand pb-2 last:border-0">
+         <span className="text-soot">{label}</span>
+         <span className="text-ink font-medium">{value}</span>
+        </div>
+       ) : null)}
+      </div>
+      {booking.resource_id && <ReviewBox resourceId={booking.resource_id} caseNumber={booking.case_number} phone={phone} slug={slug} />}
      </div>
     )}
    </div>
@@ -656,6 +688,12 @@ function SessionCard({ session: s, num, phone, caseNumber, onUpdate }: {
       <div className="text-xs text-amber-600 bg-amber-500/10 border border-amber-500/20 rounded-lg px-2 py-1 mt-1.5 inline-block font-medium">
        ⏱ این جلسه با {s.delay_minutes} دقیقه تاخیر برگزار می‌شود.
       </div>
+     )}
+     {s.session_type === 'online' && !isAwaiting && s.status !== 'forfeited' && s.status !== 'replaced' && s.session_date && (s.meet_link || doctorForSession?.meet_link) && (
+      <a href={s.meet_link || doctorForSession?.meet_link} target="_blank" rel="noopener noreferrer"
+       className="text-xs text-white bg-ink rounded-lg px-3 py-1.5 mt-1.5 inline-block font-medium hover:opacity-90">
+       ورود به جلسه‌ی گوگل‌میت ↗
+      </a>
      )}
     </div>
     {canCancel && (
@@ -868,6 +906,20 @@ function SlotPicker({ session, phone, caseNumber, onClose, onDone, title = 'ان
  const [selectedSlot, setSelectedSlot] = useState<string>('')
  const [saving, setSaving] = useState(false)
  const [loadingSched, setLoadingSched] = useState(true)
+ const [waitlistJoined, setWaitlistJoined] = useState(false)
+ const [waitlistJoining, setWaitlistJoining] = useState(false)
+
+ async function joinWaitlist() {
+  if (!resourceId) return
+  setWaitlistJoining(true)
+  const res = await fetch(`/api/t/${slug}/psy/waitlist`, {
+   method: 'POST', headers: { 'Content-Type': 'application/json' },
+   body: JSON.stringify({ case_number: caseNumber, resource_id: resourceId, session_type: session?.session_type || sessionType }),
+  })
+  setWaitlistJoining(false)
+  if (res.ok) setWaitlistJoined(true)
+  else uiAlert('ثبت در لیستِ انتظار ناموفق بود')
+ }
 
  useEffect(() => { loadSchedule(curMonth, curYear) }, [curMonth, curYear])
 
@@ -984,7 +1036,16 @@ function SlotPicker({ session, phone, caseNumber, onClose, onDone, title = 'ان
       <p className="text-center text-xs text-soot mb-4">در حال بارگذاری برنامه...</p>
      )}
      {!loadingSched && availDays.length === 0 && (
-      <p className="text-center text-xs text-soot mb-4">برای این ماه ساعت آزادی موجود نیست.</p>
+      <div className="text-center mb-4">
+       <p className="text-xs text-soot mb-2">برای این ماه ساعت آزادی موجود نیست.</p>
+       {resourceId && !waitlistJoined && (
+        <button onClick={joinWaitlist} disabled={waitlistJoining}
+         className="text-xs px-4 py-2 border border-ink text-ink rounded-lg hover:bg-sand disabled:opacity-40">
+         {waitlistJoining ? 'در حال ثبت...' : '+ افزودن به لیستِ انتظار'}
+        </button>
+       )}
+       {waitlistJoined && <p className="text-xs text-emerald-600">به لیستِ انتظار اضافه شدید — هروقت ظرفیتی باز شد به شما خبر می‌دهیم.</p>}
+      </div>
      )}
      {selectedDay && (
       <div className="grid grid-cols-3 gap-2 mb-4">
@@ -1291,7 +1352,7 @@ function StageWaiting({ title, desc }: { title: string; desc: string }) {
  )
 }
 
-function StageInfo({ icon, title, desc, date, time, label, delayMinutes }: { icon: string; title: string; desc: string; date?: string; time?: string; label: string; delayMinutes?: number | null }) {
+function StageInfo({ icon, title, desc, date, time, label, delayMinutes, meetLink }: { icon: string; title: string; desc: string; date?: string; time?: string; label: string; delayMinutes?: number | null; meetLink?: string }) {
  return (
   <>
    <StageHero icon={icon} title={title} desc={desc} />
@@ -1304,6 +1365,12 @@ function StageInfo({ icon, title, desc, date, time, label, delayMinutes }: { ico
     <div className="bg-gray-100 border border-sand rounded-xl p-3 text-sm text-ink mt-2">
      ⏱ این جلسه با {delayMinutes} دقیقه تاخیر برگزار می‌شود.
     </div>
+   )}
+   {meetLink && (
+    <a href={meetLink} target="_blank" rel="noopener noreferrer"
+     className="text-sm text-white bg-ink rounded-xl px-4 py-2.5 mt-2 inline-block font-medium hover:opacity-90">
+     ورود به جلسه‌ی گوگل‌میت ↗
+    </a>
    )}
   </>
  )
@@ -1424,6 +1491,54 @@ function StageProgress({ stages, inTreatment }: { stages: CaseStage[]; inTreatme
      {i < items.length - 1 && <div className={`flex-1 h-px mx-2 ${it.done ? 'bg-emerald-400' : 'bg-gray-200'}`} />}
     </div>
    ))}
+  </div>
+ )
+}
+// ==================== REVIEW BOX ====================
+// نظر/امتیازِ واقعیِ مراجع — سرور خودش چک می‌کند که واقعاً جلسه‌ی گذشته‌ای با
+// این دکتر داشته؛ اگر نداشته باشد فقط پیامِ خطا نشان داده می‌شود (فرمِ اضافه‌ای
+// برایِ «آیا واجد شرایطی» نمی‌سازیم — سرور مرجعِ نهایی است).
+function ReviewBox({ resourceId, caseNumber, phone, slug }: { resourceId: string; caseNumber: string; phone: string; slug: string }) {
+ const [rating, setRating] = useState(0)
+ const [comment, setComment] = useState('')
+ const [submitting, setSubmitting] = useState(false)
+ const [done, setDone] = useState(false)
+ const [err, setErr] = useState('')
+
+ async function submit() {
+  if (!rating) { setErr('لطفاً امتیاز را انتخاب کنید'); return }
+  setSubmitting(true); setErr('')
+  const res = await fetch(`/api/t/${slug}/psy/reviews`, {
+   method: 'POST', headers: { 'Content-Type': 'application/json' },
+   body: JSON.stringify({ case_number: caseNumber, resource_id: resourceId, rating, comment: comment.trim(), phone }),
+  })
+  const data = await res.json().catch(() => ({}))
+  setSubmitting(false)
+  if (!res.ok) { setErr(data.error || 'ثبت ناموفق بود'); return }
+  setDone(true)
+ }
+
+ if (done) return (
+  <div className="bg-white rounded-xl border border-sand p-4 text-center">
+   <p className="text-sm text-emerald-600">ممنون از نظرتان! پس از بررسیِ دکتر منتشر می‌شود.</p>
+  </div>
+ )
+
+ return (
+  <div className="bg-white rounded-xl border border-sand p-4">
+   <h3 className="text-sm font-medium text-ink pb-2 border-b border-sand mb-3">نظرتان را ثبت کنید</h3>
+   <div className="flex gap-1 mb-3 justify-center text-2xl">
+    {[1, 2, 3, 4, 5].map(n => (
+     <button key={n} onClick={() => setRating(n)} className={n <= rating ? 'text-amber-500' : 'text-gray-200'}>★</button>
+    ))}
+   </div>
+   <textarea value={comment} onChange={e => setComment(e.target.value)} rows={3} placeholder="نظرِ شما (اختیاری)..."
+    className="w-full text-sm px-3 py-2 border border-sand rounded-xl focus:outline-none focus:border-ink resize-none mb-2" />
+   {err && <p className="text-xs text-red-600 mb-2 text-center">{err}</p>}
+   <button onClick={submit} disabled={submitting}
+    className="w-full py-2.5 bg-ink text-white rounded-xl text-sm font-medium disabled:opacity-40">
+    {submitting ? 'در حال ثبت...' : 'ثبتِ نظر'}
+   </button>
   </div>
  )
 }

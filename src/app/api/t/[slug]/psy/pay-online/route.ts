@@ -3,7 +3,7 @@ import { sb } from '@/lib/supabase'
 import { getActiveTenant } from '@/lib/tenant'
 import { getPaymentMethods, effectivePaymentMethods, getResourceProfile, isValidSheba, getResourcePricing, packageAmount, resolvePrice, checkDiscountCode } from '@/lib/psy'
 import { requestZibalPayment, PLATFORM_COMMISSION_PERCENT, MULTIPLEXING_ENABLED } from '@/lib/zibal'
-import { getClientPhone, getPayCase } from '@/lib/auth'
+import { getClientPhone, getPayCase, matchesClientIdentity } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -25,10 +25,10 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   const grantedCase = getPayCase(req)
 
   const { data: c } = await sb().from('psy_cases')
-    .select('id, resource_id, contact_phone, contact2_phone, current_stage_id')
+    .select('id, resource_id, contact_phone, contact2_phone, contact_email, contact2_email, current_stage_id')
     .eq('tenant_id', t.id).eq('case_number', case_number).single()
   if (!c) return NextResponse.json({ error: 'دسترسی ندارید' }, { status: 403 })
-  const viaPhone = !!cookiePhone && (c.contact_phone === cookiePhone || c.contact2_phone === cookiePhone)
+  const viaPhone = !!cookiePhone && matchesClientIdentity(c, cookiePhone)
   const viaGrant = !!grantedCase && grantedCase === case_number
   if (!viaPhone && !viaGrant)
     return NextResponse.json({ error: 'ابتدا با کدِ یک‌بارمصرف وارد شوید' }, { status: 401 })

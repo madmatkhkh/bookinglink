@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { sb } from '@/lib/supabase'
 import { getActiveTenant } from '@/lib/tenant'
-import { getClientPhone } from '@/lib/auth'
+import { getClientPhone, matchesClientIdentity } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -15,9 +15,9 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   if (!sessions?.length) return NextResponse.json({ error: 'ناقص' }, { status: 400 })
 
   const case_number = sessions[0].case_number
-  const { data: booking } = await sb().from('psy_cases').select('resource_id, contact_phone, contact2_phone')
+  const { data: booking } = await sb().from('psy_cases').select('resource_id, contact_phone, contact2_phone, contact_email, contact2_email')
     .eq('tenant_id', t.id).eq('case_number', case_number).single()
-  if (!booking || (booking.contact_phone !== phone && booking.contact2_phone !== phone))
+  if (!booking || !matchesClientIdentity(booking, phone))
     return NextResponse.json({ error: 'دسترسی ندارید' }, { status: 403 })
 
   const reqDates = Array.from(new Set(sessions.map((s: any) => s.session_date)))

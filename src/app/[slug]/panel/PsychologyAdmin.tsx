@@ -227,6 +227,7 @@ type ResourceProfileView = {
  settlement_sheba_holder_name: string
  pricing: Pricing
  companion_label: string
+ meet_link: string
 }
 
 const ALL_TIMES = ['8:00','9:00','10:00','11:00','12:00','13:00','14:00','15:00','16:00','17:00','18:00']
@@ -239,6 +240,7 @@ const DEFAULT_PROFILE: ResourceProfileView = {
  settlement_sheba: '', settlement_sheba_holder_name: '',
  pricing: DEFAULT_PRICING,
  companion_label: '',
+ meet_link: '',
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -452,7 +454,7 @@ export function PsychologyAdmin() {
  const { slug } = useParams<{ slug: string }>()
  const api = (path: string) => `/api/t/${slug}/panel/psy${path}`
  const panelApi = (path: string) => `/api/t/${slug}/panel${path}`
- const [mainTab, setMainTab] = useState<'dashboard' | 'patients' | 'bookings' | 'schedule' | 'settings_hub' | 'finance'>('dashboard')
+ const [mainTab, setMainTab] = useState<'dashboard' | 'patients' | 'bookings' | 'schedule' | 'settings_hub' | 'finance' | 'growth'>('dashboard')
  const [settingsSubTab, setSettingsSubTab] = useState<'profile' | 'payments' | 'pricing' | 'locations' | 'form' | 'patient_panel' | 'staff' | 'account' | 'tickets'>('profile')
  const [sidebarOpen, setSidebarOpen] = useState(false)
 
@@ -460,10 +462,14 @@ export function PsychologyAdmin() {
  const [patients, setPatients] = useState<Patient[]>([])
  const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null)
  const [patientView, setPatientView] = useState<'list' | 'detail' | 'edit'>('list')
- const [patientTab, setPatientTab] = useState<'info' | 'payment' | 'packages' | 'sessions'>('info')
+ const [patientTab, setPatientTab] = useState<'info' | 'payment' | 'packages' | 'sessions' | 'clinical'>('info')
  const [packages, setPackages] = useState<Package[]>([])
  const [sessions, setSessions] = useState<Session[]>([])
  const [stages, setStages] = useState<CaseStage[]>([])
+ const [clinicalNotes, setClinicalNotes] = useState<{ id: string; format: string; fields: Record<string, string>; created_at: string; updated_at: string }[]>([])
+ const [newNoteFormat, setNewNoteFormat] = useState<'soap' | 'dap' | 'freeform'>('soap')
+ const [newNoteFields, setNewNoteFields] = useState<Record<string, string>>({})
+ const [savingNote, setSavingNote] = useState(false)
  const [patientSearch, setPatientSearch] = useState('')
  const [showNewPackage, setShowNewPackage] = useState(false)
  const [showNewSession, setShowNewSession] = useState(false)
@@ -492,6 +498,32 @@ export function PsychologyAdmin() {
  const [pendingPkgs, setPendingPkgs] = useState<Package[]>([])
  const [pendingSess, setPendingSess] = useState<Session[]>([])
  const [pendingRefunds, setPendingRefunds] = useState<Session[]>([])
+ const [growthSubTab, setGrowthSubTab] = useState<'waitlist' | 'reviews' | 'analytics' | 'campaigns'>('waitlist')
+ const [waitlist, setWaitlist] = useState<{ id: string; client_name: string; case_number: string; contact_phone: string; contact_email: string; session_type: string | null; note: string; created_at: string }[]>([])
+ const [reviews, setReviews] = useState<{ id: string; client_name: string; case_number: string; rating: number; comment: string; status: string; created_at: string }[]>([])
+ const [analytics, setAnalytics] = useState<{ totalInflow: number; totalOutflow: number; netRevenue: number; revenueByPurpose: Record<string, number>; noShowRate: number; sessionsTotal: number; sessionsForfeited: number; newCases: number; caseGrowth: { week: string; count: number }[] } | null>(null)
+ const [campaigns, setCampaigns] = useState<{ id: string; channel: string; segment: string; message: string; recipient_count: number; created_at: string }[]>([])
+ const waitlistCount = waitlist.length
+ const [campaignChannel, setCampaignChannel] = useState<'sms' | 'email'>('sms')
+ const [campaignSegment, setCampaignSegment] = useState<'all' | 'inactive_30' | 'inactive_90'>('all')
+ const [campaignMessage, setCampaignMessage] = useState('')
+ const [campaignSending, setCampaignSending] = useState(false)
+
+ async function sendCampaign() {
+  if (!campaignMessage.trim()) { uiAlert('متنِ پیام را بنویس.'); return }
+  if (!await uiConfirm(`این پیام برایِ گروهِ «${campaignSegment === 'all' ? 'همه‌ی مراجعان' : campaignSegment === 'inactive_30' ? 'غیرفعالِ ۳۰+ روز' : 'غیرفعالِ ۹۰+ روز'}» از طریقِ ${campaignChannel === 'sms' ? 'پیامک' : 'ایمیل'} ارسال شود؟`)) return
+  setCampaignSending(true)
+  const res = await fetch(api('/campaigns'), {
+   method: 'POST', headers: { 'Content-Type': 'application/json' },
+   body: JSON.stringify({ channel: campaignChannel, segment: campaignSegment, message: campaignMessage.trim() }),
+  })
+  const d = await res.json().catch(() => ({}))
+  setCampaignSending(false)
+  if (!res.ok) { uiAlert(d.error || 'خطا در ارسال'); return }
+  uiAlert(`برای ${toFarsiNum(d.sent)} نفر از ${toFarsiNum(d.attempted)} مراجعِ این گروه ارسال شد.`)
+  setCampaignMessage('')
+  loadCampaigns()
+ }
  const [pendingStages, setPendingStages] = useState<CaseStage[]>([])
 
  // ── Schedule state ─────────────────────────────────────────────
@@ -781,7 +813,15 @@ export function PsychologyAdmin() {
   setPatientView('detail')
   setPatientTab('info')
   setInfoOpenSection(null)
-  await Promise.all([loadPatientData(p.case_number), loadPatientIntakeForm((p as any).resource_id)])
+  await Promise.all([loadPatientData(p.case_number), loadPatientIntakeForm((p as any).resource_id), loadClinicalNotes(p.case_number)])
+ }
+
+ async function loadClinicalNotes(case_number: string) {
+  try {
+   const res = await fetch(api(`/clinical-notes?case_number=${case_number}`), { cache: 'no-store' })
+   const data = await res.json()
+   setClinicalNotes(data.notes || [])
+  } catch {}
  }
 
  // فرمِ رزروِ صاحبِ این پرونده رو فقط برای نمایش/برچسب می‌خونه — چیزی رو تو
@@ -1045,6 +1085,28 @@ export function PsychologyAdmin() {
   if (selectedPatient) await loadPatientData(selectedPatient.case_number)
  }
 
+ async function saveClinicalNote() {
+  if (!selectedPatient) return
+  const hasContent = Object.values(newNoteFields).some(v => v?.trim())
+  if (!hasContent) { uiAlert('حداقل یک فیلد را پر کن.'); return }
+  setSavingNote(true)
+  const res = await fetch(api('/clinical-notes'), {
+   method: 'POST', headers: { 'Content-Type': 'application/json' },
+   body: JSON.stringify({ case_number: selectedPatient.case_number, format: newNoteFormat, fields: newNoteFields }),
+  })
+  setSavingNote(false)
+  if (!res.ok) { uiAlert('ثبت ناموفق بود'); return }
+  setNewNoteFields({})
+  await loadClinicalNotes(selectedPatient.case_number)
+ }
+
+ async function deleteClinicalNote(id: string) {
+  if (!selectedPatient) return
+  if (!await uiConfirm('این یادداشتِ بالینی برای همیشه حذف شود؟')) return
+  await fetch(api('/clinical-notes'), { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) })
+  await loadClinicalNotes(selectedPatient.case_number)
+ }
+
  // ذخیره‌ی یادداشت و/یا تأییدِ برگزاریِ یک مرحله — بعد از این، پرونده آزاد می‌شود
  // تا دکتر مرحله‌ی بعد را (اگر خواست) مشخص کند
  async function saveStageSession(stageId: string, notes: string, markHeld: boolean) {
@@ -1288,8 +1350,61 @@ export function PsychologyAdmin() {
    loadTickets()
   }
   if (mainTab === 'finance') loadFinance()
+  if (mainTab === 'growth') { loadWaitlist(); loadReviews(); loadAnalytics(); loadCampaigns() }
   // eslint-disable-next-line react-hooks/exhaustive-deps
  }, [mainTab, viewingResourceId])
+
+ // بجِ عددیِ لیستِ انتظار روی خودِ منو، حتی وقتی داخلِ این تب نیستیم
+ useEffect(() => { loadWaitlist() }, [])
+
+ async function loadWaitlist() {
+  try {
+   const res = await fetch(api('/waitlist'), { cache: 'no-store' })
+   const data = await res.json()
+   setWaitlist(data.waitlist || [])
+  } catch {}
+ }
+ async function loadReviews() {
+  try {
+   const res = await fetch(api('/reviews'), { cache: 'no-store' })
+   const data = await res.json()
+   setReviews(data.reviews || [])
+  } catch {}
+ }
+ async function loadAnalytics() {
+  try {
+   const res = await fetch(api('/analytics'), { cache: 'no-store' })
+   const data = await res.json()
+   setAnalytics(data)
+  } catch {}
+ }
+ async function loadCampaigns() {
+  try {
+   const res = await fetch(api('/campaigns'), { cache: 'no-store' })
+   const data = await res.json()
+   setCampaigns(data.campaigns || [])
+  } catch {}
+ }
+ async function notifyWaitlistEntry(id: string, defaultMsg: string) {
+  const msg = await uiPrompt('متنِ پیامک/ایمیل به این مراجع:', { defaultValue: defaultMsg, required: true })
+  if (msg === null) return
+  const res = await fetch(api('/waitlist'), {
+   method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, message: msg.trim() }),
+  })
+  const d = await res.json().catch(() => ({}))
+  if (!res.ok) { uiAlert(d.error || 'خطا'); return }
+  uiAlert(d.sent ? 'پیام ارسال شد.' : 'ثبت شد، ولی ارسالِ واقعی تنظیم نشده (env پیامک/ایمیل).')
+  loadWaitlist()
+ }
+ async function removeWaitlistEntry(id: string) {
+  if (!await uiConfirm('این مورد از لیستِ انتظار حذف شود؟')) return
+  await fetch(api('/waitlist'), { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) })
+  loadWaitlist()
+ }
+ async function moderateReview(id: string, status: 'approved' | 'hidden') {
+  await fetch(api('/reviews'), { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, status }) })
+  loadReviews()
+ }
 
  // ── دارک‌مود: از localStorage بخوان و روی پنل اعمال کن ──────────
  useEffect(() => {
@@ -1441,8 +1556,8 @@ export function PsychologyAdmin() {
   }
   return result
  }
- const fieldTypeIcon = (t: FormFieldType) => t === 'text' ? 'Aa' : t === 'textarea' ? '¶' : t === 'select' ? '◉' : t === 'date' ? '' : t === 'phone' ? '☎' : '☑'
- const fieldTypeLabel = (t: FormFieldType) => t === 'text' ? 'متنِ کوتاه' : t === 'textarea' ? 'متنِ بلند' : t === 'select' ? 'تک‌گزینه‌ای' : t === 'date' ? 'تاریخ' : t === 'phone' ? 'شماره‌تماس' : 'چندگزینه‌ای'
+ const fieldTypeIcon = (t: FormFieldType) => t === 'text' ? 'Aa' : t === 'textarea' ? '¶' : t === 'select' ? '◉' : t === 'date' ? '' : t === 'phone' ? '☎' : t === 'email' ? '@' : '☑'
+ const fieldTypeLabel = (t: FormFieldType) => t === 'text' ? 'متنِ کوتاه' : t === 'textarea' ? 'متنِ بلند' : t === 'select' ? 'تک‌گزینه‌ای' : t === 'date' ? 'تاریخ' : t === 'phone' ? 'شماره‌تماس' : t === 'email' ? 'ایمیل' : 'چندگزینه‌ای'
 
  async function saveIntakeForm() {
   setIntakeSaving(true); setIntakeSaved(false)
@@ -1761,6 +1876,7 @@ export function PsychologyAdmin() {
   { key: 'schedule' as const, icon: '🗓', label: 'روزهای کاری', badge: 0 },
   ...(showBookingsTab ? [{ key: 'bookings' as const, icon: '💳', label: 'تأیید پرداخت‌ها', badge: pendingActionCount }] : []),
   { key: 'finance' as const, icon: '📊', label: 'گزارشاتِ مالی', badge: 0 },
+  { key: 'growth' as const, icon: '👥', label: 'رشد و مراجعان', badge: waitlistCount },
  ]
 
  function NavList({ onNavigate }: { onNavigate?: () => void }) {
@@ -2174,6 +2290,7 @@ export function PsychologyAdmin() {
           ['payment', '💳', 'اطلاعات پرداخت'],
           ['packages', '📦', 'پروتکل‌های درمان'],
           ['sessions', '🗓', 'جلسات تکی'],
+          ['clinical', '📝', 'یادداشتِ بالینی'],
          ] as const).map(([k, icon, label]) => (
           <button key={k} onClick={() => setPatientTab(k)}
            className={`px-3 py-1.5 text-xs font-medium rounded-lg whitespace-nowrap transition-all flex items-center gap-1.5 ${
@@ -2378,6 +2495,69 @@ export function PsychologyAdmin() {
           </button>
           <div className="space-y-2">
            {renderSessionList(sessions.filter(s => !s.package_id))}
+          </div>
+         </div>
+        )}
+
+        {/* یادداشتِ بالینیِ ساختاریافته — کاملاً خصوصی، هرگز به مراجع نمایش داده نمی‌شود */}
+        {patientTab === 'clinical' && (
+         <div>
+          <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 text-xs text-amber-700 mb-4">
+           🔒 این یادداشت‌ها فقط برایِ خودتان است — هیچ‌وقت در پنلِ مراجع نمایش داده نمی‌شود.
+          </div>
+
+          <div className="bg-white rounded-xl border border-sand p-4 mb-4">
+           <div className="flex bg-gray-100 rounded-xl p-1 gap-1 mb-3">
+            {(['soap', 'dap', 'freeform'] as const).map(f => (
+             <button key={f} onClick={() => { setNewNoteFormat(f); setNewNoteFields({}) }}
+              className={`flex-1 text-xs py-2 rounded-lg font-medium transition-all ${newNoteFormat === f ? 'bg-white text-ink shadow-sm' : 'text-soot'}`}>
+              {f === 'soap' ? 'SOAP' : f === 'dap' ? 'DAP' : 'آزاد'}
+             </button>
+            ))}
+           </div>
+           <div className="space-y-2">
+            {(newNoteFormat === 'soap'
+              ? [['subjective', 'Subjective — گفته‌ی مراجع'], ['objective', 'Objective — مشاهده‌ی دکتر'], ['assessment', 'Assessment — ارزیابی/تشخیص'], ['plan', 'Plan — برنامه‌ی ادامه']]
+              : newNoteFormat === 'dap'
+              ? [['data', 'Data — شرحِ جلسه'], ['assessment', 'Assessment — ارزیابی/تشخیص'], ['plan', 'Plan — برنامه‌ی ادامه']]
+              : [['note', 'یادداشتِ آزاد']]
+            ).map(([key, label]) => (
+             <div key={key}>
+              <label className="text-xs text-soot mb-1 block">{label}</label>
+              <textarea value={newNoteFields[key] || ''} onChange={e => setNewNoteFields(f => ({ ...f, [key]: e.target.value }))}
+               rows={key === 'note' ? 6 : 2}
+               className="w-full text-sm px-3 py-2 border border-sand rounded-lg focus:outline-none focus:border-ink resize-none" />
+             </div>
+            ))}
+           </div>
+           <button onClick={saveClinicalNote} disabled={savingNote}
+            className="w-full mt-3 py-2.5 bg-ink text-white rounded-xl text-sm font-medium disabled:opacity-40">
+            {savingNote ? 'در حال ثبت...' : '+ ثبتِ یادداشتِ تازه'}
+           </button>
+          </div>
+
+          <div className="space-y-2">
+           {clinicalNotes.length === 0 ? (
+            <div className="text-center py-8 text-soot text-sm">هنوز یادداشتی ثبت نشده.</div>
+           ) : clinicalNotes.map(n => (
+            <div key={n.id} className="bg-white rounded-xl border border-sand p-4">
+             <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-medium text-ink bg-gray-100 px-2 py-0.5 rounded">{n.format.toUpperCase()}</span>
+              <div className="flex items-center gap-2">
+               <span className="text-[11px] text-soot">{new Date(n.created_at).toLocaleDateString('fa-IR')}</span>
+               <button onClick={() => deleteClinicalNote(n.id)} className="text-xs text-red-500 hover:text-red-700">حذف</button>
+              </div>
+             </div>
+             <div className="space-y-1.5">
+              {Object.entries(n.fields).filter(([, v]) => v).map(([key, value]) => (
+               <div key={key} className="text-sm text-ink">
+                <span className="text-xs text-soot block">{key === 'subjective' ? 'Subjective' : key === 'objective' ? 'Objective' : key === 'assessment' ? 'Assessment' : key === 'plan' ? 'Plan' : key === 'data' ? 'Data' : ''}</span>
+                {value}
+               </div>
+              ))}
+             </div>
+            </div>
+           ))}
           </div>
          </div>
         )}
@@ -3161,6 +3341,195 @@ export function PsychologyAdmin() {
     )}
 
     {/* ════════════════════════════════════════════════════════════════
+      TAB: GROWTH (رشد و مراجعان — لیستِ انتظار، نظرات، آمار، کمپین)
+    ════════════════════════════════════════════════════════════════ */}
+    {mainTab === 'growth' && (
+     <div className="max-w-3xl mx-auto">
+      <div className="flex bg-white rounded-xl border border-sand p-1 mb-4 overflow-x-auto">
+       {([['waitlist', 'لیستِ انتظار'], ['reviews', 'نظراتِ مراجعان'], ['analytics', 'آمارِ کسب‌وکار'], ['campaigns', 'پیامِ گروهی']] as const).map(([k, label]) => (
+        <button key={k} onClick={() => setGrowthSubTab(k)}
+         className={`flex-1 text-xs py-2 rounded-lg font-medium whitespace-nowrap px-3 transition-all ${growthSubTab === k ? 'bg-ink text-white' : 'text-soot'}`}>
+         {label}{k === 'waitlist' && waitlistCount > 0 ? ` (${toFarsiNum(waitlistCount)})` : ''}
+        </button>
+       ))}
+      </div>
+
+      {/* ── لیستِ انتظار ─────────────────────────────────────────── */}
+      {growthSubTab === 'waitlist' && (
+       <div className="space-y-2">
+        <p className="text-xs text-soot mb-2">وقتی ساعتِ آزادی برایِ کسی که این‌جا منتظر است پیدا کردید، «اطلاع بده» را بزنید تا پیامک/ایمیل برایش برود.</p>
+        {waitlist.length === 0 ? (
+         <div className="text-center py-12 bg-white rounded-xl border border-sand text-soot">
+          <p className="text-sm">لیستِ انتظار خالی است.</p>
+         </div>
+        ) : waitlist.map(w => (
+         <div key={w.id} className="bg-white rounded-xl border border-sand p-4">
+          <div className="flex items-center justify-between mb-1">
+           <span className="text-sm font-medium text-ink">{w.client_name}</span>
+           <span className="text-xs text-soot font-mono">{w.case_number}</span>
+          </div>
+          <div className="text-xs text-soot mb-2">
+           {w.contact_phone || w.contact_email} {w.session_type && `• ${w.session_type === 'online' ? 'آنلاین' : 'حضوری'}`}
+          </div>
+          {w.note && <p className="text-xs text-ink bg-gray-100 rounded-lg p-2 mb-2">{w.note}</p>}
+          <div className="flex gap-2">
+           <button onClick={() => notifyWaitlistEntry(w.id, `سلام ${w.client_name}، یک ظرفیتِ تازه برایِ نوبت باز شد. برایِ رزرو وارد پنلِ خودتان شوید.`)}
+            className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm">اطلاع بده</button>
+           <button onClick={() => removeWaitlistEntry(w.id)}
+            className="py-2 px-3 border border-red-500/30 text-red-600 hover:bg-red-500/5 rounded-lg text-sm">حذف</button>
+          </div>
+         </div>
+        ))}
+       </div>
+      )}
+
+      {/* ── نظراتِ مراجعان ───────────────────────────────────────── */}
+      {growthSubTab === 'reviews' && (
+       <div className="space-y-2">
+        {reviews.length === 0 ? (
+         <div className="text-center py-12 bg-white rounded-xl border border-sand text-soot">
+          <p className="text-sm">هنوز نظری ثبت نشده.</p>
+         </div>
+        ) : reviews.map(r => (
+         <div key={r.id} className="bg-white rounded-xl border border-sand p-4">
+          <div className="flex items-center justify-between mb-1">
+           <span className="text-sm font-medium text-ink">{r.client_name}</span>
+           <span className="text-amber-500 text-sm">{'★'.repeat(r.rating)}{'☆'.repeat(5 - r.rating)}</span>
+          </div>
+          {r.comment && <p className="text-sm text-ink mt-1 mb-2">{r.comment}</p>}
+          <div className="flex items-center justify-between">
+           <span className={`text-xs px-2 py-0.5 rounded-full ${r.status === 'approved' ? 'bg-emerald-500/10 text-emerald-600' : r.status === 'hidden' ? 'bg-gray-100 text-soot' : 'bg-amber-500/10 text-amber-600'}`}>
+            {r.status === 'approved' ? 'منتشرشده' : r.status === 'hidden' ? 'مخفی' : 'در انتظارِ بررسی'}
+           </span>
+           <div className="flex gap-2">
+            {r.status !== 'approved' && (
+             <button onClick={() => moderateReview(r.id, 'approved')} className="text-xs px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg">انتشار</button>
+            )}
+            {r.status !== 'hidden' && (
+             <button onClick={() => moderateReview(r.id, 'hidden')} className="text-xs px-2.5 py-1 border border-sand text-soot rounded-lg hover:bg-gray-50">مخفی‌کردن</button>
+            )}
+           </div>
+          </div>
+         </div>
+        ))}
+       </div>
+      )}
+
+      {/* ── آمارِ کسب‌وکار ───────────────────────────────────────── */}
+      {growthSubTab === 'analytics' && (
+       !analytics ? <div className="text-center py-16 text-soot">در حال بارگذاری...</div> : (
+        <div className="space-y-4">
+         <p className="text-xs text-soot">۹۰ روزِ اخیر</p>
+         <div className="grid grid-cols-2 gap-3">
+          <div className="bg-white rounded-xl border border-sand p-4">
+           <p className="text-xs text-soot mb-1">درآمدِ خالص</p>
+           <p className="text-lg font-bold text-ink">{analytics.netRevenue.toLocaleString('en-US')} ت</p>
+          </div>
+          <div className="bg-white rounded-xl border border-sand p-4">
+           <p className="text-xs text-soot mb-1">پرونده‌هایِ تازه</p>
+           <p className="text-lg font-bold text-ink">{toFarsiNum(analytics.newCases)}</p>
+          </div>
+          <div className="bg-white rounded-xl border border-sand p-4">
+           <p className="text-xs text-soot mb-1">نرخِ سوختنِ جلسه (no-show)</p>
+           <p className={`text-lg font-bold ${analytics.noShowRate > 15 ? 'text-red-600' : 'text-ink'}`}>{toFarsiNum(analytics.noShowRate)}٪</p>
+           <p className="text-[11px] text-soot mt-0.5">{toFarsiNum(analytics.sessionsForfeited)} از {toFarsiNum(analytics.sessionsTotal)} جلسه</p>
+          </div>
+          <div className="bg-white rounded-xl border border-sand p-4">
+           <p className="text-xs text-soot mb-1">کارمزدِ پرداخت‌شده</p>
+           <p className="text-lg font-bold text-ink">{analytics.totalOutflow.toLocaleString('en-US')} ت</p>
+          </div>
+         </div>
+         {Object.keys(analytics.revenueByPurpose).length > 0 && (
+          <div className="bg-white rounded-xl border border-sand p-4">
+           <p className="text-xs text-soot mb-3">درآمد به تفکیکِ نوع</p>
+           <div className="space-y-2">
+            {Object.entries(analytics.revenueByPurpose).map(([purpose, amount]) => {
+             const label = purpose === 'interview' ? 'مصاحبه' : purpose === 'assessment' ? 'ارزیابی' : purpose === 'package' ? 'پروتکلِ درمان' : purpose === 'session' ? 'جلسه‌ی جایگزین' : purpose
+             const pct = analytics.totalInflow > 0 ? Math.round((amount / analytics.totalInflow) * 100) : 0
+             return (
+              <div key={purpose}>
+               <div className="flex justify-between text-xs text-soot mb-1">
+                <span>{label}</span><span>{amount.toLocaleString('en-US')} ت ({toFarsiNum(pct)}٪)</span>
+               </div>
+               <div className="bg-gray-100 rounded-full h-1.5"><div className="bg-ink h-1.5 rounded-full" style={{ width: `${pct}%` }} /></div>
+              </div>
+             )
+            })}
+           </div>
+          </div>
+         )}
+         {analytics.caseGrowth.length > 1 && (
+          <div className="bg-white rounded-xl border border-sand p-4">
+           <p className="text-xs text-soot mb-3">پرونده‌هایِ تازه به تفکیکِ هفته</p>
+           <div className="flex items-end gap-1 h-20">
+            {analytics.caseGrowth.map(w => {
+             const max = Math.max(...analytics.caseGrowth.map(x => x.count), 1)
+             return <div key={w.week} title={`${w.week}: ${w.count}`} className="flex-1 bg-ink/80 rounded-t" style={{ height: `${(w.count / max) * 100}%`, minHeight: w.count > 0 ? '4px' : '1px' }} />
+            })}
+           </div>
+          </div>
+         )}
+        </div>
+       )
+      )}
+
+      {/* ── پیامِ گروهی (کمپین) ──────────────────────────────────── */}
+      {growthSubTab === 'campaigns' && (
+       <div className="space-y-4">
+        <div className="bg-white rounded-2xl border border-sand p-5">
+         <h2 className="text-sm font-display font-semibold text-ink mb-3">ارسالِ پیامِ گروهی</h2>
+         <div className="grid grid-cols-2 gap-3 mb-3">
+          <div>
+           <label className="text-xs text-soot mb-1 block">کانال</label>
+           <div className="flex bg-gray-100 rounded-lg p-1">
+            {(['sms', 'email'] as const).map(c => (
+             <button key={c} onClick={() => setCampaignChannel(c)}
+              className={`flex-1 text-xs py-1.5 rounded-md font-medium ${campaignChannel === c ? 'bg-white text-ink shadow-sm' : 'text-soot'}`}>
+              {c === 'sms' ? 'پیامک' : 'ایمیل'}
+             </button>
+            ))}
+           </div>
+          </div>
+          <div>
+           <label className="text-xs text-soot mb-1 block">مخاطبان</label>
+           <select value={campaignSegment} onChange={e => setCampaignSegment(e.target.value as any)}
+            className="w-full text-xs px-2 py-2 border border-sand rounded-lg bg-white">
+            <option value="all">همه‌ی مراجعان</option>
+            <option value="inactive_30">غیرفعال (۳۰+ روز بدون جلسه)</option>
+            <option value="inactive_90">غیرفعال (۹۰+ روز بدون جلسه)</option>
+           </select>
+          </div>
+         </div>
+         <textarea value={campaignMessage} onChange={e => setCampaignMessage(e.target.value)} rows={4}
+          placeholder="مثلاً: مطبِ ما در تعطیلاتِ نوروز از ۱ تا ۴ فروردین تعطیل است."
+          className="w-full text-sm px-3 py-2 border border-sand rounded-xl focus:outline-none focus:border-ink resize-none mb-3" />
+         <button onClick={sendCampaign} disabled={campaignSending}
+          className="w-full py-2.5 bg-ink text-white rounded-xl text-sm font-medium disabled:opacity-40">
+          {campaignSending ? 'در حالِ ارسال...' : 'ارسال'}
+         </button>
+        </div>
+        {campaigns.length > 0 && (
+         <div className="bg-white rounded-2xl border border-sand p-5">
+          <h2 className="text-sm font-display font-semibold text-ink mb-3">تاریخچه</h2>
+          <div className="space-y-2">
+           {campaigns.map(c => (
+            <div key={c.id} className="text-xs border-b border-sand pb-2 last:border-0">
+             <div className="flex justify-between text-soot mb-1">
+              <span>{c.channel === 'sms' ? 'پیامک' : 'ایمیل'} • {toFarsiNum(c.recipient_count)} نفر</span>
+              <span>{new Date(c.created_at).toLocaleDateString('fa-IR')}</span>
+             </div>
+             <p className="text-ink">{c.message}</p>
+            </div>
+           ))}
+          </div>
+         </div>
+        )}
+       </div>
+      )}
+     </div>
+    )}
+
+    {/* ════════════════════════════════════════════════════════════════
       TAB: SETTINGS
     ════════════════════════════════════════════════════════════════ */}
     {mainTab === 'settings_hub' && (
@@ -3241,6 +3610,20 @@ export function PsychologyAdmin() {
           </button>
          ))}
         </div>
+       </section>
+       )}
+
+       {/* لینکِ جلسه‌ی آنلاین — بدونِ نیازِ اتصالِ گوگل‌کلندر/OAuth؛ فقط چسباندنِ
+           لینکِ ثابتِ خودِ دکتر (از حسابِ Gmail/Google‌اش ساخته شده) */}
+       {settingsSubTab === 'profile' && profile.session_modes !== 'offline' && (
+       <section className="bg-white rounded-2xl border border-sand p-5">
+        <h2 className="text-sm font-display font-semibold text-ink mb-1">لینکِ جلسه‌ی آنلاین</h2>
+        <p className="text-xs text-soot mb-4">
+         لینکِ ثابتِ گوگل‌میتِ خودتان را اینجا بگذارید (از حسابِ Gmail خودتان در meet.google.com/new بسازید). این لینک برایِ همه‌ی جلساتِ آنلاینِ شما به مراجع نشان داده می‌شود.
+        </p>
+        <input value={profile.meet_link} onChange={e => patchProfile({ meet_link: e.target.value })}
+         placeholder="https://meet.google.com/xxx-yyyy-zzz" dir="ltr"
+         className="w-full text-sm px-3 py-2 border border-sand rounded-lg focus:outline-none focus:border-ink" />
        </section>
        )}
 
@@ -3604,6 +3987,9 @@ export function PsychologyAdmin() {
                 {field.type === 'phone' && (
                  <input disabled dir="ltr" placeholder="09xxxxxxxxx" className="w-full text-sm px-3 py-2 border border-sand rounded-lg bg-gray-50 text-soot" />
                 )}
+                {field.type === 'email' && (
+                 <input disabled dir="ltr" placeholder="example@gmail.com" className="w-full text-sm px-3 py-2 border border-sand rounded-lg bg-gray-50 text-soot" />
+                )}
                </div>
 
                {/* اگر این سوال خودش وابسته به یه سوالِ قبلیه — فقط نمایشی، ساخته نمی‌شه اینجا */}
@@ -3625,8 +4011,8 @@ export function PsychologyAdmin() {
 
                <div>
                 <label className="text-xs text-soot mb-2 block">نوعِ پاسخ</label>
-                <div className="grid grid-cols-6 gap-1.5">
-                 {(['text', 'textarea', 'select', 'multiselect', 'date', 'phone'] as FormFieldType[]).map(t => (
+                <div className="grid grid-cols-4 sm:grid-cols-7 gap-1.5">
+                 {(['text', 'textarea', 'select', 'multiselect', 'date', 'phone', 'email'] as FormFieldType[]).map(t => (
                   <button key={t} onClick={() => updateFormField(sIdx, fIdx, { type: t })}
                    className={`py-2 rounded-xl border text-center transition-all ${field.type === t ? 'border-ink border-2 bg-sand text-ink' : 'border-sand bg-white text-soot hover:border-gray-300'}`}>
                    <div className="text-sm mb-0.5">{fieldTypeIcon(t)}</div>
@@ -3641,6 +4027,7 @@ export function PsychologyAdmin() {
                  {field.type === 'multiselect' && 'مراجع می‌تواند چند گزینه را همزمان انتخاب کند — مثلِ چند علامتِ رفتاری.'}
                  {field.type === 'date' && 'مراجع با یک تقویمِ واقعیِ شمسی (کلیک‌پذیر) تاریخ را انتخاب می‌کند — نه تایپِ دستی.'}
                  {field.type === 'phone' && 'فقط شماره‌ی موبایلِ معتبر (11 رقم، با 09) قبول می‌شود — نه هر متنی.'}
+                 {field.type === 'email' && 'فقط ایمیلِ معتبر قبول می‌شود — برایِ مراجعِ خارج از ایران که پیامک بهش نمی‌رسد.'}
                 </p>
                </div>
 

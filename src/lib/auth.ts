@@ -24,6 +24,7 @@ import { createHmac, timingSafeEqual, randomUUID, randomInt } from 'crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { sb } from './supabase'
 import { sendOtpSms, smsConfigured } from './sms'
+import { sendOtpEmail, emailConfigured } from './email'
 
 function SECRET(): string {
   const s = process.env.AUTH_SECRET
@@ -73,14 +74,15 @@ export function requestIp(req: NextRequest): string {
 
 // ── مراجع ────────────────────────────────────────────────────────────────────
 
-/** پس از تاییدِ OTP: کوکیِ امضاشده‌ی شماره را روی پاسخ می‌نشاند */
+/** پس از تاییدِ OTP: کوکیِ امضاشده‌ی هویتِ مراجع را می‌نشاند — می‌تواند شماره یا
+ * ایمیل باشد (برایِ مراجعِ خارج از ایران که با ایمیل وارد شده) */
 export function setClientCookie(res: NextResponse, phone: string) {
   res.cookies.set(CLIENT_COOKIE, `${phone}.${sign(phone)}`, {
     httpOnly: true, sameSite: 'lax', secure: true, path: '/', maxAge: 60 * 60 * 24 * 90,
   })
 }
 
-/** شماره‌ی تاییدشده‌ی مراجع از کوکی؛ در صورتِ دستکاری null */
+/** هویتِ تاییدشده‌ی مراجع از کوکی (شماره یا ایمیل)؛ در صورتِ دستکاری null */
 export function getClientPhone(req: NextRequest): string | null {
   const raw = req.cookies.get(CLIENT_COOKIE)?.value
   if (!raw) return null
@@ -237,6 +239,7 @@ export function verifyImpersonateToken(tenantId: string, token: string | null): 
 
 export type IssueOtpResult = { ok: true; code: string } | { ok: false; throttled: true } | { ok: false; smsError: string }
 export type VerifyOtpResult = 'ok' | 'bad' | 'throttled'
+export type OtpChannel = 'sms' | 'email'
 
 /** آیا کد باید در پاسخِ HTTP برگردد؟ فقط در حالتِ موقتِ پیش‌ازپیامک — و فقط اگر
  * پیامکِ واقعی هنوز تنظیم نشده باشد (وگرنه حتی با OTP_ECHO_CODE=true فراموش‌شده
@@ -248,22 +251,34 @@ export function otpEchoEnabled(): boolean {
 
 /**
  * کدِ تازه (5 رقمی) می‌سازد و ذخیره می‌کند.
- * rate limit: حداکثر 3 صدور برای هر شماره و 10 صدور برای هر IP در هر 10 دقیقه —
- * هم ضدِ brute force هم (بعد از اتصالِ پیامک) ضدِ سوزاندنِ اعتبارِ پیامکی (SMS bombing).
+ * rate limit: حداکثر 3 صدور برای هر شماره/ایمیل و 10 صدور برای هر IP در هر 10
+ * دقیقه — هم ضدِ brute force هم (بعد از اتصالِ پیامک/ایمیل) ضدِ سوزاندنِ اعتبار.
+ *
+ * channel='email' برایِ مراجع/متخصصِ خارج از ایران که پیامکِ ایرانی بهش نمی‌رسد؛
+ * identifier در این حالت آدرسِ ایمیل است (نه شماره) ولی همان ستونِ phone در
+ * جدولِ otps ذخیره می‌شود — این جدول از قبل یک شناسه‌ی عمومی نگه می‌داشت، فقط
+ * اسمِ ستونش تاریخی مانده.
  */
-export async function issueOtp(phone: string, ip?: string): Promise<IssueOtpResult> {
-  if (!(await checkThrottle(`otp:issue:${phone}`, 3, 600))) return { ok: false, throttled: true }
+export async function issueOtp(identifier: string, ip?: string, channel: OtpChannel = 'sms'): Promise<IssueOtpResult> {
+  if (!(await checkThrottle(`otp:issue:${identifier}`, 3, 600))) return { ok: false, throttled: true }
   if (ip && !(await checkThrottle(`otp:issue:ip:${ip}`, 10, 600))) return { ok: false, throttled: true }
   const code = String(randomInt(10000, 100000)) // 5 رقم، از CSPRNG نه Math.random
   const expires_at = new Date(Date.now() + 5 * 60 * 1000).toISOString()
-  await sb().from('otps').insert({ phone, code, expires_at })
-  // اگر پیامکِ واقعی تنظیم شده (SMS_IR_API_KEY/SMS_IR_TEMPLATE_ID)، همین‌جا ارسال کن.
-  // اگر ارسال شکست خورد، کد را از دیتابیس پاک می‌کنیم — چون کدی که به دستِ کاربر
-  // نمی‌رسد نباید معتبر بماند (هم گیج‌کننده هم یک OTPِ یتیم در دیتابیس).
-  if (smsConfigured()) {
-    const sent = await sendOtpSms(phone, code)
+  await sb().from('otps').insert({ phone: identifier, code, expires_at, channel })
+  // اگر ارسالِ واقعی تنظیم شده، همین‌جا بفرست. اگر شکست خورد، کد را از دیتابیس
+  // پاک می‌کنیم — کدی که به دستِ کاربر نمی‌رسد نباید معتبر بماند.
+  if (channel === 'email') {
+    if (emailConfigured()) {
+      const sent = await sendOtpEmail(identifier, code)
+      if (!sent.ok) {
+        await sb().from('otps').delete().eq('phone', identifier).eq('code', code)
+        return { ok: false, smsError: sent.error }
+      }
+    }
+  } else if (smsConfigured()) {
+    const sent = await sendOtpSms(identifier, code)
     if (!sent.ok) {
-      await sb().from('otps').delete().eq('phone', phone).eq('code', code)
+      await sb().from('otps').delete().eq('phone', identifier).eq('code', code)
       return { ok: false, smsError: sent.error }
     }
   }
@@ -272,17 +287,17 @@ export async function issueOtp(phone: string, ip?: string): Promise<IssueOtpResu
 
 /**
  * کد را بررسی و در صورتِ صحت مصرف (حذف) می‌کند.
- * rate limit: حداکثر 5 تلاشِ تایید برای هر شماره در هر 10 دقیقه — با کدِ 5رقمی
- * یعنی brute force عملاً ناممکن.
+ * rate limit: حداکثر 5 تلاشِ تایید برای هر شماره/ایمیل در هر 10 دقیقه — با کدِ
+ * 5رقمی یعنی brute force عملاً ناممکن.
  */
-export async function verifyOtp(phone: string, code: string): Promise<VerifyOtpResult> {
-  if (!(await checkThrottle(`otp:verify:${phone}`, 5, 600))) return 'throttled'
+export async function verifyOtp(identifier: string, code: string): Promise<VerifyOtpResult> {
+  if (!(await checkThrottle(`otp:verify:${identifier}`, 5, 600))) return 'throttled'
   const { data } = await sb().from('otps').select('id, expires_at')
-    .eq('phone', phone).eq('code', toEnDigits(code))
+    .eq('phone', identifier).eq('code', toEnDigits(code))
     .order('created_at', { ascending: false }).limit(1)
   const row = data?.[0]
   if (!row || new Date(row.expires_at).getTime() < Date.now()) return 'bad'
-  await sb().from('otps').delete().eq('phone', phone)
+  await sb().from('otps').delete().eq('phone', identifier)
   return 'ok'
 }
 
@@ -298,4 +313,28 @@ export function normalizePhone(raw: string): string {
   if (p.startsWith('98') && p.length === 12) p = '0' + p.slice(2)
   if (p.length === 10 && p.startsWith('9')) p = '0' + p
   return p
+}
+
+/** چکِ سطحی/کافیِ فرمتِ ایمیل — برایِ ورودی‌هایِ کاربر، نه اعتبارسنجیِ RFC کامل */
+export function isValidEmail(raw: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(raw || '').trim())
+}
+
+// ── تطبیقِ هویتِ مراجع (شماره یا ایمیل) ──────────────────────────────────────
+// مراجع می‌تواند با شماره یا با ایمیل وارد شده باشد (کوکیِ CLIENT_COOKIE هرکدام
+// را که بود نگه می‌دارد) — این تابع یک‌جا چک می‌کند که «این هویت متعلق به این
+// پرونده هست یا نه»، فارغ از این‌که شماره باشد یا ایمیل. همه‌ی routeهایِ
+// کلاینت‌محور (data/pay/cancel/stage-book/schedule-one/buy-session) از همین
+// استفاده می‌کنند تا منطقِ تطبیق یک‌جا و یکسان بماند.
+export function matchesClientIdentity(
+  row: { contact_phone?: string | null; contact2_phone?: string | null; contact_email?: string | null; contact2_email?: string | null },
+  identity: string
+): boolean {
+  const id = String(identity || '').trim()
+  if (!id) return false
+  if (row.contact_phone === id || row.contact2_phone === id) return true
+  const lower = id.toLowerCase()
+  if (row.contact_email && row.contact_email.toLowerCase() === lower) return true
+  if (row.contact2_email && row.contact2_email.toLowerCase() === lower) return true
+  return false
 }

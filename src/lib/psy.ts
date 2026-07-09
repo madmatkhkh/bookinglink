@@ -266,6 +266,10 @@ export type ResourceProfile = {
   // استفاده نمی‌شود (مثلاً درمانِ فردیِ بزرگسال)؛ پر = نام و مسیرِ جلسه‌ی دومی
   // با همین برچسب نمایش داده می‌شود (مثلاً «والدین»، «همسر»، «همراه»).
   companion_label: string
+  // لینکِ گوگل‌میتِ ثابتِ همین دکتر — بدونِ نیازِ اتصالِ گوگل‌کلندر/OAuth؛ خودِ
+  // دکتر از حسابِ Gmail/Google خودش می‌سازد و این‌جا می‌چسباند. جلساتِ آنلاین
+  // به‌صورتِ پیش‌فرض همین را نشان می‌دهند مگر per-session override شده باشد.
+  meet_link: string
 }
 
 export const DEFAULT_RESOURCE_PROFILE: Omit<ResourceProfile, 'resource_id'> = {
@@ -279,6 +283,7 @@ export const DEFAULT_RESOURCE_PROFILE: Omit<ResourceProfile, 'resource_id'> = {
   settlement_sheba_holder_name: '',
   pricing: DEFAULT_PRICING,
   companion_label: '',
+  meet_link: '',
 }
 
 export function mergeResourceProfile(resourceId: string, raw: Partial<ResourceProfile> | null | undefined): ResourceProfile {
@@ -296,6 +301,7 @@ export function mergeResourceProfile(resourceId: string, raw: Partial<ResourcePr
     settlement_sheba_holder_name: typeof raw?.settlement_sheba_holder_name === 'string' ? raw.settlement_sheba_holder_name : '',
     pricing: mergePricing(raw?.pricing),
     companion_label: typeof raw?.companion_label === 'string' ? raw.companion_label.trim().slice(0, 20) : '',
+    meet_link: typeof raw?.meet_link === 'string' ? raw.meet_link.trim().slice(0, 300) : '',
   }
 }
 
@@ -343,6 +349,11 @@ export type PublicDoctor = {
   cancellation_policy: CancellationPolicy
   pricing: Pricing
   companion_label: string
+  meet_link: string
+  // امتیازِ واقعیِ محاسبه‌شده از psy_reviews (فقط approved) — نه بجِ خودنوشت.
+  // rating_count صفر یعنی هنوز نظری ثبت نشده؛ در آن صورت هیچ امتیازی نشان داده نمی‌شود.
+  rating_avg: number
+  rating_count: number
 }
 
 export async function listPublicDoctors(tenantId: string, plan: string): Promise<PublicDoctor[]> {
@@ -351,16 +362,28 @@ export async function listPublicDoctors(tenantId: string, plan: string): Promise
     .order('sort_order').order('created_at')
   const list = resources || []
   if (list.length === 0) return []
-  const { data: profiles } = await sb().from('psy_resource_profiles').select('*')
-    .in('resource_id', list.map(r => r.id))
+  const [{ data: profiles }, { data: reviews }] = await Promise.all([
+    sb().from('psy_resource_profiles').select('*').in('resource_id', list.map(r => r.id)),
+    sb().from('psy_reviews').select('resource_id, rating').in('resource_id', list.map(r => r.id)).eq('status', 'approved'),
+  ])
   const byId = new Map((profiles || []).map(p => [p.resource_id, p]))
+  const ratingsByResource = new Map<string, number[]>()
+  for (const rv of reviews || []) {
+    const arr = ratingsByResource.get(rv.resource_id) || []
+    arr.push(rv.rating)
+    ratingsByResource.set(rv.resource_id, arr)
+  }
   return list.map(r => {
     const prof = mergeResourceProfile(r.id, byId.get(r.id) || null)
+    const ratings = ratingsByResource.get(r.id) || []
+    const rating_count = ratings.length
+    const rating_avg = rating_count > 0 ? Math.round((ratings.reduce((a, b) => a + b, 0) / rating_count) * 10) / 10 : 0
     return {
       id: r.id, name: r.name, title: r.title, avatar_url: r.avatar_url,
       badges: prof.badges, session_modes: prof.session_modes, cards: prof.cards,
       payment_methods: effectivePaymentMethods(prof.payment_methods, plan), cancellation_policy: prof.cancellation_policy,
-      pricing: prof.pricing, companion_label: prof.companion_label,
+      pricing: prof.pricing, companion_label: prof.companion_label, meet_link: prof.meet_link,
+      rating_avg, rating_count,
     }
   })
 }
@@ -383,7 +406,7 @@ export const offlineAvailable = (m: SessionMode) => m === 'both' || m === 'offli
 // ── فرمِ رزرو — قابلِ‌تنظیم توسطِ هر دکتر (per-resource) ──────────────────────
 // نام/شماره‌تماس بیرونِ این اسکیما و همیشه ثابت‌اند (برای OTP لازم‌اند).
 // هرچه اینجاست کاملاً دیتایی و قابلِ‌ویرایش از پنل → تنظیمات → فرمِ رزرو است.
-export type FormFieldType = 'text' | 'textarea' | 'select' | 'multiselect' | 'date' | 'phone'
+export type FormFieldType = 'text' | 'textarea' | 'select' | 'multiselect' | 'date' | 'phone' | 'email'
 
 export type FormField = {
   id: string
@@ -410,7 +433,7 @@ export type IntakeForm = { sections: FormSection[] }
 
 // این فیلدها روی ستونِ واقعیِ psy_cases می‌نشینند (نه details) — برای سازگاری با
 // جست‌وجو/نمایشِ قدیمی. هرچیزِ دیگری که دکتر اضافه کند در details ذخیره می‌شود.
-export const INTAKE_KNOWN_COLUMNS = ['birth_date', 'grade', 'reason', 'contact_name', 'contact2_name', 'contact2_phone'] as const
+export const INTAKE_KNOWN_COLUMNS = ['birth_date', 'grade', 'reason', 'contact_name', 'contact2_name', 'contact2_phone', 'contact2_email'] as const
 
 // فرمِ پیش‌فرضِ عمومی — کوتاه و مستقل از تخصص، تا برایِ هر روان‌شناس/روان‌پزشکی با
 // هر گرایشی (فردیِ بزرگسال، کودک، زوج، خانواده...) نقطه‌ی شروعِ معقولی باشد. هر
@@ -426,6 +449,7 @@ export const DEFAULT_INTAKE_FORM: IntakeForm = {
     { id: 'companion', title: 'همراه (اختیاری)', fields: [
       { id: 'contact2_name', label: 'نامِ همراه', type: 'text', required: false, placeholder: 'در صورتِ نیاز' },
       { id: 'contact2_phone', label: 'شماره‌تماسِ همراه', type: 'phone', required: false },
+      { id: 'contact2_email', label: 'ایمیلِ همراه (اختیاری)', type: 'email', required: false },
     ]},
     { id: 'history', title: 'سابقه', fields: [
       { id: 'medical_info', label: 'سابقه‌ی پزشکی/روان‌پزشکی', type: 'textarea', required: false, placeholder: 'بیماری‌ها، تشخیص‌ها یا درمان‌هایِ قبلی...' },
@@ -438,7 +462,7 @@ export const DEFAULT_INTAKE_FORM: IntakeForm = {
 }
 
 function isValidFieldType(t: unknown): t is FormFieldType {
-  return t === 'text' || t === 'textarea' || t === 'select' || t === 'multiselect' || t === 'date' || t === 'phone'
+  return t === 'text' || t === 'textarea' || t === 'select' || t === 'multiselect' || t === 'date' || t === 'phone' || t === 'email'
 }
 
 export function mergeIntakeForm(raw: unknown): IntakeForm {
@@ -489,6 +513,9 @@ function digitsToLatin(s: string): string {
 export function isValidIranPhone(v: string): boolean {
   return /^09\d{9}$/.test(digitsToLatin(String(v || '')).trim())
 }
+export function isValidEmailFormat(v: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(v || '').trim())
+}
 
 export function missingIntakeFields(form: IntakeForm, answers: Record<string, unknown>): string[] {
   const missing: string[] = []
@@ -499,6 +526,7 @@ export function missingIntakeFields(form: IntakeForm, answers: Record<string, un
       const empty = f.type === 'multiselect' ? !Array.isArray(v) || v.length === 0 : !String(v ?? '').trim()
       if (f.required && empty) { missing.push(f.label); continue }
       if (f.type === 'phone' && !empty && !isValidIranPhone(String(v))) missing.push(`${f.label} (فرمتِ شماره نامعتبر است)`)
+      if (f.type === 'email' && !empty && !isValidEmailFormat(String(v))) missing.push(`${f.label} (فرمتِ ایمیل نامعتبر است)`)
     }
   }
   return missing

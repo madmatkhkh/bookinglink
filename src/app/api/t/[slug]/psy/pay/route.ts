@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { sb } from '@/lib/supabase'
 import { getActiveTenant } from '@/lib/tenant'
 import { getPaymentMethods, effectivePaymentMethods, checkDiscountCode } from '@/lib/psy'
-import { getClientPhone, getPayCase } from '@/lib/auth'
+import { getClientPhone, getPayCase, matchesClientIdentity } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -17,10 +17,10 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   const phone = getClientPhone(req)
   const grantedCase = getPayCase(req)
 
-  const { data: booking } = await sb().from('psy_cases').select('resource_id, contact_phone, contact2_phone, current_stage_id')
+  const { data: booking } = await sb().from('psy_cases').select('resource_id, contact_phone, contact2_phone, contact_email, contact2_email, current_stage_id')
     .eq('tenant_id', t.id).eq('case_number', case_number).single()
   if (!booking) return NextResponse.json({ error: 'دسترسی ندارید' }, { status: 403 })
-  const viaPhone = !!phone && (booking.contact_phone === phone || booking.contact2_phone === phone)
+  const viaPhone = !!phone && matchesClientIdentity(booking, phone)
   const viaGrant = !!grantedCase && grantedCase === case_number
   if (!viaPhone && !viaGrant)
     return NextResponse.json({ error: 'ابتدا با کدِ یک‌بارمصرف وارد شوید' }, { status: 401 })
