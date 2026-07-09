@@ -39,12 +39,12 @@ export function DialogProvider({ children }: { children: ReactNode }) {
             <div className="flex gap-2 mt-5">
               {dlg.kind === 'confirm' && (
                 <button onClick={() => close(false)}
-                  className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-600">
+                  className="flex-1 py-2.5 rounded-xl border border-sand text-sm text-soot hover:bg-gray-50">
                   انصراف
                 </button>
               )}
               <button onClick={() => close(true)}
-                className="flex-1 py-2.5 rounded-xl bg-accent text-white text-sm font-medium">
+                className="flex-1 py-2.5 rounded-xl bg-ink text-white text-sm font-medium hover:bg-ink/90">
                 {dlg.kind === 'confirm' ? 'تایید' : 'باشه'}
               </button>
             </div>

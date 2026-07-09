@@ -57,13 +57,13 @@ export function DialogHost() {
 
         {current.kind === 'prompt' && (
           <textarea value={val} onChange={e => setVal(e.target.value)} rows={3} autoFocus
-            className="w-full text-sm px-3 py-2 border border-gray-200 rounded-xl focus:outline-none focus:border-brand-400 resize-none mb-4" />
+            className="w-full text-sm px-3 py-2 border border-sand rounded-xl focus:outline-none focus:border-ink resize-none mb-4" />
         )}
 
         <div className="flex gap-2">
           {current.kind !== 'alert' && (
             <button onClick={() => close(current.kind === 'confirm' ? false : null)}
-              className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-500 hover:bg-gray-50">انصراف</button>
+              className="flex-1 py-2.5 border border-sand rounded-xl text-sm text-soot hover:bg-gray-50">انصراف</button>
           )}
           <button
             onClick={() => {
@@ -74,7 +74,7 @@ export function DialogHost() {
               else close(undefined)
             }}
             disabled={current.kind === 'prompt' && current.required && !val.trim()}
-            className={`flex-1 py-2.5 rounded-xl text-sm font-medium text-white disabled:opacity-40 ${current.danger ? 'bg-red-500 hover:bg-red-600' : 'bg-brand-600 hover:bg-brand-700'}`}>
+            className={`flex-1 py-2.5 rounded-xl text-sm font-medium text-white disabled:opacity-40 ${current.danger ? 'bg-red-600 hover:bg-red-700' : 'bg-ink hover:bg-ink/90'}`}>
             {okLabel}
           </button>
         </div>

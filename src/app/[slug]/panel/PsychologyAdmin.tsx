@@ -1774,7 +1774,7 @@ export function PsychologyAdmin() {
      return (
       <div key={group.title}>
        <button onClick={() => setOpenGroup(isOpen ? '' : group.title)}
-        className="w-full flex items-center justify-between px-3 py-2 text-[11px] font-medium text-soot hover:text-ink">
+        className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold text-ink/70 hover:text-ink">
         <span>{group.title}</span>
         <span className={`transition-transform ${isOpen ? '-rotate-90' : ''}`}>◂</span>
        </button>
@@ -3153,19 +3153,6 @@ export function PsychologyAdmin() {
        </section>
        )}
 
-       {/* همراه/تماسِ دوم — کاملاً اختیاری، برچسبش را خودِ متخصص تعیین می‌کند */}
-       {settingsSubTab === 'profile' && (
-       <section className="bg-white rounded-2xl border border-sand p-5">
-        <h2 className="text-sm font-display font-semibold text-ink mb-1">همراه / تماسِ دوم</h2>
-        <p className="text-xs text-soot mb-4">
-         اگر معمولاً یک نفرِ دیگر هم تویِ کارتان دخیل است (والدینِ کودک، همسر، همراهِ سالمند...)، اسمش را اینجا بگذارید تا تویِ فرمِ رزرو و جلسات با همین اسم نمایش داده شود. اگر کارتان مستقیم با خودِ مراجع است، خالی بگذارید.
-        </p>
-        <input value={profile.companion_label} onChange={e => patchProfile({ companion_label: e.target.value })}
-         placeholder="مثلاً: والدین، همسر، همراه (خالی = استفاده نمی‌کنم)"
-         className="w-full text-sm px-3 py-2 border border-sand rounded-lg focus:outline-none focus:border-ink" />
-       </section>
-       )}
-
        {/* روش‌های پرداخت — per-resource؛ حداقل یکی باید روشن بماند */}
        {settingsSubTab === 'payments' && (
        <section className="bg-white rounded-2xl border border-sand p-5">
@@ -3336,6 +3323,21 @@ export function PsychologyAdmin() {
        {/* کدهای تخفیف — per-resource؛ اختیاری برایِ بعضی مراجعان */}
        {settingsSubTab === 'pricing' && (
         <DiscountCodesSection slug={slug} isOwner={!!me?.isOwner} viewingResourceId={viewingResourceId} />
+       )}
+
+       {/* همراه/تماسِ دوم — کاملاً اختیاری، برچسبش را خودِ متخصص تعیین می‌کند.
+           اینجاست چون مستقیم به فرمِ رزرو مربوط می‌شود (بخشِ «همراه» تویِ فرم و
+           انتخابِ حضورِ جلسات)، نه به هویتِ خودِ متخصص. */}
+       {settingsSubTab === 'form' && (
+       <section className="bg-white rounded-2xl border border-sand p-5">
+        <h2 className="text-sm font-display font-semibold text-ink mb-1">همراه / تماسِ دوم</h2>
+        <p className="text-xs text-soot mb-4">
+         اگر معمولاً یک نفرِ دیگر هم تویِ کارتان دخیل است (والدینِ کودک، همسر، همراهِ سالمند...)، اسمش را اینجا بگذارید تا تویِ فرمِ رزرو و جلسات با همین اسم نمایش داده شود. اگر کارتان مستقیم با خودِ مراجع است، خالی بگذارید.
+        </p>
+        <input value={profile.companion_label} onChange={e => patchProfile({ companion_label: e.target.value })}
+         placeholder="مثلاً: والدین، همسر، همراه (خالی = استفاده نمی‌کنم)"
+         className="w-full text-sm px-3 py-2 border border-sand rounded-lg focus:outline-none focus:border-ink" />
+       </section>
        )}
 
        {/* فرمِ رزرو — استادو-جزئیات: لیستِ سوال‌ها + پنلِ ویرایشِ متمرکز */}
