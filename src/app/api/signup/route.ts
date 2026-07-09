@@ -78,9 +78,12 @@ export async function POST(req: NextRequest) {
   if (nicheKey === 'psychology') {
     await sb().from('psy_clinic_settings').insert({ tenant_id: tenant.id })
     if (resource?.id) {
+      // بج‌ها عمداً خالی — نسخه‌ی قبل ریتینگِ ساختگی («4.9 از 5») برایِ حسابِ
+      // تازه‌ساخته نشان می‌داد که هم اعتمادسوز بود هم داده‌ی غیرواقعی. هر متخصص
+      // خودش از پنل بج‌های واقعی‌اش را تعریف می‌کند.
       await sb().from('psy_resource_profiles').insert({
         resource_id: resource.id,
-        badges: ['📍 شهر و منطقه‌ی خودتان', '⏱ پاسخ در 2 ساعت', '⭐ 4.9 از 5'],
+        badges: [],
         session_modes: 'both',
       })
     }

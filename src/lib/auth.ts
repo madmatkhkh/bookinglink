@@ -208,6 +208,31 @@ export function isSuperAuthed(req: NextRequest): boolean {
   return safeEqual(superSig(issuedAt), sig)
 }
 
+// ── توکنِ یک‌بارمصرفِ impersonate (ضدِ CSRF) ─────────────────────────────────
+// روتِ impersonate عمداً GET است (تحویلِ کوکی + ریدایرکت در یک پاسخ)، ولی کوکیِ
+// sameSite=lax روی ناوبریِ GET سطحِ‌بالا ارسال می‌شود — یعنی یک سایتِ مخرب
+// می‌توانست سوپرادمینِ لاگین‌شده را با یک لینک وادار به impersonate کند. راه‌حل
+// بدونِ شکستنِ الگویِ GET: لینک فقط با یک توکنِ امضاشده‌ی کوتاه‌عمر (۱۰ دقیقه)
+// معتبر است که فقط از پاسخِ APIِ احرازشده‌ی /api/super/tenants/[id] صادر می‌شود —
+// چیزی که سایتِ مهاجم به آن دسترسی ندارد.
+
+const IMPERSONATE_TTL_MS = 10 * 60 * 1000
+
+export function signImpersonateToken(tenantId: string): string {
+  const exp = String(Date.now() + IMPERSONATE_TTL_MS)
+  return `${exp}.${sign(`impersonate.${tenantId}.${exp}`)}`
+}
+
+export function verifyImpersonateToken(tenantId: string, token: string | null): boolean {
+  if (!token) return false
+  const i = token.indexOf('.')
+  if (i <= 0) return false
+  const exp = token.slice(0, i), sig = token.slice(i + 1)
+  const ts = Number(exp)
+  if (!Number.isFinite(ts) || Date.now() > ts) return false
+  return safeEqual(sign(`impersonate.${tenantId}.${exp}`), sig)
+}
+
 // ── OTP مشترک ────────────────────────────────────────────────────────────────
 
 export type IssueOtpResult = { ok: true; code: string } | { ok: false; throttled: true } | { ok: false; smsError: string }

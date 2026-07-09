@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { sb } from '@/lib/supabase'
 import { getActiveTenant } from '@/lib/tenant'
 import { STAGE_STATUS } from '@/lib/flow'
+import { validateClientSlot } from '@/lib/psy'
 import { getClientPhone } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
@@ -27,6 +28,11 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   if (!stage || stage.status !== STAGE_STATUS.AWAITING_BOOKING)
     return NextResponse.json({ error: 'این مرحله در دسترس نیست' }, { status: 400 })
 
+  // اعتبارسنجیِ سمتِ سرور: زمان در آینده + جزوِ برنامه‌ی منتشرشده‌ی همان دکتر —
+  // نه فقط «گرفته‌نشده». (قبلاً با POST مستقیم می‌شد خارج از برنامه نوبت گرفت.)
+  const slotOk = await validateClientSlot(t.id, booking.resource_id, session_date, session_time)
+  if (!slotOk.ok) return NextResponse.json({ error: slotOk.error }, { status: 400 })
+
   const db = sb()
   const [{ data: takenS }, { data: takenSt }] = await Promise.all([
     db.from('psy_sessions').select('id').eq('tenant_id', t.id).eq('resource_id', booking.resource_id).eq('session_date', session_date).eq('session_time', session_time),
@@ -38,6 +44,13 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   const { error } = await sb().from('psy_stages')
     .update({ session_date, session_time, status: STAGE_STATUS.BOOKED, cancel_notice: null })
     .eq('id', stage_id).eq('tenant_id', t.id)
-  if (error) { console.error('psy/stage-book error:', error); return NextResponse.json({ error: 'مشکلی پیش آمد. دوباره تلاش کنید.' }, { status: 500 }) }
+  if (error) {
+    // 23505 = unique index اسلات (migration 0019) — دو درخواستِ هم‌زمان روی یک ساعت؛
+    // چکِ بالا race را نمی‌گیرد، این ضامنِ نهاییِ دیتابیس است.
+    if ((error as any).code === '23505')
+      return NextResponse.json({ error: 'این ساعت همین الان توسطِ شخصِ دیگری رزرو شد. لطفاً زمان دیگری انتخاب کنید.' }, { status: 409 })
+    console.error('psy/stage-book error:', error)
+    return NextResponse.json({ error: 'مشکلی پیش آمد. دوباره تلاش کنید.' }, { status: 500 })
+  }
   return NextResponse.json({ success: true })
 }

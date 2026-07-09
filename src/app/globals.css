@@ -2,21 +2,18 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ── فونتِ تیتر: Estedad (هندسی/فشرده) از CDNِ Fontsource ─────────────────── */
+/* ── فونت‌ها: self-host شده در public/fonts (variable — یک فایل، همه‌ی وزن‌ها) ──
+   قبلاً از jsdelivr لود می‌شد که برایِ کاربرِ ایرانی هم تاخیر داشت هم ریسکِ
+   دسترسی/تحریم. حالا از دامنه‌ی خودِ اپ سرو می‌شود — بدونِ وابستگیِ خارجی. */
 @font-face {
-  font-family: 'Estedad';
-  font-style: normal; font-weight: 500; font-display: swap;
-  src: url(https://cdn.jsdelivr.net/fontsource/fonts/estedad@latest/arabic-500-normal.woff2) format('woff2');
+  font-family: 'Vazirmatn';
+  font-style: normal; font-weight: 100 900; font-display: swap;
+  src: url(/fonts/Vazirmatn.woff2) format('woff2-variations');
 }
 @font-face {
   font-family: 'Estedad';
-  font-style: normal; font-weight: 700; font-display: swap;
-  src: url(https://cdn.jsdelivr.net/fontsource/fonts/estedad@latest/arabic-700-normal.woff2) format('woff2');
-}
-@font-face {
-  font-family: 'Estedad';
-  font-style: normal; font-weight: 800; font-display: swap;
-  src: url(https://cdn.jsdelivr.net/fontsource/fonts/estedad@latest/arabic-800-normal.woff2) format('woff2');
+  font-style: normal; font-weight: 100 900; font-display: swap;
+  src: url(/fonts/Estedad.woff2) format('woff2-variations');
 }
 
 /* ── ریز-انیمیشن‌های صفحاتِ مارکتینگ/لاگین ────────────────────────────────── */

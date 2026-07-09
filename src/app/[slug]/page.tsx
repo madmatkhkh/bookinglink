@@ -28,13 +28,21 @@ export async function generateMetadata({ params }: { params: { slug: string } })
  if (tenant.niche_key === 'psychology') {
   const [doctors] = await Promise.all([listPublicDoctors(tenant.id, tenant.plan)])
   const primary = doctors[0]
-  return { title: `${primary?.name || 'رزروِ نوبت'} — نوبت‌دهی`, description: primary?.title || '' }
+  const title = `${primary?.name || 'رزروِ نوبت'} — نوبت‌دهی`
+  const description = primary?.title || ''
+  // og: وقتی دکتر لینکش را در واتساپ/تلگرام/اینستاگرام می‌فرستد، کارتِ preview تمیز نشان داده شود
+  return { title, description, openGraph: { title, description, type: 'website', locale: 'fa_IR' } }
  }
  const { data: profile } = await sb().from('tenant_profiles').select('display_name, title, bio').eq('tenant_id', tenant.id).single()
  return {
-  title: `${profile?.display_name || 'رزروِ نوبت'} — رزروِ نوبت`,
-  description: profile?.title || profile?.bio?.slice(0, 120) || '',
- }
+    title: `${profile?.display_name || 'رزروِ نوبت'} — رزروِ نوبت`,
+    description: profile?.title || profile?.bio?.slice(0, 120) || '',
+    openGraph: {
+      title: `${profile?.display_name || 'رزروِ نوبت'} — رزروِ نوبت`,
+      description: profile?.title || profile?.bio?.slice(0, 120) || '',
+      type: 'website', locale: 'fa_IR',
+    },
+  }
 }
 
 export default async function PublicProfile({ params }: { params: { slug: string } }) {

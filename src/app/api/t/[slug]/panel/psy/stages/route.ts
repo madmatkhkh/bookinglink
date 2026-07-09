@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { sb } from '@/lib/supabase'
 import { requirePanelAuth, isPanelAuthResponse } from '@/lib/tenant'
 import { STAGE_TYPES, STAGE_STATUS } from '@/lib/flow'
-import { getResourcePricing, resolvePrice } from '@/lib/psy'
+import { getResourcePricing, resolvePrice, redeemDiscountCodeByCode } from '@/lib/psy'
 import { recordLedgerEntry } from '@/lib/ledger'
 
 export const dynamic = 'force-dynamic'
@@ -106,7 +106,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { slug: stri
     await sb().from('psy_cases').update({ status: 'confirmed' }).eq('tenant_id', a.tenant.id).eq('case_number', stage.case_number).eq('status', 'pending')
     // ثبت در دفترِ حساب — پرداختِ کارت‌به‌کارت مستقیم بینِ مراجع و دکتر است، سهمِ
     // پلتفرم = 0. idempotent: اگر قبلاً ثبت شده (دابل‌کلیک) دوباره ثبت نمی‌شود.
-    await recordLedgerEntry({
+    const freshEntry = await recordLedgerEntry({
       tenantId: a.tenant.id,
       resourceId: stage.resource_id || null,
       caseNumber: stage.case_number,
@@ -119,6 +119,11 @@ export async function PATCH(req: NextRequest, { params }: { params: { slug: stri
       sourceId: stage.id,
       recordedBy: a.isOwner ? 'owner' : 'staff',
     })
+    // مصرفِ کدِ تخفیفِ کارت‌به‌کارت این‌جا ثبت می‌شود (نه لحظه‌ی «ادعای» پرداخت
+    // توسطِ مراجع در /psy/pay) — و فقط وقتی ثبتِ ledger تازه بود، تا تاییدِ
+    // تکراری/دابل‌کلیک دو بار used_count را بالا نبرد.
+    if (freshEntry && stage.discount_code && stage.resource_id)
+      await redeemDiscountCodeByCode(stage.resource_id, stage.discount_code)
   }
 
   // وقتی مرحله برگزار شد (held)، پرونده آزاد می‌شود تا دکتر مرحله‌ی بعد را مشخص کند

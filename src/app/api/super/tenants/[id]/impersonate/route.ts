@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { sb } from '@/lib/supabase'
-import { isSuperAuthed, createPanelSession } from '@/lib/auth'
+import { isSuperAuthed, createPanelSession, verifyImpersonateToken } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -19,6 +19,14 @@ export const revalidate = 0
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
   if (!isSuperAuthed(req)) return NextResponse.redirect(new URL('/super', req.url))
   const id = params.id
+
+  // ضدِ CSRF: بدونِ توکنِ امضاشده‌ی کوتاه‌عمر (که فقط APIِ احرازشده‌ی جزئیاتِ
+  // tenant صادر می‌کند)، این GET هیچ کاری نمی‌کند — لینکِ خام از یک سایتِ مهاجم بی‌اثر است.
+  if (!verifyImpersonateToken(id, req.nextUrl.searchParams.get('token'))) {
+    const url = new URL(`/super/${id}`, req.url)
+    url.searchParams.set('impersonate_error', 'expired')
+    return NextResponse.redirect(url)
+  }
 
   const { data: tenant } = await sb().from('tenants').select('id, slug, status').eq('id', id).maybeSingle()
   if (!tenant || tenant.status !== 'active') {

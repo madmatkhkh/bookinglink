@@ -2,13 +2,17 @@ import { NextRequest, NextResponse } from 'next/server'
 import { sb } from '@/lib/supabase'
 import { getActiveTenant } from '@/lib/tenant'
 import { getDefaultResourceId, getIntakeForm, missingIntakeFields, INTAKE_KNOWN_COLUMNS, getResourcePricing, resolvePrice } from '@/lib/psy'
-import { setPayCookie } from '@/lib/auth'
+import { setPayCookie, normalizePhone } from '@/lib/auth'
+import { randomInt } from 'crypto'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
+// ۶ رقم از CSPRNG (نه Math.random) — هم فضای بزرگ‌تر (۹۰۰هزار به‌جای ۹هزار؛
+// سقفِ عملیِ پرونده به‌ازای هر tenant) هم غیرقابلِ‌حدس. پرونده‌های قدیمیِ
+// ۴رقمی همچنان معتبرند — هیچ‌جا طولِ عدد validate نمی‌شود.
 function genCase(): string {
-  return `PRV-${Math.floor(1000 + Math.random() * 9000)}`
+  return `PRV-${randomInt(100000, 1000000)}`
 }
 
 // نام و یک شماره‌تماس همیشه ثابت‌اند (برای OTP لازم‌اند)؛ بقیه‌ی سوال‌ها کاملاً
@@ -22,15 +26,19 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   const clientName = String(b.clientName || '').trim().replace(/\s+/g, ' ')
   const rawAnswers: Record<string, any> = answers && typeof answers === 'object' ? answers : {}
 
-  if (!clientName || !contactPhone)
+  // نرمال‌سازیِ شماره یک بار و همین‌جا — هم برایِ چک هم برایِ ذخیره. (باگِ قبلی:
+  // چک روی نسخه‌ی نرمال‌شده بود ولی نسخه‌ی خام ذخیره می‌شد؛ مراجعی که با ارقامِ
+  // فارسی/فاصله شماره می‌زد، بعداً با OTPِ نرمال‌شده هرگز به پرونده‌اش نمی‌رسید.)
+  const phone = normalizePhone(contactPhone || '')
+  if (!clientName || !phone)
     return NextResponse.json({ error: 'نام و شماره تماس لازم است' }, { status: 400 })
-  if (!/^09\d{9}$/.test(String(contactPhone).replace(/[۰-۹]/g, d => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d))).trim()))
+  if (!/^09\d{9}$/.test(phone))
     return NextResponse.json({ error: 'شماره تماس معتبر نیست (باید 11 رقم و با 09 شروع شود)' }, { status: 400 })
 
   // یک پرونده با همین نام + همین شماره قبلاً ثبت نشده باشد (تغییرِ نام یا شماره
   // آزاد است — فقط ترکیبِ عینِ یکسان مسدود می‌شود)
   const { data: dup } = await sb().from('psy_cases').select('id')
-    .eq('tenant_id', t.id).eq('client_name', clientName).eq('contact_phone', contactPhone).maybeSingle()
+    .eq('tenant_id', t.id).eq('client_name', clientName).eq('contact_phone', phone).maybeSingle()
   if (dup) return NextResponse.json({ error: 'پرونده‌ای با همین نام و شماره‌تماس قبلاً ثبت شده است.' }, { status: 409 })
 
   // فعلاً صفحه‌ی عمومی دکتری را انتخاب نمی‌گیرد مگر بیش از یک دکتر باشد
@@ -73,9 +81,9 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
     grade: known.grade || '',
     reason: known.reason || '',
     contact_name: known.contact_name || '',
-    contact_phone: contactPhone,
+    contact_phone: phone,
     contact2_name: known.contact2_name || '',
-    contact2_phone: known.contact2_phone || '',
+    contact2_phone: known.contact2_phone ? normalizePhone(known.contact2_phone) : '',
     session_type: sessionType,
     office_location: officeLocation || null,
     details,

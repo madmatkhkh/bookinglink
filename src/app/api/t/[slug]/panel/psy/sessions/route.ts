@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { sb } from '@/lib/supabase'
 import { requirePanelAuth, isPanelAuthResponse } from '@/lib/tenant'
-import { getResourcePricing, resolvePrice } from '@/lib/psy'
+import { getResourcePricing, resolvePrice, redeemDiscountCodeByCode } from '@/lib/psy'
 import { recordLedgerEntry } from '@/lib/ledger'
 
 export const dynamic = 'force-dynamic'
@@ -103,12 +103,15 @@ export async function PATCH(req: NextRequest, { params }: { params: { slug: stri
 
   // گذار به paid (تاییدِ کارت‌به‌کارتِ جلسه‌ی جایگزین) → دفترِ حساب
   if (updates.paid === true && before && !before.paid && data) {
-    await recordLedgerEntry({
+    const freshEntry = await recordLedgerEntry({
       tenantId: a.tenant.id, resourceId: data.resource_id || null, caseNumber: data.case_number,
       purpose: 'session', method: 'card_to_card', amount: data.price || 0,
       commissionAmount: 0, doctorAmount: data.price || 0,
       sourceTable: 'psy_sessions', sourceId: data.id, recordedBy: a.isOwner ? 'owner' : 'staff',
     })
+    // مصرفِ کدِ تخفیفِ کارت‌به‌کارت فقط لحظه‌ی تاییدِ واقعی — و فقط یک بار (گیت روی ثبتِ تازه‌ی ledger)
+    if (freshEntry && data.discount_code && data.resource_id)
+      await redeemDiscountCodeByCode(data.resource_id, data.discount_code)
   }
   // ثبتِ بازپرداخت وقتی refund نهایی می‌شود → ردیفِ outflow (پولِ برگشتی به مراجع)
   if (updates.refund_status === 'done' && before && before.refund_status !== 'done' && data) {

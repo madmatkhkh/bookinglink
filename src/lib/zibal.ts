@@ -36,7 +36,9 @@ const API_BASE = 'https://gateway.zibal.ir/v1'
 const STARTPAY_BASE = 'https://gateway.zibal.ir/start'
 
 export type ZibalRequestResult = { ok: true; trackId: number; url: string } | { ok: false; error: string }
-export type ZibalVerifyResult = { ok: true; refNumber: string | number } | { ok: false; error: string }
+// amountRial: مبلغِ واقعاً پرداخت‌شده طبقِ خودِ زیبال (ریال) — callback با آن
+// چک می‌کند که رسیدِ verifyشده دقیقاً مالِ همین intent (با همین مبلغ) است.
+export type ZibalVerifyResult = { ok: true; refNumber: string | number; amountRial: number | null } | { ok: false; error: string }
 
 // اطلاعاتِ تسهیم برایِ یک درخواستِ پرداخت — اختیاری، فقط وقتی دکتر شبا ثبت کرده
 export type SplitInfo = { sheba: string; doctorAmountToman: number }
@@ -87,7 +89,10 @@ export async function verifyZibalPayment(trackId: number | string): Promise<Ziba
     const data = await res.json()
     // 100 = تاییدِ تازه، 201 = قبلاً تایید شده (idempotent — نباید خطا حساب شود)
     if (data?.result === 100 || data?.result === 201) {
-      return { ok: true, refNumber: data.refNumber ?? trackId }
+      return {
+        ok: true, refNumber: data.refNumber ?? trackId,
+        amountRial: typeof data.amount === 'number' && Number.isFinite(data.amount) ? data.amount : null,
+      }
     }
     return { ok: false, error: data?.message || 'پرداخت تاییدنشده است' }
   } catch {

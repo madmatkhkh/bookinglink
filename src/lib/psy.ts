@@ -89,11 +89,71 @@ export async function redeemDiscountCode(id: string): Promise<void> {
   } catch { /* شکستِ ثبتِ مصرف نباید پرداختِ موفق را خراب کند */ }
 }
 
+// مصرفِ کد از رویِ خودِ متنِ کد (برایِ فلوِ کارت‌به‌کارت که discount_code_id ذخیره
+// نمی‌کند، فقط متنِ کد روی رکورد می‌ماند). صدازننده باید مطمئن باشد فقط یک بار
+// صدا می‌زند (الگویِ استفاده: فقط وقتی ثبتِ ledger «تازه» بود، نه تکراری).
+export async function redeemDiscountCodeByCode(resourceId: string, code: string): Promise<void> {
+  try {
+    const { data } = await sb().from('psy_discount_codes').select('id')
+      .eq('resource_id', resourceId).eq('code', String(code || '').trim().toUpperCase()).maybeSingle()
+    if (data) await redeemDiscountCode(data.id)
+  } catch { /* شکستِ ثبتِ مصرف نباید تاییدِ پرداخت را خراب کند */ }
+}
+
 // قانونِ کنسلی: اگر ≥ partialHours ساعت مانده کنسل شود، partialPercent٪ سوخت
 export const PSY_CANCEL = { partialHours: 12, partialPercent: 50 }
 
 // نوبت‌گیری زودتر از این تعداد روز ممکن نیست (از فردا)
 export const PSY_BOOKING = { minLeadDays: 1 }
+
+// ── اعتبارسنجیِ سمتِ سرورِ اسلاتِ انتخابیِ مراجع ─────────────────────────────
+// تا امروز فقط UI اسلات‌های مجاز را نشان می‌داد؛ خودِ API هر تاریخ/ساعتی را
+// می‌پذیرفت («گرفته‌نشده» تنها شرط بود) — یعنی با یک POST مستقیم می‌شد ساعتِ ۳
+// صبح یا روزِ مرخصیِ دکتر نوبت گرفت. این تابع سه چیز را سمتِ سرور تضمین می‌کند:
+//   ۱) زمان در آینده است و minLeadDays رعایت شده (نوبتِ امروز/گذشته ممنوع)
+//   ۲) برنامه‌ی همان روزِ همان دکتر در psy_schedules وجود دارد و is_off نیست
+//   ۳) ساعتِ انتخابی دقیقاً یکی از available_times همان روز است
+// تاریخ‌های ذخیره‌شده ممکن است صفرِ پیشوند داشته یا نداشته باشند ('1405/04/05'
+// یا '1405/4/5') — هر دو شکل چک می‌شوند. ساعت هم با timeKey مقایسه می‌شود تا
+// '9:00' و '09:00' یکی حساب شوند.
+import { jalaliDateTimeToTimestamp, jalaliKey, timeKey, toLatinNum } from './calendar'
+
+export type SlotCheck = { ok: true } | { ok: false; error: string }
+
+export async function validateClientSlot(
+  tenantId: string, resourceId: string | null | undefined, dateStr: string, time: string
+): Promise<SlotCheck> {
+  const parts = toLatinNum(String(dateStr || '')).split('/').map(Number)
+  if (parts.length !== 3 || parts.some(n => !Number.isFinite(n)))
+    return { ok: false, error: 'تاریخِ انتخابی نامعتبر است' }
+  const [jy, jm, jd] = parts
+
+  // ۱) آینده بودن + رعایتِ minLeadDays (نوبت از «فردا» به بعد)
+  const ts = jalaliDateTimeToTimestamp(dateStr, time)
+  if (ts === null) return { ok: false, error: 'زمانِ انتخابی نامعتبر است' }
+  const minStart = Date.now() + PSY_BOOKING.minLeadDays * 24 * 60 * 60 * 1000
+  const startOfSlotDay = jalaliDateTimeToTimestamp(dateStr, '23:59')
+  if (ts <= Date.now() || (startOfSlotDay !== null && startOfSlotDay < minStart))
+    return { ok: false, error: 'این تاریخ قابلِ رزرو نیست — نوبت از فردا به بعد گرفته می‌شود' }
+
+  if (!resourceId) return { ok: false, error: 'منبعی برای این پرونده ثبت نشده' }
+
+  // ۲و۳) برنامه‌ی منتشرشده‌ی دکتر برای همان روز
+  const padded = jalaliKey(jy, jm, jd)
+  const unpadded = `${jy}/${jm}/${jd}`
+  const { data: sched } = await sb().from('psy_schedules')
+    .select('available_times, is_off')
+    .eq('tenant_id', tenantId).eq('resource_id', resourceId)
+    .in('date', padded === unpadded ? [padded] : [padded, unpadded])
+    .limit(1).maybeSingle()
+  if (!sched || sched.is_off)
+    return { ok: false, error: 'این روز در برنامه‌ی کاری موجود نیست' }
+  const times: string[] = Array.isArray(sched.available_times) ? sched.available_times : []
+  const wanted = timeKey(String(time))
+  if (!times.some(t => timeKey(String(t)) === wanted))
+    return { ok: false, error: 'این ساعت در برنامه‌ی این روز موجود نیست' }
+  return { ok: true }
+}
 
 export type SessionMode = 'both' | 'online' | 'offline'
 export type OfficeLocation = { id: string; title: string; address: string }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { sb } from '@/lib/supabase'
 import { getActiveTenant } from '@/lib/tenant'
+import { validateClientSlot } from '@/lib/psy'
 import { getClientPhone } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
@@ -25,6 +26,10 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   if (session.status !== 'confirmed') return NextResponse.json({ error: 'این جلسه قابل زمان‌بندی نیست' }, { status: 400 })
   if (!session.paid) return NextResponse.json({ error: 'ابتدا باید هزینه‌ی این جلسه پرداخت شود' }, { status: 400 })
 
+  // اعتبارسنجیِ سمتِ سرور: زمان در آینده + جزوِ برنامه‌ی منتشرشده‌ی همان دکتر
+  const slotOk = await validateClientSlot(t.id, booking.resource_id, session_date, session_time)
+  if (!slotOk.ok) return NextResponse.json({ error: slotOk.error }, { status: 400 })
+
   const db = sb()
   const [{ data: takenS }, { data: takenSt }] = await Promise.all([
     db.from('psy_sessions').select('id').eq('tenant_id', t.id).eq('resource_id', booking.resource_id).eq('session_date', session_date).eq('session_time', session_time).neq('id', session_id),
@@ -34,6 +39,11 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
     return NextResponse.json({ error: 'این ساعت قبلاً رزرو شده. لطفاً زمان دیگری انتخاب کنید.' }, { status: 409 })
 
   const { error } = await sb().from('psy_sessions').update({ session_date, session_time }).eq('id', session_id)
-  if (error) { console.error('src/app/api/t/[slug]/psy/schedule-one/route.ts error:', error); return NextResponse.json({ error: 'مشکلی پیش آمد. دوباره تلاش کنید.' }, { status: 500 }) }
+  if (error) {
+    if ((error as any).code === '23505')
+      return NextResponse.json({ error: 'این ساعت همین الان توسطِ شخصِ دیگری رزرو شد. لطفاً زمان دیگری انتخاب کنید.' }, { status: 409 })
+    console.error('src/app/api/t/[slug]/psy/schedule-one/route.ts error:', error)
+    return NextResponse.json({ error: 'مشکلی پیش آمد. دوباره تلاش کنید.' }, { status: 500 })
+  }
   return NextResponse.json({ success: true })
 }

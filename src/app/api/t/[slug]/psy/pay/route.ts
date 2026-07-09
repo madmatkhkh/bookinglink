@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { sb } from '@/lib/supabase'
 import { getActiveTenant } from '@/lib/tenant'
-import { getPaymentMethods, effectivePaymentMethods, checkDiscountCode, redeemDiscountCode } from '@/lib/psy'
+import { getPaymentMethods, effectivePaymentMethods, checkDiscountCode } from '@/lib/psy'
 import { getClientPhone, getPayCase } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
@@ -32,32 +32,47 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
 
   // کدِ تخفیف (اختیاری) — قیمتِ ذخیره‌شده‌ی همان رکورد را قبل از ثبتِ ارجاعِ
   // پرداخت کم می‌کند؛ اصلِ قیمت برایِ حسابرسی در original_price می‌ماند.
+  // دو تغییرِ مهم نسبت به نسخه‌ی قبل:
+  //   ۱) کدِ نامعتبر دیگر «بی‌سروصدا» رد نمی‌شود — خطا به مراجع برمی‌گردد تا فکر
+  //      نکند تخفیف اعمال شده درحالی‌که نشده.
+  //   ۲) used_count این‌جا +۱ نمی‌شود — کارت‌به‌کارت تا تاییدِ دکتر «ادعا»ست نه
+  //      پرداخت؛ مصرفِ کد فقط لحظه‌ی confirm_payment در پنل ثبت می‌شود (وگرنه
+  //      می‌شد بدونِ هیچ پرداختی ظرفیتِ کدها را سوزاند).
   const bookingResourceId = booking.resource_id
-  async function applyDiscount(table: 'psy_stages' | 'psy_sessions' | 'psy_packages', id: string, currentPrice: number) {
-    if (!discount_code || !bookingResourceId) return
+  async function applyDiscount(table: 'psy_stages' | 'psy_sessions' | 'psy_packages', id: string, currentPrice: number): Promise<string | null> {
+    if (!discount_code || !bookingResourceId) return null
     const check = await checkDiscountCode(bookingResourceId, discount_code, currentPrice)
-    if (!check.ok) return // کدِ نامعتبر را بی‌سروصدا نادیده می‌گیریم؛ اعتبارسنجیِ واقعی سمتِ کلاینت قبل از رسیدن به اینجا انجام می‌شود
+    if (!check.ok) return check.error
     await sb().from(table).update({ price: check.discountedAmount, discount_code: check.code, original_price: currentPrice }).eq('id', id)
-    await redeemDiscountCode(check.id)
+    return null
   }
 
   if (stage_id) {
     if (booking.current_stage_id !== stage_id) return NextResponse.json({ error: 'این مرحله در دسترس نیست' }, { status: 400 })
     const { data: stage } = await sb().from('psy_stages').select('price').eq('id', stage_id).eq('tenant_id', t.id).maybeSingle()
-    if (stage) await applyDiscount('psy_stages', stage_id, stage.price || 0)
+    if (stage) {
+      const dcErr = await applyDiscount('psy_stages', stage_id, stage.price || 0)
+      if (dcErr) return NextResponse.json({ error: dcErr }, { status: 400 })
+    }
     await sb().from('psy_stages').update({ payment_submitted: true, payment_ref: payment_ref || null, status: 'payment_submitted' })
       .eq('id', stage_id).eq('tenant_id', t.id).eq('case_number', case_number).eq('status', 'awaiting_payment')
     return NextResponse.json({ success: true })
   }
   if (session_id) {
     const { data: s } = await sb().from('psy_sessions').select('price').eq('id', session_id).eq('tenant_id', t.id).maybeSingle()
-    if (s) await applyDiscount('psy_sessions', session_id, s.price || 0)
+    if (s) {
+      const dcErr = await applyDiscount('psy_sessions', session_id, s.price || 0)
+      if (dcErr) return NextResponse.json({ error: dcErr }, { status: 400 })
+    }
     await sb().from('psy_sessions').update({ payment_submitted: true, payment_ref: payment_ref || null })
       .eq('id', session_id).eq('tenant_id', t.id).eq('case_number', case_number)
     return NextResponse.json({ success: true })
   }
   const { data: pkg } = await sb().from('psy_packages').select('price').eq('id', package_id).eq('tenant_id', t.id).maybeSingle()
-  if (pkg) await applyDiscount('psy_packages', package_id, pkg.price || 0)
+  if (pkg) {
+    const dcErr = await applyDiscount('psy_packages', package_id, pkg.price || 0)
+    if (dcErr) return NextResponse.json({ error: dcErr }, { status: 400 })
+  }
   await sb().from('psy_packages').update({ payment_submitted: true, payment_ref: payment_ref || null })
     .eq('id', package_id).eq('tenant_id', t.id)
   return NextResponse.json({ success: true })

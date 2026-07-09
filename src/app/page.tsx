@@ -267,6 +267,10 @@ export default function Landing() {
       <footer className="border-t border-sand">
         <div className="max-w-5xl mx-auto px-6 py-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-soot">
           <span className="font-display font-bold">{PLATFORM_NAME}</span>
+          <nav className="flex items-center gap-5">
+            <a href="/privacy" className="hover:text-ink">حریمِ خصوصی</a>
+            <a href="/terms" className="hover:text-ink">قوانین</a>
+          </nav>
           {/* نمادِ اعتماد الکترونیکی (اینماد) — بدونِ rel="noopener noreferrer" طبقِ دستورِ اینماد */}
           <a referrerPolicy="origin" target="_blank"
             href="https://trustseal.enamad.ir/?id=753950&Code=AcwMyu4tgps3IUpdr2taP5QYaQkTCSyp">

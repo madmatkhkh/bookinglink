@@ -25,6 +25,46 @@ export function smsConfigured(): boolean {
   return !!(process.env.SMS_IR_API_KEY && process.env.SMS_IR_TEMPLATE_ID)
 }
 
+/** آیا یادآوریِ پیامکی تنظیم شده؟ (الگویِ جدا از OTP — SMS_IR_REMINDER_TEMPLATE_ID) */
+export function reminderSmsConfigured(): boolean {
+  return !!(process.env.SMS_IR_API_KEY && process.env.SMS_IR_REMINDER_TEMPLATE_ID)
+}
+
+/**
+ * یادآوریِ نوبتِ فردا — از همان متدِ send/verify با یک الگویِ دوم.
+ * الگویِ پیشنهادی در پنلِ sms.ir (پارامترها دقیقاً با همین نام‌ها):
+ *   «یادآوری: نوبتِ شما در %NAME% فردا %DATE% ساعتِ %TIME% است.»
+ * (send/verify برخلافِ ارسالِ خطِ خدماتی، نیازی به خطِ اختصاصی ندارد و برای
+ *  پیام‌های تراکنشیِ این‌چنینی مجاز است.)
+ */
+export async function sendReminderSms(phone: string, name: string, date: string, time: string): Promise<SmsSendResult> {
+  const apiKey = process.env.SMS_IR_API_KEY
+  const templateId = process.env.SMS_IR_REMINDER_TEMPLATE_ID
+  if (!apiKey || !templateId) return { ok: false, error: 'یادآوریِ پیامکی تنظیم نشده' }
+  try {
+    const res = await fetch('https://api.sms.ir/v1/send/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'text/plain', 'x-api-key': apiKey },
+      body: JSON.stringify({
+        mobile: phone,
+        templateId: Number(templateId),
+        parameters: [
+          { name: 'NAME', value: name },
+          { name: 'DATE', value: date },
+          { name: 'TIME', value: time },
+        ],
+      }),
+    })
+    const data = await res.json().catch(() => null)
+    if (res.ok && data?.status === 1) return { ok: true }
+    console.error('sms.ir reminder failed:', res.status, data)
+    return { ok: false, error: data?.message || 'ارسالِ پیامک ناموفق بود' }
+  } catch (err) {
+    console.error('sms.ir network error:', err)
+    return { ok: false, error: 'اتصال به سرویسِ پیامک برقرار نشد' }
+  }
+}
+
 /** ارسالِ کدِ OTP به شماره‌ی موبایل از طریقِ الگویِ تاییدیه‌ی sms.ir */
 export async function sendOtpSms(phone: string, code: string): Promise<SmsSendResult> {
   const apiKey = process.env.SMS_IR_API_KEY

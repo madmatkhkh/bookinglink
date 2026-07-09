@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { sb } from '@/lib/supabase'
 import { requirePanelAuth, isPanelAuthResponse } from '@/lib/tenant'
-import { getResourcePricing, packageAmount } from '@/lib/psy'
+import { getResourcePricing, packageAmount, redeemDiscountCodeByCode } from '@/lib/psy'
 import { recordLedgerEntry } from '@/lib/ledger'
 
 export const dynamic = 'force-dynamic'
@@ -70,7 +70,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { slug: stri
   // گذار به paid → ثبت در دفترِ حساب (کارت‌به‌کارت؛ آنلاین از callback ثبت می‌شود
   // که این ردیف idempotent است پس تداخل ندارد). فقط وقتی قبلاً paid نبوده.
   if (updates.paid === true && before && !before.paid && data) {
-    await recordLedgerEntry({
+    const freshEntry = await recordLedgerEntry({
       tenantId: a.tenant.id,
       resourceId: data.resource_id || null,
       caseNumber: data.case_number,
@@ -83,6 +83,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { slug: stri
       sourceId: data.id,
       recordedBy: a.isOwner ? 'owner' : 'staff',
     })
+    // مصرفِ کدِ تخفیفِ کارت‌به‌کارت فقط لحظه‌ی تاییدِ واقعی — و فقط یک بار (گیت روی ثبتِ تازه‌ی ledger)
+    if (freshEntry && data.discount_code && data.resource_id)
+      await redeemDiscountCodeByCode(data.resource_id, data.discount_code)
   }
   return NextResponse.json({ package: data })
 }

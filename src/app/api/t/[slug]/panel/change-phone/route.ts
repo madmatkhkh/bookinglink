@@ -18,10 +18,16 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   const newPhone = normalizePhone(b.new_phone || '')
   if (!/^09\d{9}$/.test(newPhone)) return NextResponse.json({ error: 'شماره‌ی موبایل معتبر نیست' }, { status: 400 })
 
-  // این شماره نباید همین الان مالِ owner یا درمانگرِ دیگری باشد (تا ورودها قاطی نشود)
+  // این شماره نباید همین الان مالِ owner یا درمانگرِ دیگری باشد (تا ورودها قاطی نشود).
+  // باگِ قبلی: برای owner، ‎.neq('id', '')‎ روی ستونِ uuid خطای «invalid input
+  // syntax for type uuid» می‌داد → کوئری fail → چکِ تداخل بی‌سروصدا رد می‌شد و
+  // owner می‌توانست شماره‌ی یکی از درمانگرها را بردارد. حالا neq فقط وقتی به
+  // کوئری اضافه می‌شود که واقعاً یک resourceId معتبر برای مستثناکردن داشته باشیم.
+  let staffQ = sb().from('resources').select('id').eq('phone', newPhone)
+  if (!a.isOwner && a.resourceId) staffQ = staffQ.neq('id', a.resourceId)
   const [{ data: ownerClash }, { data: staffClash }] = await Promise.all([
     sb().from('tenants').select('id').eq('owner_phone', newPhone).neq('id', a.tenant.id).maybeSingle(),
-    sb().from('resources').select('id').eq('phone', newPhone).neq('id', a.isOwner ? '' : a.resourceId || '').maybeSingle(),
+    staffQ.maybeSingle(),
   ])
   if (ownerClash || staffClash) return NextResponse.json({ error: 'این شماره قبلاً برایِ ورودِ یک حسابِ دیگر ثبت شده است' }, { status: 409 })
 

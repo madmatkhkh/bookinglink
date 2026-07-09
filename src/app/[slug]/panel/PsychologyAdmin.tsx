@@ -8,6 +8,7 @@ import { ClinicSettings, DEFAULT_SETTINGS, SessionMode, OfficeLocation, PaymentC
 import { IntakeForm, FormField, FormFieldType, DEFAULT_INTAKE_FORM, LEGACY_DETAIL_LABELS, CancellationPolicy, PaymentMethods, Pricing, DEFAULT_PRICING, INTAKE_KNOWN_COLUMNS, fieldVisible } from '@/lib/psy'
 import { DialogHost, uiAlert, uiConfirm, uiPrompt } from '@/components/ui/Dialog'
 import { useResendCooldown } from '@/lib/useResendCooldown'
+import { Glyph } from '@/components/Glyph'
 
 // در پنلِ ادمین همه‌ی ارقام لاتین نمایش داده می‌شوند (فقط نمایش؛ فرمتِ ذخیره دست‌نخورده)
 const toFarsiNum = (n: number | string) => toLatinNum(String(n))
@@ -297,7 +298,7 @@ function StageSessionCard({ stage, index, onSave }: {
   <div className="bg-white rounded-xl border border-sand p-3">
    <div className="flex items-center justify-between mb-2">
     <div className="flex items-center gap-2">
-     <span className="text-lg">{icon}</span>
+     <Glyph icon={icon} className="w-5 h-5 shrink-0 text-ink" />
      <div>
       <div className="text-sm font-medium text-ink">{label}</div>
       <div className="text-xs text-soot">{stage.session_date ? `${enTime(stage.session_date)} — ${enTime(stage.session_time)}` : 'زمان ثبت نشده'}</div>
@@ -325,7 +326,7 @@ function PendingSection({ title, icon, count, children }: { title: string; icon:
  return (
   <div>
    <div className="flex items-center gap-2 mb-3">
-    <span className="text-lg">{icon}</span>
+    <Glyph icon={icon} className="w-5 h-5 shrink-0 text-ink" />
     <h3 className="text-sm font-semibold text-ink">{title}</h3>
     <span className={`text-xs px-2 py-0.5 rounded-full ${count > 0 ? 'bg-amber-500/10 text-amber-600 border border-amber-500/20' : 'bg-gray-100 text-soot'}`}>{toFarsiNum(count)}</span>
    </div>
@@ -429,7 +430,7 @@ function Section({ title, icon, children }: { title: string; icon?: string; chil
  return (
   <div className="mb-5">
    <h3 className="text-xs font-semibold text-soot uppercase tracking-wide mb-2 bg-gray-50 px-3 py-2 rounded-lg flex items-center gap-1.5">
-    {icon && <span>{icon}</span>}
+    {icon && <Glyph icon={icon} className="w-4 h-4 shrink-0" />}
     {title}
    </h3>
    <div className="px-1">{children}</div>
@@ -1725,7 +1726,7 @@ export function PsychologyAdmin() {
      <button key={item.key} onClick={() => { setMainTab(item.key); onNavigate?.() }}
       className={`w-full text-right px-3 py-2.5 rounded-lg text-sm flex items-center justify-between gap-2 transition-colors ${
        mainTab === item.key ? 'bg-sand text-ink font-medium' : 'text-soot hover:bg-gray-50'}`}>
-      <span className="flex items-center gap-2">{item.icon} {item.label}</span>
+      <span className="flex items-center gap-2"><Glyph icon={item.icon} /> {item.label}</span>
       {item.badge > 0 && (
        <span className="min-w-5 h-5 px-1.5 bg-amber-400 text-white text-[11px] rounded-full flex items-center justify-center font-medium">
         {toFarsiNum(item.badge)}
@@ -1784,7 +1785,7 @@ export function PsychologyAdmin() {
           <button key={item.key} onClick={() => { setSettingsSubTab(item.key); onNavigate?.() }}
            className={`w-full text-right px-3 py-2.5 rounded-lg text-sm flex items-center gap-2 transition-colors ${
             settingsSubTab === item.key ? 'bg-sand text-ink font-medium' : 'text-soot hover:bg-gray-50'}`}>
-           {item.icon} {item.label}
+           <Glyph icon={item.icon} /> {item.label}
           </button>
          ))}
         </div>
@@ -2136,7 +2137,7 @@ export function PsychologyAdmin() {
              ? 'bg-ink text-white'
              : 'bg-white border border-sand text-soot hover:border-gray-300'
            }`}>
-           <span>{icon}</span>{label}
+           <Glyph icon={icon} className="w-4 h-4 shrink-0" />{label}
           </button>
          ))}
         </div>
@@ -3145,7 +3146,7 @@ export function PsychologyAdmin() {
             profile.session_modes === val
              ? 'border-ink border-2 bg-sand'
              : 'border-sand hover:border-gray-300'}`}>
-           <div className="text-xl mb-1">{icon}</div>
+           <div className="mb-1 flex justify-center"><Glyph icon={icon} className="w-6 h-6" /></div>
            <div className="text-xs font-medium text-ink">{label}</div>
           </button>
          ))}

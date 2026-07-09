@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { sb } from '@/lib/supabase'
-import { isSuperAuthed, normalizePhone } from '@/lib/auth'
+import { isSuperAuthed, normalizePhone, signImpersonateToken } from '@/lib/auth'
 import { getNiche } from '@/lib/niche'
 
 export const dynamic = 'force-dynamic'
@@ -85,6 +85,8 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     resources: (resources || []).map(r => ({ ...r, has_sheba: shebaByResource.get(r.id) || false })),
     stats,
     features,
+    // توکنِ کوتاه‌عمرِ impersonate — فقط از همین پاسخِ احرازشده قابلِ‌دریافت است (ضدِ CSRF)
+    impersonate_token: signImpersonateToken(tenant.id),
   })
 }
 

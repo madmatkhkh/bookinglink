@@ -19,6 +19,7 @@ type Detail = {
   resources: { id: string; name: string; title: string; phone: string | null; is_active: boolean; is_selectable: boolean; created_at: string; has_sheba: boolean }[]
   stats: Record<string, number>
   features: { feature_key: string; label: string; enabled: boolean }[]
+  impersonate_token?: string
 }
 
 const STATUS_LABEL: Record<string, string> = { active: 'فعال', suspended: 'معلق', pending: 'در انتظار' }
@@ -63,7 +64,9 @@ function Inner() {
   useEffect(() => {
     const err = searchParams.get('impersonate_error')
     if (!err) return
-    dialog.uiAlert(err === 'suspended' ? 'این مجموعه فعال نیست — فقط برایِ مجموعه‌هایِ فعال ممکن است.' : 'مجموعه یافت نشد.')
+    dialog.uiAlert(err === 'suspended' ? 'این مجموعه فعال نیست — فقط برایِ مجموعه‌هایِ فعال ممکن است.'
+      : err === 'expired' ? 'لینکِ ورود منقضی شده بود — دوباره دکمه‌ی ورود را بزن.'
+      : 'مجموعه یافت نشد.')
     router.replace(`/super/${id}`)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams])
@@ -130,7 +133,13 @@ function Inner() {
   function impersonate() {
     if (!d) return
     dialog.uiConfirm('واردِ پنلِ این متخصص می‌شوید (به‌جایِ او). اگر خودش همین الان از جایی دیگر لاگین باشد، نشستش باطل می‌شود. ادامه؟')
-      .then(ok => { if (ok) window.open(`/api/super/tenants/${id}/impersonate`, '_blank') })
+      .then(ok => {
+        if (!ok) return
+        // توکنِ ضدِ CSRF کوتاه‌عمر است — همان لحظه یک نسخه‌ی تازه از APIِ احرازشده می‌گیریم
+        fetch(`/api/super/tenants/${id}`, { cache: 'no-store' })
+          .then(r => r.json())
+          .then(j => { if (j?.impersonate_token) window.open(`/api/super/tenants/${id}/impersonate?token=${encodeURIComponent(j.impersonate_token)}`, '_blank') })
+      })
   }
 
   async function doDelete() {
