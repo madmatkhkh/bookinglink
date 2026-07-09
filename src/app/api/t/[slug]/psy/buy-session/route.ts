@@ -14,9 +14,9 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   const phone = getClientPhone(req)
   if (!phone) return NextResponse.json({ error: 'ابتدا با کدِ یک‌بارمصرف وارد شوید' }, { status: 401 })
 
-  const { data: booking } = await sb().from('psy_cases').select('resource_id, father_phone, mother_phone')
+  const { data: booking } = await sb().from('psy_cases').select('resource_id, contact_phone, contact2_phone')
     .eq('tenant_id', t.id).eq('case_number', case_number).single()
-  if (!booking || (booking.father_phone !== phone && booking.mother_phone !== phone))
+  if (!booking || (booking.contact_phone !== phone && booking.contact2_phone !== phone))
     return NextResponse.json({ error: 'دسترسی ندارید' }, { status: 403 })
 
   const type = session_type === 'online' ? 'online' : 'offline'
@@ -27,7 +27,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
     .eq('tenant_id', t.id).eq('case_number', case_number)
   const { data, error } = await sb().from('psy_sessions').insert([{
     tenant_id: t.id, resource_id: booking.resource_id, case_number, package_id: package_id || null,
-    attendee: attendee || 'child', session_type: type,
+    attendee: attendee || 'primary', session_type: type,
     session_date: '', session_time: '', status: 'confirmed', paid: false, price,
     session_number: (count || 0) + 1,
   }]).select().single()

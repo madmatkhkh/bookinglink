@@ -40,7 +40,7 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
       payment_methods: effectivePaymentMethods(prof.payment_methods, a.tenant.plan),
       quick_times: prof.quick_times,
       settlement_sheba: prof.settlement_sheba, settlement_sheba_holder_name: prof.settlement_sheba_holder_name,
-      pricing: prof.pricing },
+      pricing: prof.pricing, companion_label: prof.companion_label },
     plan: a.tenant.plan,
   }, { headers: NO_STORE })
 }
@@ -76,6 +76,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   }
   if ('settlement_sheba_holder_name' in body) profilePatch.settlement_sheba_holder_name = String(body.settlement_sheba_holder_name || '').trim().slice(0, 80)
   if ('pricing' in body) profilePatch.pricing = mergePricing(body.pricing)
+  if ('companion_label' in body) profilePatch.companion_label = String(body.companion_label || '').trim().slice(0, 20)
   if ('payment_methods' in body) {
     let pm = mergePaymentMethods(body.payment_methods)
     if (a.tenant.plan !== 'pro') {

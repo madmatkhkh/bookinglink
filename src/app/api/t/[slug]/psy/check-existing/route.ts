@@ -12,17 +12,17 @@ function normalizePhone(s: string): string {
   return String(s || '').replace(/[۰-۹]/g, d => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d))).trim()
 }
 
-// چک می‌کند آیا پرونده‌ای با همین «نام کودک + شماره‌تماس» از قبل ثبت شده — تا
+// چک می‌کند آیا پرونده‌ای با همین «نامِ مراجع + شماره‌تماس» از قبل ثبت شده — تا
 // مراجع قبل از پرکردنِ کلِ فرم بفهمد، نه بعدِ زدنِ دکمه‌ی نهایی.
 export async function POST(req: NextRequest, { params }: { params: { slug: string } }) {
   const t = await getActiveTenant(params.slug)
   if (!t) return NextResponse.json({ error: 'یافت نشد' }, { status: 404 })
-  const { childName, phone } = await req.json()
-  const name = normalizeName(childName)
+  const { clientName, phone } = await req.json()
+  const name = normalizeName(clientName)
   const ph = normalizePhone(phone)
   if (!name || !ph) return NextResponse.json({ exists: false })
 
   const { data } = await sb().from('psy_cases').select('id')
-    .eq('tenant_id', t.id).eq('child_name', name).eq('father_phone', ph).maybeSingle()
+    .eq('tenant_id', t.id).eq('client_name', name).eq('contact_phone', ph).maybeSingle()
   return NextResponse.json({ exists: !!data })
 }

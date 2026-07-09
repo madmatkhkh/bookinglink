@@ -18,9 +18,9 @@ const enTime = (t?: string) => toLatinNum(String(t || ''))
 type Patient = {
  id: string
  case_number: string
- // اطلاعات کودک
- child_name: string
- child_name_en?: string
+ // هویتِ مراجع
+ client_name: string
+ client_name_en?: string
  birth_date: string
  birth_place?: string
  nationality?: string
@@ -36,17 +36,17 @@ type Patient = {
  prev_diagnosis?: string   // تشخیص قبلی
  prev_treatment?: string   // درمان قبلی
  // اطلاعات خانواده
- father_name: string
+ contact_name: string
  father_birth_year?: string
  father_education?: string
  father_job?: string
- father_phone: string
+ contact_phone: string
  father_health?: string    // وضعیت سلامت پدر
- mother_name: string
+ contact2_name: string
  mother_birth_year?: string
  mother_education?: string
  mother_job?: string
- mother_phone: string
+ contact2_phone: string
  mother_health?: string    // وضعیت سلامت مادر
  family_status?: string    // وضعیت زندگی والدین
  siblings_count?: string   // تعداد خواهر و برادر
@@ -82,10 +82,8 @@ type Patient = {
  extra_notes?: string     // توضیحات اضافی
  // ستون‌هایی که فرمِ مصاحبه ذخیره می‌کند (رشته‌ای/ترکیبی)
  school_info?: string     // نام مدرسه | مؤسسه | پایه | تلفن
- child_conditions?: string  // ویژگی‌های کودک
+ child_conditions?: string  // ویژگی‌های مراجع (فقط اگر متخصص از فرمِ تفصیلی استفاده کند)
  session_type?: string    // online | offline
- parent_name?: string
- phone?: string
  // پاسخ‌های فرمِ رزرو که ستونِ اختصاصی ندارند (کاملاً دیتایی، از فرم‌بیلدر)
  details?: Record<string, any>
  // وضعیت
@@ -116,11 +114,11 @@ type CaseStage = {
 type Booking = {
  id: string
  case_number: string
- child_name: string
- father_name?: string
- mother_name?: string
- father_phone?: string
- mother_phone?: string
+ client_name: string
+ contact_name?: string
+ contact2_name?: string
+ contact_phone?: string
+ contact2_phone?: string
  session_type: 'online' | 'offline'
  office_location?: string
  status: 'pending' | 'confirmed' | 'cancelled'
@@ -136,10 +134,10 @@ type Package = {
  case_number: string
  month: string
  year: string
- child_sessions: number
- parent_sessions: number
- child_session_type: string
- parent_session_type: string
+ primary_sessions: number
+ secondary_sessions: number
+ primary_session_type: string
+ secondary_session_type: string
  notes: string
  status: string
  price?: number
@@ -220,6 +218,7 @@ type ResourceProfileView = {
  settlement_sheba: string
  settlement_sheba_holder_name: string
  pricing: Pricing
+ companion_label: string
 }
 
 const ALL_TIMES = ['8:00','9:00','10:00','11:00','12:00','13:00','14:00','15:00','16:00','17:00','18:00']
@@ -231,6 +230,7 @@ const DEFAULT_PROFILE: ResourceProfileView = {
  quick_times: ALL_TIMES,
  settlement_sheba: '', settlement_sheba_holder_name: '',
  pricing: DEFAULT_PRICING,
+ companion_label: '',
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -462,8 +462,8 @@ export function PsychologyAdmin() {
  const [showAddPatient, setShowAddPatient] = useState(false)
  const [addPatientSaving, setAddPatientSaving] = useState(false)
  const [newPatientForm, setNewPatientForm] = useState({
-  child_name: '', birth_date: '', grade: '', reason: '',
-  father_name: '', father_phone: '', mother_name: '', mother_phone: '',
+  client_name: '', birth_date: '', grade: '', reason: '',
+  contact_name: '', contact_phone: '', contact2_name: '', contact2_phone: '',
  })
  const [editSession, setEditSession] = useState<Session | null>(null)
  const [editingPatient, setEditingPatient] = useState<Partial<Patient>>({})
@@ -634,11 +634,11 @@ export function PsychologyAdmin() {
  // ── Package / Session forms ────────────────────────────────────
  const [newPkg, setNewPkg] = useState({
   month: '1', year: '1404',
-  child_sessions: 8, parent_sessions: 2,
-  child_session_type: 'offline', parent_session_type: 'offline', notes: ''
+  primary_sessions: 8, secondary_sessions: 2,
+  primary_session_type: 'offline', secondary_session_type: 'offline', notes: ''
  })
  const [newSess, setNewSess] = useState({
-  title: 'ارزیابی', customTitle: '', session_type: 'offline', attendee: 'child', paid: true
+  title: 'ارزیابی', customTitle: '', session_type: 'offline', attendee: 'primary', paid: true
  })
  const [sessForm, setSessForm] = useState({
   session_goals: '', session_summary: '',
@@ -836,7 +836,7 @@ export function PsychologyAdmin() {
 
  // حذفِ کاملِ یک پرونده (با تأیید)
  async function deletePatient(p: Patient) {
-  if (!await uiConfirm(`پرونده‌ی «${p.child_name}» (${p.case_number}) و همه‌ی پروتکل‌های درمان و جلسه‌هایش برای همیشه حذف شود؟`)) return
+  if (!await uiConfirm(`پرونده‌ی «${p.client_name}» (${p.case_number}) و همه‌ی پروتکل‌های درمان و جلسه‌هایش برای همیشه حذف شود؟`)) return
   const res = await fetch(api('/cases'), {
    method: 'DELETE', headers: { 'Content-Type': 'application/json' },
    body: JSON.stringify({ id: p.id }),
@@ -848,8 +848,8 @@ export function PsychologyAdmin() {
 
  // افزودنِ پرونده‌ی دستی
  async function createPatient() {
-  if (!newPatientForm.child_name.trim()) { uiAlert('نام کودک را وارد کنید'); return }
-  if (!newPatientForm.father_phone.trim() && !newPatientForm.mother_phone.trim()) { uiAlert('حداقل یک شماره تماس وارد کنید'); return }
+  if (!newPatientForm.client_name.trim()) { uiAlert('نامِ مراجع را وارد کنید'); return }
+  if (!newPatientForm.contact_phone.trim() && !newPatientForm.contact2_phone.trim()) { uiAlert('حداقل یک شماره تماس وارد کنید'); return }
   setAddPatientSaving(true)
   try {
    const res = await fetch(api('/cases'), {
@@ -860,7 +860,7 @@ export function PsychologyAdmin() {
    setAddPatientSaving(false)
    if (!res.ok) { uiAlert((data.error || 'ثبت پرونده ناموفق بود') + (data.detail ? `\n\n(جزئیاتِ فنی: ${data.detail})` : '')); return }
    setShowAddPatient(false)
-   setNewPatientForm({ child_name: '', birth_date: '', grade: '', reason: '', father_name: '', father_phone: '', mother_name: '', mother_phone: '' })
+   setNewPatientForm({ client_name: '', birth_date: '', grade: '', reason: '', contact_name: '', contact_phone: '', contact2_name: '', contact2_phone: '' })
    await fetchAll()
    if (data.booking) { setSelectedPatient(data.booking); await Promise.all([loadPatientData(data.booking.case_number), loadPatientIntakeForm(data.booking.resource_id)]); setPatientView('detail') }
   } catch (e: any) {
@@ -897,7 +897,7 @@ export function PsychologyAdmin() {
    body: JSON.stringify(payload),
   })
   setShowNewSession(false)
-  setNewSess({ title: 'ارزیابی', customTitle: '', session_type: 'offline', attendee: 'child', paid: true })
+  setNewSess({ title: 'ارزیابی', customTitle: '', session_type: 'offline', attendee: 'primary', paid: true })
   await loadPatientData(selectedPatient.case_number)
   loadAllSessions()
  }
@@ -1018,7 +1018,7 @@ export function PsychologyAdmin() {
  const daysInMonth = getDaysInJalaliMonth(schedYear, schedMonth)
 
  // ── کمک‌توابعِ برنامه ───────────────────────────────────────────
- const childNameOf = (cn: string) => bookings.find(b => b.case_number === cn)?.child_name || cn
+ const childNameOf = (cn: string) => bookings.find(b => b.case_number === cn)?.client_name || cn
  const schedForDay = (d: number) => monthSchedules.find(s => s.date === `${schedYear}/${schedMonth + 1}/${d}`)
 
  // یک ردیفِ جلسه (هم برای «جلسات تکی» هم برای جلسه‌هایِ زیرِ هر پروتکلِ درمان)
@@ -1042,7 +1042,7 @@ export function PsychologyAdmin() {
          )}
         </div>
         <div className="text-xs text-soot">
-         {s.attendee === 'child' ? '👧 کودک' : '👨‍👩 والدین'} •
+         {s.attendee === 'secondary' ? `👥 ${profile.companion_label || 'همراه'}` : '🧑 مراجع'} •
          {s.session_type === 'online' ? ' آنلاین' : ' حضوری'}
         </div>
        </div>
@@ -1096,7 +1096,7 @@ export function PsychologyAdmin() {
   }
   for (const s of allSessions) {
    if (s.session_date === dateStr && s.session_time && s.status !== 'cancelled' && s.status !== 'forfeited' && s.status !== 'replaced')
-    out.push({ time: s.session_time, name: childNameOf(s.case_number), type: s.attendee === 'parent' ? 'جلسه (والدین)' : 'جلسه (کودک)', mode: s.session_type, color: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20', kind: 'session', id: s.id, caseNumber: s.case_number, delayMinutes: s.delay_minutes })
+    out.push({ time: s.session_time, name: childNameOf(s.case_number), type: s.attendee === 'secondary' ? `جلسه (${profile.companion_label || 'همراه'})` : 'جلسه (مراجع)', mode: s.session_type, color: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20', kind: 'session', id: s.id, caseNumber: s.case_number, delayMinutes: s.delay_minutes })
   }
   return out.sort((a, b) => timeKey(a.time) - timeKey(b.time))
  }
@@ -1683,12 +1683,12 @@ export function PsychologyAdmin() {
   if (!patientSearch) return true
   const q = patientSearch.toLowerCase()
   return (
-   p.child_name?.toLowerCase().includes(q) ||
-   p.father_name?.toLowerCase().includes(q) ||
-   p.mother_name?.toLowerCase().includes(q) ||
+   p.client_name?.toLowerCase().includes(q) ||
+   p.contact_name?.toLowerCase().includes(q) ||
+   p.contact2_name?.toLowerCase().includes(q) ||
    p.case_number?.toLowerCase().includes(q) ||
-   p.father_phone?.includes(q) ||
-   p.mother_phone?.includes(q)
+   p.contact_phone?.includes(q) ||
+   p.contact2_phone?.includes(q)
   )
  })
 
@@ -2036,11 +2036,11 @@ export function PsychologyAdmin() {
             <div className="flex items-center justify-between">
              <div className="flex gap-3 items-center">
               <div className="w-10 h-10 rounded-full bg-sand flex items-center justify-center text-ink font-semibold text-sm shrink-0">
-               {p.child_name?.charAt(0) || '?'}
+               {p.client_name?.charAt(0) || '?'}
               </div>
               <div>
                <div className="flex items-center gap-2">
-                <span className="font-medium text-ink text-sm">{p.child_name}</span>
+                <span className="font-medium text-ink text-sm">{p.client_name}</span>
                 {p.case_number && (
                  <span className="text-xs px-2 py-0.5 bg-gray-100 text-soot rounded-md font-mono">{p.case_number}</span>
                 )}
@@ -2051,15 +2051,15 @@ export function PsychologyAdmin() {
                 {p.birth_date && `متولد ${p.birth_date}`}
                </div>
                <div className="text-xs text-soot mt-0.5">
-                {p.father_name && `پدر: ${p.father_name}`}
-                {p.father_name && p.mother_name && ' | '}
-                {p.mother_name && `مادر: ${p.mother_name}`}
+                {p.contact_name && `تماس: ${p.contact_name}`}
+                {p.contact_name && p.contact2_name && ' | '}
+                {p.contact2_name && `${profile.companion_label || 'همراه'}: ${p.contact2_name}`}
                </div>
               </div>
              </div>
              <div className="flex flex-col items-end gap-2">
               <span className="text-xs text-soot">
-               {p.father_phone || p.mother_phone}
+               {p.contact_phone || p.contact2_phone}
               </span>
              </div>
             </div>
@@ -2095,11 +2095,11 @@ export function PsychologyAdmin() {
         <div className="bg-white rounded-2xl border border-sand p-4 mb-4">
          <div className="flex items-center gap-4">
           <div className="w-14 h-14 rounded-full bg-sand flex items-center justify-center text-ink font-bold text-xl">
-           {selectedPatient.child_name?.charAt(0)}
+           {selectedPatient.client_name?.charAt(0)}
           </div>
           <div className="flex-1">
            <div className="flex items-center gap-2 flex-wrap">
-            <h2 className="text-lg font-display font-semibold text-ink">{selectedPatient.child_name}</h2>
+            <h2 className="text-lg font-display font-semibold text-ink">{selectedPatient.client_name}</h2>
             <span className="text-xs px-2 py-0.5 bg-gray-100 text-soot rounded-md font-mono">{selectedPatient.case_number}</span>
             <span className={`text-xs px-2 py-0.5 rounded-full ${STATUS_COLOR[selectedPatient.status] || ''}`}>
              {STATUS_LABEL[selectedPatient.status] || selectedPatient.status}
@@ -2144,14 +2144,14 @@ export function PsychologyAdmin() {
         {/* ── Tab: اطلاعات مراجع ─────────────────────────────── */}
         {patientTab === 'info' && (() => {
          const answers = patientAnswers(selectedPatient)
-         const usedKeys = new Set<string>(['child_name', 'father_phone'])
+         const usedKeys = new Set<string>(['client_name', 'contact_phone'])
          return (
           <div className="space-y-2">
            {/* همیشه بالا و بازِ: مشخصاتِ ثابت (نام/شماره — این‌ها بیرونِ فرم و برایِ OTP لازم‌اند) */}
            <div className="bg-white rounded-xl border border-sand p-4">
             <Section title="مشخصاتِ ثابت و نوبت‌دهی" icon="🗓">
-             <InfoRow label="نام" value={selectedPatient.child_name} />
-             <InfoRow label="شماره‌ی تماسِ ثابت" value={enTime(selectedPatient.father_phone)} />
+             <InfoRow label="نام" value={selectedPatient.client_name} />
+             <InfoRow label="شماره‌ی تماسِ ثابت" value={enTime(selectedPatient.contact_phone)} />
              <InfoRow label="شماره‌ی پرونده" value={selectedPatient.case_number} />
              <InfoRow label="نوعِ جلسه" value={selectedPatient.session_type === 'online' ? 'آنلاین' : selectedPatient.session_type === 'offline' ? 'حضوری' : selectedPatient.session_type} />
              <InfoRow label="مطبِ انتخابی" value={(selectedPatient as any).office_location} />
@@ -2243,10 +2243,10 @@ export function PsychologyAdmin() {
           <div className="space-y-3">
            {packages.map(pkg => {
             const pkgSessions = sessions.filter(s => s.package_id === pkg.id)
-            const childSess = pkgSessions.filter(s => s.attendee === 'child')
-            const parentSess = pkgSessions.filter(s => s.attendee === 'parent')
-            const total = pkg.price || ((pkg.child_sessions * (pkg.child_session_type === 'online' ? PRICING.online : PRICING.offline)) +
-             (pkg.parent_sessions * (pkg.parent_session_type === 'online' ? PRICING.online : PRICING.offline)))
+            const primarySess = pkgSessions.filter(s => s.attendee === 'primary')
+            const secondarySess = pkgSessions.filter(s => s.attendee === 'secondary')
+            const total = pkg.price || ((pkg.primary_sessions * (pkg.primary_session_type === 'online' ? PRICING.online : PRICING.offline)) +
+             (pkg.secondary_sessions * (pkg.secondary_session_type === 'online' ? PRICING.online : PRICING.offline)))
             return (
              <div key={pkg.id} className="bg-white rounded-xl border border-sand p-4">
               <div className="flex items-center justify-between mb-3">
@@ -2260,8 +2260,10 @@ export function PsychologyAdmin() {
                </div>
               </div>
               <div className="grid grid-cols-2 gap-2 text-xs text-soot">
-               <div>کودک: {childSess.length}/{pkg.child_sessions} جلسه ({pkg.child_session_type === 'online' ? 'آنلاین' : 'حضوری'})</div>
-               <div>والدین: {parentSess.length}/{pkg.parent_sessions} جلسه ({pkg.parent_session_type === 'online' ? 'آنلاین' : 'حضوری'})</div>
+               <div>مراجع: {primarySess.length}/{pkg.primary_sessions} جلسه ({pkg.primary_session_type === 'online' ? 'آنلاین' : 'حضوری'})</div>
+               {(pkg.secondary_sessions > 0 || profile.companion_label) && (
+                <div>{profile.companion_label || 'همراه'}: {secondarySess.length}/{pkg.secondary_sessions} جلسه ({pkg.secondary_session_type === 'online' ? 'آنلاین' : 'حضوری'})</div>
+               )}
               </div>
               {pkg.notes && <p className="text-xs text-soot mt-2 pt-2 border-t border-sand">{pkg.notes}</p>}
               <div className="mt-3 pt-3 border-t border-sand">
@@ -2350,8 +2352,8 @@ export function PsychologyAdmin() {
           <div className="bg-white rounded-xl border border-sand p-4">
            <h3 className="text-sm font-semibold text-ink mb-3 pb-2 border-b border-sand">مشخصاتِ ثابت و نوبت‌دهی</h3>
            <div className="grid grid-cols-2 gap-3">
-            <Field label="نام *" value={editingPatient.child_name} onChange={v => setEditingPatient(p => ({ ...p, child_name: v }))} />
-            <Field label="شماره‌ی تماسِ ثابت *" value={editingPatient.father_phone} onChange={v => setEditingPatient(p => ({ ...p, father_phone: v }))} placeholder="09xxxxxxxxx" />
+            <Field label="نام *" value={editingPatient.client_name} onChange={v => setEditingPatient(p => ({ ...p, client_name: v }))} />
+            <Field label="شماره‌ی تماسِ ثابت *" value={editingPatient.contact_phone} onChange={v => setEditingPatient(p => ({ ...p, contact_phone: v }))} placeholder="09xxxxxxxxx" />
            </div>
            <div className="mt-3">
             <SelectField label="نوعِ جلسه" value={editingPatient.session_type} onChange={v => setEditingPatient(p => ({ ...p, session_type: v } as any))} options={['offline', 'online']} />
@@ -2429,12 +2431,12 @@ export function PsychologyAdmin() {
      <div>
       {/* صندوقِ تأیید پرداخت‌ها — سه بخش */}
       {(() => {
-       const childOf = (cn: string) => bookings.find(b => b.case_number === cn)?.child_name || cn
+       const childOf = (cn: string) => bookings.find(b => b.case_number === cn)?.client_name || cn
        const interviewPending = pendingStages.filter(s => s.stage_type === 'interview')
        const assessmentPending = pendingStages.filter(s => s.stage_type === 'assessment')
        const pkgAmount = (p: Package) =>
-        p.price || ((p.child_sessions * (p.child_session_type === 'online' ? PRICING.online : PRICING.offline)) +
-        (p.parent_sessions * (p.parent_session_type === 'online' ? PRICING.online : PRICING.offline)))
+        p.price || ((p.primary_sessions * (p.primary_session_type === 'online' ? PRICING.online : PRICING.offline)) +
+        (p.secondary_sessions * (p.secondary_session_type === 'online' ? PRICING.online : PRICING.offline)))
        const totalPending = pendingStages.length + pendingPkgs.length + pendingSess.length + pendingRefunds.length
        const refundAmt = (s: Session) => {
         const full = s.price || (s.session_type === 'online' ? PRICING.online : PRICING.offline)
@@ -2465,7 +2467,7 @@ export function PsychologyAdmin() {
          </PendingSection>
 
          {/* بخش 2: ارزیابی */}
-         <PendingSection title="ارزیابیِ کودک" icon="🧩" count={assessmentPending.length}>
+         <PendingSection title="ارزیابی" icon="🧩" count={assessmentPending.length}>
           {assessmentPending.map(s => (
            <PendingPayCard key={s.id} name={childOf(s.case_number)} caseNumber={s.case_number}
             amount={s.price || (bookings.find(b => b.case_number === s.case_number)?.session_type === 'online' ? PRICING.online : PRICING.offline)} receipt={s.payment_ref}>
@@ -2484,7 +2486,7 @@ export function PsychologyAdmin() {
           {pendingPkgs.map(p => (
            <PendingPayCard key={p.id} name={childOf(p.case_number)} caseNumber={p.case_number}
             amount={pkgAmount(p)} receipt={p.payment_ref}
-            sub={`${PERSIAN_MONTHS[parseInt(p.month) - 1]} ${p.year} • ${p.child_sessions + p.parent_sessions} جلسه`}>
+            sub={`${PERSIAN_MONTHS[parseInt(p.month) - 1]} ${p.year} • ${p.primary_sessions + p.secondary_sessions} جلسه`}>
             <div className="flex gap-2">
              <button onClick={() => confirmPackagePayment(p.id)}
               className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm">تأیید پرداخت</button>
@@ -3151,6 +3153,19 @@ export function PsychologyAdmin() {
        </section>
        )}
 
+       {/* همراه/تماسِ دوم — کاملاً اختیاری، برچسبش را خودِ متخصص تعیین می‌کند */}
+       {settingsSubTab === 'profile' && (
+       <section className="bg-white rounded-2xl border border-sand p-5">
+        <h2 className="text-sm font-display font-semibold text-ink mb-1">همراه / تماسِ دوم</h2>
+        <p className="text-xs text-soot mb-4">
+         اگر معمولاً یک نفرِ دیگر هم تویِ کارتان دخیل است (والدینِ کودک، همسر، همراهِ سالمند...)، اسمش را اینجا بگذارید تا تویِ فرمِ رزرو و جلسات با همین اسم نمایش داده شود. اگر کارتان مستقیم با خودِ مراجع است، خالی بگذارید.
+        </p>
+        <input value={profile.companion_label} onChange={e => patchProfile({ companion_label: e.target.value })}
+         placeholder="مثلاً: والدین، همسر، همراه (خالی = استفاده نمی‌کنم)"
+         className="w-full text-sm px-3 py-2 border border-sand rounded-lg focus:outline-none focus:border-ink" />
+       </section>
+       )}
+
        {/* روش‌های پرداخت — per-resource؛ حداقل یکی باید روشن بماند */}
        {settingsSubTab === 'payments' && (
        <section className="bg-white rounded-2xl border border-sand p-5">
@@ -3658,34 +3673,36 @@ export function PsychologyAdmin() {
        </div>
        <div className="grid grid-cols-2 gap-3">
         <div>
-         <label className="text-xs text-soot mb-1 block">تعداد جلسه کودک</label>
-         <input type="number" value={newPkg.child_sessions} onChange={e => setNewPkg({...newPkg, child_sessions: parseInt(e.target.value)})}
+         <label className="text-xs text-soot mb-1 block">تعداد جلسه‌یِ مراجع</label>
+         <input type="number" value={newPkg.primary_sessions} onChange={e => setNewPkg({...newPkg, primary_sessions: parseInt(e.target.value)})}
           className="w-full text-sm px-3 py-2 border border-sand rounded-lg" />
         </div>
         <div>
-         <label className="text-xs text-soot mb-1 block">نوع جلسه کودک</label>
-         <select value={newPkg.child_session_type} onChange={e => setNewPkg({...newPkg, child_session_type: e.target.value})}
+         <label className="text-xs text-soot mb-1 block">نوع جلسه‌یِ مراجع</label>
+         <select value={newPkg.primary_session_type} onChange={e => setNewPkg({...newPkg, primary_session_type: e.target.value})}
           className="w-full text-sm px-3 py-2 border border-sand rounded-lg bg-white">
-          <option value="offline">حضوری — 1,200,000</option>
-          <option value="online">آنلاین — 850,000</option>
+          <option value="offline">حضوری — {profile.pricing.offline.toLocaleString('en-US')}</option>
+          <option value="online">آنلاین — {profile.pricing.online.toLocaleString('en-US')}</option>
          </select>
         </div>
        </div>
+       {(newPkg.secondary_sessions > 0 || profile.companion_label) && (
        <div className="grid grid-cols-2 gap-3">
         <div>
-         <label className="text-xs text-soot mb-1 block">تعداد جلسه والدین</label>
-         <input type="number" value={newPkg.parent_sessions} onChange={e => setNewPkg({...newPkg, parent_sessions: parseInt(e.target.value)})}
+         <label className="text-xs text-soot mb-1 block">تعداد جلسه‌یِ {profile.companion_label || 'همراه'}</label>
+         <input type="number" value={newPkg.secondary_sessions} onChange={e => setNewPkg({...newPkg, secondary_sessions: parseInt(e.target.value)})}
           className="w-full text-sm px-3 py-2 border border-sand rounded-lg" />
         </div>
         <div>
-         <label className="text-xs text-soot mb-1 block">نوع جلسه والدین</label>
-         <select value={newPkg.parent_session_type} onChange={e => setNewPkg({...newPkg, parent_session_type: e.target.value})}
+         <label className="text-xs text-soot mb-1 block">نوع جلسه‌یِ {profile.companion_label || 'همراه'}</label>
+         <select value={newPkg.secondary_session_type} onChange={e => setNewPkg({...newPkg, secondary_session_type: e.target.value})}
           className="w-full text-sm px-3 py-2 border border-sand rounded-lg bg-white">
-          <option value="offline">حضوری — 1,200,000</option>
-          <option value="online">آنلاین — 850,000</option>
+          <option value="offline">حضوری — {profile.pricing.offline.toLocaleString('en-US')}</option>
+          <option value="online">آنلاین — {profile.pricing.online.toLocaleString('en-US')}</option>
          </select>
         </div>
        </div>
+       )}
        <div>
         <label className="text-xs text-soot mb-1 block">توضیحات پروتکل درمان</label>
         <textarea value={newPkg.notes} onChange={e => setNewPkg({...newPkg, notes: e.target.value})}
@@ -3696,8 +3713,8 @@ export function PsychologyAdmin() {
         <div className="flex justify-between text-sm">
          <span className="text-soot">مجموع مبلغ پروتکل درمان:</span>
          <span className="font-semibold text-ink">
-          {((newPkg.child_sessions * (newPkg.child_session_type === 'online' ? profile.pricing.online : profile.pricing.offline)) +
-           (newPkg.parent_sessions * (newPkg.parent_session_type === 'online' ? profile.pricing.online : profile.pricing.offline))).toLocaleString('en-US')} تومان
+          {((newPkg.primary_sessions * (newPkg.primary_session_type === 'online' ? profile.pricing.online : profile.pricing.offline)) +
+           (newPkg.secondary_sessions * (newPkg.secondary_session_type === 'online' ? profile.pricing.online : profile.pricing.offline))).toLocaleString('en-US')} تومان
          </span>
         </div>
        </div>
@@ -3720,8 +3737,8 @@ export function PsychologyAdmin() {
       <p className="text-xs text-soot mb-4">شماره‌ی پرونده خودکار ساخته می‌شود. این پرونده مستقیم در مرحله‌ی درمان قرار می‌گیرد.</p>
       <div className="space-y-3">
        <div>
-        <label className="text-xs text-soot mb-1 block">نام کودک <span className="text-ink">*</span></label>
-        <input value={newPatientForm.child_name} onChange={e => setNewPatientForm({ ...newPatientForm, child_name: e.target.value })}
+        <label className="text-xs text-soot mb-1 block">نامِ مراجع <span className="text-ink">*</span></label>
+        <input value={newPatientForm.client_name} onChange={e => setNewPatientForm({ ...newPatientForm, client_name: e.target.value })}
          className="w-full text-sm px-3 py-2 border border-sand rounded-lg focus:outline-none focus:border-ink" />
        </div>
        <div className="grid grid-cols-2 gap-3">
@@ -3731,32 +3748,32 @@ export function PsychologyAdmin() {
           placeholder="1395/03/12" className="w-full text-sm px-3 py-2 border border-sand rounded-lg" />
         </div>
         <div>
-         <label className="text-xs text-soot mb-1 block">پایه‌ی تحصیلی</label>
+         <label className="text-xs text-soot mb-1 block">پایه‌ی تحصیلی (اختیاری)</label>
          <input value={newPatientForm.grade} onChange={e => setNewPatientForm({ ...newPatientForm, grade: e.target.value })}
           className="w-full text-sm px-3 py-2 border border-sand rounded-lg" />
         </div>
        </div>
        <div className="grid grid-cols-2 gap-3">
         <div>
-         <label className="text-xs text-soot mb-1 block">نام پدر</label>
-         <input value={newPatientForm.father_name} onChange={e => setNewPatientForm({ ...newPatientForm, father_name: e.target.value })}
-          className="w-full text-sm px-3 py-2 border border-sand rounded-lg" />
+         <label className="text-xs text-soot mb-1 block">نامِ تماس</label>
+         <input value={newPatientForm.contact_name} onChange={e => setNewPatientForm({ ...newPatientForm, contact_name: e.target.value })}
+          placeholder="اگر با خودِ مراجع فرق دارد" className="w-full text-sm px-3 py-2 border border-sand rounded-lg" />
         </div>
         <div>
-         <label className="text-xs text-soot mb-1 block">موبایل پدر</label>
-         <input value={newPatientForm.father_phone} onChange={e => setNewPatientForm({ ...newPatientForm, father_phone: e.target.value })}
+         <label className="text-xs text-soot mb-1 block">موبایلِ تماس</label>
+         <input value={newPatientForm.contact_phone} onChange={e => setNewPatientForm({ ...newPatientForm, contact_phone: e.target.value })}
           dir="ltr" placeholder="0912..." className="w-full text-sm px-3 py-2 border border-sand rounded-lg" />
         </div>
        </div>
        <div className="grid grid-cols-2 gap-3">
         <div>
-         <label className="text-xs text-soot mb-1 block">نام مادر</label>
-         <input value={newPatientForm.mother_name} onChange={e => setNewPatientForm({ ...newPatientForm, mother_name: e.target.value })}
+         <label className="text-xs text-soot mb-1 block">نامِ {profile.companion_label || 'همراه'} (اختیاری)</label>
+         <input value={newPatientForm.contact2_name} onChange={e => setNewPatientForm({ ...newPatientForm, contact2_name: e.target.value })}
           className="w-full text-sm px-3 py-2 border border-sand rounded-lg" />
         </div>
         <div>
-         <label className="text-xs text-soot mb-1 block">موبایل مادر</label>
-         <input value={newPatientForm.mother_phone} onChange={e => setNewPatientForm({ ...newPatientForm, mother_phone: e.target.value })}
+         <label className="text-xs text-soot mb-1 block">موبایلِ {profile.companion_label || 'همراه'}</label>
+         <input value={newPatientForm.contact2_phone} onChange={e => setNewPatientForm({ ...newPatientForm, contact2_phone: e.target.value })}
           dir="ltr" placeholder="0912..." className="w-full text-sm px-3 py-2 border border-sand rounded-lg" />
         </div>
        </div>
@@ -3765,7 +3782,7 @@ export function PsychologyAdmin() {
         <textarea value={newPatientForm.reason} onChange={e => setNewPatientForm({ ...newPatientForm, reason: e.target.value })}
          rows={2} className="w-full text-sm px-3 py-2 border border-sand rounded-lg resize-none" />
        </div>
-       <p className="text-[11px] text-soot">حداقل یکی از شماره‌های تماس (پدر یا مادر) لازم است تا مراجع بتواند وارد پنل شود.</p>
+       <p className="text-[11px] text-soot">حداقل یکی از شماره‌های تماس لازم است تا مراجع بتواند وارد پنل شود.</p>
       </div>
       <div className="flex gap-2 mt-4">
        <button onClick={() => setShowAddPatient(false)}
@@ -3817,8 +3834,8 @@ export function PsychologyAdmin() {
          <label className="text-xs text-soot mb-1 block">حضور</label>
          <select value={newSess.attendee} onChange={e => setNewSess({...newSess, attendee: e.target.value})}
           className="w-full text-sm px-3 py-2 border border-sand rounded-lg bg-white">
-          <option value="child">👧 کودک</option>
-          <option value="parent">👨‍👩 والدین</option>
+          <option value="primary">🧑 مراجع</option>
+          {profile.companion_label && <option value="secondary">👥 {profile.companion_label}</option>}
          </select>
         </div>
        </div>

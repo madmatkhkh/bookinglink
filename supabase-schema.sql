@@ -315,20 +315,22 @@ create table psy_cases (
   id uuid primary key default uuid_generate_v4(),
   tenant_id uuid not null references tenants(id) on delete cascade,
   case_number text not null,
-  -- هویتِ کودک و خانواده (پرونده‌ی کامل؛ فرمِ مصاحبه این‌ها را پر می‌کند)
-  child_name text not null default '',
-  child_name_en text,
+  -- هویتِ پرونده — عمومی برایِ هر تخصص (نه فقط کودک/خانواده). فرمِ مصاحبه این‌ها را پر می‌کند.
+  client_name text not null default '',       -- مراجع، هرکسی با هر سنی
+  client_name_en text,
   birth_date text,
-  grade text,
-  parent_name text,
-  phone text,
-  father_name text, father_phone text,
-  mother_name text, mother_phone text,
+  grade text,                                  -- اختیاری، فقط اگر مراجع دانش‌آموز باشد
+  -- تماسِ اصلی (برایِ ورود/OTP) — می‌تواند خودِ مراجع باشد (بزرگسال) یا یک نفرِ
+  -- دیگر (والدینِ کودک، همراهِ سالمند). contact_phone همیشه لازم است.
+  contact_name text, contact_phone text,
+  -- تماسِ دومِ اختیاری — برچسبش را هر متخصص در تنظیماتِ خودش تعیین می‌کند
+  -- (psy_resource_profiles.companion_label)؛ اگر لازم نبود خالی می‌ماند.
+  contact2_name text, contact2_phone text,
   reason text,
   session_type text,           -- 'online' | 'offline'
   office_location text,
   -- کلِ فیلدهای تفصیلیِ پرونده در یک jsonb (تا افزودن/حذفِ فیلد نیازی به migration نداشته باشد)
-  -- فرمِ مصاحبه و تبِ پرونده می‌توانند این را برای نیچ‌های مختلف (کودک/بزرگسال) متفاوت پر کنند.
+  -- فرمِ مصاحبه و تبِ پرونده می‌توانند این را برای هر تخصصی متفاوت پر کنند.
   details jsonb not null default '{}',
   reject_reason text,
   -- مرحله‌ی «در حالِ انجام»ِ فعلیِ این پرونده (مصاحبه/ارزیابی که هنوز پرداخت/رزرو/برگزاری‌اش
@@ -354,11 +356,13 @@ create table psy_packages (
   case_number text not null,
   title text not null default '',
   month text, year text,  -- دوره‌ی تعلق‌گرفتنِ پکیج (مثلاً ماهِ 4 سالِ 1405)
-  -- جلسه‌های کودک و والدین جدا شمرده و قیمت‌گذاری می‌شوند
-  child_sessions int not null default 0,
-  child_session_type text default 'offline',   -- 'online' | 'offline'
-  parent_sessions int not null default 0,
-  parent_session_type text default 'offline',
+  -- دو مسیرِ جلسه: «اصلی» همیشه هست (خودِ مراجع)، «دومی» اختیاری است (مثلاً
+  -- والدینِ کودک، همسر، یا هر همراهِ دیگری — برچسبش را هر متخصص خودش تعیین
+  -- می‌کند در psy_resource_profiles.companion_label). اگر لازم نبود صفر می‌ماند.
+  primary_sessions int not null default 0,
+  primary_session_type text default 'offline',   -- 'online' | 'offline'
+  secondary_sessions int not null default 0,
+  secondary_session_type text default 'offline',
   price bigint not null default 0,
   paid boolean default false,
   payment_submitted boolean default false,
@@ -389,7 +393,7 @@ create table psy_sessions (
   session_date text not null default '',
   session_time text not null default '',
   session_type text,           -- 'online' | 'offline'
-  attendee text,               -- چه کسی حاضر می‌شود
+  attendee text,               -- 'primary' | 'secondary' — چه کسی حاضر می‌شود (مراجع یا همراهش)
   price bigint default 0,
   paid boolean default false,
   payment_submitted boolean default false,
@@ -438,10 +442,13 @@ create table psy_resource_profiles (
   -- شبایِ تسویه برایِ دریافتِ خودکارِ سهم از تراکنشِ آنلاین (سرویسِ تسهیمِ زیبال)
   settlement_sheba text not null default '',
   settlement_sheba_holder_name text not null default '',
-  -- قیمت‌گذاریِ خودِ این دکتر — جایگزینِ ثابتِ سراسریِ PSY_PRICING
-  pricing jsonb not null default '{"interview":800000,"assessment":1500000,"sessionOnline":850000,"sessionOffline":1200000}',
+  -- قیمت‌گذاریِ خودِ این دکتر — فقط دو قیمت: آنلاین/حضوری
+  pricing jsonb not null default '{"online":850000,"offline":1200000}',
   -- ساعت‌های سریعِ پیشنهادی در تبِ «روزهای کاری» — قابلِ ویرایش (افزودن/حذف) توسطِ خودِ دکتر
   quick_times jsonb not null default '["8:00","9:00","10:00","11:00","12:00","13:00","14:00","15:00","16:00","17:00","18:00"]',
+  -- برچسبِ «تماسِ دوم/همراه» — به‌انتخابِ خودِ متخصص («والدین»، «همسر»، «همراه»...)؛
+  -- خالی یعنی این متخصص اصلاً این مفهوم را استفاده نمی‌کند (مثلاً درمانِ فردیِ بزرگسال)
+  companion_label text not null default '',
   updated_at timestamptz not null default now()
 );
 

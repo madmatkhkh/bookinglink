@@ -25,15 +25,15 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   const grantedCase = getPayCase(req)
 
   const { data: c } = await sb().from('psy_cases')
-    .select('id, resource_id, father_phone, mother_phone, current_stage_id')
+    .select('id, resource_id, contact_phone, contact2_phone, current_stage_id')
     .eq('tenant_id', t.id).eq('case_number', case_number).single()
   if (!c) return NextResponse.json({ error: 'دسترسی ندارید' }, { status: 403 })
-  const viaPhone = !!cookiePhone && (c.father_phone === cookiePhone || c.mother_phone === cookiePhone)
+  const viaPhone = !!cookiePhone && (c.contact_phone === cookiePhone || c.contact2_phone === cookiePhone)
   const viaGrant = !!grantedCase && grantedCase === case_number
   if (!viaPhone && !viaGrant)
     return NextResponse.json({ error: 'ابتدا با کدِ یک‌بارمصرف وارد شوید' }, { status: 401 })
   // شماره برای درگاه (فیلدِ اختیاریِ mobile در زیبال) — از خودِ پرونده، نه ورودیِ کلاینت
-  const phone = c.father_phone
+  const phone = c.contact_phone
   if (!c.resource_id) return NextResponse.json({ error: 'منبعی برای این پرونده ثبت نشده' }, { status: 400 })
 
   const methods = effectivePaymentMethods(await getPaymentMethods(c.resource_id), t.plan)

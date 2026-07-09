@@ -18,7 +18,7 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
 
   const { data: booking } = await sb().from('psy_cases').select('*')
     .eq('tenant_id', t.id).eq('case_number', case_number).single()
-  if (!booking || (booking.father_phone !== phone && booking.mother_phone !== phone))
+  if (!booking || (booking.contact_phone !== phone && booking.contact2_phone !== phone))
     return NextResponse.json({ error: 'دسترسی ندارید' }, { status: 403 })
 
   const [{ data: packages }, { data: sessions }, { data: stages }] = await Promise.all([

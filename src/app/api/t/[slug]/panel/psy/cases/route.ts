@@ -38,12 +38,12 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   const a = await requirePanelAuth(req, params.slug)
   if (isPanelAuthResponse(a)) return a
   const b = await req.json()
-  if (!b.child_name?.trim()) return NextResponse.json({ error: 'نام لازم است' }, { status: 400 })
-  if (!(b.father_phone?.trim() || b.mother_phone?.trim() || b.phone?.trim()))
+  if (!b.client_name?.trim()) return NextResponse.json({ error: 'نام لازم است' }, { status: 400 })
+  if (!(b.contact_phone?.trim() || b.contact2_phone?.trim()))
     return NextResponse.json({ error: 'حداقل یک شماره تماس لازم است' }, { status: 400 })
   const phoneRe = /^09\d{9}$/
   const toLatin = (s: string) => String(s || '').replace(/[۰-۹]/g, d => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d))).trim()
-  for (const key of ['father_phone', 'mother_phone', 'phone'] as const) {
+  for (const key of ['contact_phone', 'contact2_phone'] as const) {
     if (b[key] && !phoneRe.test(toLatin(b[key])))
       return NextResponse.json({ error: `شماره‌ی واردشده معتبر نیست (باید 11 رقم و با 09 شروع شود)` }, { status: 400 })
   }
@@ -63,16 +63,14 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
     tenant_id: a.tenant.id,
     resource_id: resourceId,
     case_number: caseNumber,
-    child_name: b.child_name.trim(),
+    client_name: b.client_name.trim(),
     birth_date: b.birth_date || '',
     grade: b.grade || '',
     reason: b.reason || 'افزوده‌شده به‌صورت دستی',
-    father_name: b.father_name || '',
-    father_phone: b.father_phone || '',
-    mother_name: b.mother_name || '',
-    mother_phone: b.mother_phone || '',
-    parent_name: b.father_name || b.mother_name || '',
-    phone: b.father_phone || b.mother_phone || b.phone || '',
+    contact_name: b.contact_name || '',
+    contact_phone: b.contact_phone || '',
+    contact2_name: b.contact2_name || '',
+    contact2_phone: b.contact2_phone || '',
     details: { ...details, home_address: b.home_address || '', extra_notes: b.extra_notes || '' },
     status: 'confirmed',
     session_type: b.session_type || 'offline',
@@ -98,9 +96,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { slug: stri
   // ستون‌های واقعیِ psy_cases که مستقیم قابلِ ویرایش‌اند
   const ALLOWED = [
     'status', 'doctor_notes', 'reject_reason',
-    'child_name', 'child_name_en', 'birth_date', 'reason',
-    'father_name', 'father_phone', 'mother_name', 'mother_phone',
-    'parent_name', 'phone', 'session_type', 'office_location',
+    'client_name', 'client_name_en', 'birth_date', 'reason',
+    'contact_name', 'contact_phone', 'contact2_name', 'contact2_phone',
+    'session_type', 'office_location',
   ]
   // فقط owner اجازه دارد پرونده را بینِ دکترها جابه‌جا کند
   if (a.isOwner && body.resource_id !== undefined) ALLOWED.push('resource_id')

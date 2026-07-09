@@ -18,19 +18,19 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   if (!t) return NextResponse.json({ error: 'یافت نشد' }, { status: 404 })
 
   const b = await req.json()
-  const { fatherPhone, sessionType, officeLocation, resourceId, answers } = b
-  const childName = String(b.childName || '').trim().replace(/\s+/g, ' ')
+  const { contactPhone, sessionType, officeLocation, resourceId, answers } = b
+  const clientName = String(b.clientName || '').trim().replace(/\s+/g, ' ')
   const rawAnswers: Record<string, any> = answers && typeof answers === 'object' ? answers : {}
 
-  if (!childName || !fatherPhone)
+  if (!clientName || !contactPhone)
     return NextResponse.json({ error: 'نام و شماره تماس لازم است' }, { status: 400 })
-  if (!/^09\d{9}$/.test(String(fatherPhone).replace(/[۰-۹]/g, d => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d))).trim()))
+  if (!/^09\d{9}$/.test(String(contactPhone).replace(/[۰-۹]/g, d => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d))).trim()))
     return NextResponse.json({ error: 'شماره تماس معتبر نیست (باید 11 رقم و با 09 شروع شود)' }, { status: 400 })
 
   // یک پرونده با همین نام + همین شماره قبلاً ثبت نشده باشد (تغییرِ نام یا شماره
   // آزاد است — فقط ترکیبِ عینِ یکسان مسدود می‌شود)
   const { data: dup } = await sb().from('psy_cases').select('id')
-    .eq('tenant_id', t.id).eq('child_name', childName).eq('father_phone', fatherPhone).maybeSingle()
+    .eq('tenant_id', t.id).eq('client_name', clientName).eq('contact_phone', contactPhone).maybeSingle()
   if (dup) return NextResponse.json({ error: 'پرونده‌ای با همین نام و شماره‌تماس قبلاً ثبت شده است.' }, { status: 409 })
 
   // فعلاً صفحه‌ی عمومی دکتری را انتخاب نمی‌گیرد مگر بیش از یک دکتر باشد
@@ -68,16 +68,14 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
     tenant_id: t.id,
     resource_id: finalResourceId,
     case_number: caseNumber,
-    parent_name: known.father_name || known.mother_name || '',
-    phone: fatherPhone,
-    child_name: childName,
+    client_name: clientName,
     birth_date: known.birth_date || '',
     grade: known.grade || '',
     reason: known.reason || '',
-    father_name: known.father_name || '',
-    father_phone: fatherPhone,
-    mother_name: known.mother_name || '',
-    mother_phone: known.mother_phone || '',
+    contact_name: known.contact_name || '',
+    contact_phone: contactPhone,
+    contact2_name: known.contact2_name || '',
+    contact2_phone: known.contact2_phone || '',
     session_type: sessionType,
     office_location: officeLocation || null,
     details,

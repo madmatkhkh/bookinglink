@@ -52,9 +52,9 @@ export async function getResourcePricing(resourceId: string | null | undefined):
 }
 
 // مبلغِ کلِ یک پروتکلِ درمان از رویِ ترکیبِ جلساتِ کودک/والدین + قیمتِ داده‌شده
-export function packageAmount(p: { child_sessions: number; child_session_type: string; parent_sessions: number; parent_session_type: string }, pricing: Pricing = DEFAULT_PRICING): number {
-  return (p.child_sessions * resolvePrice(p.child_session_type, pricing))
-    + (p.parent_sessions * resolvePrice(p.parent_session_type, pricing))
+export function packageAmount(p: { primary_sessions: number; primary_session_type: string; secondary_sessions: number; secondary_session_type: string }, pricing: Pricing = DEFAULT_PRICING): number {
+  return (p.primary_sessions * resolvePrice(p.primary_session_type, pricing))
+    + (p.secondary_sessions * resolvePrice(p.secondary_session_type, pricing))
 }
 
 // ── کدِ تخفیف — per-resource، اختیاری برایِ بعضی مراجعان ─────────────────────
@@ -202,6 +202,10 @@ export type ResourceProfile = {
   settlement_sheba: string
   settlement_sheba_holder_name: string
   pricing: Pricing
+  // برچسبِ «تماسِ دوم/همراه» — به‌انتخابِ خودِ متخصص. خالی = این مفهوم اصلاً
+  // استفاده نمی‌شود (مثلاً درمانِ فردیِ بزرگسال)؛ پر = نام و مسیرِ جلسه‌ی دومی
+  // با همین برچسب نمایش داده می‌شود (مثلاً «والدین»، «همسر»، «همراه»).
+  companion_label: string
 }
 
 export const DEFAULT_RESOURCE_PROFILE: Omit<ResourceProfile, 'resource_id'> = {
@@ -214,6 +218,7 @@ export const DEFAULT_RESOURCE_PROFILE: Omit<ResourceProfile, 'resource_id'> = {
   settlement_sheba: '',
   settlement_sheba_holder_name: '',
   pricing: DEFAULT_PRICING,
+  companion_label: '',
 }
 
 export function mergeResourceProfile(resourceId: string, raw: Partial<ResourceProfile> | null | undefined): ResourceProfile {
@@ -230,6 +235,7 @@ export function mergeResourceProfile(resourceId: string, raw: Partial<ResourcePr
     settlement_sheba: typeof raw?.settlement_sheba === 'string' ? raw.settlement_sheba : '',
     settlement_sheba_holder_name: typeof raw?.settlement_sheba_holder_name === 'string' ? raw.settlement_sheba_holder_name : '',
     pricing: mergePricing(raw?.pricing),
+    companion_label: typeof raw?.companion_label === 'string' ? raw.companion_label.trim().slice(0, 20) : '',
   }
 }
 
@@ -276,6 +282,7 @@ export type PublicDoctor = {
   payment_methods: PaymentMethods
   cancellation_policy: CancellationPolicy
   pricing: Pricing
+  companion_label: string
 }
 
 export async function listPublicDoctors(tenantId: string, plan: string): Promise<PublicDoctor[]> {
@@ -293,7 +300,7 @@ export async function listPublicDoctors(tenantId: string, plan: string): Promise
       id: r.id, name: r.name, title: r.title, avatar_url: r.avatar_url,
       badges: prof.badges, session_modes: prof.session_modes, cards: prof.cards,
       payment_methods: effectivePaymentMethods(prof.payment_methods, plan), cancellation_policy: prof.cancellation_policy,
-      pricing: prof.pricing,
+      pricing: prof.pricing, companion_label: prof.companion_label,
     }
   })
 }
@@ -343,84 +350,29 @@ export type IntakeForm = { sections: FormSection[] }
 
 // این فیلدها روی ستونِ واقعیِ psy_cases می‌نشینند (نه details) — برای سازگاری با
 // جست‌وجو/نمایشِ قدیمی. هرچیزِ دیگری که دکتر اضافه کند در details ذخیره می‌شود.
-export const INTAKE_KNOWN_COLUMNS = ['birth_date', 'grade', 'reason', 'father_name', 'mother_name', 'mother_phone'] as const
+export const INTAKE_KNOWN_COLUMNS = ['birth_date', 'grade', 'reason', 'contact_name', 'contact2_name', 'contact2_phone'] as const
 
-const CHILD_CONDITIONS_DEFAULT = [
-  'لکنت', 'اختلال گویایی', 'اختلال شنوایی', 'اختلال بینایی',
-  'زودرنجی', 'حسادت', 'لج‌بازی', 'نافرمانی',
-  'ناخن جویدن', 'استرس و اضطراب', 'وسواس', 'شب‌ادراری',
-  'وابستگی', 'ترس از پدر یا مادر', 'عدم اعتماد به نفس',
-]
-
-// دقیقاً همان فرمِ فعلی، به‌شکلِ دیتایی — تا تک‌دکترهای موجود هیچ تغییری نبینند
+// فرمِ پیش‌فرضِ عمومی — کوتاه و مستقل از تخصص، تا برایِ هر روان‌شناس/روان‌پزشکی با
+// هر گرایشی (فردیِ بزرگسال، کودک، زوج، خانواده...) نقطه‌ی شروعِ معقولی باشد. هر
+// متخصص از همینجا با فرم‌بیلدرِ خودش (تنظیمات → فرمِ رزرو) کامل شخصی‌سازی‌اش می‌کند —
+// مثلاً کسی که با کودک کار می‌کند می‌تواند بخش‌هایِ رشد/بارداری/مدرسه را دوباره اضافه کند.
 export const DEFAULT_INTAKE_FORM: IntakeForm = {
   sections: [
-    { id: 'child', title: 'اطلاعاتِ کودک', fields: [
-      { id: 'birth_date', label: 'تاریخ تولد', type: 'date', required: false },
-      { id: 'grade', label: 'پایه‌ی تحصیلی', type: 'text', required: false, placeholder: 'پیش‌دبستانی' },
+    { id: 'basic', title: 'اطلاعاتِ اولیه', fields: [
       { id: 'reason', label: 'دلیلِ مراجعه', type: 'textarea', required: true, placeholder: 'به طور مختصر...' },
+      { id: 'birth_date', label: 'تاریخ تولد', type: 'date', required: false },
       { id: 'prev_visit', label: 'سابقه‌ی مراجعه‌ی قبلی', type: 'select', required: true, options: ['خیر، اولین بار است', 'بله، قبلاً مراجعه داشتم'] },
     ]},
-    { id: 'father', title: 'اطلاعاتِ پدر', fields: [
-      { id: 'father_name', label: 'نام', type: 'text', required: true, placeholder: 'علی' },
-      { id: 'father_education', label: 'تحصیلات', type: 'text', required: false, placeholder: 'لیسانس' },
-      { id: 'father_job', label: 'شغل', type: 'text', required: false, placeholder: 'مهندس' },
+    { id: 'companion', title: 'همراه (اختیاری)', fields: [
+      { id: 'contact2_name', label: 'نامِ همراه', type: 'text', required: false, placeholder: 'در صورتِ نیاز' },
+      { id: 'contact2_phone', label: 'شماره‌تماسِ همراه', type: 'phone', required: false },
     ]},
-    { id: 'mother', title: 'اطلاعاتِ مادر', fields: [
-      { id: 'mother_name', label: 'نام', type: 'text', required: true, placeholder: 'مریم' },
-      { id: 'mother_phone', label: 'شماره تماس', type: 'phone', required: true },
-      { id: 'mother_education', label: 'تحصیلات', type: 'text', required: false, placeholder: 'دیپلم' },
-      { id: 'mother_job', label: 'شغل', type: 'text', required: false, placeholder: 'خانه‌دار' },
-    ]},
-    { id: 'family', title: 'خواهر/برادر و محلِ زندگی', fields: [
-      { id: 'has_siblings', label: 'آیا خواهر یا برادر دارد؟', type: 'select', required: true, options: ['بله', 'خیر'] },
-      { id: 'siblings_info', label: 'سن و تحصیلاتِ هر خواهر/برادر', type: 'textarea', required: true, placeholder: 'مثلاً: خواهر 10 ساله کلاس چهارم', showIf: { fieldId: 'has_siblings', value: 'بله' } },
-      { id: 'other_residents', label: 'آیا عضوِ دیگری غیر از اعضای اصلیِ خانواده با شما زندگی می‌کند؟', type: 'select', required: true, options: ['بله', 'خیر'] },
-      { id: 'other_residents_info', label: 'چه کسی؟', type: 'text', required: true, placeholder: 'مثلاً: پدربزرگ', showIf: { fieldId: 'other_residents', value: 'بله' } },
-      { id: 'home_address', label: 'آدرسِ خانه', type: 'textarea', required: true, placeholder: 'آدرسِ کاملِ محلِ سکونت...' },
-    ]},
-    { id: 'family_status', title: 'وضعیتِ خانوادگی', fields: [
-      { id: 'family_status', label: 'موارد را انتخاب کنید', type: 'multiselect', required: true,
-        options: ['فوت پدر', 'فوت مادر', 'طلاق', 'ازدواج مجدد پدر', 'ازدواج مجدد مادر', 'بیماری جسمی در خانواده', 'هیچ‌کدام'] },
-    ]},
-    { id: 'child_status', title: 'وضعیتِ جسمی و روحیِ کودک', fields: [
-      { id: 'child_conditions', label: 'موارد موجود را انتخاب کنید', type: 'multiselect', required: true,
-        options: [...CHILD_CONDITIONS_DEFAULT, 'هیچ‌کدام'] },
-    ]},
-    { id: 'pregnancy', title: 'دورانِ بارداریِ مادر', fields: [
-      { id: 'pregnancy_age', label: 'سنِ مادر هنگامِ بارداری', type: 'text', required: false, placeholder: '28' },
-      { id: 'pregnancy_count', label: 'تعدادِ دفعاتِ بارداری', type: 'text', required: false, placeholder: '2' },
-      { id: 'pregnancy_factors', label: 'موارد را انتخاب کنید', type: 'multiselect', required: false,
-        options: ['استرس', 'افسردگی', 'مشکلاتِ خانوادگی', 'سابقه‌ی سقط', 'هیچ‌کدام'] },
-    ]},
-    { id: 'birth', title: 'زایمان و تولد', fields: [
-      { id: 'birth_type', label: 'نوعِ زایمان', type: 'select', required: true, options: ['طبیعی', 'سزارین'] },
-      { id: 'birth_weight', label: 'وزنِ هنگامِ تولد', type: 'text', required: true, placeholder: '3.2 کیلوگرم' },
-    ]},
-    { id: 'growth', title: 'رشد و تکامل', fields: [
-      { id: 'growth_crawl', label: 'سینه‌خیز رفته؟', type: 'select', required: true, options: ['بله', 'خیر'] },
-      { id: 'growth_crawl_duration', label: 'چه مدت؟', type: 'text', required: false, showIf: { fieldId: 'growth_crawl', value: 'بله' } },
-      { id: 'growth_walk4', label: 'چهار دست و پا رفته؟', type: 'select', required: true, options: ['بله', 'خیر'] },
-      { id: 'growth_walk4_duration', label: 'چه مدت؟', type: 'text', required: false, showIf: { fieldId: 'growth_walk4', value: 'بله' } },
-      { id: 'growth_walk_age', label: 'سنِ راه رفتن', type: 'text', required: true, placeholder: '12 ماه' },
-      { id: 'growth_talk_age', label: 'سنِ اولین کلمه', type: 'text', required: true, placeholder: '18 ماه' },
-      { id: 'growth_issues', label: 'مشکلِ خاص در مراحلِ رشد', type: 'textarea', required: false, placeholder: 'در صورتِ وجود توضیح دهید...' },
-    ]},
-    { id: 'medical', title: 'اطلاعاتِ پزشکی', fields: [
-      { id: 'seizure_history', label: 'سابقه‌ی غش‌وتشنج؟', type: 'select', required: true, options: ['بله', 'خیر'] },
-      { id: 'current_meds', label: 'داروهای در حالِ مصرف', type: 'text', required: true, placeholder: 'نام دارو و دوز...' },
-    ]},
-    { id: 'sports', title: 'فعالیتِ ورزشی', fields: [
-      { id: 'sports_activity', label: 'نوع و زمانِ فعالیت', type: 'text', required: true, placeholder: 'فوتبال، 2 روز در هفته' },
-      { id: 'sports_limit', label: 'محدودیتِ ورزشی', type: 'text', required: false, placeholder: 'در صورتِ وجود...' },
-    ]},
-    { id: 'parenting', title: 'رفتارِ والدین با فرزند', fields: [
-      { id: 'father_behavior', label: 'رفتارِ پدر با فرزند', type: 'text', required: true, placeholder: 'توضیح دهید...' },
-      { id: 'mother_behavior', label: 'رفتارِ مادر با فرزند', type: 'text', required: true, placeholder: 'توضیح دهید...' },
-      { id: 'main_supervisor', label: 'چه کسی بیشتر نظارت دارد؟', type: 'text', required: true, placeholder: 'پدر / مادر / پدربزرگ...' },
+    { id: 'history', title: 'سابقه', fields: [
+      { id: 'medical_info', label: 'سابقه‌ی پزشکی/روان‌پزشکی', type: 'textarea', required: false, placeholder: 'بیماری‌ها، تشخیص‌ها یا درمان‌هایِ قبلی...' },
+      { id: 'current_meds', label: 'داروهای در حالِ مصرف', type: 'text', required: false, placeholder: 'نامِ دارو و دوز...' },
     ]},
     { id: 'extra', title: 'موارد دیگر', fields: [
-      { id: 'extra_notes', label: 'مواردی که می‌خواهید دکتر بداند', type: 'textarea', required: false, placeholder: 'هر نکته‌ای که فکر می‌کنید مهم است...' },
+      { id: 'extra_notes', label: 'مواردی که می‌خواهید متخصص از قبل بداند', type: 'textarea', required: false, placeholder: 'هر نکته‌ای که فکر می‌کنید مهم است...' },
     ]},
   ],
 }

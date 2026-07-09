@@ -14,9 +14,9 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   if (!phone) return NextResponse.json({ error: 'ابتدا با کدِ یک‌بارمصرف وارد شوید' }, { status: 401 })
   if (!session_id || !session_date || !session_time) return NextResponse.json({ error: 'ناقص' }, { status: 400 })
 
-  const { data: booking } = await sb().from('psy_cases').select('resource_id, father_phone, mother_phone')
+  const { data: booking } = await sb().from('psy_cases').select('resource_id, contact_phone, contact2_phone')
     .eq('tenant_id', t.id).eq('case_number', case_number).single()
-  if (!booking || (booking.father_phone !== phone && booking.mother_phone !== phone))
+  if (!booking || (booking.contact_phone !== phone && booking.contact2_phone !== phone))
     return NextResponse.json({ error: 'دسترسی ندارید' }, { status: 403 })
 
   const { data: session } = await sb().from('psy_sessions').select('*')

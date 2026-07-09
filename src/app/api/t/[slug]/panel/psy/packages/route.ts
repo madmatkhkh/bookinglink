@@ -56,7 +56,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { slug: stri
 
   // اگر ترکیبِ جلسات عوض شده، قیمت هم دوباره از رویِ تنظیماتِ همان دکتر محاسبه می‌شود
   // (کلاینت هرگز مستقیم قیمت را تعیین نمی‌کند — طبقِ همان قاعده‌ی POST).
-  const compositionKeys = ['child_sessions', 'child_session_type', 'parent_sessions', 'parent_session_type']
+  const compositionKeys = ['primary_sessions', 'primary_session_type', 'secondary_sessions', 'secondary_session_type']
   if (compositionKeys.some(k => k in updates) && before) {
     const merged = { ...before, ...updates }
     updates.price = packageAmount(merged, await getResourcePricing(before.resource_id))

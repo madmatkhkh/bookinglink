@@ -19,9 +19,9 @@ type CaseStage = {
 }
 
 type Booking = {
- id: string; case_number: string; child_name: string; birth_date: string
- grade: string; father_name: string; mother_name: string
- father_phone: string; mother_phone: string; status: string
+ id: string; case_number: string; client_name: string; birth_date: string
+ grade: string; contact_name: string; contact2_name: string
+ contact_phone: string; contact2_phone: string; status: string
  reject_reason?: string
  current_stage_id?: string | null
  resource_id?: string | null
@@ -29,8 +29,8 @@ type Booking = {
 }
 type Package = {
  id: string; case_number: string; month: string; year: string
- child_sessions: number; parent_sessions: number
- child_session_type: string; parent_session_type: string
+ primary_sessions: number; secondary_sessions: number
+ primary_session_type: string; secondary_session_type: string
  notes: string; paid: boolean; payment_submitted?: boolean; status: string
  price?: number
  resource_id?: string | null
@@ -153,8 +153,8 @@ export default function PatientPanel() {
  }
 
  const pkgPrice = (p: Package) =>
-  p.price || ((p.child_sessions * (p.child_session_type === 'online' ? PRICING.online : PRICING.offline)) +
-  (p.parent_sessions * (p.parent_session_type === 'online' ? PRICING.online : PRICING.offline)))
+  p.price || ((p.primary_sessions * (p.primary_session_type === 'online' ? PRICING.online : PRICING.offline)) +
+  (p.secondary_sessions * (p.secondary_session_type === 'online' ? PRICING.online : PRICING.offline)))
 
  const pkgSessions = (pkgId: string) => sessions.filter(s => s.package_id === pkgId)
 
@@ -246,7 +246,7 @@ export default function PatientPanel() {
    <div className="bg-white border-b border-sand px-4 py-3 sticky top-0 z-10">
     <div className="max-w-lg mx-auto flex items-center justify-between">
      <div>
-      <h1 className="text-sm font-display font-semibold text-ink">{booking.child_name}</h1>
+      <h1 className="text-sm font-display font-semibold text-ink">{booking.client_name}</h1>
       <div className="flex items-center gap-2 flex-wrap">
        <span className="text-xs text-soot">پرونده:</span>
        <span className="text-xs font-mono text-ink bg-sand px-2 py-0.5 rounded">{booking.case_number}</span>
@@ -344,7 +344,7 @@ export default function PatientPanel() {
    <div className="bg-white border-b border-sand px-4 py-3 sticky top-0 z-10">
     <div className="max-w-lg mx-auto flex items-center justify-between">
      <div>
-      <h1 className="text-sm font-display font-semibold text-ink">{booking.child_name}</h1>
+      <h1 className="text-sm font-display font-semibold text-ink">{booking.client_name}</h1>
       <div className="flex items-center gap-2">
        <span className="text-xs text-soot">پرونده:</span>
        <span className="text-xs font-mono text-ink bg-sand px-2 py-0.5 rounded">{booking.case_number}</span>
@@ -377,14 +377,14 @@ export default function PatientPanel() {
       ) : packages.map(pkg => {
        const total = pkgPrice(pkg)
        const booked = pkgSessions(pkg.id).length
-       const total_sessions = pkg.child_sessions + pkg.parent_sessions
+       const total_sessions = pkg.primary_sessions + pkg.secondary_sessions
        return (
         <div key={pkg.id} className="bg-white rounded-xl border border-sand p-4">
          <div className="flex items-start justify-between mb-3">
           <div>
            <h3 className="font-display font-semibold text-ink">{PERSIAN_MONTHS[parseInt(pkg.month) - 1]} {pkg.year}</h3>
            <div className="text-xs text-soot mt-0.5">
-            {pkg.child_sessions} جلسه کودک + {pkg.parent_sessions} جلسه والدین
+            {pkg.primary_sessions} جلسه‌ی مراجع{pkg.secondary_sessions > 0 && ` + ${pkg.secondary_sessions} جلسه‌ی ${settings.doctors.find(d => d.id === booking.resource_id)?.companion_label || 'همراه'}`}
            </div>
           </div>
           <div className="text-left">
@@ -454,11 +454,11 @@ export default function PatientPanel() {
      <div className="bg-white rounded-xl border border-sand p-4 space-y-3">
       <h3 className="text-sm font-medium text-ink pb-2 border-b border-sand">اطلاعات پرونده</h3>
       {[
-       ['نام کودک', booking.child_name],
+       ['نام مراجع', booking.client_name],
        ['تاریخ تولد', booking.birth_date],
        ['پایه تحصیلی', booking.grade],
-       ['نام پدر', booking.father_name],
-       ['نام مادر', booking.mother_name],
+       ['نامِ تماس', booking.contact_name],
+       [settings.doctors.find(d => d.id === booking.resource_id)?.companion_label || 'همراه', booking.contact2_name],
        ['شماره پرونده', booking.case_number],
       ].map(([label, value]) => value ? (
        <div key={label} className="flex justify-between text-sm border-b border-sand pb-2 last:border-0">
@@ -610,8 +610,8 @@ function SessionCard({ session: s, num, phone, caseNumber, onUpdate }: {
     <div>
      <div className="flex items-center gap-2">
       <span className="font-medium text-sm">{s.title || (num ? `جلسه ${toFarsiNum(num)}` : 'جلسه‌ی سوخته')}</span>
-      <span className={`text-xs px-2 py-0.5 rounded border ${s.attendee === 'child' ? 'bg-gray-100 text-ink border-sand' : 'bg-gray-100 text-ink border-sand'}`}>
-       {s.attendee === 'child' ? 'کودک' : 'والدین'}
+      <span className={`text-xs px-2 py-0.5 rounded border ${s.attendee === 'secondary' ? 'bg-gray-100 text-ink border-sand' : 'bg-gray-100 text-ink border-sand'}`}>
+       {s.attendee === 'secondary' ? (doctorForSession?.companion_label || 'همراه') : 'مراجع'}
       </span>
       <span className={`text-xs px-2 py-0.5 rounded border ${STATUS_COLOR[displayStatus] || STATUS_COLOR.pending}`}>{STATUS_LABEL[displayStatus] || displayStatus}</span>
      </div>
@@ -977,6 +977,8 @@ function SchedulePicker({ pkg, existingSessions, phone, caseNumber, onClose, onD
  resourceId?: string | null
 }) {
  const { slug } = useParams<{ slug: string }>()
+ const settings = usePublicClinic(slug)
+ const companionLabel = settings.doctors.find(d => d.id === resourceId)?.companion_label || 'همراه'
  const today = getCurrentJalali()
  const [curMonth, setCurMonth] = useState(parseInt(pkg.month) - 1)
  const [curYear, setCurYear] = useState(parseInt(pkg.year))
@@ -989,7 +991,7 @@ function SchedulePicker({ pkg, existingSessions, phone, caseNumber, onClose, onD
  const [attendeeMap, setAttendeeMap] = useState<Record<string, string>>({})
  const [loadingSched, setLoadingSched] = useState(true)
 
- const totalNeeded = pkg.child_sessions + pkg.parent_sessions
+ const totalNeeded = pkg.primary_sessions + pkg.secondary_sessions
  const alreadyBooked = existingSessions.length
  const remaining = totalNeeded - alreadyBooked
  const totalSelected = Object.values(selectedSlots).reduce((a, b) => a + b.length, 0)
@@ -1031,7 +1033,7 @@ function SchedulePicker({ pkg, existingSessions, phone, caseNumber, onClose, onD
   } else {
    if (allSelected >= remaining) return
    setSelectedSlots(prev => ({ ...prev, [day]: [...current, slot] }))
-   const defaultAttendee = Object.values(attendeeMap).filter(v => v === 'child').length < pkg.child_sessions ? 'child' : 'parent'
+   const defaultAttendee = Object.values(attendeeMap).filter(v => v === 'primary').length < pkg.primary_sessions ? 'primary' : 'secondary'
    setAttendeeMap(prev => ({ ...prev, [`${day}-${slot}`]: defaultAttendee }))
   }
  }
@@ -1046,8 +1048,8 @@ function SchedulePicker({ pkg, existingSessions, phone, caseNumber, onClose, onD
      package_id: pkg.id,
      session_date: `${curYear}/${curMonth + 1}/${day}`,
      session_time: slot,
-     session_type: pkg.child_session_type,
-     attendee: attendeeMap[`${day}-${slot}`] || 'child',
+     session_type: pkg.primary_session_type,
+     attendee: attendeeMap[`${day}-${slot}`] || 'primary',
     })
    }
   }
@@ -1074,7 +1076,7 @@ function SchedulePicker({ pkg, existingSessions, phone, caseNumber, onClose, onD
  const freeSlotsS = (d: number) => {
   const base = schedule[String(d)] || []
   const dayTypes = slotTypesS[String(d)] || {}
-  const wanted = new Set([pkg.child_session_type, pkg.parent_session_type])
+  const wanted = new Set([pkg.primary_session_type, pkg.secondary_session_type])
   return base.filter(t => {
    const ts = jalaliDateTimeToTimestamp(`${curYear}/${curMonth + 1}/${d}`, t)
    if (!(ts === null || ts > Date.now())) return false
@@ -1094,7 +1096,7 @@ function SchedulePicker({ pkg, existingSessions, phone, caseNumber, onClose, onD
      <button onClick={onClose} className="text-soot text-2xl w-8 h-8 flex items-center justify-center">×</button>
     </div>
 
-    {(pkg.child_session_type === 'offline' || pkg.parent_session_type === 'offline') && (
+    {(pkg.primary_session_type === 'offline' || pkg.secondary_session_type === 'offline') && (
      <div className="px-4 pt-3">
       <p className="text-[11px] text-soot leading-5">
        ⏱ ساعتِ انتخابی برایِ جلساتِ حضوری تقریبی است؛ ممکن است چند دقیقه با تاخیر شروع شود. سعی می‌شود همان سرِ ساعتِ اعلام‌شده رعایت شود.
@@ -1161,12 +1163,12 @@ function SchedulePicker({ pkg, existingSessions, phone, caseNumber, onClose, onD
             className={`text-center py-2 border rounded-lg text-sm cursor-pointer transition-all ${isChosen ? 'border-emerald-500 bg-emerald-500/10 text-emerald-700 font-medium' : 'border-sand text-soot hover:border-gray-300'}`}>
             {isChosen && '✓ '}{slot}
            </div>
-           {isChosen && pkg.parent_sessions > 0 && (
+           {isChosen && pkg.secondary_sessions > 0 && (
             <div className="flex mt-1 gap-1">
-             {['child', 'parent'].map(a => (
+             {['primary', 'secondary'].map(a => (
               <button key={a} onClick={() => setAttendeeMap(prev => ({ ...prev, [key]: a }))}
                className={`flex-1 text-xs py-0.5 rounded border transition-all ${attendee === a ? 'bg-ink text-white border-ink' : 'border-sand text-soot'}`}>
-               {a === 'child' ? 'کودک' : 'والدین'}
+               {a === 'primary' ? 'مراجع' : companionLabel}
               </button>
              ))}
             </div>
@@ -1186,8 +1188,8 @@ function SchedulePicker({ pkg, existingSessions, phone, caseNumber, onClose, onD
         slots.map(slot => (
          <div key={`${day}-${slot}`} className="flex justify-between text-xs text-soot mb-1">
           <span>{toFarsiNum(parseInt(day))} {PERSIAN_MONTHS[curMonth]} — {slot}</span>
-          <span className={attendeeMap[`${day}-${slot}`] === 'child' ? 'text-ink' : 'text-ink'}>
-           {attendeeMap[`${day}-${slot}`] === 'child' ? 'کودک' : 'والدین'}
+          <span className={attendeeMap[`${day}-${slot}`] === 'secondary' ? 'text-ink' : 'text-ink'}>
+           {attendeeMap[`${day}-${slot}`] === 'secondary' ? companionLabel : 'مراجع'}
           </span>
          </div>
         ))

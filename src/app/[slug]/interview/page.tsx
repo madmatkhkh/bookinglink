@@ -24,8 +24,8 @@ export default function InterviewPage() {
  const [stageId, setStageId] = useState('')
  // نام و شماره‌تماس همیشه ثابت‌اند (برای OTP لازم‌اند)؛ بقیه‌ی سوال‌ها کاملاً
  // دیتایی‌اند و از فرمِ تنظیم‌شده‌ی همین دکتر می‌آیند.
- const [childName, setChildName] = useState('')
- const [fatherPhone, setFatherPhone] = useState('')
+ const [clientName, setClientName] = useState('')
+ const [contactPhone, setContactPhone] = useState('')
  const [intakeForm, setIntakeForm] = useState<IntakeForm>({ sections: [] })
  const [intakeLoaded, setIntakeLoaded] = useState(false)
  const [answers, setAnswers] = useState<Record<string, any>>({})
@@ -100,9 +100,9 @@ export default function InterviewPage() {
  // (طبقِ همان تابعِ مشترکی که سمتِ سرور هم استفاده می‌شود — فیلدهای مخفیِ شرطی حساب نمی‌شوند)
  function missingFields(): string[] {
   const miss: string[] = []
-  if (!childName.trim()) miss.push('نام')
-  if (!fatherPhone.trim()) miss.push('شماره تماس')
-  else if (!isValidIranPhone(fatherPhone)) miss.push('شماره تماس (باید 11 رقم و با 09 شروع شود)')
+  if (!clientName.trim()) miss.push('نام')
+  if (!contactPhone.trim()) miss.push('شماره تماس')
+  else if (!isValidIranPhone(contactPhone)) miss.push('شماره تماس (باید 11 رقم و با 09 شروع شود)')
   return [...miss, ...missingIntakeFields(intakeForm, answers)]
  }
 
@@ -118,7 +118,7 @@ export default function InterviewPage() {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-     childName, fatherPhone, sessionType, officeLocation: officeLoc,
+     clientName, contactPhone, sessionType, officeLocation: officeLoc,
      resourceId: selectedDoctorId || undefined, answers,
     })
    })
@@ -135,7 +135,7 @@ export default function InterviewPage() {
   try {
    const res = await fetch(`/api/t/${slug}/psy/pay`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ case_number: caseNumber, phone: fatherPhone, stage_id: stageId, payment_ref: ref, discount_code: discountCode || undefined })
+    body: JSON.stringify({ case_number: caseNumber, phone: contactPhone, stage_id: stageId, payment_ref: ref, discount_code: discountCode || undefined })
    })
    if (res.ok) setStep('done')
    else uiAlert('ثبتِ پرداخت ناموفق بود')
@@ -144,7 +144,7 @@ export default function InterviewPage() {
  }
 
  if (step === 'pay') return <InterviewPayScreen amount={sessionType === 'online' ? (displayDoctor?.pricing.online ?? PRICING.online) : (displayDoctor?.pricing.offline ?? PRICING.offline)} cards={settings.cards} loaded={settings.loaded} loading={loading}
-  onPay={submitInterviewPayment} paymentMethods={displayDoctor?.payment_methods} slug={slug} caseNumber={caseNumber} phone={fatherPhone} stageId={stageId} resourceId={displayDoctor?.id} />
+  onPay={submitInterviewPayment} paymentMethods={displayDoctor?.payment_methods} slug={slug} caseNumber={caseNumber} phone={contactPhone} stageId={stageId} resourceId={displayDoctor?.id} />
 
  if (step === 'done') return (
   <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
@@ -182,7 +182,7 @@ export default function InterviewPage() {
      {settings.loaded ? (
       <>
        <h1 className="text-xl font-display font-medium text-ink mb-1">{needsDoctorPick && !selectedDoctorId ? 'مصاحبه‌ی اولیه' : (displayDoctor?.name || settings.doctor_name)}</h1>
-       <p className="text-sm text-soot">مصاحبه‌ی اولیه با والدین</p>
+       <p className="text-sm text-soot">مصاحبه‌ی اولیه</p>
        <div className="flex gap-2 justify-center mt-3 flex-wrap">
         {(displayDoctor?.badges || settings.badges).map((b, i) => (
          <span key={i} className="text-xs px-3 py-1 bg-white border border-sand rounded-lg text-soot">{b}</span>
@@ -192,7 +192,7 @@ export default function InterviewPage() {
      ) : (
       <>
        <div className="h-6 w-44 mx-auto bg-gray-100 rounded animate-pulse mb-2" />
-       <p className="text-sm text-soot">مصاحبه‌ی اولیه با والدین</p>
+       <p className="text-sm text-soot">مصاحبه‌ی اولیه</p>
        <div className="flex gap-2 justify-center mt-3">
         <div className="h-7 w-24 bg-gray-100 rounded-lg animate-pulse" />
         <div className="h-7 w-20 bg-gray-100 rounded-lg animate-pulse" />
@@ -264,9 +264,9 @@ export default function InterviewPage() {
      function missingOnThisPage(): string[] {
       if (safeIdx === 0) {
        const miss: string[] = []
-       if (!childName.trim()) miss.push('نام')
-       if (!fatherPhone.trim()) miss.push('شماره تماس')
-       else if (!isValidIranPhone(fatherPhone)) miss.push('شماره تماس (باید 11 رقم و با 09 شروع شود)')
+       if (!clientName.trim()) miss.push('نام')
+       if (!contactPhone.trim()) miss.push('شماره تماس')
+       else if (!isValidIranPhone(contactPhone)) miss.push('شماره تماس (باید 11 رقم و با 09 شروع شود)')
        return miss
       }
       if (!currentSection) return []
@@ -288,10 +288,10 @@ export default function InterviewPage() {
        try {
         const res = await fetch(`/api/t/${slug}/psy/check-existing`, {
          method: 'POST', headers: { 'Content-Type': 'application/json' },
-         body: JSON.stringify({ childName, phone: fatherPhone }),
+         body: JSON.stringify({ clientName, phone: contactPhone }),
         })
         const d = await res.json()
-        if (d.exists) { uiAlert('پرونده‌ای با همین نام و شماره‌تماس قبلاً ثبت شده است. اگر برای فرزندِ دیگری است، نام را متفاوت وارد کنید.'); return }
+        if (d.exists) { uiAlert('پرونده‌ای با همین نام و شماره‌تماس قبلاً ثبت شده است. اگر برای شخصِ دیگری است، نام را متفاوت وارد کنید.'); return }
        } catch {}
       }
       if (safeIdx === totalPages - 1) handleSubmit()
@@ -333,8 +333,8 @@ export default function InterviewPage() {
 
          {safeIdx === 0 ? (
           <div className="grid grid-cols-2 gap-3">
-           <Field label="نام و نام خانوادگی *" value={childName} onChange={setChildName} placeholder="آرین رضایی" />
-           <Field label="شماره تماس *" value={fatherPhone} onChange={setFatherPhone} placeholder="0912..." dir="ltr" />
+           <Field label="نام و نام خانوادگی *" value={clientName} onChange={setClientName} placeholder="آرین رضایی" />
+           <Field label="شماره تماس *" value={contactPhone} onChange={setContactPhone} placeholder="0912..." dir="ltr" />
           </div>
          ) : (
           <div className="space-y-3">

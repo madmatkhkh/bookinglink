@@ -29,13 +29,13 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   if (ok !== 'ok') return NextResponse.json({ error: 'کد اشتباه یا منقضی شده' }, { status: 400 })
 
   let booking = null
-  const { data: byFather } = await sb().from('psy_cases').select('*')
-    .eq('tenant_id', t.id).eq('father_phone', phone).order('created_at', { ascending: false }).limit(1).single()
-  if (byFather) booking = byFather
+  const { data: byPrimary } = await sb().from('psy_cases').select('*')
+    .eq('tenant_id', t.id).eq('contact_phone', phone).order('created_at', { ascending: false }).limit(1).single()
+  if (byPrimary) booking = byPrimary
   else {
-    const { data: byMother } = await sb().from('psy_cases').select('*')
-      .eq('tenant_id', t.id).eq('mother_phone', phone).order('created_at', { ascending: false }).limit(1).single()
-    booking = byMother
+    const { data: bySecondary } = await sb().from('psy_cases').select('*')
+      .eq('tenant_id', t.id).eq('contact2_phone', phone).order('created_at', { ascending: false }).limit(1).single()
+    booking = bySecondary
   }
   if (!booking) return NextResponse.json({ error: 'پرونده‌ای با این شماره یافت نشد' }, { status: 404 })
   // نشستِ مراجع: از این به بعد routeهای دیتا/پرداخت/رزرو با همین کوکیِ امضاشده

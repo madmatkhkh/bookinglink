@@ -45,7 +45,7 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
     return true
   }
 
-  let casesQ = sb().from('psy_cases').select('case_number, child_name').eq('tenant_id', t.id)
+  let casesQ = sb().from('psy_cases').select('case_number, client_name').eq('tenant_id', t.id)
   let stagesQ = sb().from('psy_stages').select('*').eq('tenant_id', t.id)
   let pkgsQ = sb().from('psy_packages').select('*').eq('tenant_id', t.id)
   let sessQ = sb().from('psy_sessions').select('*').eq('tenant_id', t.id)
@@ -84,10 +84,10 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
     const total = pkgTotal(p, pricing)
     if (p.paid) {
       paid.packages += total; paidCount.packages++; addMonthly(p.created_at, total)
-      split.online += (p.child_sessions || 0) * (p.child_session_type === 'online' ? pricing.online : 0)
-        + (p.parent_sessions || 0) * (p.parent_session_type === 'online' ? pricing.online : 0)
-      split.offline += (p.child_sessions || 0) * (p.child_session_type !== 'online' ? pricing.offline : 0)
-        + (p.parent_sessions || 0) * (p.parent_session_type !== 'online' ? pricing.offline : 0)
+      split.online += (p.primary_sessions || 0) * (p.primary_session_type === 'online' ? pricing.online : 0)
+        + (p.secondary_sessions || 0) * (p.secondary_session_type === 'online' ? pricing.online : 0)
+      split.offline += (p.primary_sessions || 0) * (p.primary_session_type !== 'online' ? pricing.offline : 0)
+        + (p.secondary_sessions || 0) * (p.secondary_session_type !== 'online' ? pricing.offline : 0)
     } else if (p.payment_submitted) { pending.packages += total; pendingCount.packages++ }
   }
   for (const s of S) {
@@ -123,7 +123,7 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
   for (const p of P) if (p.paid) bump(p.case_number, pkgTotal(p, pricingFor(p.resource_id)))
   for (const s of S) if (s.paid) bump(s.case_number, sessPrice(s, pricingFor(s.resource_id)))
   const nameByCase: Record<string, string> = {}
-  for (const b of cases || []) if (b.case_number) nameByCase[b.case_number] = b.child_name || b.case_number
+  for (const b of cases || []) if (b.case_number) nameByCase[b.case_number] = b.client_name || b.case_number
   const topCases = Object.entries(perCase).sort((a, b) => b[1] - a[1]).slice(0, 8)
     .map(([case_number, amount]) => ({ case_number, name: nameByCase[case_number] || case_number, amount }))
   for (const r of refundsList) r.name = nameByCase[r.case_number] || r.case_number
