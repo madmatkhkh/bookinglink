@@ -90,6 +90,10 @@ type Patient = {
  // وضعیت
  status: string
  created_at: string
+ // مرحله‌ی جاریِ پیش‌ازدرمان (join از GET /cases) — قبلاً در تایپ نبود ولی
+ // در دیتایِ واقعی همیشه بود؛ برایِ چکِ «آیا الان مرحله‌ی باز دارد» لازم است.
+ current_stage_id?: string | null
+ current_stage?: CaseStage | null
 }
 
 // یک مرحله‌ی پیش‌ازدرمان (مصاحبه/ارزیابی) — هر پرونده هر تعداد از این‌ها می‌تواند داشته باشد
@@ -107,6 +111,7 @@ type CaseStage = {
  held?: boolean
  notes?: string
  cancel_notice?: string
+ payment_reject_reason?: string
  delay_minutes?: number | null
  resource_id?: string | null
  created_at: string
@@ -145,6 +150,7 @@ type Package = {
  paid: boolean
  payment_submitted?: boolean
  payment_ref?: string
+ payment_reject_reason?: string
 }
 
 type Session = {
@@ -168,6 +174,7 @@ type Session = {
  payment_ref?: string
  refund_percent?: number
  refund_card?: string
+ payment_reject_reason?: string
  refund_status?: string
  refund_ref?: string
 }
@@ -460,6 +467,9 @@ export function PsychologyAdmin() {
  const [patientSearch, setPatientSearch] = useState('')
  const [showNewPackage, setShowNewPackage] = useState(false)
  const [showNewSession, setShowNewSession] = useState(false)
+ const [showNewStage, setShowNewStage] = useState(false)
+ const [newStageType, setNewStageType] = useState<'interview' | 'assessment'>('assessment')
+ const [newStageSaving, setNewStageSaving] = useState(false)
  const [showAddPatient, setShowAddPatient] = useState(false)
  const [addPatientSaving, setAddPatientSaving] = useState(false)
  const [newPatientForm, setNewPatientForm] = useState({
@@ -709,10 +719,7 @@ export function PsychologyAdmin() {
  const fetchAll = useCallback(async () => {
   setLoading(true)
   const casesUrl = viewingResourceId ? api(`/cases?resource_id=${viewingResourceId}`) : api('/cases')
-  const [pRes, bRes] = await Promise.all([
-   fetch(casesUrl, { cache: 'no-store' }),
-   fetch(casesUrl, { cache: 'no-store' }),
-  ])
+  const pRes = await fetch(casesUrl, { cache: 'no-store' })
   if (pRes.status === 401) { setNeedsLogin(true); return }
   const pData = await pRes.json()
   setPatients(pData.bookings || [])
@@ -743,6 +750,17 @@ export function PsychologyAdmin() {
  }
 
  useEffect(() => { fetchAll(); loadSettings(); loadProfile() }, [fetchAll])
+
+ // همان دلیلِ نسخه‌ی مراجع: برگشت از bfcache (دکمه‌ی برگشتِ مرورگر) React را
+ // remount نمی‌کند، پس بدونِ این، دکتر تا رفرشِ دستی وضعیتِ منجمدِ قبل از خروج
+ // را می‌بیند (همان «اول قدیمی، بعد یهو جدید» که گزارش شد).
+ useEffect(() => {
+  function onPageShow(e: PageTransitionEvent) {
+   if (e.persisted) fetchAll()
+  }
+  window.addEventListener('pageshow', onPageShow)
+  return () => window.removeEventListener('pageshow', onPageShow)
+ }, [fetchAll])
 
  async function loadPatientData(case_number: string) {
   const [pkgRes, sessRes, stageRes] = await Promise.all([
@@ -875,11 +893,32 @@ export function PsychologyAdmin() {
   if (!await uiConfirm('پرداختِ پروتکل درمان تأیید شود؟ پس از تأیید، مراجع می‌تواند روزهای جلسات را انتخاب کند.')) return
   const res = await fetch(api('/packages'), {
    method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-   body: JSON.stringify({ id: pkgId, paid: true }),
+   body: JSON.stringify({ id: pkgId, paid: true, payment_reject_reason: null }),
   })
   if (!res.ok) { uiAlert('خطا در تأیید پرداخت'); return }
   loadPendingPayments()
   if (selectedPatient) await loadPatientData(selectedPatient.case_number)
+ }
+
+ // افزودنِ مرحله‌ی تازه‌ی پیش‌ازدرمان (مصاحبه/ارزیابیِ دیگر) — تنها راهِ واقعیِ
+ // بازکردنِ current_stage_id برایِ پرونده؛ با «ثبتِ جلسه‌ی تکی» اشتباه گرفته
+ // نشود: آن یک جلسه‌ی مستقل و بی‌ربط به گیت‌کیپینگِ پیش‌ازدرمان می‌سازد (روی
+ // psy_sessions)، این‌جا واقعاً روی psy_stages می‌نشیند و مراجع را در پنلِ
+ // خودش وارد چرخه‌ی «پرداخت → گرفتنِ وقت» می‌کند.
+ async function createStage() {
+  if (!selectedPatient) return
+  setNewStageSaving(true)
+  const res = await fetch(api('/stages'), {
+   method: 'POST', headers: { 'Content-Type': 'application/json' },
+   body: JSON.stringify({ case_number: selectedPatient.case_number, stage_type: newStageType }),
+  })
+  const data = await res.json().catch(() => ({}))
+  setNewStageSaving(false)
+  if (!res.ok) { uiAlert(data.error || 'ثبتِ مرحله ناموفق بود'); return }
+  setShowNewStage(false)
+  setNewStageType('assessment')
+  await loadPatientData(selectedPatient.case_number)
+  await fetchAll() // current_stage_id در لیستِ پرونده‌ها هم به‌روز شود
  }
 
  async function createSession() {
@@ -908,7 +947,7 @@ export function PsychologyAdmin() {
   if (!await uiConfirm('پرداختِ جلسه‌ی جایگزین تأیید شود؟')) return
   await fetch(api('/sessions'), {
    method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-   body: JSON.stringify({ id: sessionId, paid: true }),
+   body: JSON.stringify({ id: sessionId, paid: true, payment_reject_reason: null }),
   })
   loadPendingPayments()
   if (selectedPatient) await loadPatientData(selectedPatient.case_number)
@@ -979,9 +1018,11 @@ export function PsychologyAdmin() {
  async function rejectPackagePayment(pkgId: string) {
   const r = await uiPrompt('دلیلِ ردِ پرداختِ این پروتکل درمان را بنویسید (مراجع باید دوباره کارت‌به‌کارت کند):', { required: true })
   if (r === null) return
+  // ستونِ اختصاصی — قبلاً روی notes می‌نشست که همان توضیحِ پروتکلِ درمانی است
+  // که خودِ دکتر نوشته؛ ردِ پرداخت آن را کامل پاک/بازنویسی می‌کرد.
   const res = await fetch(api('/packages'), {
    method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-   body: JSON.stringify({ id: pkgId, payment_submitted: false, paid: false, notes: `پرداخت رد شد: ${r.trim()}` }),
+   body: JSON.stringify({ id: pkgId, payment_submitted: false, paid: false, payment_reject_reason: r.trim() }),
   })
   if (!res.ok) { uiAlert('خطا در ثبت'); return }
   await loadPendingPayments()
@@ -992,9 +1033,12 @@ export function PsychologyAdmin() {
  async function rejectSessionPayment(sessionId: string) {
   const r = await uiPrompt('دلیلِ ردِ پرداختِ این جلسه را بنویسید (مراجع باید دوباره کارت‌به‌کارت کند):', { required: true })
   if (r === null) return
+  // ستونِ اختصاصی (نه doctor_note_for_patient) — وگرنه یادداشتِ واقعیِ دکتر
+  // برایِ این جلسه با پیامِ ردِ پرداخت جایگزین می‌شد و بعد از تاییدِ نهایی هم
+  // پاک نمی‌شد.
   const res = await fetch(api('/sessions'), {
    method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-   body: JSON.stringify({ id: sessionId, payment_submitted: false, paid: false, doctor_note_for_patient: `پرداخت تأیید نشد: ${r.trim()}` }),
+   body: JSON.stringify({ id: sessionId, payment_submitted: false, paid: false, payment_reject_reason: r.trim() }),
   })
   if (!res.ok) { uiAlert('خطا در ثبت'); return }
   await loadPendingPayments()
@@ -2312,7 +2356,22 @@ export function PsychologyAdmin() {
            </div>
           )}
 
-          <div className="text-xs text-soot mb-2 px-1">جلسه‌های تکی (مصاحبه، ارزیابی، یا دلخواهِ دکتر — جدا از پروتکل درمان)</div>
+          {/* افزودنِ مرحله‌ی تازه‌ی پیش‌ازدرمان — فقط وقتی پرونده الان مرحله‌ی
+             بازی ندارد (current_stage_id خالی است). این دکمه دقیقاً همان چیزی
+             است که پنلِ مراجع را از «منتظرِ تعیینِ مرحله‌ی بعد» بیرون می‌آورد؛
+             با فرمِ «ثبتِ جلسه‌ی تکی» زیرِ همین تب اشتباه گرفته نشود — آن یک
+             جلسه‌ی مستقل می‌سازد که پرونده را وارد چرخه‌ی پرداخت/رزروِ مراجع
+             نمی‌کند. */}
+          {!selectedPatient?.current_stage_id && (
+           <button onClick={() => setShowNewStage(true)}
+            className="w-full py-3 border-2 border-dashed border-ink/30 rounded-xl text-sm text-ink hover:bg-sand mb-4 transition-all font-medium">
+            + افزودنِ مرحله‌ی مصاحبه/ارزیابیِ دیگر (پرونده را وارد چرخه‌ی پرداخت می‌کند)
+           </button>
+          )}
+
+          <div className="text-xs text-soot mb-2 px-1">
+           جلسه‌های تکیِ دلخواه (جدا از پروتکل درمان — تاریخچه/یادداشت؛ برایِ بازکردنِ مرحله‌ی پیش‌ازدرمانِ مراجع از دکمه‌ی بالا استفاده کنید)
+          </div>
           <button onClick={() => setShowNewSession(true)}
            className="w-full py-3 border-2 border-dashed border-sand rounded-xl text-sm text-ink hover:bg-sand mb-4 transition-all">
            + ثبت جلسه‌ی تکیِ جدید
@@ -2322,6 +2381,33 @@ export function PsychologyAdmin() {
           </div>
          </div>
         )}
+       </div>
+      )}
+
+      {/* ── Modal: افزودنِ مرحله‌ی پیش‌ازدرمانِ تازه ─────────────────── */}
+      {showNewStage && (
+       <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+        <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-xl" dir="rtl">
+         <h2 className="font-display font-semibold text-ink mb-1">افزودنِ مرحله‌ی پیش‌ازدرمان</h2>
+         <p className="text-xs text-soot mb-4">
+          مراجع در پنلِ خودش این مرحله را می‌بیند: اول باید هزینه‌اش را پرداخت کند، بعد وقت بگیرد.
+         </p>
+         <div className="flex bg-gray-100 rounded-xl p-1 gap-1 mb-4">
+          {(['interview', 'assessment'] as const).map(t => (
+           <button key={t} onClick={() => setNewStageType(t)}
+            className={`flex-1 text-xs py-2 rounded-lg font-medium transition-all ${newStageType === t ? 'bg-white text-ink shadow-sm' : 'text-soot'}`}>
+            {STAGE_TYPE_LABEL[t]}
+           </button>
+          ))}
+         </div>
+         <div className="flex gap-2">
+          <button onClick={() => setShowNewStage(false)} className="flex-1 py-2.5 border border-sand text-soot rounded-xl text-sm">انصراف</button>
+          <button onClick={createStage} disabled={newStageSaving}
+           className="flex-1 py-2.5 bg-ink text-white rounded-xl text-sm font-medium disabled:opacity-40">
+           {newStageSaving ? 'در حال ثبت...' : 'ثبت'}
+          </button>
+         </div>
+        </div>
        </div>
       )}
 
@@ -2482,8 +2568,8 @@ export function PsychologyAdmin() {
           ))}
          </PendingSection>
 
-         {/* بخش 3: پروتکل‌های درمان (و جلسه‌های جایگزین) */}
-         <PendingSection title="پروتکل درمان" icon="📦" count={pendingPkgs.length + pendingSess.length}>
+         {/* بخش 3: پروتکل‌های درمان */}
+         <PendingSection title="پروتکل درمان" icon="📦" count={pendingPkgs.length}>
           {pendingPkgs.map(p => (
            <PendingPayCard key={p.id} name={childOf(p.case_number)} caseNumber={p.case_number}
             amount={pkgAmount(p)} receipt={p.payment_ref}
@@ -2496,10 +2582,14 @@ export function PsychologyAdmin() {
             </div>
            </PendingPayCard>
           ))}
+         </PendingSection>
+
+         {/* بخش 4: جلساتِ تکی/دلخواه (جدا از پروتکلِ درمان) */}
+         <PendingSection title="جلسه‌ی دلخواه / جایگزین" icon="📝" count={pendingSess.length}>
           {pendingSess.map(s => (
            <PendingPayCard key={s.id} name={childOf(s.case_number)} caseNumber={s.case_number}
             amount={s.price || (s.session_type === 'online' ? PRICING.online : PRICING.offline)} receipt={s.payment_ref}
-            sub="جلسه‌ی جایگزین">
+            sub={s.title || 'جلسه‌ی جایگزین'}>
             <div className="flex gap-2">
              <button onClick={() => confirmSessionPayment(s.id)}
               className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm">تأیید پرداخت</button>
@@ -2510,7 +2600,7 @@ export function PsychologyAdmin() {
           ))}
          </PendingSection>
 
-         {/* بخش 4: بازپرداختِ کنسلی‌ها */}
+         {/* بخش 5: بازپرداختِ کنسلی‌ها */}
          <PendingSection title="بازپرداختِ کنسلی" icon="💸" count={pendingRefunds.length}>
           {pendingRefunds.map(s => (
            <RefundPendingCard key={s.id} name={childOf(s.case_number)} caseNumber={s.case_number}
@@ -3840,6 +3930,7 @@ export function PsychologyAdmin() {
           <option value="primary">🧑 مراجع</option>
           {profile.companion_label && <option value="secondary">👥 {profile.companion_label}</option>}
          </select>
+         <p className="text-[11px] text-soot mt-1">مشخص می‌کند این جلسه‌ی خاص را چه کسی حضور می‌یابد — فقط برایِ نمایش در برنامه و پرونده؛ روی قیمت اثر ندارد.</p>
         </div>
        </div>
        <label className="flex items-center gap-2 text-sm text-ink cursor-pointer">

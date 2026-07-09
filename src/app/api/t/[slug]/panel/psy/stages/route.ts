@@ -88,10 +88,19 @@ export async function PATCH(req: NextRequest, { params }: { params: { slug: stri
   const patch: Record<string, any> = {}
   for (const k of ALLOWED) if (body[k] !== undefined) patch[k] = body[k]
 
-  if (body.confirm_payment) { patch.paid = true; patch.status = STAGE_STATUS.AWAITING_BOOKING }
+  if (body.confirm_payment) {
+    // پاک‌کردنِ صریحِ دلیلِ ردِ قبلی — وگرنه بعد از تاییدِ نهایی هم پیامِ ردِ
+    // قدیمی برایِ مراجع می‌ماند (باگِ قبلی: با تاییدِ پرداخت، پیامِ ردِ قبلی تازه
+    // زیرِ «انتخابِ زمانِ جدید» ظاهر می‌شد، چون هیچ‌جا پاک نمی‌شد).
+    patch.paid = true; patch.status = STAGE_STATUS.AWAITING_BOOKING; patch.payment_reject_reason = null
+  }
   if (body.reject_payment) {
     patch.paid = false; patch.payment_submitted = false; patch.status = STAGE_STATUS.AWAITING_PAYMENT
-    patch.cancel_notice = body.reject_reason ? `پرداخت تأیید نشد: ${body.reject_reason}` : (stage.cancel_notice || null)
+    // ستونِ اختصاصی — قبلاً از cancel_notice استفاده می‌شد که مصرفِ دیگری هم
+    // دارد (پیامِ لغوِ نوبت توسطِ مطب) و فقط زیرِ وضعیتِ awaiting_booking به
+    // مراجع نشان داده می‌شد؛ یعنی دلیلِ ردِ پرداخت (که مرحله را به
+    // awaiting_payment برمی‌گرداند) اصلاً دیده نمی‌شد.
+    patch.payment_reject_reason = body.reject_reason ? String(body.reject_reason).trim() : (stage.payment_reject_reason || null)
   }
   if (body.clear_booking) { patch.session_date = ''; patch.session_time = ''; patch.status = STAGE_STATUS.AWAITING_BOOKING }
   if (body.mark_held) patch.held = true

@@ -14,7 +14,7 @@ type CaseStage = {
  status: 'awaiting_payment' | 'payment_submitted' | 'awaiting_booking' | 'booked'
  price: number; paid: boolean; payment_submitted?: boolean; payment_ref?: string
  session_date?: string; session_time?: string; held?: boolean
- cancel_notice?: string; resource_id?: string | null; created_at: string
+ cancel_notice?: string; payment_reject_reason?: string; resource_id?: string | null; created_at: string
  delay_minutes?: number | null
 }
 
@@ -32,7 +32,7 @@ type Package = {
  primary_sessions: number; secondary_sessions: number
  primary_session_type: string; secondary_session_type: string
  notes: string; paid: boolean; payment_submitted?: boolean; status: string
- price?: number
+ price?: number; payment_reject_reason?: string
  resource_id?: string | null
 }
 type Session = {
@@ -40,7 +40,7 @@ type Session = {
  session_date: string; session_time: string; session_type: string
  attendee: string; status: string; doctor_note_for_patient: string
  paid: boolean; payment_submitted?: boolean
- price?: number
+ price?: number; payment_reject_reason?: string
  refund_percent?: number; refund_status?: string; refund_card?: string
  resource_id?: string | null
  delay_minutes?: number | null
@@ -141,6 +141,20 @@ export default function PatientPanel() {
   try { localStorage.removeItem('pb_phone'); localStorage.removeItem('pb_case') } catch {}
   setStep('login'); setBooking(null); setPhone('')
  }
+
+ // اگر این صفحه از bfcache (کشِ برگشت/جلوی مرورگر) برگردد، React remount
+ // نمی‌شود و state دقیقاً همان لحظه‌ی خروج «منجمد» می‌ماند — یعنی با دکمه‌ی
+ // برگشتِ مرورگر ممکن است چند ثانیه وضعیتِ قدیمی دیده شود تا کاربر دستی رفرش
+ // کند. اینجا با eventِ pageshow (persisted=true فقط برایِ بازگشت از bfcache
+ // رخ می‌دهد) دیتا را همان لحظه دوباره می‌خوانیم.
+ useEffect(() => {
+  function onPageShow(e: PageTransitionEvent) {
+   if (e.persisted && booking) loadData(booking.case_number)
+  }
+  window.addEventListener('pageshow', onPageShow)
+  return () => window.removeEventListener('pageshow', onPageShow)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+ }, [booking?.case_number])
 
  async function loadData(case_number: string, phoneNum?: string) {
   const p = phoneNum || phone
@@ -277,20 +291,27 @@ export default function PatientPanel() {
      ) : !currentStage ? (
       <StageWaiting title="منتظرِ تعیینِ مرحله‌ی بعد" desc="دکتر به‌زودی مرحله‌ی بعدِ روندِ درمان را برای شما مشخص می‌کند." />
      ) : currentStage.status === 'awaiting_payment' ? (
-      <StagePayment
-       icon={currentStage.stage_type === 'assessment' ? '' : ''}
-       title={`هزینه‌ی ${STAGE_TYPE_LABEL[currentStage.stage_type] || ''}`}
-       desc="برای ادامه، هزینه‌ی این مرحله را پرداخت کنید. پس از تأیید پرداخت، می‌توانید وقت بگیرید."
-       amount={currentStage.price || (booking.session_type === 'online' ? PRICING.online : PRICING.offline)}
-       resourceId={booking.resource_id} caseNumber={booking.case_number} phone={phone} stageId={currentStage.id}
-       onPaid={async (ref) => {
-        const res = await fetch(`/api/t/${slug}/psy/pay`, {
-         method: 'POST', headers: { 'Content-Type': 'application/json' },
-         body: JSON.stringify({ case_number: booking.case_number, phone, stage_id: currentStage.id, payment_ref: ref })
-        })
-        return res.ok
-       }}
-       onDone={() => loadData(booking.case_number)} />
+      <>
+       {currentStage.payment_reject_reason && (
+        <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 text-sm text-red-700 text-right mb-3">
+         <span className="font-medium">پرداختِ قبلی تأیید نشد — </span>{currentStage.payment_reject_reason}
+        </div>
+       )}
+       <StagePayment
+        icon={currentStage.stage_type === 'assessment' ? '' : ''}
+        title={`هزینه‌ی ${STAGE_TYPE_LABEL[currentStage.stage_type] || ''}`}
+        desc="برای ادامه، هزینه‌ی این مرحله را پرداخت کنید. پس از تأیید پرداخت، می‌توانید وقت بگیرید."
+        amount={currentStage.price || (booking.session_type === 'online' ? PRICING.online : PRICING.offline)}
+        resourceId={booking.resource_id} caseNumber={booking.case_number} phone={phone} stageId={currentStage.id}
+        onPaid={async (ref) => {
+         const res = await fetch(`/api/t/${slug}/psy/pay`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ case_number: booking.case_number, phone, stage_id: currentStage.id, payment_ref: ref })
+         })
+         return res.ok
+        }}
+        onDone={() => loadData(booking.case_number)} />
+      </>
      ) : currentStage.status === 'payment_submitted' ? (
       <StageWaiting title="در انتظار تأیید پرداخت" desc="پرداخت شما ثبت شد و در حالِ بررسی است. پس از تأیید، اینجا می‌توانید وقت بگیرید." />
      ) : currentStage.status === 'awaiting_booking' ? (
@@ -399,6 +420,12 @@ export default function PatientPanel() {
           <div className="bg-gray-100 rounded-lg p-2.5 border border-sand mb-3">
            <p className="text-xs text-soot mb-0.5">پروتکل درمانی:</p>
            <p className="text-sm text-ink">{pkg.notes}</p>
+          </div>
+         )}
+
+         {!pkg.paid && pkg.payment_reject_reason && (
+          <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-2.5 mb-3 text-right">
+           <p className="text-xs text-red-700"><span className="font-medium">پرداختِ قبلی تأیید نشد — </span>{pkg.payment_reject_reason}</p>
           </div>
          )}
 
@@ -643,6 +670,14 @@ function SessionCard({ session: s, num, phone, caseNumber, onUpdate }: {
     <div className="bg-gray-100 rounded-lg p-2.5 border border-sand mt-2">
      <p className="text-xs text-soot mb-0.5">یادداشت دکتر:</p>
      <p className="text-sm text-ink">{s.doctor_note_for_patient}</p>
+    </div>
+   )}
+
+   {/* دلیلِ ردِ پرداخت — فقط تا وقتی جلسه هنوز پرداخت‌نشده نمایش داده می‌شود؛
+      با تاییدِ نهایی این ستون صفر می‌شود (سرور) و اینجا خودکار ناپدید می‌شود. */}
+   {needsPayment && s.payment_reject_reason && (
+    <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-2.5 mt-2 text-right">
+     <p className="text-xs text-red-700"><span className="font-medium">پرداختِ قبلی تأیید نشد — </span>{s.payment_reject_reason}</p>
     </div>
    )}
 
@@ -996,6 +1031,17 @@ function SchedulePicker({ pkg, existingSessions, phone, caseNumber, onClose, onD
  const remaining = totalNeeded - alreadyBooked
  const totalSelected = Object.values(selectedSlots).reduce((a, b) => a + b.length, 0)
 
+ // ⚠️ قانونِ کلی: ترکیبِ پروتکل را دکتر تعیین می‌کند (مثلاً ۲ جلسه‌ی مراجع + ۱
+ // جلسه‌ی همراه) — مراجع فقط می‌تواند دقیقاً همین ترکیب را زمان‌بندی کند، نه هر
+ // توزیعی. قبلاً فقط «مجموع» چک می‌شد و انتخابِ attendee برایِ هر اسلات آزاد بود؛
+ // یعنی مراجع می‌توانست هر سه جلسه را «مراجع» انتخاب کند و سهمِ همراه خالی بماند.
+ const bookedPrimary = existingSessions.filter(s => s.attendee === 'primary').length
+ const bookedSecondary = existingSessions.filter(s => s.attendee === 'secondary').length
+ const selectedPrimary = Object.values(attendeeMap).filter(v => v === 'primary').length
+ const selectedSecondary = Object.values(attendeeMap).filter(v => v === 'secondary').length
+ const remainingPrimary = Math.max(0, pkg.primary_sessions - bookedPrimary - selectedPrimary)
+ const remainingSecondary = Math.max(0, pkg.secondary_sessions - bookedSecondary - selectedSecondary)
+
  useEffect(() => { loadSchedule(curMonth, curYear) }, [curMonth, curYear])
 
  async function loadSchedule(month: number, year: number) {
@@ -1032,8 +1078,12 @@ function SchedulePicker({ pkg, existingSessions, phone, caseNumber, onClose, onD
    setAttendeeMap(newMap)
   } else {
    if (allSelected >= remaining) return
+   // پیش‌فرض: هر دسته‌ای که هنوز سهمِ خالی دارد؛ اول مراجع، وگرنه همراه —
+   // و اگر هر دو دسته پر شده باشند (نباید پیش بیاید چون totalSelected زیرِ
+   // remaining است) اصلاً اسلات اضافه نمی‌شود.
+   const defaultAttendee = remainingPrimary > 0 ? 'primary' : remainingSecondary > 0 ? 'secondary' : null
+   if (!defaultAttendee) return
    setSelectedSlots(prev => ({ ...prev, [day]: [...current, slot] }))
-   const defaultAttendee = Object.values(attendeeMap).filter(v => v === 'primary').length < pkg.primary_sessions ? 'primary' : 'secondary'
    setAttendeeMap(prev => ({ ...prev, [`${day}-${slot}`]: defaultAttendee }))
   }
  }
@@ -1091,7 +1141,10 @@ function SchedulePicker({ pkg, existingSessions, phone, caseNumber, onClose, onD
     <div className="sticky top-0 bg-white border-b border-sand p-4 flex items-center justify-between">
      <div>
       <h2 className="font-display font-semibold text-ink">انتخاب روزهای جلسه</h2>
-      <p className="text-xs text-soot mt-0.5">{totalSelected} از {remaining} جلسه انتخاب شده</p>
+      <p className="text-xs text-soot mt-0.5">
+      {totalSelected} از {remaining} جلسه انتخاب شده
+      {pkg.secondary_sessions > 0 && ` — مراجع: ${remainingPrimary} باقی، ${companionLabel}: ${remainingSecondary} باقی`}
+     </p>
      </div>
      <button onClick={onClose} className="text-soot text-2xl w-8 h-8 flex items-center justify-center">×</button>
     </div>
@@ -1165,12 +1218,22 @@ function SchedulePicker({ pkg, existingSessions, phone, caseNumber, onClose, onD
            </div>
            {isChosen && pkg.secondary_sessions > 0 && (
             <div className="flex mt-1 gap-1">
-             {['primary', 'secondary'].map(a => (
-              <button key={a} onClick={() => setAttendeeMap(prev => ({ ...prev, [key]: a }))}
-               className={`flex-1 text-xs py-0.5 rounded border transition-all ${attendee === a ? 'bg-ink text-white border-ink' : 'border-sand text-soot'}`}>
-               {a === 'primary' ? 'مراجع' : companionLabel}
-              </button>
-             ))}
+             {(['primary', 'secondary'] as const).map(a => {
+              // اجازه‌ی سوییچ به دسته‌ی a فقط اگر سهمِ آن دسته (به‌جز خودِ همین
+              // اسلات) هنوز پر نشده باشد — وگرنه می‌شد ترکیبِ تعریف‌شده‌ی دکتر
+              // (مثلاً ۲ مراجع + ۱ همراه) را با سوییچِ دستی به‌هم زد.
+              const selfIsA = attendee === a
+              const otherSelected = (a === 'primary' ? selectedPrimary : selectedSecondary) - (selfIsA ? 1 : 0)
+              const bookedA = a === 'primary' ? bookedPrimary : bookedSecondary
+              const capA = a === 'primary' ? pkg.primary_sessions : pkg.secondary_sessions
+              const canSwitch = selfIsA || (bookedA + otherSelected) < capA
+              return (
+               <button key={a} disabled={!canSwitch} onClick={() => canSwitch && setAttendeeMap(prev => ({ ...prev, [key]: a }))}
+                className={`flex-1 text-xs py-0.5 rounded border transition-all ${attendee === a ? 'bg-ink text-white border-ink' : canSwitch ? 'border-sand text-soot' : 'border-sand text-gray-300 cursor-not-allowed'}`}>
+                {a === 'primary' ? 'مراجع' : companionLabel}
+               </button>
+              )
+             })}
             </div>
            )}
           </div>
