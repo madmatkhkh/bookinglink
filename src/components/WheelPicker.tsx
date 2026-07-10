@@ -12,6 +12,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { useEffect, useRef, useState } from 'react'
 import { PERSIAN_MONTHS, toFarsiNum, toLatinNum, getCurrentJalali, getDaysInJalaliMonth } from '@/lib/calendar'
+import { useModalBackClose } from '@/lib/useModalBackClose'
 
 const ITEM_H = 36
 const VISIBLE_PAD = 2 // تعداد ردیف خالی بالا/پایین تا اولین/آخرین آیتم هم بتواند وسط بایستد
@@ -121,6 +122,7 @@ export function JalaliDateWheel({
   const cur = getCurrentJalali()
   const parts = value ? value.split('/').map(s => parseInt(s, 10)) : []
   const [open, setOpen] = useState(false)
+  useModalBackClose(open, () => setOpen(false))
   const [y, setY] = useState(parts[0] || cur.year - 20)
   const [m, setM] = useState(parts[1] || cur.month + 1)
   const [d, setD] = useState(parts[2] || cur.day)

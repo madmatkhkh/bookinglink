@@ -10,6 +10,7 @@ import { DialogHost, uiAlert, uiConfirm, uiPrompt } from '@/components/ui/Dialog
 import { useResendCooldown } from '@/lib/useResendCooldown'
 import { Glyph } from '@/components/Glyph'
 import { MonthYearWheel, JalaliDateWheel } from '@/components/WheelPicker'
+import { useModalBackClose } from '@/lib/useModalBackClose'
 
 // در پنل ادمین همه‌ی ارقام لاتین نمایش داده می‌شوند (فقط نمایش؛ فرمت ذخیره دست‌نخورده)
 const toFarsiNum = (n: number | string) => toLatinNum(String(n))
@@ -1996,6 +1997,15 @@ export function PsychologyAdmin() {
 
  // آکاردئون: فقط یک گروه هم‌زمان باز — پیش‌فرض همان گروهی که زیرتب فعلی داخلش است
  const [openGroup, setOpenGroup] = useState(() => settingsGroups.find(g => g.items.some(i => i.key === settingsSubTab))?.title || settingsGroups[0].title)
+
+ // مودال‌های سفارشی هم مثل uiAlert/uiConfirm با دکمه‌ی برگشت هماهنگ می‌شوند —
+ // اول برگشت فقط مودال را می‌بندد، نه صفحه‌ی زیرین را.
+ useModalBackClose(sidebarOpen, () => setSidebarOpen(false))
+ useModalBackClose(showNewPackage, () => setShowNewPackage(false))
+ useModalBackClose(showNewSession, () => setShowNewSession(false))
+ useModalBackClose(showNewStage, () => setShowNewStage(false))
+ useModalBackClose(showAddPatient, () => setShowAddPatient(false))
+ useModalBackClose(!!editSession, () => setEditSession(null))
 
  // ─── Render ──────────────────────────────────────────────────────────────────
 

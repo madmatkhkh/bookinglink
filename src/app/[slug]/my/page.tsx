@@ -7,6 +7,7 @@ import { usePublicClinic, usePatientFeatures, CardChooser } from '@/components/P
 import { STAGE_TYPE_LABEL } from '@/lib/flow'
 import { DialogHost, uiAlert, uiConfirm } from '@/components/ui/Dialog'
 import { useResendCooldown } from '@/lib/useResendCooldown'
+import { useModalBackClose } from '@/lib/useModalBackClose'
 
 type CaseStage = {
  id: string; case_number: string
@@ -923,6 +924,7 @@ function SlotPicker({ session, phone, caseNumber, onClose, onDone, title = 'ان
  officeLocation?: string
 }) {
  const { slug } = useParams<{ slug: string }>()
+ useModalBackClose(true, onClose)
  const today = getCurrentJalali()
  const [curMonth, setCurMonth] = useState(today.month)
  const [curYear, setCurYear] = useState(today.year)
@@ -1099,6 +1101,7 @@ function SchedulePicker({ pkg, existingSessions, phone, caseNumber, onClose, onD
  resourceId?: string | null
 }) {
  const { slug } = useParams<{ slug: string }>()
+ useModalBackClose(true, onClose)
  const settings = usePublicClinic(slug)
  const companionLabel = settings.doctors.find(d => d.id === resourceId)?.companion_label || 'همراه'
  const today = getCurrentJalali()
