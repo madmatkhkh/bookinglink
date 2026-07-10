@@ -2053,10 +2053,21 @@ export function PsychologyAdmin() {
       ← بازگشت به پنل
      </button>
     ) : null}
-    <div className="text-sm font-display font-semibold text-ink">{mainTab === 'settings_hub' ? 'تنظیمات' : 'پنل مدیریت'}</div>
-    <div className="text-xs text-soot truncate mt-0.5">
-     {profile.name || me?.resourceName || 'دکتر'}{profile.title ? ` — ${profile.title}` : ''}
-     {me && !me.isOwner && <span className="text-soot"> (درمانگر)</span>}
+    <div className="flex items-center justify-between gap-2">
+     <div className="min-w-0">
+      <div className="text-sm font-display font-semibold text-ink">{mainTab === 'settings_hub' ? 'تنظیمات' : 'پنل مدیریت'}</div>
+      <div className="text-xs text-soot truncate mt-0.5">
+       {profile.name || me?.resourceName || 'دکتر'}{profile.title ? ` — ${profile.title}` : ''}
+       {me && !me.isOwner && <span className="text-soot"> (درمانگر)</span>}
+      </div>
+     </div>
+     <a href={`/${slug}`} target="_blank" rel="noopener noreferrer"
+      className="shrink-0 text-[11px] text-soot hover:text-ink border border-sand rounded-lg px-2 py-1.5 flex items-center gap-1 transition-colors">
+      سایت من
+      <svg viewBox="0 0 24 24" className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+       <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><path d="M15 3h6v6" /><path d="M10 14 21 3" />
+      </svg>
+     </a>
     </div>
    </div>
   )
@@ -2071,10 +2082,6 @@ export function PsychologyAdmin() {
     <SidebarHeader />
     {mainTab === 'settings_hub' ? <SettingsNavList /> : <NavList />}
     <div className="p-2 border-t border-sand space-y-1">
-     <a href={`/${slug}`} target="_blank" rel="noopener noreferrer"
-      className="block text-right text-xs px-3 py-2 rounded-lg text-soot hover:bg-gray-50">
-      سایت من
-     </a>
      {mainTab !== 'settings_hub' && (
       <button onClick={() => navigateTab('settings_hub')} className="w-full text-right text-xs px-3 py-2 rounded-lg text-soot hover:bg-gray-50 flex items-center gap-2">
        ⚙️ تنظیمات
@@ -2101,10 +2108,6 @@ export function PsychologyAdmin() {
       </div>
       {mainTab === 'settings_hub' ? <SettingsNavList onNavigate={() => setSidebarOpen(false)} /> : <NavList onNavigate={() => setSidebarOpen(false)} />}
       <div className="p-2 border-t border-sand space-y-1">
-       <a href={`/${slug}`} target="_blank" rel="noopener noreferrer"
-        className="block text-right text-xs px-3 py-2 rounded-lg text-soot hover:bg-gray-50">
-        سایت من
-       </a>
        {mainTab !== 'settings_hub' && (
         <button onClick={() => { navigateTab('settings_hub'); setSidebarOpen(false) }} className="w-full text-right text-xs px-3 py-2 rounded-lg text-soot hover:bg-gray-50 flex items-center gap-2">
          ⚙️ تنظیمات
@@ -2977,7 +2980,7 @@ export function PsychologyAdmin() {
         {/* راهنمای رنگ‌ها */}
         <div className="flex items-center justify-center gap-4 text-xs text-soot mb-3">
          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-emerald-500/15 border border-emerald-500/40" /> روز کاری</span>
-         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-amber-400" /> نوبت رزروشده</span>
+         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-amber-100 border border-amber-300" /> نوبت رزروشده</span>
         </div>
 
         <div className="bg-white rounded-2xl border border-sand p-5 mb-4">
@@ -3009,7 +3012,7 @@ export function PsychologyAdmin() {
               <span className="block text-[10px] mt-0.5 text-emerald-600">{toFarsiNum(totalSlots)} ساعت</span>
              )}
              {booked > 0 && (
-              <span className="absolute top-1 left-1 w-4 h-4 bg-amber-400 text-white text-[10px] rounded-full flex items-center justify-center font-medium leading-none">{toFarsiNum(booked)}</span>
+              <span className="absolute top-1 left-1 w-4 h-4 bg-amber-100 text-amber-800 text-[10px] rounded-full flex items-center justify-center font-bold leading-none">{toFarsiNum(booked)}</span>
              )}
             </div>
            )
