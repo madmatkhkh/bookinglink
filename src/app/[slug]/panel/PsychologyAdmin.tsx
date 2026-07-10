@@ -1866,6 +1866,39 @@ export function PsychologyAdmin() {
   cancelled: bookings.filter(b => b.status === 'cancelled').length,
  }
 
+ // ⚠️ این useState باید همیشه قبل از هر early-returnِ زیر بماند — این کامپوننت
+ // چند تا `if (...) return` (لاگین، لودینگِ اولیه) دارد و React هوک‌هایی که بعد
+ // از یک early-return بیایند را «مشروط» حساب می‌کند: رندرِ اول (initialLoadDone
+ // هنوز false) اصلاً به این خط نمی‌رسید، رندرِ بعدی (initialLoadDone=true) می‌رسید
+ // — یعنی تعدادِ هوک‌ها بینِ دو رندر فرق می‌کرد و React همان لحظه کرش می‌کرد
+ // («خطای غیرمنتظره» که دقیقاً با اضافه‌شدنِ گیتِ initialLoadDone افتاد).
+ const settingsGroups: SettingsGroup[] = [
+  {
+   title: 'صفحه‌ی عمومی', items: [
+    { key: 'profile', icon: '👤', label: 'پروفایل' },
+    { key: 'payments', icon: '💳', label: 'پرداخت‌ها' },
+    { key: 'pricing', icon: '💰', label: 'قیمت‌گذاری' },
+    { key: 'form', icon: '📝', label: 'فرمِ رزرو' },
+    ...(me?.isOwner !== false ? [{ key: 'locations' as const, icon: '🏢', label: 'مکان‌های حضوری' }] : []),
+   ],
+  },
+  ...(me?.isOwner !== false ? [{
+   title: 'پنلِ مراجع', items: [
+    { key: 'patient_panel' as const, icon: '⚙️', label: 'ماژول‌ها و سیاست‌ها' },
+   ],
+  }] : []),
+  ...(me?.isOwner ? [{
+   title: 'تیم', items: [
+    { key: 'staff' as const, icon: '👥', label: 'درمانگرها' },
+   ],
+  }] : []),
+  { title: 'حساب', items: [{ key: 'account', icon: '🪪', label: 'مشخصاتِ حساب' }] },
+  { title: 'پشتیبانی', items: [{ key: 'tickets', icon: '🎫', label: 'تیکت' }] },
+ ]
+
+ // آکاردئون: فقط یک گروه هم‌زمان باز — پیش‌فرض همان گروهی که زیرتبِ فعلی داخلش است
+ const [openGroup, setOpenGroup] = useState(() => settingsGroups.find(g => g.items.some(i => i.key === settingsSubTab))?.title || settingsGroups[0].title)
+
  // ─── Render ──────────────────────────────────────────────────────────────────
 
  if (needsLogin) return <PanelLogin slug={slug} onSuccess={() => { setNeedsLogin(false); fetchAll() }} />
@@ -1916,33 +1949,6 @@ export function PsychologyAdmin() {
 
  // ─── ناوبریِ حالتِ «تنظیمات» — به سبکِ Cal.com: گروه‌بندی‌شده، با بازگشتِ صریح به پنلِ اصلی ───
  type SettingsGroup = { title: string; items: { key: typeof settingsSubTab; icon: string; label: string }[] }
- const settingsGroups: SettingsGroup[] = [
-  {
-   title: 'صفحه‌ی عمومی', items: [
-    { key: 'profile', icon: '👤', label: 'پروفایل' },
-    { key: 'payments', icon: '💳', label: 'پرداخت‌ها' },
-    { key: 'pricing', icon: '💰', label: 'قیمت‌گذاری' },
-    { key: 'form', icon: '📝', label: 'فرمِ رزرو' },
-    ...(me?.isOwner !== false ? [{ key: 'locations' as const, icon: '🏢', label: 'مکان‌های حضوری' }] : []),
-   ],
-  },
-  ...(me?.isOwner !== false ? [{
-   title: 'پنلِ مراجع', items: [
-    { key: 'patient_panel' as const, icon: '⚙️', label: 'ماژول‌ها و سیاست‌ها' },
-   ],
-  }] : []),
-  ...(me?.isOwner ? [{
-   title: 'تیم', items: [
-    { key: 'staff' as const, icon: '👥', label: 'درمانگرها' },
-   ],
-  }] : []),
-  { title: 'حساب', items: [{ key: 'account', icon: '🪪', label: 'مشخصاتِ حساب' }] },
-  { title: 'پشتیبانی', items: [{ key: 'tickets', icon: '🎫', label: 'تیکت' }] },
- ]
-
- // آکاردئون: فقط یک گروه هم‌زمان باز — پیش‌فرض همان گروهی که زیرتبِ فعلی داخلش است
- const [openGroup, setOpenGroup] = useState(() => settingsGroups.find(g => g.items.some(i => i.key === settingsSubTab))?.title || settingsGroups[0].title)
-
  function SettingsNavList({ onNavigate }: { onNavigate?: () => void }) {
   return (
    <nav className="flex-1 p-2 space-y-1 overflow-y-auto">
