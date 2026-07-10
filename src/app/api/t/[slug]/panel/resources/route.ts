@@ -15,12 +15,12 @@ function clean(body: any) {
     is_selectable: body.is_selectable !== false,
     is_active: body.is_active !== false,
     sort_order: parseInt(body.sort_order) || 0,
-    // شماره‌ی ورودِ کارمند — اختیاری؛ اگر خالی بگذارید آن نفر نمی‌تواند مستقل لاگین کند
+    // شماره‌ی ورود کارمند — اختیاری؛ اگر خالی بگذارید آن نفر نمی‌تواند مستقل لاگین کند
     phone: phone && /^09\d{9}$/.test(phone) ? phone : null,
   }
 }
 
-// مدیریتِ لیستِ پرسنل (staff) کارِ صاحبِ مجموعه است؛ کارمند نمی‌تواند همکارانش را ببیند/ویرایش کند.
+// مدیریت لیست پرسنل (staff) کار صاحب مجموعه است؛ کارمند نمی‌تواند همکارانش را ببیند/ویرایش کند.
 export async function GET(req: NextRequest, { params }: { params: { slug: string } }) {
   const a = await requirePanelAuth(req, params.slug)
   if (isPanelAuthResponse(a)) return a
@@ -38,11 +38,11 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   if (!r.name) return NextResponse.json({ error: 'نام لازم است' }, { status: 400 })
   const { data, error } = await sb().from('resources').insert({ ...r, tenant_id: a.tenant.id }).select().single()
   if (error) {
-    if (error.code === '23505') return NextResponse.json({ error: 'این شماره قبلاً برای یک درمانگرِ دیگر ثبت شده' }, { status: 409 })
+    if (error.code === '23505') return NextResponse.json({ error: 'این شماره قبلا برای یک درمانگر دیگر ثبت شده' }, { status: 409 })
     console.error('src/app/api/t/[slug]/panel/resources/route.ts error:', error)
     return NextResponse.json({ error: 'مشکلی پیش آمد. دوباره تلاش کنید.' }, { status: 500 })
   }
-  // پروفایلِ خالیِ پیش‌فرض برای نیچِ روانشناسی
+  // پروفایل خالی پیش‌فرض برای نیچ روانشناسی
   await sb().from('psy_resource_profiles').insert({ resource_id: data.id })
   return NextResponse.json({ resource: data })
 }
@@ -58,15 +58,15 @@ export async function PATCH(req: NextRequest, { params }: { params: { slug: stri
   const { data, error } = await sb().from('resources').update(r)
     .eq('id', body.id).eq('tenant_id', a.tenant.id).select().single()
   if (error) {
-    if (error.code === '23505') return NextResponse.json({ error: 'این شماره قبلاً برای یک درمانگرِ دیگر ثبت شده' }, { status: 409 })
+    if (error.code === '23505') return NextResponse.json({ error: 'این شماره قبلا برای یک درمانگر دیگر ثبت شده' }, { status: 409 })
     console.error('src/app/api/t/[slug]/panel/resources/route.ts error:', error)
     return NextResponse.json({ error: 'مشکلی پیش آمد. دوباره تلاش کنید.' }, { status: 500 })
   }
   return NextResponse.json({ resource: data })
 }
 
-// حذفِ نرم: غیرفعال می‌کنیم تا رزروهای قدیمی که به منبع ارجاع دارند نشکنند.
-// جلوگیری از حذفِ آخرین منبعِ فعال.
+// حذف نرم: غیرفعال می‌کنیم تا رزروهای قدیمی که به منبع ارجاع دارند نشکنند.
+// جلوگیری از حذف آخرین منبع فعال.
 export async function DELETE(req: NextRequest, { params }: { params: { slug: string } }) {
   const a = await requirePanelAuth(req, params.slug)
   if (isPanelAuthResponse(a)) return a

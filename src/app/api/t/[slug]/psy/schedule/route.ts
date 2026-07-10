@@ -8,12 +8,12 @@ export const dynamic = 'force-dynamic'
 export const revalidate = 0
 const NO_STORE = { 'Cache-Control': 'no-store, max-age=0, must-revalidate' }
 
-// روزی که در آن ساعتی از قبل رزرو شده (توسطِ همین یا هر مراجعِ دیگر) → آن ساعت
-// از available_times حذف می‌شود، نه فقط علامت‌گذاری. قاعده‌ی کلیِ حریمِ خصوصی:
-// تقویمِ مراجع هرگز نباید نشان بدهد کدام ساعت‌ها را «کسِ دیگری» گرفته — نه با
-// نام، نه حتی بدونِ نام (وگرنه صرفِ تلاش‌وخطا برایِ پیداکردنِ ساعتِ خالی هم
-// می‌توانست الگویِ رزروهایِ دیگران را لو بدهد). پس ساعتِ گرفته‌شده اصلاً در لیست
-// نمی‌آید — از نظرِ مراجع، انگار هیچ‌وقت وجود نداشته.
+// روزی که در آن ساعتی از قبل رزرو شده (توسط همین یا هر مراجع دیگر) → آن ساعت
+// از available_times حذف می‌شود، نه فقط علامت‌گذاری. قاعده‌ی کلی حریم خصوصی:
+// تقویم مراجع هرگز نباید نشان بدهد کدام ساعت‌ها را «کس دیگری» گرفته — نه با
+// نام، نه حتی بدون نام (وگرنه صرف تلاش‌وخطا برای پیداکردن ساعت خالی هم
+// می‌توانست الگوی رزروهای دیگران را لو بدهد). پس ساعت گرفته‌شده اصلا در لیست
+// نمی‌آید — از نظر مراجع، انگار هیچ‌وقت وجود نداشته.
 async function bookedSlotKeys(tenantId: string, resourceId: string, year: string, month: string): Promise<Set<string>> {
   const padded = month.padStart(2, '0'), unpadded = String(parseInt(month))
   const db = sb()
@@ -35,8 +35,8 @@ async function bookedSlotKeys(tenantId: string, resourceId: string, year: string
   return keys
 }
 
-// برنامه‌ی عمومیِ ماه (روزهای باز و ساعت‌هایشان) برای انتخابِ مراجع — حالا per-resource.
-// اگر resource_id داده نشود (UIِ فعلی نمی‌دهد)، پیش‌فرض همان تنها/اولین دکترِ tenant است.
+// برنامه‌ی عمومی ماه (روزهای باز و ساعت‌هایشان) برای انتخاب مراجع — حالا per-resource.
+// اگر resource_id داده نشود (UI فعلی نمی‌دهد)، پیش‌فرض همان تنها/اولین دکتر tenant است.
 export async function GET(req: NextRequest, { params }: { params: { slug: string } }) {
   const t = await getActiveTenant(params.slug)
   if (!t) return NextResponse.json({ error: 'یافت نشد' }, { status: 404 })

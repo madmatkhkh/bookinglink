@@ -5,7 +5,7 @@ import { issueOtp, verifyOtp, setClientCookie, normalizePhone, requestIp, otpEch
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-// {phone} → ارسالِ کد   |   {phone, code} → تایید و نشستنِ کوکیِ مراجع
+// {phone} → ارسال کد   |   {phone, code} → تایید و نشستن کوکی مراجع
 export async function POST(req: NextRequest, { params }: { params: { slug: string } }) {
   const t = await requireTenant(params.slug)
   if (isTenantResponse(t)) return t
@@ -18,10 +18,10 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
     const issued = await issueOtp(phone, requestIp(req))
     if (!issued.ok) {
       if ('throttled' in issued) return NextResponse.json({ error: OTP_THROTTLED_MSG }, { status: 429 })
-      return NextResponse.json({ error: issued.smsError || 'ارسالِ پیامک ناموفق بود — دوباره تلاش کن' }, { status: 502 })
+      return NextResponse.json({ error: issued.smsError || 'ارسال پیامک ناموفق بود — دوباره تلاش کن' }, { status: 502 })
     }
     // TODO(sms): این‌جا کد با پیامک ارسال می‌شود. تا آن موقع فقط با OTP_ECHO_CODE=true
-    // در پاسخ برمی‌گردد؛ روی پروداکشنِ واقعی این env باید حذف شود.
+    // در پاسخ برمی‌گردد؛ روی پروداکشن واقعی این env باید حذف شود.
     return NextResponse.json({ success: true, ...(otpEchoEnabled() ? { dev_code: issued.code } : {}) })
   }
 

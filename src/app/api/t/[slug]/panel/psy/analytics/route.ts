@@ -5,9 +5,9 @@ import { requirePanelAuth, isPanelAuthResponse } from '@/lib/tenant'
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-// آمار و گزارشِ کسب‌وکاری — از رویِ همان جدول‌هایِ موجود محاسبه می‌شود (دفترِ
-// حساب، جلسات، پرونده‌ها)، بدونِ نیازِ به جدولِ جدید. فقط برایِ آخرین ۹۰ روز
-// (بارِ سنگین‌تر روی دیتابیس بی‌فایده است؛ برایِ یک مطب/کلینیک همین کافی است).
+// آمار و گزارش کسب‌وکاری — از روی همان جدول‌های موجود محاسبه می‌شود (دفتر
+// حساب، جلسات، پرونده‌ها)، بدون نیاز به جدول جدید. فقط برای آخرین ۹۰ روز
+// (بار سنگین‌تر روی دیتابیس بی‌فایده است؛ برای یک مطب/کلینیک همین کافی است).
 export async function GET(req: NextRequest, { params }: { params: { slug: string } }) {
   const a = await requirePanelAuth(req, params.slug)
   if (isPanelAuthResponse(a)) return a
@@ -24,7 +24,7 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
 
   const [{ data: ledger }, { data: sessions }, { data: cases }] = await Promise.all([ledgerQ, sessQ, caseQ])
 
-  // درآمد به تفکیکِ نوع (فقط inflow، refund/outflow جدا کسر می‌شود)
+  // درآمد به تفکیک نوع (فقط inflow، refund/outflow جدا کسر می‌شود)
   const revenueByPurpose: Record<string, number> = {}
   let totalInflow = 0, totalOutflow = 0, totalCommission = 0
   for (const row of ledger || []) {
@@ -34,12 +34,12 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
     revenueByPurpose[row.purpose] = (revenueByPurpose[row.purpose] || 0) + row.amount
   }
 
-  // نرخِ no-show/کنسلی: از میانِ جلساتِ تکی که تاریخ‌گذاری شده‌اند
+  // نرخ no-show/کنسلی: از میان جلسات تکی که تاریخ‌گذاری شده‌اند
   const total = (sessions || []).length
   const forfeited = (sessions || []).filter(s => s.status === 'forfeited').length
   const noShowRate = total > 0 ? Math.round((forfeited / total) * 1000) / 10 : 0
 
-  // رشدِ پرونده‌ها به تفکیکِ هفته (۱۳ نقطه‌ی اخیر ≈ ۹۰ روز)
+  // رشد پرونده‌ها به تفکیک هفته (۱۳ نقطه‌ی اخیر ≈ ۹۰ روز)
   const weekly: Record<string, number> = {}
   for (const c of cases || []) {
     const d = new Date(c.created_at)

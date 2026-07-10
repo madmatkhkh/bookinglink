@@ -7,21 +7,21 @@ import { getNiche } from '@/lib/niche'
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-// ثبت‌نامِ سلف‌سرویس — دو قدم، دقیقاً مثلِ بقیه‌ی OTPهایِ پروژه:
-//   قدمِ ۱ (بدونِ code): اعتبارسنجیِ ورودی‌ها + صدورِ OTP به شماره یا ایمیلِ داده‌شده.
+// ثبت‌نام سلف‌سرویس — دو قدم، دقیقا مثل بقیه‌ی OTPهای پروژه:
+//   قدم ۱ (بدون code): اعتبارسنجی ورودی‌ها + صدور OTP به شماره یا ایمیل داده‌شده.
 //           هنوز هیچ tenantی ساخته نمی‌شود — تا هویت تایید نشده، هیچ کارگاهی
-//           برایِ آن رزرو/ساخته نمی‌شود.
-//   قدمِ ۲ (با code): تاییدِ OTP → همان‌جا tenant ساخته می‌شود → نشستِ پنل هم
-//           صادر می‌شود تا کاربر بی‌درنگ وارد پنلِ تازه‌سازِ خودش شود.
+//           برای آن رزرو/ساخته نمی‌شود.
+//   قدم ۲ (با code): تایید OTP → همان‌جا tenant ساخته می‌شود → نشست پنل هم
+//           صادر می‌شود تا کاربر بی‌درنگ وارد پنل تازه‌ساز خودش شود.
 //
-// شماره یا ایمیل — حداقل یکی لازم است (نه لزوماً شماره‌ی ایرانی؛ صاحب‌کارگاهِ
+// شماره یا ایمیل — حداقل یکی لازم است (نه لزوما شماره‌ی ایرانی؛ صاحب‌کارگاه
 // خارج از ایران با ایمیل ثبت‌نام می‌کند).
 export async function POST(req: NextRequest) {
   const b = await req.json().catch(() => ({}))
 
   const slug = String(b.slug || '').trim().toLowerCase()
-  if (!SLUG_PATTERN.test(slug)) return NextResponse.json({ error: 'نشانیِ کارگاه معتبر نیست (لاتینِ کوچک، عدد، خط‌تیره)' }, { status: 400 })
-  if (RESERVED_SLUGS.includes(slug)) return NextResponse.json({ error: 'این نشانی رزروِ سیستم است' }, { status: 400 })
+  if (!SLUG_PATTERN.test(slug)) return NextResponse.json({ error: 'نشانی کارگاه معتبر نیست (لاتین کوچک، عدد، خط‌تیره)' }, { status: 400 })
+  if (RESERVED_SLUGS.includes(slug)) return NextResponse.json({ error: 'این نشانی رزرو سیستم است' }, { status: 400 })
 
   const viaEmail = !!b.email && !b.phone
   let identifier: string
@@ -37,9 +37,9 @@ export async function POST(req: NextRequest) {
   const niche = await getNiche(nicheKey)
   if (!niche) return NextResponse.json({ error: 'یک حوزه‌ی کاری معتبر انتخاب کن' }, { status: 400 })
 
-  // نشانی از قبل گرفته شده؟ (چک زودهنگام؛ چک‌ِ نهایی هم موقعِ insert با unique constraint است)
+  // نشانی از قبل گرفته شده؟ (چک زودهنگام؛ چک‌ نهایی هم موقع insert با unique constraint است)
   const { data: existing } = await sb().from('tenants').select('id').eq('slug', slug).maybeSingle()
-  if (existing) return NextResponse.json({ error: 'این نشانی قبلاً گرفته شده — یکی دیگر امتحان کن' }, { status: 409 })
+  if (existing) return NextResponse.json({ error: 'این نشانی قبلا گرفته شده — یکی دیگر امتحان کن' }, { status: 409 })
 
   const name = String(b.name || '').trim().slice(0, 60)
 
@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
     const issued = await issueOtp(identifier, requestIp(req), viaEmail ? 'email' : 'sms')
     if (!issued.ok) {
       if ('throttled' in issued) return NextResponse.json({ error: OTP_THROTTLED_MSG }, { status: 429 })
-      return NextResponse.json({ error: issued.smsError || (viaEmail ? 'ارسالِ ایمیل ناموفق بود — دوباره تلاش کن' : 'ارسالِ پیامک ناموفق بود — دوباره تلاش کن') }, { status: 502 })
+      return NextResponse.json({ error: issued.smsError || (viaEmail ? 'ارسال ایمیل ناموفق بود — دوباره تلاش کن' : 'ارسال پیامک ناموفق بود — دوباره تلاش کن') }, { status: 502 })
     }
     return NextResponse.json({ success: true, ...(otpEchoEnabled(viaEmail ? 'email' : 'sms') ? { dev_code: issued.code } : {}) })
   }
@@ -56,12 +56,12 @@ export async function POST(req: NextRequest) {
   if (ok === 'throttled') return NextResponse.json({ error: OTP_THROTTLED_MSG }, { status: 429 })
   if (ok !== 'ok') return NextResponse.json({ error: 'کد نادرست یا منقضی است' }, { status: 400 })
 
-  // ─── از این‌جا به بعد دقیقاً همان مراحلِ ساختِ tenant در /api/super/tenants ───
+  // ─── از این‌جا به بعد دقیقا همان مراحل ساخت tenant در /api/super/tenants ───
   const { data: tenant, error } = await sb().from('tenants')
     .insert({ slug, owner_phone: viaEmail ? '' : identifier, owner_email: viaEmail ? identifier : null, niche_key: nicheKey })
     .select().single()
   if (error) {
-    if (error.code === '23505') return NextResponse.json({ error: 'این نشانی هم‌زمان توسطِ شخصِ دیگری گرفته شد — یکی دیگر امتحان کن' }, { status: 409 })
+    if (error.code === '23505') return NextResponse.json({ error: 'این نشانی هم‌زمان توسط شخص دیگری گرفته شد — یکی دیگر امتحان کن' }, { status: 409 })
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
@@ -87,7 +87,7 @@ export async function POST(req: NextRequest) {
   if (nicheKey === 'psychology') {
     await sb().from('psy_clinic_settings').insert({ tenant_id: tenant.id })
     if (resource?.id) {
-      // بج‌ها عمداً خالی — نسخه‌ی قبل ریتینگِ ساختگی («4.9 از 5») برایِ حسابِ
+      // بج‌ها عمدا خالی — نسخه‌ی قبل ریتینگ ساختگی («4.9 از 5») برای حساب
       // تازه‌ساخته نشان می‌داد که هم اعتمادسوز بود هم داده‌ی غیرواقعی. هر متخصص
       // خودش از پنل بج‌های واقعی‌اش را تعریف می‌کند.
       await sb().from('psy_resource_profiles').insert({
@@ -98,7 +98,7 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // ورودِ خودکار به پنلِ تازه‌ساز — دیگر نیازی به ورودِ دوباره نیست
+  // ورود خودکار به پنل تازه‌ساز — دیگر نیازی به ورود دوباره نیست
   const res = NextResponse.json({ success: true, slug })
   await createPanelSession(res, tenant.id)
   return res

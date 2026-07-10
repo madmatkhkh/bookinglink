@@ -17,8 +17,8 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
   return NextResponse.json({ campaigns: data || [] })
 }
 
-// segment: 'all' همه‌ی مراجعانِ با شماره/ایمیل، 'inactive_30'|'inactive_90' کسانی
-// که آخرین جلسه‌شان (یا کلاً بدونِ جلسه) از این‌مدت گذشته — برایِ «بازگرداندنِ مراجع».
+// segment: 'all' همه‌ی مراجعان با شماره/ایمیل، 'inactive_30'|'inactive_90' کسانی
+// که آخرین جلسه‌شان (یا کلا بدون جلسه) از این‌مدت گذشته — برای «بازگرداندن مراجع».
 async function resolveRecipients(tenantId: string, resourceId: string | null, segment: string) {
   const db = sb()
   let caseQ = db.from('psy_cases').select('case_number, contact_phone, contact_email').eq('tenant_id', tenantId)
@@ -34,8 +34,8 @@ async function resolveRecipients(tenantId: string, resourceId: string | null, se
     db.from('psy_sessions').select('case_number, session_date').eq('tenant_id', tenantId).in('case_number', caseNumbers).neq('session_date', ''),
     db.from('psy_stages').select('case_number, session_date').eq('tenant_id', tenantId).in('case_number', caseNumbers).neq('session_date', ''),
   ])
-  // آخرین تاریخِ فعالیتِ هر پرونده (رشته‌ی جلالی؛ مقایسه‌ی رشته‌ای برایِ فرمتِ
-  // پدینگ‌دارِ یکنواخت کافی است، ولی چون فرمت ممکن است پدینگ‌دار نباشد، از
+  // آخرین تاریخ فعالیت هر پرونده (رشته‌ی جلالی؛ مقایسه‌ی رشته‌ای برای فرمت
+  // پدینگ‌دار یکنواخت کافی است، ولی چون فرمت ممکن است پدینگ‌دار نباشد، از
   // timestamp واقعی استفاده می‌کنیم — نه مقایسه‌ی رشته‌ای)
   const { jalaliDateTimeToTimestamp } = await import('@/lib/calendar')
   const lastActivity = new Map<string, number>()
@@ -54,10 +54,10 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   const a = await requirePanelAuth(req, params.slug)
   if (isPanelAuthResponse(a)) return a
   const { channel, segment, message } = await req.json()
-  if (!['sms', 'email'].includes(channel)) return NextResponse.json({ error: 'کانالِ نامعتبر' }, { status: 400 })
-  if (!message?.trim()) return NextResponse.json({ error: 'متنِ پیام لازم است' }, { status: 400 })
+  if (!['sms', 'email'].includes(channel)) return NextResponse.json({ error: 'کانال نامعتبر' }, { status: 400 })
+  if (!message?.trim()) return NextResponse.json({ error: 'متن پیام لازم است' }, { status: 400 })
   if (channel === 'sms' && !freeTextSmsConfigured())
-    return NextResponse.json({ error: 'پیامکِ آزاد تنظیم نشده (SMS_IR_LINE_NUMBER را در env بگذار)' }, { status: 400 })
+    return NextResponse.json({ error: 'پیامک آزاد تنظیم نشده (SMS_IR_LINE_NUMBER را در env بگذار)' }, { status: 400 })
   if (channel === 'email' && !emailConfigured())
     return NextResponse.json({ error: 'ایمیل تنظیم نشده (RESEND_API_KEY را در env بگذار)' }, { status: 400 })
 
@@ -70,7 +70,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
       const res = await sendFreeTextSms(r.contact_phone, message.trim())
       if (res.ok) count++
     } else if (channel === 'email' && r.contact_email) {
-      const res = await sendCampaignEmail(r.contact_email, `پیامی از طرفِ ${a.tenant.slug}`, message.trim())
+      const res = await sendCampaignEmail(r.contact_email, `پیامی از طرف ${a.tenant.slug}`, message.trim())
       if (res.ok) count++
     }
   }

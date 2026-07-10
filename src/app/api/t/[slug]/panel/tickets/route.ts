@@ -7,7 +7,7 @@ export const revalidate = 0
 
 const CATEGORIES = ['bug', 'feature', 'billing', 'other'] as const
 
-// GET → تیکت‌هایِ همین tenant (owner همه را می‌بیند، درمانگر فقط تیکت‌هایِ خودش را)
+// GET → تیکت‌های همین tenant (owner همه را می‌بیند، درمانگر فقط تیکت‌های خودش را)
 export async function GET(req: NextRequest, { params }: { params: { slug: string } }) {
   const a = await requirePanelAuth(req, params.slug)
   if (isPanelAuthResponse(a)) return a
@@ -17,7 +17,7 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
   return NextResponse.json({ tickets: data || [] })
 }
 
-// POST {subject, message, category} → ثبتِ تیکتِ تازه
+// POST {subject, message, category} → ثبت تیکت تازه
 export async function POST(req: NextRequest, { params }: { params: { slug: string } }) {
   const a = await requirePanelAuth(req, params.slug)
   if (isPanelAuthResponse(a)) return a
@@ -25,7 +25,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
 
   const subject = String(b.subject || '').trim().slice(0, 150)
   const message = String(b.message || '').trim().slice(0, 4000)
-  if (!subject || !message) return NextResponse.json({ error: 'موضوع و متنِ پیام لازم است' }, { status: 400 })
+  if (!subject || !message) return NextResponse.json({ error: 'موضوع و متن پیام لازم است' }, { status: 400 })
   const category = CATEGORIES.includes(b.category) ? b.category : 'other'
 
   let submittedByName = ''
@@ -43,7 +43,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   }).select().single()
   if (error) {
     console.error('panel/tickets POST error:', error)
-    return NextResponse.json({ error: 'ثبتِ تیکت ناموفق بود', detail: `${error.code || ''} ${error.message || ''}`.trim() }, { status: 500 })
+    return NextResponse.json({ error: 'ثبت تیکت ناموفق بود', detail: `${error.code || ''} ${error.message || ''}`.trim() }, { status: 500 })
   }
   return NextResponse.json({ ticket: data })
 }

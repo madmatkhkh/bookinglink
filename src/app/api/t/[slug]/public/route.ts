@@ -17,11 +17,11 @@ export async function GET(_req: NextRequest, { params }: { params: { slug: strin
       .eq('tenant_id', t.id).eq('is_active', true).order('sort_order').order('created_at'),
     getNiche(t.niche_key),
   ])
-  // برچسب‌ها از نیچ می‌آیند تا صفحه‌ی عمومی زبانِ درستِ همان کسب‌وکار را بگوید
+  // برچسب‌ها از نیچ می‌آیند تا صفحه‌ی عمومی زبان درست همان کسب‌وکار را بگوید
   const labels = niche
     ? { client: niche.client_label, resource: niche.resource_label, booking: niche.booking_label }
     : { client: 'مراجع', resource: 'ارائه‌دهنده', booking: 'نوبت' }
-  // چند منبعِ انتخاب‌شدنی داریم؟ (اگر ماژول multi_resource روشن باشد نمایش می‌دهیم)
+  // چند منبع انتخاب‌شدنی داریم؟ (اگر ماژول multi_resource روشن باشد نمایش می‌دهیم)
   const selectableResources = (resources || []).filter(r => r.is_selectable)
   return NextResponse.json({
     profile, services: services || [],

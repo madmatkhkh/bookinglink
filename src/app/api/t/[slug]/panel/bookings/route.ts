@@ -7,7 +7,7 @@ export const revalidate = 0
 
 const SELECT = 'id, booking_date, booking_time, booking_ts, client_name, client_phone, status, payment_ref, price_snapshot, client_note, services(name, mode, duration_minutes)'
 
-// ?scope=pending → منتظرِ تاییدِ پرداخت | ?scope=upcoming → آینده‌ی زنده | ?date=YYYY/MM/DD → یک روز
+// ?scope=pending → منتظر تایید پرداخت | ?scope=upcoming → آینده‌ی زنده | ?date=YYYY/MM/DD → یک روز
 export async function GET(req: NextRequest, { params }: { params: { slug: string } }) {
   const t = await requirePanel(req, params.slug)
   if (isTenantResponse(t)) return t
@@ -43,7 +43,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { slug: stri
   else if (action === 'cancel' && ['pending_payment', 'payment_submitted', 'confirmed'].includes(b.status)) patch = { status: 'cancelled' }
   else if (action === 'complete' && b.status === 'confirmed') patch = { status: 'completed' }
   else if (action === 'no_show' && b.status === 'confirmed') patch = { status: 'no_show' }
-  if (!patch) return NextResponse.json({ error: 'این تغییرِ وضعیت مجاز نیست' }, { status: 400 })
+  if (!patch) return NextResponse.json({ error: 'این تغییر وضعیت مجاز نیست' }, { status: 400 })
 
   await sb().from('bookings').update(patch).eq('id', b.id)
   return NextResponse.json({ success: true })

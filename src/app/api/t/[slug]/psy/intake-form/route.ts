@@ -5,8 +5,8 @@ import { getIntakeForm, getDefaultResourceId, DEFAULT_INTAKE_FORM } from '@/lib/
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-// فرمِ رزروِ عمومی — resource_id از انتخابگرِ دکتر می‌آید؛ اگر داده نشود (تک‌دکترها)
-// پیش‌فرض همان تنها/اولین دکترِ tenant است.
+// فرم رزرو عمومی — resource_id از انتخابگر دکتر می‌آید؛ اگر داده نشود (تک‌دکترها)
+// پیش‌فرض همان تنها/اولین دکتر tenant است.
 export async function GET(req: NextRequest, { params }: { params: { slug: string } }) {
   const t = await getActiveTenant(params.slug)
   if (!t) return NextResponse.json({ error: 'یافت نشد' }, { status: 404 })

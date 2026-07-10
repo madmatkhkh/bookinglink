@@ -1,33 +1,33 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// لایه‌ی مشترکِ نیچِ روانشناسی — قیمت‌گذاری، قوانین، و تنظیماتِ per-tenant.
-// معادلِ config.ts + settings.ts در psych-booking، ولی چندمستاجری.
+// لایه‌ی مشترک نیچ روانشناسی — قیمت‌گذاری، قوانین، و تنظیمات per-tenant.
+// معادل config.ts + settings.ts در psych-booking، ولی چندمستاجری.
 // ─────────────────────────────────────────────────────────────────────────────
 import { sb } from './supabase'
 
-// قیمت‌گذاریِ پیش‌فرضِ سراسری (تومان) — برایِ متخصص‌هایی که هنوز قیمتِ خودشان را
-// تنظیم نکرده‌اند. قیمتِ واقعیِ هر متخصص per-resource است (پایین‌تر).
-// مدل عمداً ساده است: فقط دو قیمت — آنلاین و حضوری. نوعِ کار (مصاحبه/ارزیابی/
+// قیمت‌گذاری پیش‌فرض سراسری (تومان) — برای متخصص‌هایی که هنوز قیمت خودشان را
+// تنظیم نکرده‌اند. قیمت واقعی هر متخصص per-resource است (پایین‌تر).
+// مدل عمدا ساده است: فقط دو قیمت — آنلاین و حضوری. نوع کار (مصاحبه/ارزیابی/
 // جلسه/پروتکل) فرقی نمی‌کند؛ فقط اینکه حضوری برگزار شود یا آنلاین قیمت را
-// تعیین می‌کند (تصمیمِ صریحِ صاحبِ پروژه، جولای ۲۰۲۶).
+// تعیین می‌کند (تصمیم صریح صاحب پروژه، جولای ۲۰۲۶).
 export const PSY_PRICING = {
   online: 850000,
   offline: 1200000,
 }
 
-// ── قیمت‌گذاریِ خودِ متخصص (per-resource) ────────────────────────────────────
+// ── قیمت‌گذاری خود متخصص (per-resource) ────────────────────────────────────
 export type Pricing = { online: number; offline: number }
 export const DEFAULT_PRICING: Pricing = { ...PSY_PRICING }
 
-// قیمت بر اساسِ نوعِ حضور (نه نوعِ کار) — مصاحبه/ارزیابی/جلسه/پروتکل همه از همین برمی‌آیند
+// قیمت بر اساس نوع حضور (نه نوع کار) — مصاحبه/ارزیابی/جلسه/پروتکل همه از همین برمی‌آیند
 export function resolvePrice(mode: string, pricing: Pricing = DEFAULT_PRICING): number {
   return mode === 'online' ? pricing.online : pricing.offline
 }
 
 export function mergePricing(raw: any): Pricing {
   const clamp = (v: unknown, fallback: number) => (typeof v === 'number' && Number.isFinite(v) && v >= 0 ? Math.round(v) : fallback)
-  // سازگاریِ عقب‌رو: داده‌هایِ قدیمی (پیش از تصمیمِ «فقط دو قیمت») ممکن است
-  // شکلِ قدیمی داشته باشند {interview, assessment, sessionOnline, sessionOffline}؛
-  // در آن صورت sessionOnline/sessionOffline را به‌عنوانِ نزدیک‌ترین معادل مهاجرت می‌دهیم.
+  // سازگاری عقب‌رو: داده‌های قدیمی (پیش از تصمیم «فقط دو قیمت») ممکن است
+  // شکل قدیمی داشته باشند {interview, assessment, sessionOnline, sessionOffline}؛
+  // در آن صورت sessionOnline/sessionOffline را به‌عنوان نزدیک‌ترین معادل مهاجرت می‌دهیم.
   if (raw && typeof raw.online !== 'number' && typeof raw?.sessionOnline === 'number') {
     return {
       online: clamp(raw.sessionOnline, DEFAULT_PRICING.online),
@@ -40,7 +40,7 @@ export function mergePricing(raw: any): Pricing {
   }
 }
 
-// قیمتِ فعلیِ یک متخصصِ مشخص (برایِ محاسبه‌ی مبلغ در لحظه‌ی ساختِ مرحله/جلسه/پروتکل)
+// قیمت فعلی یک متخصص مشخص (برای محاسبه‌ی مبلغ در لحظه‌ی ساخت مرحله/جلسه/پروتکل)
 export async function getResourcePricing(resourceId: string | null | undefined): Promise<Pricing> {
   if (!resourceId) return DEFAULT_PRICING
   try {
@@ -51,28 +51,28 @@ export async function getResourcePricing(resourceId: string | null | undefined):
   }
 }
 
-// مبلغِ کلِ یک پروتکلِ درمان از رویِ ترکیبِ جلساتِ کودک/والدین + قیمتِ داده‌شده
+// مبلغ کل یک پروتکل درمان از روی ترکیب جلسات کودک/والدین + قیمت داده‌شده
 export function packageAmount(p: { primary_sessions: number; primary_session_type: string; secondary_sessions: number; secondary_session_type: string }, pricing: Pricing = DEFAULT_PRICING): number {
   return (p.primary_sessions * resolvePrice(p.primary_session_type, pricing))
     + (p.secondary_sessions * resolvePrice(p.secondary_session_type, pricing))
 }
 
-// ── کدِ تخفیف — per-resource، اختیاری برایِ بعضی مراجعان ─────────────────────
+// ── کد تخفیف — per-resource، اختیاری برای بعضی مراجعان ─────────────────────
 export type DiscountCheckResult =
   | { ok: true; id: string; discountedAmount: number; discountAmount: number; code: string }
   | { ok: false; error: string }
 
-// چکِ اعتبار + محاسبه‌ی مبلغِ تخفیف‌خورده — used_count را خودش +۱ نمی‌کند (آن را
-// صدازننده بعد از موفقیتِ قطعیِ پرداخت انجام می‌دهد تا کدهایِ ناموفق/رهاشده مصرف نشوند)
+// چک اعتبار + محاسبه‌ی مبلغ تخفیف‌خورده — used_count را خودش +۱ نمی‌کند (آن را
+// صدازننده بعد از موفقیت قطعی پرداخت انجام می‌دهد تا کدهای ناموفق/رهاشده مصرف نشوند)
 export async function checkDiscountCode(resourceId: string, rawCode: string, amount: number): Promise<DiscountCheckResult> {
   const code = String(rawCode || '').trim().toUpperCase()
   if (!code) return { ok: false, error: 'کد را وارد کنید' }
   const { data: dc } = await sb().from('psy_discount_codes').select('*')
     .eq('resource_id', resourceId).eq('code', code).maybeSingle()
-  if (!dc) return { ok: false, error: 'کدِ تخفیف یافت نشد' }
+  if (!dc) return { ok: false, error: 'کد تخفیف یافت نشد' }
   if (!dc.is_active) return { ok: false, error: 'این کد دیگر فعال نیست' }
   if (dc.expires_at && new Date(dc.expires_at).getTime() < Date.now()) return { ok: false, error: 'این کد منقضی شده' }
-  if (dc.max_uses !== null && dc.used_count >= dc.max_uses) return { ok: false, error: 'ظرفیتِ استفاده از این کد تمام شده' }
+  if (dc.max_uses !== null && dc.used_count >= dc.max_uses) return { ok: false, error: 'ظرفیت استفاده از این کد تمام شده' }
 
   const discountAmount = dc.discount_type === 'percent'
     ? Math.round(amount * (Number(dc.discount_value) / 100))
@@ -81,39 +81,39 @@ export async function checkDiscountCode(resourceId: string, rawCode: string, amo
   return { ok: true, id: dc.id, discountedAmount, discountAmount, code }
 }
 
-// بعد از قطعی‌شدنِ پرداخت با این کد، مصرفش را ثبت کن (idempotent نیست — فقط یک‌بار صدا زده شود)
+// بعد از قطعی‌شدن پرداخت با این کد، مصرفش را ثبت کن (idempotent نیست — فقط یک‌بار صدا زده شود)
 export async function redeemDiscountCode(id: string): Promise<void> {
   try {
     const { data } = await sb().from('psy_discount_codes').select('used_count').eq('id', id).maybeSingle()
     if (data) await sb().from('psy_discount_codes').update({ used_count: (data.used_count || 0) + 1 }).eq('id', id)
-  } catch { /* شکستِ ثبتِ مصرف نباید پرداختِ موفق را خراب کند */ }
+  } catch { /* شکست ثبت مصرف نباید پرداخت موفق را خراب کند */ }
 }
 
-// مصرفِ کد از رویِ خودِ متنِ کد (برایِ فلوِ کارت‌به‌کارت که discount_code_id ذخیره
-// نمی‌کند، فقط متنِ کد روی رکورد می‌ماند). صدازننده باید مطمئن باشد فقط یک بار
-// صدا می‌زند (الگویِ استفاده: فقط وقتی ثبتِ ledger «تازه» بود، نه تکراری).
+// مصرف کد از روی خود متن کد (برای فلو کارت‌به‌کارت که discount_code_id ذخیره
+// نمی‌کند، فقط متن کد روی رکورد می‌ماند). صدازننده باید مطمئن باشد فقط یک بار
+// صدا می‌زند (الگوی استفاده: فقط وقتی ثبت ledger «تازه» بود، نه تکراری).
 export async function redeemDiscountCodeByCode(resourceId: string, code: string): Promise<void> {
   try {
     const { data } = await sb().from('psy_discount_codes').select('id')
       .eq('resource_id', resourceId).eq('code', String(code || '').trim().toUpperCase()).maybeSingle()
     if (data) await redeemDiscountCode(data.id)
-  } catch { /* شکستِ ثبتِ مصرف نباید تاییدِ پرداخت را خراب کند */ }
+  } catch { /* شکست ثبت مصرف نباید تایید پرداخت را خراب کند */ }
 }
 
-// قانونِ کنسلی: اگر ≥ partialHours ساعت مانده کنسل شود، partialPercent٪ سوخت
+// قانون کنسلی: اگر ≥ partialHours ساعت مانده کنسل شود، partialPercent٪ سوخت
 export const PSY_CANCEL = { partialHours: 12, partialPercent: 50 }
 
 // نوبت‌گیری زودتر از این تعداد روز ممکن نیست (از فردا)
 export const PSY_BOOKING = { minLeadDays: 1 }
 
-// ── اعتبارسنجیِ سمتِ سرورِ اسلاتِ انتخابیِ مراجع ─────────────────────────────
-// تا امروز فقط UI اسلات‌های مجاز را نشان می‌داد؛ خودِ API هر تاریخ/ساعتی را
-// می‌پذیرفت («گرفته‌نشده» تنها شرط بود) — یعنی با یک POST مستقیم می‌شد ساعتِ ۳
-// صبح یا روزِ مرخصیِ دکتر نوبت گرفت. این تابع سه چیز را سمتِ سرور تضمین می‌کند:
-//   ۱) زمان در آینده است و minLeadDays رعایت شده (نوبتِ امروز/گذشته ممنوع)
-//   ۲) برنامه‌ی همان روزِ همان دکتر در psy_schedules وجود دارد و is_off نیست
-//   ۳) ساعتِ انتخابی دقیقاً یکی از available_times همان روز است
-// تاریخ‌های ذخیره‌شده ممکن است صفرِ پیشوند داشته یا نداشته باشند ('1405/04/05'
+// ── اعتبارسنجی سمت سرور اسلات انتخابی مراجع ─────────────────────────────
+// تا امروز فقط UI اسلات‌های مجاز را نشان می‌داد؛ خود API هر تاریخ/ساعتی را
+// می‌پذیرفت («گرفته‌نشده» تنها شرط بود) — یعنی با یک POST مستقیم می‌شد ساعت ۳
+// صبح یا روز مرخصی دکتر نوبت گرفت. این تابع سه چیز را سمت سرور تضمین می‌کند:
+//   ۱) زمان در آینده است و minLeadDays رعایت شده (نوبت امروز/گذشته ممنوع)
+//   ۲) برنامه‌ی همان روز همان دکتر در psy_schedules وجود دارد و is_off نیست
+//   ۳) ساعت انتخابی دقیقا یکی از available_times همان روز است
+// تاریخ‌های ذخیره‌شده ممکن است صفر پیشوند داشته یا نداشته باشند ('1405/04/05'
 // یا '1405/4/5') — هر دو شکل چک می‌شوند. ساعت هم با timeKey مقایسه می‌شود تا
 // '9:00' و '09:00' یکی حساب شوند.
 import { jalaliDateTimeToTimestamp, jalaliKey, timeKey, toLatinNum } from './calendar'
@@ -125,16 +125,16 @@ export async function validateClientSlot(
 ): Promise<SlotCheck> {
   const parts = toLatinNum(String(dateStr || '')).split('/').map(Number)
   if (parts.length !== 3 || parts.some(n => !Number.isFinite(n)))
-    return { ok: false, error: 'تاریخِ انتخابی نامعتبر است' }
+    return { ok: false, error: 'تاریخ انتخابی نامعتبر است' }
   const [jy, jm, jd] = parts
 
-  // ۱) آینده بودن + رعایتِ minLeadDays (نوبت از «فردا» به بعد)
+  // ۱) آینده بودن + رعایت minLeadDays (نوبت از «فردا» به بعد)
   const ts = jalaliDateTimeToTimestamp(dateStr, time)
-  if (ts === null) return { ok: false, error: 'زمانِ انتخابی نامعتبر است' }
+  if (ts === null) return { ok: false, error: 'زمان انتخابی نامعتبر است' }
   const minStart = Date.now() + PSY_BOOKING.minLeadDays * 24 * 60 * 60 * 1000
   const startOfSlotDay = jalaliDateTimeToTimestamp(dateStr, '23:59')
   if (ts <= Date.now() || (startOfSlotDay !== null && startOfSlotDay < minStart))
-    return { ok: false, error: 'این تاریخ قابلِ رزرو نیست — نوبت از فردا به بعد گرفته می‌شود' }
+    return { ok: false, error: 'این تاریخ قابل رزرو نیست — نوبت از فردا به بعد گرفته می‌شود' }
 
   if (!resourceId) return { ok: false, error: 'منبعی برای این پرونده ثبت نشده' }
 
@@ -159,7 +159,7 @@ export type SessionMode = 'both' | 'online' | 'offline'
 export type OfficeLocation = { id: string; title: string; address: string }
 export type PaymentCardInfo = { id: string; number: string; holder: string; bank?: string }
 
-// ── سطحِ tenant/برند: چیزی که بینِ همه‌ی دکترهای همان مجموعه مشترک است ────────
+// ── سطح tenant/برند: چیزی که بین همه‌ی دکترهای همان مجموعه مشترک است ────────
 export type ClinicSettings = {
   office_locations: OfficeLocation[]
 }
@@ -175,7 +175,7 @@ export function mergeClinic(raw: Partial<ClinicSettings> | null | undefined): Cl
   }
 }
 
-// تنظیماتِ کلینیکِ یک tenant را می‌خواند (سطحِ tenant، مشترکِ همه‌ی دکترها)
+// تنظیمات کلینیک یک tenant را می‌خواند (سطح tenant، مشترک همه‌ی دکترها)
 export async function getClinicSettings(tenantId: string): Promise<ClinicSettings> {
   try {
     const { data } = await sb().from('psy_clinic_settings').select('*').eq('tenant_id', tenantId).maybeSingle()
@@ -185,10 +185,10 @@ export async function getClinicSettings(tenantId: string): Promise<ClinicSetting
   }
 }
 
-// ── سیاستِ کنسلی — قابلِ‌تنظیم توسطِ هر دکتر ──────────────────────────────────
+// ── سیاست کنسلی — قابل‌تنظیم توسط هر دکتر ──────────────────────────────────
 // اگر مراجع ≥ threshold_hours ساعت مانده کنسل کند: early_refund_percent٪ برمی‌گردد.
 // اگر کمتر از آن مانده باشد: late_refund_percent٪ برمی‌گردد (می‌تواند صفر باشد).
-// enabled=false یعنی مراجع اصلاً نمی‌تواند خودش کنسل کند.
+// enabled=false یعنی مراجع اصلا نمی‌تواند خودش کنسل کند.
 export type CancellationPolicy = {
   enabled: boolean
   threshold_hours: number
@@ -196,7 +196,7 @@ export type CancellationPolicy = {
   late_refund_percent: number
 }
 
-// پیش‌فرض دقیقاً همان قانونِ سراسریِ قبلی (PSY_CANCEL) است — تک‌دکترهای فعلی
+// پیش‌فرض دقیقا همان قانون سراسری قبلی (PSY_CANCEL) است — تک‌دکترهای فعلی
 // هیچ تغییری در رفتار نمی‌بینند مگر خودشان دستکاری کنند.
 export const DEFAULT_CANCELLATION_POLICY: CancellationPolicy = {
   enabled: true, threshold_hours: 12, early_refund_percent: 50, late_refund_percent: 0,
@@ -212,7 +212,7 @@ export function mergeCancellationPolicy(raw: Partial<CancellationPolicy> | null 
   }
 }
 
-// ── روش‌های پرداختِ فعال — حداقل یکی باید روشن بماند (سمتِ API هم چک می‌شود) ──
+// ── روش‌های پرداخت فعال — حداقل یکی باید روشن بماند (سمت API هم چک می‌شود) ──
 export type PaymentMethods = { card_to_card: boolean; online: boolean }
 export const DEFAULT_PAYMENT_METHODS: PaymentMethods = { card_to_card: true, online: false }
 
@@ -224,31 +224,31 @@ export function mergePaymentMethods(raw: Partial<PaymentMethods> | null | undefi
   return { card_to_card: card || !online, online }
 }
 
-// ── محدودیتِ پلنِ رایگان: فقط پرداختِ آنلاین (تصمیمِ کسب‌وکاریِ صریح) ─────────
-// کارمزدِ پلتفرم فقط از تراکنشِ آنلاین (که از مرچنتِ خودِ پلتفرم رد می‌شود) قابلِ
-// دریافت است؛ کارت‌به‌کارت مستقیم بینِ مراجع و دکتر است و ردی برایِ پلتفرم نمی‌ماند.
-// این محاسبه در لحظه‌ی مصرف انجام می‌شود (نه فقط روی مقدارِ ذخیره‌شده) تا حتی اگر
+// ── محدودیت پلن رایگان: فقط پرداخت آنلاین (تصمیم کسب‌وکاری صریح) ─────────
+// کارمزد پلتفرم فقط از تراکنش آنلاین (که از مرچنت خود پلتفرم رد می‌شود) قابل
+// دریافت است؛ کارت‌به‌کارت مستقیم بین مراجع و دکتر است و ردی برای پلتفرم نمی‌ماند.
+// این محاسبه در لحظه‌ی مصرف انجام می‌شود (نه فقط روی مقدار ذخیره‌شده) تا حتی اگر
 // دکتر تنظیماتش را دوباره ذخیره نکرده باشد یا پلن تازه عوض شده باشد، همیشه درست
-// باشد — دفاعِ اصلی در نقاطی است که واقعاً پول حرکت می‌کند (pay/pay-online).
+// باشد — دفاع اصلی در نقاطی است که واقعا پول حرکت می‌کند (pay/pay-online).
 export function effectivePaymentMethods(pm: PaymentMethods, plan: string): PaymentMethods {
   if (plan !== 'pro') return { card_to_card: false, online: true }
   return pm
 }
 
-// اعتبارسنجیِ فرمتِ شماره‌شبا: IR + ۲۴ رقم (استانداردِ ایران). فقط فرمت را چک
-// می‌کند، نه اینکه حسابِ واقعی وجود دارد یا نام صاحبش درست است (آن را خودِ
-// زیبال هنگامِ تعریفِ ذی‌نفع تایید می‌کند).
+// اعتبارسنجی فرمت شماره‌شبا: IR + ۲۴ رقم (استاندارد ایران). فقط فرمت را چک
+// می‌کند، نه اینکه حساب واقعی وجود دارد یا نام صاحبش درست است (آن را خود
+// زیبال هنگام تعریف ذی‌نفع تایید می‌کند).
 export function isValidSheba(raw: string): boolean {
   const s = String(raw || '').trim().toUpperCase().replace(/\s/g, '')
   return /^IR\d{24}$/.test(s)
 }
 
-// ── سطحِ resource/شخص: پروفایلِ هرکارمند (دکتر) — نام/عنوان/آواتار از خودِ
-// جدولِ resources می‌آید (اینجا تکرار نشده)؛ این‌ها فقط چیزهایی‌اند که هر دکتر
+// ── سطح resource/شخص: پروفایل هرکارمند (دکتر) — نام/عنوان/آواتار از خود
+// جدول resources می‌آید (اینجا تکرار نشده)؛ این‌ها فقط چیزهایی‌اند که هر دکتر
 // مستقل از بقیه مدیریت می‌کند.
-// لیستِ ساعت‌های استانداردِ پیش‌فرض که در تبِ «روزهای کاری» به‌عنوانِ گزینه‌های
-// سریع نشان داده می‌شوند؛ هر دکتر می‌تواند از پنلِ خودش این لیست را ویرایش کند
-// (افزودن/حذفِ ساعت) — پس این‌جا فقط مقدارِ پیش‌فرضِ اولیه برای دکترهای تازه است.
+// لیست ساعت‌های استاندارد پیش‌فرض که در تب «روزهای کاری» به‌عنوان گزینه‌های
+// سریع نشان داده می‌شوند؛ هر دکتر می‌تواند از پنل خودش این لیست را ویرایش کند
+// (افزودن/حذف ساعت) — پس این‌جا فقط مقدار پیش‌فرض اولیه برای دکترهای تازه است.
 export const DEFAULT_QUICK_TIMES = ['8:00','9:00','10:00','11:00','12:00','13:00','14:00','15:00','16:00','17:00','18:00']
 
 export type ResourceProfile = {
@@ -262,13 +262,13 @@ export type ResourceProfile = {
   settlement_sheba: string
   settlement_sheba_holder_name: string
   pricing: Pricing
-  // برچسبِ «تماسِ دوم/همراه» — به‌انتخابِ خودِ متخصص. خالی = این مفهوم اصلاً
-  // استفاده نمی‌شود (مثلاً درمانِ فردیِ بزرگسال)؛ پر = نام و مسیرِ جلسه‌ی دومی
-  // با همین برچسب نمایش داده می‌شود (مثلاً «والدین»، «همسر»، «همراه»).
+  // برچسب «تماس دوم/همراه» — به‌انتخاب خود متخصص. خالی = این مفهوم اصلا
+  // استفاده نمی‌شود (مثلا درمان فردی بزرگسال)؛ پر = نام و مسیر جلسه‌ی دومی
+  // با همین برچسب نمایش داده می‌شود (مثلا «والدین»، «همسر»، «همراه»).
   companion_label: string
-  // لینکِ گوگل‌میتِ ثابتِ همین دکتر — بدونِ نیازِ اتصالِ گوگل‌کلندر/OAuth؛ خودِ
-  // دکتر از حسابِ Gmail/Google خودش می‌سازد و این‌جا می‌چسباند. جلساتِ آنلاین
-  // به‌صورتِ پیش‌فرض همین را نشان می‌دهند مگر per-session override شده باشد.
+  // لینک گوگل‌میت ثابت همین دکتر — بدون نیاز اتصال گوگل‌کلندر/OAuth؛ خود
+  // دکتر از حساب Gmail/Google خودش می‌سازد و این‌جا می‌چسباند. جلسات آنلاین
+  // به‌صورت پیش‌فرض همین را نشان می‌دهند مگر per-session override شده باشد.
   meet_link: string
 }
 
@@ -305,7 +305,7 @@ export function mergeResourceProfile(resourceId: string, raw: Partial<ResourcePr
   }
 }
 
-// پروفایلِ یک دکترِ مشخص (per-resource)
+// پروفایل یک دکتر مشخص (per-resource)
 export async function getResourceProfile(resourceId: string): Promise<ResourceProfile> {
   try {
     const { data } = await sb().from('psy_resource_profiles').select('*').eq('resource_id', resourceId).maybeSingle()
@@ -315,7 +315,7 @@ export async function getResourceProfile(resourceId: string): Promise<ResourcePr
   }
 }
 
-// سیاستِ کنسلیِ یک دکترِ مشخص (میان‌بر — بدونِ خواندنِ کلِ پروفایل)
+// سیاست کنسلی یک دکتر مشخص (میان‌بر — بدون خواندن کل پروفایل)
 export async function getCancellationPolicy(resourceId: string): Promise<CancellationPolicy> {
   try {
     const { data } = await sb().from('psy_resource_profiles').select('cancellation_policy').eq('resource_id', resourceId).maybeSingle()
@@ -325,7 +325,7 @@ export async function getCancellationPolicy(resourceId: string): Promise<Cancell
   }
 }
 
-// روش‌های پرداختِ فعالِ یک دکترِ مشخص
+// روش‌های پرداخت فعال یک دکتر مشخص
 export async function getPaymentMethods(resourceId: string): Promise<PaymentMethods> {
   try {
     const { data } = await sb().from('psy_resource_profiles').select('payment_methods').eq('resource_id', resourceId).maybeSingle()
@@ -335,8 +335,8 @@ export async function getPaymentMethods(resourceId: string): Promise<PaymentMeth
   }
 }
 
-// لیستِ دکترهای قابل‌انتخابِ یک tenant برای صفحه‌ی عمومی (نام/عنوان/آواتار از
-// resources + بج/مدِ جلسه از پروفایلِ خودشان). تک‌دکترها یک آیتم می‌گیرند.
+// لیست دکترهای قابل‌انتخاب یک tenant برای صفحه‌ی عمومی (نام/عنوان/آواتار از
+// resources + بج/مد جلسه از پروفایل خودشان). تک‌دکترها یک آیتم می‌گیرند.
 export type PublicDoctor = {
   id: string
   name: string
@@ -350,7 +350,7 @@ export type PublicDoctor = {
   pricing: Pricing
   companion_label: string
   meet_link: string
-  // امتیازِ واقعیِ محاسبه‌شده از psy_reviews (فقط approved) — نه بجِ خودنوشت.
+  // امتیاز واقعی محاسبه‌شده از psy_reviews (فقط approved) — نه بج خودنوشت.
   // rating_count صفر یعنی هنوز نظری ثبت نشده؛ در آن صورت هیچ امتیازی نشان داده نمی‌شود.
   rating_avg: number
   rating_count: number
@@ -388,8 +388,8 @@ export async function listPublicDoctors(tenantId: string, plan: string): Promise
   })
 }
 
-// وقتی tenant دقیقاً یک منبعِ فعال دارد (اکثریتِ الانِ tenantها)، تعیینِ resourceId
-// برای رزروِ عمومی نیازی به انتخابِ کاربر ندارد — خودکار همان یکی است.
+// وقتی tenant دقیقا یک منبع فعال دارد (اکثریت الان tenantها)، تعیین resourceId
+// برای رزرو عمومی نیازی به انتخاب کاربر ندارد — خودکار همان یکی است.
 export async function getDefaultResourceId(tenantId: string): Promise<string | null> {
   const { data } = await sb().from('resources').select('id')
     .eq('tenant_id', tenantId).eq('is_active', true)
@@ -397,15 +397,15 @@ export async function getDefaultResourceId(tenantId: string): Promise<string | n
   return data?.id || null
 }
 
-// کلیدهای ماژول‌هایی که مراجع در پنلِ خودش می‌بیند — پیش‌فرض همه روشن
+// کلیدهای ماژول‌هایی که مراجع در پنل خودش می‌بیند — پیش‌فرض همه روشن
 export const PATIENT_FEATURE_KEYS = ['patient_buy_extra_session', 'patient_self_cancel'] as const
 
 export const onlineAvailable = (m: SessionMode) => m === 'both' || m === 'online'
 export const offlineAvailable = (m: SessionMode) => m === 'both' || m === 'offline'
 
-// ── فرمِ رزرو — قابلِ‌تنظیم توسطِ هر دکتر (per-resource) ──────────────────────
-// نام/شماره‌تماس بیرونِ این اسکیما و همیشه ثابت‌اند (برای OTP لازم‌اند).
-// هرچه اینجاست کاملاً دیتایی و قابلِ‌ویرایش از پنل → تنظیمات → فرمِ رزرو است.
+// ── فرم رزرو — قابل‌تنظیم توسط هر دکتر (per-resource) ──────────────────────
+// نام/شماره‌تماس بیرون این اسکیما و همیشه ثابت‌اند (برای OTP لازم‌اند).
+// هرچه اینجاست کاملا دیتایی و قابل‌ویرایش از پنل → تنظیمات → فرم رزرو است.
 export type FormFieldType = 'text' | 'textarea' | 'select' | 'multiselect' | 'date' | 'phone' | 'email'
 
 export type FormField = {
@@ -415,11 +415,11 @@ export type FormField = {
   required: boolean
   options?: string[]   // برای select/multiselect
   placeholder?: string
-  // منطقِ شرطی: این سوال فقط وقتی نشان داده می‌شود که پاسخِ سوالِ دیگری مقدارِ
-  // مشخصی داشته باشد — مثلاً «سن و تحصیلاتِ خواهر/برادر» فقط اگر «آیا خواهر/برادر
-  // دارید» = «بله» بود. برای select برابری چک می‌شود، برای multiselect وجودِ مقدار.
+  // منطق شرطی: این سوال فقط وقتی نشان داده می‌شود که پاسخ سوال دیگری مقدار
+  // مشخصی داشته باشد — مثلا «سن و تحصیلات خواهر/برادر» فقط اگر «آیا خواهر/برادر
+  // دارید» = «بله» بود. برای select برابری چک می‌شود، برای multiselect وجود مقدار.
   showIf?: { fieldId: string; value: string }
-  // مخفیِ موقت — بدونِ حذفِ کامل. اولویت دارد بر showIf (اگر مخفی است، اصلاً نشان داده نمی‌شود)
+  // مخفی موقت — بدون حذف کامل. اولویت دارد بر showIf (اگر مخفی است، اصلا نشان داده نمی‌شود)
   hidden?: boolean
 }
 
@@ -431,29 +431,29 @@ export type FormSection = {
 
 export type IntakeForm = { sections: FormSection[] }
 
-// این فیلدها روی ستونِ واقعیِ psy_cases می‌نشینند (نه details) — برای سازگاری با
-// جست‌وجو/نمایشِ قدیمی. هرچیزِ دیگری که دکتر اضافه کند در details ذخیره می‌شود.
+// این فیلدها روی ستون واقعی psy_cases می‌نشینند (نه details) — برای سازگاری با
+// جست‌وجو/نمایش قدیمی. هرچیز دیگری که دکتر اضافه کند در details ذخیره می‌شود.
 export const INTAKE_KNOWN_COLUMNS = ['birth_date', 'grade', 'reason', 'contact_name', 'contact2_name', 'contact2_phone', 'contact2_email'] as const
 
-// فرمِ پیش‌فرضِ عمومی — کوتاه و مستقل از تخصص، تا برایِ هر روان‌شناس/روان‌پزشکی با
-// هر گرایشی (فردیِ بزرگسال، کودک، زوج، خانواده...) نقطه‌ی شروعِ معقولی باشد. هر
-// متخصص از همینجا با فرم‌بیلدرِ خودش (تنظیمات → فرمِ رزرو) کامل شخصی‌سازی‌اش می‌کند —
-// مثلاً کسی که با کودک کار می‌کند می‌تواند بخش‌هایِ رشد/بارداری/مدرسه را دوباره اضافه کند.
+// فرم پیش‌فرض عمومی — کوتاه و مستقل از تخصص، تا برای هر روان‌شناس/روان‌پزشکی با
+// هر گرایشی (فردی بزرگسال، کودک، زوج، خانواده...) نقطه‌ی شروع معقولی باشد. هر
+// متخصص از همینجا با فرم‌بیلدر خودش (تنظیمات → فرم رزرو) کامل شخصی‌سازی‌اش می‌کند —
+// مثلا کسی که با کودک کار می‌کند می‌تواند بخش‌های رشد/بارداری/مدرسه را دوباره اضافه کند.
 export const DEFAULT_INTAKE_FORM: IntakeForm = {
   sections: [
-    { id: 'basic', title: 'اطلاعاتِ اولیه', fields: [
-      { id: 'reason', label: 'دلیلِ مراجعه', type: 'textarea', required: true, placeholder: 'به طور مختصر...' },
+    { id: 'basic', title: 'اطلاعات اولیه', fields: [
+      { id: 'reason', label: 'دلیل مراجعه', type: 'textarea', required: true, placeholder: 'به طور مختصر...' },
       { id: 'birth_date', label: 'تاریخ تولد', type: 'date', required: false },
-      { id: 'prev_visit', label: 'سابقه‌ی مراجعه‌ی قبلی', type: 'select', required: true, options: ['خیر، اولین بار است', 'بله، قبلاً مراجعه داشتم'] },
+      { id: 'prev_visit', label: 'سابقه‌ی مراجعه‌ی قبلی', type: 'select', required: true, options: ['خیر، اولین بار است', 'بله، قبلا مراجعه داشتم'] },
     ]},
     { id: 'companion', title: 'همراه (اختیاری)', fields: [
-      { id: 'contact2_name', label: 'نامِ همراه', type: 'text', required: false, placeholder: 'در صورتِ نیاز' },
-      { id: 'contact2_phone', label: 'شماره‌تماسِ همراه', type: 'phone', required: false },
-      { id: 'contact2_email', label: 'ایمیلِ همراه (اختیاری)', type: 'email', required: false },
+      { id: 'contact2_name', label: 'نام همراه', type: 'text', required: false, placeholder: 'در صورت نیاز' },
+      { id: 'contact2_phone', label: 'شماره‌تماس همراه', type: 'phone', required: false },
+      { id: 'contact2_email', label: 'ایمیل همراه (اختیاری)', type: 'email', required: false },
     ]},
     { id: 'history', title: 'سابقه', fields: [
-      { id: 'medical_info', label: 'سابقه‌ی پزشکی/روان‌پزشکی', type: 'textarea', required: false, placeholder: 'بیماری‌ها، تشخیص‌ها یا درمان‌هایِ قبلی...' },
-      { id: 'current_meds', label: 'داروهای در حالِ مصرف', type: 'text', required: false, placeholder: 'نامِ دارو و دوز...' },
+      { id: 'medical_info', label: 'سابقه‌ی پزشکی/روان‌پزشکی', type: 'textarea', required: false, placeholder: 'بیماری‌ها، تشخیص‌ها یا درمان‌های قبلی...' },
+      { id: 'current_meds', label: 'داروهای در حال مصرف', type: 'text', required: false, placeholder: 'نام دارو و دوز...' },
     ]},
     { id: 'extra', title: 'موارد دیگر', fields: [
       { id: 'extra_notes', label: 'مواردی که می‌خواهید متخصص از قبل بداند', type: 'textarea', required: false, placeholder: 'هر نکته‌ای که فکر می‌کنید مهم است...' },
@@ -494,7 +494,7 @@ export async function getIntakeForm(resourceId: string): Promise<IntakeForm> {
   }
 }
 
-// آیا این فیلد الان باید نشان داده شود؟ (مخفیِ دستی همیشه اولویت دارد؛ بعد از آن showIf)
+// آیا این فیلد الان باید نشان داده شود؟ (مخفی دستی همیشه اولویت دارد؛ بعد از آن showIf)
 export function fieldVisible(field: FormField, answers: Record<string, unknown>): boolean {
   if (field.hidden) return false
   if (!field.showIf) return true
@@ -503,10 +503,10 @@ export function fieldVisible(field: FormField, answers: Record<string, unknown>)
   return String(target ?? '') === field.showIf.value
 }
 
-// همه‌ی فیلدهای اجباریِ یک فرم مقدار دارند؟ برچسبِ فیلدهای ناقص را برمی‌گرداند
-// (فیلدهایی که طبقِ showIf الان مخفی‌اند، اجباری حساب نمی‌شوند). فیلدهای نوعِ
-// «phone» علاوه‌بر اجباری‌بودن، فرمتِ شماره‌ی موبایلِ ایرانی هم چک می‌شوند —
-// حتی اگر اختیاری باشند، مقدارِ واردشده باید یا خالی یا یک شماره‌ی معتبر باشد.
+// همه‌ی فیلدهای اجباری یک فرم مقدار دارند؟ برچسب فیلدهای ناقص را برمی‌گرداند
+// (فیلدهایی که طبق showIf الان مخفی‌اند، اجباری حساب نمی‌شوند). فیلدهای نوع
+// «phone» علاوه‌بر اجباری‌بودن، فرمت شماره‌ی موبایل ایرانی هم چک می‌شوند —
+// حتی اگر اختیاری باشند، مقدار واردشده باید یا خالی یا یک شماره‌ی معتبر باشد.
 function digitsToLatin(s: string): string {
   return s.replace(/[۰-۹]/g, d => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d)))
 }
@@ -525,22 +525,22 @@ export function missingIntakeFields(form: IntakeForm, answers: Record<string, un
       const v = answers[f.id]
       const empty = f.type === 'multiselect' ? !Array.isArray(v) || v.length === 0 : !String(v ?? '').trim()
       if (f.required && empty) { missing.push(f.label); continue }
-      if (f.type === 'phone' && !empty && !isValidIranPhone(String(v))) missing.push(`${f.label} (فرمتِ شماره نامعتبر است)`)
-      if (f.type === 'email' && !empty && !isValidEmailFormat(String(v))) missing.push(`${f.label} (فرمتِ ایمیل نامعتبر است)`)
+      if (f.type === 'phone' && !empty && !isValidIranPhone(String(v))) missing.push(`${f.label} (فرمت شماره نامعتبر است)`)
+      if (f.type === 'email' && !empty && !isValidEmailFormat(String(v))) missing.push(`${f.label} (فرمت ایمیل نامعتبر است)`)
     }
   }
   return missing
 }
 
-// برچسبِ فارسیِ کلیدهای details از پرونده‌های قدیمی (قبل از فرم‌بیلدر) — برای
-// نمایشِ درستِ پرونده‌های ساخته‌شده پیش از این قابلیت
+// برچسب فارسی کلیدهای details از پرونده‌های قدیمی (قبل از فرم‌بیلدر) — برای
+// نمایش درست پرونده‌های ساخته‌شده پیش از این قابلیت
 export const LEGACY_DETAIL_LABELS: Record<string, string> = {
   prev_visit: 'سابقه‌ی مراجعه‌ی قبلی',
-  father_education: 'تحصیلاتِ پدر', father_job: 'شغلِ پدر',
-  mother_education: 'تحصیلاتِ مادر', mother_job: 'شغلِ مادر',
-  home_address: 'آدرسِ منزل', siblings_info: 'خواهر/برادر', family_members_info: 'سایرِ ساکنینِ منزل',
-  family_status: 'وضعیتِ خانوادگی', child_conditions: 'ویژگی‌های کودک',
-  pregnancy_info: 'شرایطِ بارداریِ مادر', birth_type: 'نوعِ زایمان', birth_weight: 'وزنِ هنگامِ تولد',
+  father_education: 'تحصیلات پدر', father_job: 'شغل پدر',
+  mother_education: 'تحصیلات مادر', mother_job: 'شغل مادر',
+  home_address: 'آدرس منزل', siblings_info: 'خواهر/برادر', family_members_info: 'سایر ساکنین منزل',
+  family_status: 'وضعیت خانوادگی', child_conditions: 'ویژگی‌های کودک',
+  pregnancy_info: 'شرایط بارداری مادر', birth_type: 'نوع زایمان', birth_weight: 'وزن هنگام تولد',
   growth_info: 'رشد و تکامل', medical_info: 'سابقه‌ی پزشکی', school_info: 'مدرسه',
-  sports_info: 'فعالیتِ ورزشی', parent_behavior: 'رفتارِ والدین با فرزند', extra_notes: 'توضیحاتِ تکمیلی',
+  sports_info: 'فعالیت ورزشی', parent_behavior: 'رفتار والدین با فرزند', extra_notes: 'توضیحات تکمیلی',
 }

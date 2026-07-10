@@ -3,8 +3,8 @@
 @tailwind utilities;
 
 /* ── فونت‌ها: self-host شده در public/fonts (variable — یک فایل، همه‌ی وزن‌ها) ──
-   قبلاً از jsdelivr لود می‌شد که برایِ کاربرِ ایرانی هم تاخیر داشت هم ریسکِ
-   دسترسی/تحریم. حالا از دامنه‌ی خودِ اپ سرو می‌شود — بدونِ وابستگیِ خارجی. */
+   قبلا از jsdelivr لود می‌شد که برای کاربر ایرانی هم تاخیر داشت هم ریسک
+   دسترسی/تحریم. حالا از دامنه‌ی خود اپ سرو می‌شود — بدون وابستگی خارجی. */
 @font-face {
   font-family: 'Vazirmatn';
   font-style: normal; font-weight: 100 900; font-display: swap;
@@ -16,32 +16,32 @@
   src: url(/fonts/Estedad.woff2) format('woff2-variations');
 }
 
-/* ── ریز-انیمیشن‌های صفحاتِ مارکتینگ/لاگین ────────────────────────────────── */
+/* ── ریز-انیمیشن‌های صفحات مارکتینگ/لاگین ────────────────────────────────── */
 @keyframes nlUp    { 0% { opacity: 0; transform: translateY(16px); } 100% { opacity: 1; transform: none; } }
 @keyframes nlPulse { 0%, 100% { opacity: .35; } 50% { opacity: 1; } }
 @keyframes nlFloat { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
 .animate-nl-up { animation: nlUp .5s cubic-bezier(.16,1,.3,1) both; }
 
-:root { --brand: 10 10 10; } /* تریپلتِ RGB — پیش‌فرضِ مونوکروم؛ از tenant_profiles.theme_color بازنویسی می‌شود */
+:root { --brand: 10 10 10; } /* تریپلت RGB — پیش‌فرض مونوکروم؛ از tenant_profiles.theme_color بازنویسی می‌شود */
 
 html { font-family: Vazirmatn, sans-serif; }
 body { @apply bg-paper text-ink; }
 
-/* اعدادِ جدولی برای هم‌ترازیِ ساعت‌ها و قیمت‌ها */
+/* اعداد جدولی برای هم‌ترازی ساعت‌ها و قیمت‌ها */
 .tnum { font-feature-settings: 'tnum'; }
 
 /* ══════════════════════════════════════════════════════════════════════════
-   حالتِ تیره — فقط داخلِ پنل ادمین (.pb-admin-dark)
+   حالت تیره — فقط داخل پنل ادمین (.pb-admin-dark)
 
-   طبقِ درخواستِ صریح: دقیقاً همان حالتِ روشن، فقط سفید⇄مشکی معکوس می‌شود —
-   نه یک پالتِ رنگیِ جداگانه (مثلِ Cal.com). بجِ وضعیت‌ها (سبز/کهربایی/قرمز/…)
+   طبق درخواست صریح: دقیقا همان حالت روشن، فقط سفید⇄مشکی معکوس می‌شود —
+   نه یک پالت رنگی جداگانه (مثل Cal.com). بج وضعیت‌ها (سبز/کهربایی/قرمز/…)
    دست‌نخورده می‌ماند چون بر پایه‌ی opacity (bg-{رنگ}-500/10) ساخته شده‌اند و
    خودشان روی زمینه‌ی تیره هم درست دیده می‌شوند؛ فقط متنشان کمی روشن‌تر می‌شود
    تا کنتراست کافی داشته باشد.
    ══════════════════════════════════════════════════════════════════════════ */
 .pb-admin-dark { background: #0a0a0a !important; color: #fafafa; }
 
-/* زمینه‌ها: سفید → مشکی، خاکستریِ روشن → خاکستریِ تیره (همان نسبت، معکوس) */
+/* زمینه‌ها: سفید → مشکی، خاکستری روشن → خاکستری تیره (همان نسبت، معکوس) */
 .pb-admin-dark .bg-white { background: #171717 !important; }
 .pb-admin-dark .bg-white\/60 { background: rgba(23,23,23,.6) !important; }
 .pb-admin-dark .bg-white\/70 { background: rgba(23,23,23,.7) !important; }
@@ -57,7 +57,7 @@ body { @apply bg-paper text-ink; }
 .pb-admin-dark .hover\:bg-gray-200:hover { background: #333333 !important; }
 .pb-admin-dark .bg-black\/50 { background: rgba(0,0,0,.7) !important; }
 
-/* متن: مشکی → سفید، خاکستریِ تیره → خاکستریِ روشن (همان نسبت، معکوس) */
+/* متن: مشکی → سفید، خاکستری تیره → خاکستری روشن (همان نسبت، معکوس) */
 .pb-admin-dark .text-ink,
 .pb-admin-dark .text-gray-900 { color: #fafafa !important; }
 .pb-admin-dark .text-gray-800 { color: #f0f0f0 !important; }
@@ -71,7 +71,7 @@ body { @apply bg-paper text-ink; }
 .pb-admin-dark .hover\:text-gray-800:hover { color: #fafafa !important; }
 .pb-admin-dark .hover\:text-gray-600:hover { color: #a3a3a3 !important; }
 
-/* حاشیه‌ها: خاکستریِ خیلی روشن → خاکستریِ خیلی تیره (همان نسبت، معکوس) */
+/* حاشیه‌ها: خاکستری خیلی روشن → خاکستری خیلی تیره (همان نسبت، معکوس) */
 .pb-admin-dark .border-sand,
 .pb-admin-dark .border-gray-50,
 .pb-admin-dark .border-gray-100 { border-color: #262626 !important; }
@@ -82,7 +82,7 @@ body { @apply bg-paper text-ink; }
 .pb-admin-dark .hover\:border-gray-400:hover { border-color: #525252 !important; }
 .pb-admin-dark .ring-gray-300 { --tw-ring-color: #404040 !important; }
 
-/* دکمه‌های اصلی (bg-ink / bg-brand-600 با متنِ سفید) — این‌ها هم سفید⇄مشکی
+/* دکمه‌های اصلی (bg-ink / bg-brand-600 با متن سفید) — این‌ها هم سفید⇄مشکی
    معکوس می‌شوند تا روی زمینه‌ی تیره ناپدید نشوند (وگرنه دکمه‌ی مشکی روی
    پس‌زمینه‌ی مشکی دیده نمی‌شد) */
 .pb-admin-dark .bg-ink { background: #fafafa !important; color: #0a0a0a !important; }
@@ -93,9 +93,9 @@ body { @apply bg-paper text-ink; }
 .pb-admin-dark .hover\:bg-brand-800:hover { background: #e0e0e0 !important; }
 .pb-admin-dark .ring-ink { --tw-ring-color: #fafafa !important; }
 
-/* بجِ وضعیت‌ها (سبز/کهربایی/قرمز/آبی/بنفش) — پس‌زمینه/بوردرِ opacity-محور
+/* بج وضعیت‌ها (سبز/کهربایی/قرمز/آبی/بنفش) — پس‌زمینه/بوردر opacity-محور
    دست‌نخورده می‌ماند (خودش روی تیره درست دیده می‌شود)؛ فقط متن یک پله
-   روشن‌تر می‌شود تا کنتراستِ کافی روی زمینه‌ی مشکی داشته باشد */
+   روشن‌تر می‌شود تا کنتراست کافی روی زمینه‌ی مشکی داشته باشد */
 .pb-admin-dark .text-emerald-600, .pb-admin-dark .text-emerald-700 { color: #34d399 !important; }
 .pb-admin-dark .text-amber-600, .pb-admin-dark .text-amber-700 { color: #fbbf24 !important; }
 .pb-admin-dark .text-red-600, .pb-admin-dark .text-red-700 { color: #f87171 !important; }
@@ -108,4 +108,4 @@ body { @apply bg-paper text-ink; }
 }
 .pb-admin-dark input::placeholder, .pb-admin-dark textarea::placeholder { color: #6b6b6b !important; }
 
-/* مخفی‌کردنِ اسکرول‌بار برای نوارهای افقی (موبایل) */
+/* مخفی‌کردن اسکرول‌بار برای نوارهای افقی (موبایل) */

@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic'
 export const revalidate = 0
 const NO_STORE = { 'Cache-Control': 'no-store, max-age=0, must-revalidate' }
 
-// هر دکتر (resource) برنامه‌ی روزمحورِ مستقلِ خودش دارد؛ owner باید مشخص کند
+// هر دکتر (resource) برنامه‌ی روزمحور مستقل خودش دارد؛ owner باید مشخص کند
 // برنامه‌ی کدام دکتر را می‌بیند/ویرایش می‌کند (پیش‌فرض: تنها منبع، برای تک‌دکترها).
 async function resolveResourceId(req: NextRequest, tenantId: string, isOwner: boolean, ownResourceId: string | null, bodyResourceId?: string): Promise<string | null> {
   if (!isOwner) return ownResourceId
@@ -40,7 +40,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   }
   if (saveError) return NextResponse.json({ error: saveError.message }, { status: 500 })
 
-  // آزادسازیِ جلسه‌هایی که ساعتشان دیگر در دسترس نیست (یا روز تعطیل شد) — فقط برای همین دکتر
+  // آزادسازی جلسه‌هایی که ساعتشان دیگر در دسترس نیست (یا روز تعطیل شد) — فقط برای همین دکتر
   const newTimes: string[] = is_off ? [] : (available_times || [])
   const { data: booked } = await sb().from('psy_sessions').select('id, session_time')
     .eq('tenant_id', a.tenant.id).eq('resource_id', resourceId).eq('session_date', date).eq('status', 'confirmed')

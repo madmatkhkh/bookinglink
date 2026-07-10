@@ -9,8 +9,8 @@ export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 // زیبال کاربر را با GET و trackId/success به همین آدرس برمی‌گرداند.
-// موفقیت اینجا دقیقاً همان کاری را می‌کند که تاییدِ دستیِ دکتر در پنل می‌کرد —
-// یعنی مرحله بدونِ نیاز به تاییدِ دکتر جلو می‌رود.
+// موفقیت اینجا دقیقا همان کاری را می‌کند که تایید دستی دکتر در پنل می‌کرد —
+// یعنی مرحله بدون نیاز به تایید دکتر جلو می‌رود.
 export async function GET(req: NextRequest, { params }: { params: { slug: string } }) {
   const t = await getActiveTenant(params.slug)
   const q = req.nextUrl.searchParams
@@ -24,14 +24,14 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
   const { data: intent } = await sb().from('psy_payment_intents').select('*').eq('id', intentId).eq('tenant_id', t.id).maybeSingle()
   if (!intent) return NextResponse.redirect(`${base}?payment=error`)
 
-  // بدونِ phone/case در URL — صفحه‌ی /my آن‌ها را نمی‌خواند و شماره‌تلفن در URL
+  // بدون phone/case در URL — صفحه‌ی /my آن‌ها را نمی‌خواند و شماره‌تلفن در URL
   // (تاریخچه‌ی مرورگر/لاگ‌ها) نشت می‌کرد
   const redirectBase = base
 
-  // trackId باید مالِ همین intent باشد — وگرنه می‌شد با رسیدِ یک پرداختِ
-  // ارزانِ دیگر (که واقعاً paid است)، یک intentِ گران را نهایی کرد.
-  // اگر authority اصلاً ثبت نشده (updateِ بعدِ request شکست خورده)، دیگر «رد شدن
-  // از چک» مجاز نیست — intentِ بدونِ authority هرگز finalize نمی‌شود.
+  // trackId باید مال همین intent باشد — وگرنه می‌شد با رسید یک پرداخت
+  // ارزان دیگر (که واقعا paid است)، یک intent گران را نهایی کرد.
+  // اگر authority اصلا ثبت نشده (update بعد request شکست خورده)، دیگر «رد شدن
+  // از چک» مجاز نیست — intent بدون authority هرگز finalize نمی‌شود.
   if (!intent.authority || !trackId || String(intent.authority) !== String(trackId)) {
     if (success !== '1' || !trackId) {
       await sb().from('psy_payment_intents').update({ status: 'failed' }).eq('id', intentId)
@@ -45,7 +45,7 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
     return NextResponse.redirect(`${redirectBase}?payment=cancelled`)
   }
   if (intent.status === 'paid') {
-    // قبلاً پردازش شده (مثلاً کاربر رفرش کرده) — دوباره finalize نکن، فقط برگردان
+    // قبلا پردازش شده (مثلا کاربر رفرش کرده) — دوباره finalize نکن، فقط برگردان
     return NextResponse.redirect(`${redirectBase}?payment=success`)
   }
 
@@ -54,8 +54,8 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
     await sb().from('psy_payment_intents').update({ status: 'failed' }).eq('id', intentId)
     return NextResponse.redirect(`${redirectBase}?payment=failed`)
   }
-  // دفاعِ دوم: مبلغِ verifyشده‌ی زیبال (ریال) باید دقیقاً همان مبلغِ intent باشد
-  // (پروژه تومان نگه می‌دارد → ×۱۰). اگر زیبال amount برنگرداند، به چکِ authority
+  // دفاع دوم: مبلغ verifyشده‌ی زیبال (ریال) باید دقیقا همان مبلغ intent باشد
+  // (پروژه تومان نگه می‌دارد → ×۱۰). اگر زیبال amount برنگرداند، به چک authority
   // بالا تکیه می‌کنیم؛ اگر برگرداند و نخواند، finalize نمی‌کنیم.
   if (verify.amountRial !== null && verify.amountRial !== Math.round((intent.amount || 0) * 10)) {
     console.error('zibal amount mismatch:', { intentId, expected: (intent.amount || 0) * 10, got: verify.amountRial })
@@ -64,7 +64,7 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
 
   await sb().from('psy_payment_intents').update({ status: 'paid' }).eq('id', intentId)
 
-  // ثبت در دفترِ حساب — منبعِ حقیقتِ حسابداری. purpose از خودِ intent می‌آید؛
+  // ثبت در دفتر حساب — منبع حقیقت حسابداری. purpose از خود intent می‌آید؛
   // «stage» به interview/assessment ترجمه می‌شود چون ledger این دو را جدا نگه می‌دارد.
   let ledgerPurpose: LedgerPurpose = 'session'
   let stageCase: string | null = null
@@ -91,7 +91,7 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
     recordedBy: 'zibal_callback',
   })
 
-  // finalize — دقیقاً معادلِ تاییدِ دستیِ دکتر برای همان نوع پرداخت
+  // finalize — دقیقا معادل تایید دستی دکتر برای همان نوع پرداخت
   const discountPatch = intent.discount_code_id
     ? { discount_code: intent.discount_code, original_price: intent.original_amount }
     : {}

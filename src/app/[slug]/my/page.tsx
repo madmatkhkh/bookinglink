@@ -94,7 +94,7 @@ export default function PatientPanel() {
   const data = await res.json()
   if (data.success) {
    setBooking(data.booking)
-   setPhone(identity) // ذخیره‌ی هویتِ نهایی (شماره یا ایمیل) برایِ درخواست‌هایِ بعدی — نامِ state تاریخی است
+   setPhone(identity) // ذخیره‌ی هویت نهایی (شماره یا ایمیل) برای درخواست‌های بعدی — نام state تاریخی است
    await loadData(data.booking.case_number, identity)
    try { localStorage.setItem('pb_phone', identity); localStorage.setItem('pb_case', data.booking.case_number) } catch {}
    setStep('panel')
@@ -103,7 +103,7 @@ export default function PatientPanel() {
   setLoading(false)
  }
 
- // نگه‌داشتنِ ورود پس از ریلود
+ // نگه‌داشتن ورود پس از ریلود
  useEffect(() => {
   try {
    const savedPhone = localStorage.getItem('pb_phone')
@@ -129,7 +129,7 @@ export default function PatientPanel() {
   } catch { setRestoring(false) }
  }, [])
 
- // نتیجه‌ی برگشت از درگاهِ پرداختِ آنلاین (زیبال) — یک بار toast بزن، دیتا را
+ // نتیجه‌ی برگشت از درگاه پرداخت آنلاین (زیبال) — یک بار toast بزن، دیتا را
  // تازه کن، و پارامترها را از URL پاک کن تا با رفرش دوباره تکرار نشود.
  useEffect(() => {
   if (paymentHandled.current) return
@@ -140,7 +140,7 @@ export default function PatientPanel() {
   if (result === 'success') uiAlert('پرداخت با موفقیت انجام شد.')
   else if (result === 'cancelled') uiAlert('پرداخت لغو شد.')
   else if (result === 'failed') uiAlert('پرداخت تایید نشد. دوباره تلاش کنید یا از کارت‌به‌کارت استفاده کنید.')
-  else uiAlert('خطایی در پردازشِ پرداخت رخ داد.')
+  else uiAlert('خطایی در پردازش پرداخت رخ داد.')
   loadData(booking.case_number)
   router.replace(`/${slug}/my`)
  }, [step, booking, searchParams, slug])
@@ -150,10 +150,10 @@ export default function PatientPanel() {
   setStep('login'); setBooking(null); setPhone('')
  }
 
- // اگر این صفحه از bfcache (کشِ برگشت/جلوی مرورگر) برگردد، React remount
- // نمی‌شود و state دقیقاً همان لحظه‌ی خروج «منجمد» می‌ماند. باگِ قبلی: دیتا را
- // بی‌سروصدا در پس‌زمینه دوباره می‌خواندیم درحالی‌که همان محتوایِ منجمد رویِ
- // صفحه می‌ماند و بعد یهو با دیتایِ تازه جایگزین می‌شد. فیکس: همان اسپلشِ
+ // اگر این صفحه از bfcache (کش برگشت/جلوی مرورگر) برگردد، React remount
+ // نمی‌شود و state دقیقا همان لحظه‌ی خروج «منجمد» می‌ماند. باگ قبلی: دیتا را
+ // بی‌سروصدا در پس‌زمینه دوباره می‌خواندیم درحالی‌که همان محتوای منجمد روی
+ // صفحه می‌ماند و بعد یهو با دیتای تازه جایگزین می‌شد. فیکس: همان اسپلش
  // «در حال بارگذاری» (restoring) را دوباره نشان می‌دهیم تا این پرش دیده نشود.
  useEffect(() => {
   function onPageShow(e: PageTransitionEvent) {
@@ -198,7 +198,7 @@ export default function PatientPanel() {
      <div className="w-14 h-14 rounded-full bg-sand flex items-center justify-center mx-auto mb-3 text-2xl">🩺</div>
      <h1 className="text-lg font-display font-semibold text-ink">پنل مراجع</h1>
      {settings.loaded
-      ? <p className="text-xs text-soot mt-1">مطبِ {settings.doctor_name}</p>
+      ? <p className="text-xs text-soot mt-1">مطب {settings.doctor_name}</p>
       : <div className="h-3.5 w-32 mx-auto bg-gray-100 rounded animate-pulse mt-2" />}
     </div>
     <div className="flex bg-gray-100 rounded-xl p-1 mb-4">
@@ -223,7 +223,7 @@ export default function PatientPanel() {
        <input value={emailInput} onChange={e => setEmailInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && sendOtp()}
         placeholder="example@gmail.com" dir="ltr"
         className="w-full text-sm px-3 py-2.5 border border-sand rounded-xl text-center focus:outline-none focus:border-ink" />
-       <p className="text-[11px] text-soot mt-1.5">برایِ مراجعینِ خارج از ایران — اگر ایمیلت را موقعِ ثبت‌نام داده باشی.</p>
+       <p className="text-[11px] text-soot mt-1.5">برای مراجعین خارج از ایران — اگر ایمیلت را موقع ثبت‌نام داده باشی.</p>
       </>
      )}
     </div>
@@ -261,7 +261,7 @@ export default function PatientPanel() {
     <div className="text-center mt-3">
      {resend.canResend ? (
       <button onClick={sendOtp} disabled={loading} className="text-sm text-ink font-medium hover:underline disabled:opacity-40">
-       ارسالِ دوباره‌ی کد
+       ارسال دوباره‌ی کد
       </button>
      ) : (
       <p className="text-xs text-soot">کد نیامد؟ تا <span className="tnum font-medium text-ink">{toFarsiNum(resend.secondsLeft)}</span> ثانیه‌ی دیگر می‌توانی دوباره درخواست کنی</p>
@@ -277,7 +277,7 @@ export default function PatientPanel() {
 
  // مراجعی که هنوز وارد مرحله‌ی درمان نشده، وضعیت مرحله‌ی فعلی‌اش را می‌بیند.
  // مرحله‌ی جاری (اگر باشد) از current_stage_id پیدا می‌شود؛ اگر نبود یعنی یا
- // منتظرِ تصمیمِ دکتر برای مرحله‌ی بعد است، یا وارد فازِ پروتکلِ درمان شده.
+ // منتظر تصمیم دکتر برای مرحله‌ی بعد است، یا وارد فاز پروتکل درمان شده.
  const currentStage = stages.find(s => s.id === booking.current_stage_id) || null
  const isRejected = booking.status === 'cancelled' && !!booking.reject_reason
  const inTreatment = !currentStage && packages.length > 0
@@ -305,7 +305,7 @@ export default function PatientPanel() {
    </div>
 
    <div className="max-w-lg mx-auto p-4 space-y-3">
-    {/* نوارِ پیشرفتِ مراحل */}
+    {/* نوار پیشرفت مراحل */}
     <StageProgress stages={stages} inTreatment={inTreatment} />
 
     <div className="bg-white rounded-2xl border border-sand p-6 text-center">
@@ -317,12 +317,12 @@ export default function PatientPanel() {
        </div>
       </>
      ) : !currentStage ? (
-      <StageWaiting title="منتظرِ تعیینِ مرحله‌ی بعد" desc="دکتر به‌زودی مرحله‌ی بعدِ روندِ درمان را برای شما مشخص می‌کند." />
+      <StageWaiting title="منتظر تعیین مرحله‌ی بعد" desc="دکتر به‌زودی مرحله‌ی بعد روند درمان را برای شما مشخص می‌کند." />
      ) : currentStage.status === 'awaiting_payment' ? (
       <>
        {currentStage.payment_reject_reason && (
         <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 text-sm text-red-700 text-right mb-3">
-         <span className="font-medium">پرداختِ قبلی تأیید نشد — </span>{currentStage.payment_reject_reason}
+         <span className="font-medium">پرداخت قبلی تأیید نشد — </span>{currentStage.payment_reject_reason}
         </div>
        )}
        <StagePayment
@@ -341,7 +341,7 @@ export default function PatientPanel() {
         onDone={() => loadData(booking.case_number)} />
       </>
      ) : currentStage.status === 'payment_submitted' ? (
-      <StageWaiting title="در انتظار تأیید پرداخت" desc="پرداخت شما ثبت شد و در حالِ بررسی است. پس از تأیید، اینجا می‌توانید وقت بگیرید." />
+      <StageWaiting title="در انتظار تأیید پرداخت" desc="پرداخت شما ثبت شد و در حال بررسی است. پس از تأیید، اینجا می‌توانید وقت بگیرید." />
      ) : currentStage.status === 'awaiting_booking' ? (
       <>
        {currentStage.cancel_notice && (
@@ -349,8 +349,8 @@ export default function PatientPanel() {
          ⚠️ {currentStage.cancel_notice}
         </div>
        )}
-       <StageHero icon={currentStage.cancel_notice ? '🗓' : '✅'} title={currentStage.cancel_notice ? 'انتخاب زمانِ جدید' : 'پرداخت تأیید شد!'}
-        desc={`می‌توانید وقتِ ${STAGE_TYPE_LABEL[currentStage.stage_type] || ''} را انتخاب کنید.`} />
+       <StageHero icon={currentStage.cancel_notice ? '🗓' : '✅'} title={currentStage.cancel_notice ? 'انتخاب زمان جدید' : 'پرداخت تأیید شد!'}
+        desc={`می‌توانید وقت ${STAGE_TYPE_LABEL[currentStage.stage_type] || ''} را انتخاب کنید.`} />
        <button onClick={() => setShowSlotPicker(true)}
         className="w-full py-3 bg-ink text-white rounded-xl text-sm font-medium hover:bg-ink/90">
         گرفتن وقت
@@ -358,9 +358,9 @@ export default function PatientPanel() {
       </>
      ) : (
       <StageInfo icon="📅" title="وقت ثبت شد"
-       desc="منتظرِ برگزاری باشید. پس از آن، دکتر مرحله‌ی بعد را مشخص می‌کند."
+       desc="منتظر برگزاری باشید. پس از آن، دکتر مرحله‌ی بعد را مشخص می‌کند."
        date={currentStage.session_date} time={currentStage.session_time}
-       label={`وقتِ ${STAGE_TYPE_LABEL[currentStage.stage_type] || ''}`}
+       label={`وقت ${STAGE_TYPE_LABEL[currentStage.stage_type] || ''}`}
        delayMinutes={currentStage.delay_minutes}
        meetLink={booking.session_type === 'online' ? (currentStage.meet_link || settings.doctors.find(d => d.id === booking.resource_id)?.meet_link) : undefined} />
      )}
@@ -372,7 +372,7 @@ export default function PatientPanel() {
 
    {showSlotPicker && currentStage && (
     <SlotPicker phone={phone} caseNumber={booking.case_number}
-     title={`انتخاب وقتِ ${STAGE_TYPE_LABEL[currentStage.stage_type] || ''}`} resourceId={booking.resource_id}
+     title={`انتخاب وقت ${STAGE_TYPE_LABEL[currentStage.stage_type] || ''}`} resourceId={booking.resource_id}
      sessionType={booking.session_type} officeLocation={booking.office_location}
      onClose={() => setShowSlotPicker(false)}
      onDone={() => { setShowSlotPicker(false); loadData(booking.case_number) }}
@@ -454,7 +454,7 @@ export default function PatientPanel() {
 
          {!pkg.paid && pkg.payment_reject_reason && (
           <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-2.5 mb-3 text-right">
-           <p className="text-xs text-red-700"><span className="font-medium">پرداختِ قبلی تأیید نشد — </span>{pkg.payment_reject_reason}</p>
+           <p className="text-xs text-red-700"><span className="font-medium">پرداخت قبلی تأیید نشد — </span>{pkg.payment_reject_reason}</p>
           </div>
          )}
 
@@ -514,7 +514,7 @@ export default function PatientPanel() {
         ['نام مراجع', booking.client_name],
         ['تاریخ تولد', booking.birth_date],
         ['پایه تحصیلی', booking.grade],
-        ['نامِ تماس', booking.contact_name],
+        ['نام تماس', booking.contact_name],
         [settings.doctors.find(d => d.id === booking.resource_id)?.companion_label || 'همراه', booking.contact2_name],
         ['شماره پرونده', booking.case_number],
        ].map(([label, value]) => value ? (
@@ -585,7 +585,7 @@ function SessionCard({ session: s, num, phone, caseNumber, onUpdate }: {
    body: JSON.stringify({ session_id: s.id, case_number: caseNumber, phone, payment_ref: payRef.trim() })
   })
   setPaying(false)
-  if (!res.ok) { uiAlert('ثبتِ پرداخت ناموفق بود'); return }
+  if (!res.ok) { uiAlert('ثبت پرداخت ناموفق بود'); return }
   onUpdate()
  }
 
@@ -617,7 +617,7 @@ function SessionCard({ session: s, num, phone, caseNumber, onUpdate }: {
 
  // جلسه‌ای که هنوز پرداخت نشده — فارغ از اینکه تاریخ/ساعتش (توسط دکتر) از قبل ثبت شده باشد یا نه
  const needsPayment = s.status === 'confirmed' && !s.paid
- // جلسه‌ی پرداخت‌شده ولی بدون تاریخ = منتظر انتخابِ زمان توسط مراجع
+ // جلسه‌ی پرداخت‌شده ولی بدون تاریخ = منتظر انتخاب زمان توسط مراجع
  const needsScheduling = s.status === 'confirmed' && s.paid && (!s.session_date || !s.session_time)
  const isAwaiting = needsScheduling
  const displayStatus = needsScheduling ? 'awaiting' : needsPayment ? 'awaiting_payment' : s.status
@@ -641,7 +641,7 @@ function SessionCard({ session: s, num, phone, caseNumber, onUpdate }: {
 
  async function cancelSession() {
   if (needsRefundCard && refundCard.replace(/[^0-9]/g, '').length < 16) {
-   uiAlert(`برای بازگشتِ ${toFarsiNum(refundPercent)}٪ مبلغ، شماره کارتِ 16 رقمی را کامل وارد کنید.`)
+   uiAlert(`برای بازگشت ${toFarsiNum(refundPercent)}٪ مبلغ، شماره کارت 16 رقمی را کامل وارد کنید.`)
    return
   }
   setCancelling(true)
@@ -657,9 +657,9 @@ function SessionCard({ session: s, num, phone, caseNumber, onUpdate }: {
   if (data.outcome === 'unpaid_released')
    uiAlert('جلسه کنسل شد. چون هنوز پرداخت نکرده بودید، مبلغی کسر نشد.')
   else if (data.outcome === 'partial_refund')
-   uiAlert(`جلسه کنسل شد. ${toFarsiNum(data.refund_percent ?? refundPercent)}٪ مبلغ (${refundAmount.toLocaleString()} تومان) پس از بررسی به کارتِ شما بازگردانده می‌شود.`)
+   uiAlert(`جلسه کنسل شد. ${toFarsiNum(data.refund_percent ?? refundPercent)}٪ مبلغ (${refundAmount.toLocaleString()} تومان) پس از بررسی به کارت شما بازگردانده می‌شود.`)
   else
-   uiAlert('جلسه کنسل شد و کلِ مبلغ آن سوخت. می‌توانید جلسه‌ی جدیدی خریداری کنید.')
+   uiAlert('جلسه کنسل شد و کل مبلغ آن سوخت. می‌توانید جلسه‌ی جدیدی خریداری کنید.')
   onUpdate()
  }
 
@@ -679,7 +679,7 @@ function SessionCard({ session: s, num, phone, caseNumber, onUpdate }: {
        ? <span className="text-soot">منتظر انتخاب زمان</span>
        : (s.status === 'forfeited' || s.status === 'replaced')
         ? (s.refund_percent && s.refund_percent > 0
-          ? <span className="text-soot">{toFarsiNum(s.refund_percent || 0)}٪ بازپرداخت {s.refund_status === 'done' ? '— واریز شد ' : '— در انتظارِ بازپرداخت'}</span>
+          ? <span className="text-soot">{toFarsiNum(s.refund_percent || 0)}٪ بازپرداخت {s.refund_status === 'done' ? '— واریز شد ' : '— در انتظار بازپرداخت'}</span>
           : <span className="text-red-600">سوخت شد — مبلغ برنگشت</span>)
         : <>{s.session_date} — {s.session_time}</>}
       {' | '}{s.session_type === 'online' ? '🎥 آنلاین' : '🏥 حضوری'}
@@ -711,11 +711,11 @@ function SessionCard({ session: s, num, phone, caseNumber, onUpdate }: {
     </div>
    )}
 
-   {/* دلیلِ ردِ پرداخت — فقط تا وقتی جلسه هنوز پرداخت‌نشده نمایش داده می‌شود؛
-      با تاییدِ نهایی این ستون صفر می‌شود (سرور) و اینجا خودکار ناپدید می‌شود. */}
+   {/* دلیل رد پرداخت — فقط تا وقتی جلسه هنوز پرداخت‌نشده نمایش داده می‌شود؛
+      با تایید نهایی این ستون صفر می‌شود (سرور) و اینجا خودکار ناپدید می‌شود. */}
    {needsPayment && s.payment_reject_reason && (
     <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-2.5 mt-2 text-right">
-     <p className="text-xs text-red-700"><span className="font-medium">پرداختِ قبلی تأیید نشد — </span>{s.payment_reject_reason}</p>
+     <p className="text-xs text-red-700"><span className="font-medium">پرداخت قبلی تأیید نشد — </span>{s.payment_reject_reason}</p>
     </div>
    )}
 
@@ -738,13 +738,13 @@ function SessionCard({ session: s, num, phone, caseNumber, onUpdate }: {
       {onlineOn && (
        <button onClick={paySessionOnline} disabled={onlineLoading}
         className="flex-1 py-2.5 bg-ink text-white rounded-xl text-sm font-medium disabled:opacity-40">
-        {onlineLoading ? 'در حال اتصال...' : `پرداختِ آنلاین ${sessionPrice.toLocaleString()}`}
+        {onlineLoading ? 'در حال اتصال...' : `پرداخت آنلاین ${sessionPrice.toLocaleString()}`}
        </button>
       )}
       {cardOn && (
        <button onClick={() => setPayOpen(true)}
         className={`py-2.5 rounded-xl text-sm font-medium ${onlineOn ? 'flex-1 border border-gray-300 text-soot' : 'w-full bg-ink text-white'}`}>
-        {onlineOn ? 'کارت‌به‌کارت' : `پرداختِ کارت‌به‌کارت ${sessionPrice.toLocaleString()} تومان`}
+        {onlineOn ? 'کارت‌به‌کارت' : `پرداخت کارت‌به‌کارت ${sessionPrice.toLocaleString()} تومان`}
        </button>
       )}
      </div>
@@ -788,9 +788,9 @@ function SessionCard({ session: s, num, phone, caseNumber, onUpdate }: {
       <>
        <p className="text-xs text-soot mb-3">
         {isPartial ? <>بیشتر از {toFarsiNum(policy.threshold_hours)} ساعت تا جلسه مانده.</> : <>کمتر از {toFarsiNum(policy.threshold_hours)} ساعت تا جلسه مانده.</>} با کنسل‌کردن{' '}
-        <strong>{toFarsiNum(refundPercent)}٪ مبلغ ({refundAmount.toLocaleString()} تومان)</strong> پس از بررسی به کارتِ شما بازگردانده می‌شود.
+        <strong>{toFarsiNum(refundPercent)}٪ مبلغ ({refundAmount.toLocaleString()} تومان)</strong> پس از بررسی به کارت شما بازگردانده می‌شود.
        </p>
-       <label className="text-xs text-soot mb-1 block">شماره کارت برای واریزِ بازپرداخت <span className="text-red-500">*</span></label>
+       <label className="text-xs text-soot mb-1 block">شماره کارت برای واریز بازپرداخت <span className="text-red-500">*</span></label>
        <input value={refundCard} onChange={e => setRefundCard(e.target.value)} dir="ltr"
         placeholder="6037-0000-0000-0000" inputMode="numeric"
         className="w-full text-sm px-3 py-2 border border-sand rounded-lg font-mono tracking-wider focus:outline-none focus:border-ink mb-3" />
@@ -798,7 +798,7 @@ function SessionCard({ session: s, num, phone, caseNumber, onUpdate }: {
      ) : (
       <p className="text-xs text-ink mb-3">
        {isPartial ? <>بیشتر از {toFarsiNum(policy.threshold_hours)} ساعت تا جلسه مانده، ولی</> : <>چون کمتر از {toFarsiNum(policy.threshold_hours)} ساعت تا جلسه مانده،</>} با کنسل‌کردن{' '}
-       <strong>کل مبلغ این جلسه سوخت می‌شود</strong> و برنمی‌گردد. می‌توانید بعداً جلسه‌ی جدیدی خریداری کنید. مطمئنید؟
+       <strong>کل مبلغ این جلسه سوخت می‌شود</strong> و برنمی‌گردد. می‌توانید بعدا جلسه‌ی جدیدی خریداری کنید. مطمئنید؟
       </p>
      )}
      <div className="flex gap-2">
@@ -806,7 +806,7 @@ function SessionCard({ session: s, num, phone, caseNumber, onUpdate }: {
        className="flex-1 py-2 border border-sand rounded-lg text-xs text-soot">انصراف</button>
       <button onClick={cancelSession} disabled={cancelling}
        className="flex-1 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs disabled:opacity-40">
-       {cancelling ? 'در حال کنسل...' : !s.paid ? 'تایید کنسل' : needsRefundCard ? `تایید و کنسل (${toFarsiNum(refundPercent)}٪ بازپرداخت)` : 'تایید و سوختِ مبلغ'}
+       {cancelling ? 'در حال کنسل...' : !s.paid ? 'تایید کنسل' : needsRefundCard ? `تایید و کنسل (${toFarsiNum(refundPercent)}٪ بازپرداخت)` : 'تایید و سوخت مبلغ'}
       </button>
      </div>
     </div>
@@ -815,7 +815,7 @@ function SessionCard({ session: s, num, phone, caseNumber, onUpdate }: {
  )
 }
 
-// ==================== PAY BUTTON (کارت‌به‌کارتِ پروتکل درمان) ====================
+// ==================== PAY BUTTON (کارت‌به‌کارت پروتکل درمان) ====================
 function PayButton({ pkg, phone, onSuccess, total }: { pkg: Package; phone: string; onSuccess: () => void; total: number }) {
  const [open, setOpen] = useState(false)
  const [paying, setPaying] = useState(false)
@@ -835,7 +835,7 @@ function PayButton({ pkg, phone, onSuccess, total }: { pkg: Package; phone: stri
    body: JSON.stringify({ package_id: pkg.id, case_number: pkg.case_number, phone, payment_ref: ref.trim() })
   })
   setPaying(false)
-  if (!res.ok) { uiAlert('ثبتِ پرداخت ناموفق بود'); return }
+  if (!res.ok) { uiAlert('ثبت پرداخت ناموفق بود'); return }
   onSuccess()
  }
 
@@ -857,13 +857,13 @@ function PayButton({ pkg, phone, onSuccess, total }: { pkg: Package; phone: stri
    {onlineOn && (
     <button onClick={payOnline} disabled={onlineLoading}
      className="flex-1 py-2.5 bg-ink text-white rounded-xl text-sm font-medium disabled:opacity-40">
-     {onlineLoading ? 'در حال اتصال...' : `پرداختِ آنلاین ${total.toLocaleString()}`}
+     {onlineLoading ? 'در حال اتصال...' : `پرداخت آنلاین ${total.toLocaleString()}`}
     </button>
    )}
    {cardOn && (
     <button onClick={() => setOpen(true)}
      className={`py-2.5 rounded-xl text-sm font-medium ${onlineOn ? 'flex-1 border border-gray-300 text-soot' : 'w-full bg-ink text-white'}`}>
-     {onlineOn ? 'کارت‌به‌کارت' : `پرداختِ کارت‌به‌کارت ${total.toLocaleString()} تومان`}
+     {onlineOn ? 'کارت‌به‌کارت' : `پرداخت کارت‌به‌کارت ${total.toLocaleString()} تومان`}
     </button>
    )}
   </div>
@@ -881,7 +881,7 @@ function PayButton({ pkg, phone, onSuccess, total }: { pkg: Package; phone: stri
     className="w-full py-2.5 bg-ink text-white rounded-xl text-sm font-medium disabled:opacity-40">
     {paying ? 'در حال ثبت...' : 'پرداخت کردم'}
    </button>
-   <p className="text-[11px] text-soot mt-1.5 text-center">پس از واریز، متنِ فیش را وارد و «پرداخت کردم» را بزنید تا بررسی و تأیید شود.</p>
+   <p className="text-[11px] text-soot mt-1.5 text-center">پس از واریز، متن فیش را وارد و «پرداخت کردم» را بزنید تا بررسی و تأیید شود.</p>
   </div>
  )
 }
@@ -891,8 +891,8 @@ function SlotPicker({ session, phone, caseNumber, onClose, onDone, title = 'ان
  session?: Session; phone: string; caseNumber: string; onClose: () => void; onDone: () => void
  title?: string; onConfirm?: (date: string, time: string) => Promise<{ ok: boolean; error?: string }>
  resourceId?: string | null
- // نوعِ جلسه (آنلاین/حضوری) وقتی `session` در دست نیست (مثلاً مراحلِ پیش‌ازدرمان) —
- // هم برایِ فیلترکردنِ اسلات‌ها هم برایِ نمایشِ واضح به مراجع که این وقت مالِ کدام نوع است
+ // نوع جلسه (آنلاین/حضوری) وقتی `session` در دست نیست (مثلا مراحل پیش‌ازدرمان) —
+ // هم برای فیلترکردن اسلات‌ها هم برای نمایش واضح به مراجع که این وقت مال کدام نوع است
  sessionType?: 'online' | 'offline'
  officeLocation?: string
 }) {
@@ -918,7 +918,7 @@ function SlotPicker({ session, phone, caseNumber, onClose, onDone, title = 'ان
   })
   setWaitlistJoining(false)
   if (res.ok) setWaitlistJoined(true)
-  else uiAlert('ثبت در لیستِ انتظار ناموفق بود')
+  else uiAlert('ثبت در لیست انتظار ناموفق بود')
  }
 
  useEffect(() => { loadSchedule(curMonth, curYear) }, [curMonth, curYear])
@@ -981,7 +981,7 @@ function SlotPicker({ session, phone, caseNumber, onClose, onDone, title = 'ان
   return base.filter(t => {
    const ts = jalaliDateTimeToTimestamp(`${curYear}/${curMonth + 1}/${d}`, t)
    if (!(ts === null || ts > Date.now())) return false
-   // اسلاتِ بدونِ نوع برای هر دو آزاد است؛ در غیرِ این صورت باید با نوعِ جلسه بخواند
+   // اسلات بدون نوع برای هر دو آزاد است؛ در غیر این صورت باید با نوع جلسه بخواند
    const st = dayTypes[t]
    return !want || !st || st === want
   })
@@ -1003,7 +1003,7 @@ function SlotPicker({ session, phone, caseNumber, onClose, onDone, title = 'ان
       </span>
       {(session?.session_type || sessionType) === 'offline' && (
        <p className="text-[11px] text-soot leading-5">
-        ⏱ ساعتِ انتخابی تقریبی است؛ ممکن است جلسه چند دقیقه با تاخیر شروع شود. سعی می‌شود همان سرِ ساعتِ اعلام‌شده رعایت شود.
+        ⏱ ساعت انتخابی تقریبی است؛ ممکن است جلسه چند دقیقه با تاخیر شروع شود. سعی می‌شود همان سر ساعت اعلام‌شده رعایت شود.
        </p>
       )}
      </div>
@@ -1041,10 +1041,10 @@ function SlotPicker({ session, phone, caseNumber, onClose, onDone, title = 'ان
        {resourceId && !waitlistJoined && (
         <button onClick={joinWaitlist} disabled={waitlistJoining}
          className="text-xs px-4 py-2 border border-ink text-ink rounded-lg hover:bg-sand disabled:opacity-40">
-         {waitlistJoining ? 'در حال ثبت...' : '+ افزودن به لیستِ انتظار'}
+         {waitlistJoining ? 'در حال ثبت...' : '+ افزودن به لیست انتظار'}
         </button>
        )}
-       {waitlistJoined && <p className="text-xs text-emerald-600">به لیستِ انتظار اضافه شدید — هروقت ظرفیتی باز شد به شما خبر می‌دهیم.</p>}
+       {waitlistJoined && <p className="text-xs text-emerald-600">به لیست انتظار اضافه شدید — هروقت ظرفیتی باز شد به شما خبر می‌دهیم.</p>}
       </div>
      )}
      {selectedDay && (
@@ -1092,10 +1092,10 @@ function SchedulePicker({ pkg, existingSessions, phone, caseNumber, onClose, onD
  const remaining = totalNeeded - alreadyBooked
  const totalSelected = Object.values(selectedSlots).reduce((a, b) => a + b.length, 0)
 
- // ⚠️ قانونِ کلی: ترکیبِ پروتکل را دکتر تعیین می‌کند (مثلاً ۲ جلسه‌ی مراجع + ۱
- // جلسه‌ی همراه) — مراجع فقط می‌تواند دقیقاً همین ترکیب را زمان‌بندی کند، نه هر
- // توزیعی. قبلاً فقط «مجموع» چک می‌شد و انتخابِ attendee برایِ هر اسلات آزاد بود؛
- // یعنی مراجع می‌توانست هر سه جلسه را «مراجع» انتخاب کند و سهمِ همراه خالی بماند.
+ // ⚠️ قانون کلی: ترکیب پروتکل را دکتر تعیین می‌کند (مثلا ۲ جلسه‌ی مراجع + ۱
+ // جلسه‌ی همراه) — مراجع فقط می‌تواند دقیقا همین ترکیب را زمان‌بندی کند، نه هر
+ // توزیعی. قبلا فقط «مجموع» چک می‌شد و انتخاب attendee برای هر اسلات آزاد بود؛
+ // یعنی مراجع می‌توانست هر سه جلسه را «مراجع» انتخاب کند و سهم همراه خالی بماند.
  const bookedPrimary = existingSessions.filter(s => s.attendee === 'primary').length
  const bookedSecondary = existingSessions.filter(s => s.attendee === 'secondary').length
  const selectedPrimary = Object.values(attendeeMap).filter(v => v === 'primary').length
@@ -1139,9 +1139,9 @@ function SchedulePicker({ pkg, existingSessions, phone, caseNumber, onClose, onD
    setAttendeeMap(newMap)
   } else {
    if (allSelected >= remaining) return
-   // پیش‌فرض: هر دسته‌ای که هنوز سهمِ خالی دارد؛ اول مراجع، وگرنه همراه —
-   // و اگر هر دو دسته پر شده باشند (نباید پیش بیاید چون totalSelected زیرِ
-   // remaining است) اصلاً اسلات اضافه نمی‌شود.
+   // پیش‌فرض: هر دسته‌ای که هنوز سهم خالی دارد؛ اول مراجع، وگرنه همراه —
+   // و اگر هر دو دسته پر شده باشند (نباید پیش بیاید چون totalSelected زیر
+   // remaining است) اصلا اسلات اضافه نمی‌شود.
    const defaultAttendee = remainingPrimary > 0 ? 'primary' : remainingSecondary > 0 ? 'secondary' : null
    if (!defaultAttendee) return
    setSelectedSlots(prev => ({ ...prev, [day]: [...current, slot] }))
@@ -1173,7 +1173,7 @@ function SchedulePicker({ pkg, existingSessions, phone, caseNumber, onClose, onD
   setSaving(false)
   if (!res.ok) {
    // ساعت گرفته‌شده یا خطای دیگر — به مراجع اطلاع بده و انتخاب‌ها را پاک کن
-   uiAlert(data.error || 'ثبت جلسه ناموفق بود. لطفاً دوباره تلاش کنید.')
+   uiAlert(data.error || 'ثبت جلسه ناموفق بود. لطفا دوباره تلاش کنید.')
    setSelectedSlots({})
    setAttendeeMap({})
    setSelectedDay(null)
@@ -1213,7 +1213,7 @@ function SchedulePicker({ pkg, existingSessions, phone, caseNumber, onClose, onD
     {(pkg.primary_session_type === 'offline' || pkg.secondary_session_type === 'offline') && (
      <div className="px-4 pt-3">
       <p className="text-[11px] text-soot leading-5">
-       ⏱ ساعتِ انتخابی برایِ جلساتِ حضوری تقریبی است؛ ممکن است چند دقیقه با تاخیر شروع شود. سعی می‌شود همان سرِ ساعتِ اعلام‌شده رعایت شود.
+       ⏱ ساعت انتخابی برای جلسات حضوری تقریبی است؛ ممکن است چند دقیقه با تاخیر شروع شود. سعی می‌شود همان سر ساعت اعلام‌شده رعایت شود.
       </p>
      </div>
     )}
@@ -1280,9 +1280,9 @@ function SchedulePicker({ pkg, existingSessions, phone, caseNumber, onClose, onD
            {isChosen && pkg.secondary_sessions > 0 && (
             <div className="flex mt-1 gap-1">
              {(['primary', 'secondary'] as const).map(a => {
-              // اجازه‌ی سوییچ به دسته‌ی a فقط اگر سهمِ آن دسته (به‌جز خودِ همین
-              // اسلات) هنوز پر نشده باشد — وگرنه می‌شد ترکیبِ تعریف‌شده‌ی دکتر
-              // (مثلاً ۲ مراجع + ۱ همراه) را با سوییچِ دستی به‌هم زد.
+              // اجازه‌ی سوییچ به دسته‌ی a فقط اگر سهم آن دسته (به‌جز خود همین
+              // اسلات) هنوز پر نشده باشد — وگرنه می‌شد ترکیب تعریف‌شده‌ی دکتر
+              // (مثلا ۲ مراجع + ۱ همراه) را با سوییچ دستی به‌هم زد.
               const selfIsA = attendee === a
               const otherSelected = (a === 'primary' ? selectedPrimary : selectedSecondary) - (selfIsA ? 1 : 0)
               const bookedA = a === 'primary' ? bookedPrimary : bookedSecondary
@@ -1331,7 +1331,7 @@ function SchedulePicker({ pkg, existingSessions, phone, caseNumber, onClose, onD
  )
 }
 
-// ==================== STAGE HELPERS (مراحلِ پیش‌از‌درمان) ====================
+// ==================== STAGE HELPERS (مراحل پیش‌از‌درمان) ====================
 function StageHero({ icon, title, desc, red }: { icon: string; title: string; desc: string; red?: boolean }) {
  return (
   <>
@@ -1376,7 +1376,7 @@ function StageInfo({ icon, title, desc, date, time, label, delayMinutes, meetLin
  )
 }
 
-// کارتِ پرداختِ کارت‌به‌کارت — شماره کارت + کد رهگیریِ اختیاری + دکمه‌ی «پرداخت کردم»
+// کارت پرداخت کارت‌به‌کارت — شماره کارت + کد رهگیری اختیاری + دکمه‌ی «پرداخت کردم»
 function StagePayment({ icon, title, desc, amount, onPaid, onDone, resourceId, caseNumber, phone, stageId }: {
  icon: string; title: string; desc: string; amount: number
  onPaid: (ref: string) => Promise<boolean>; onDone: () => void
@@ -1396,7 +1396,7 @@ function StagePayment({ icon, title, desc, amount, onPaid, onDone, resourceId, c
   setSubmitting(true)
   const ok = await onPaid(ref.trim())
   setSubmitting(false)
-  if (!ok) { uiAlert('ثبتِ پرداخت ناموفق بود. دوباره تلاش کنید.'); return }
+  if (!ok) { uiAlert('ثبت پرداخت ناموفق بود. دوباره تلاش کنید.'); return }
   onDone()
  }
 
@@ -1432,7 +1432,7 @@ function StagePayment({ icon, title, desc, amount, onPaid, onDone, resourceId, c
     <div className="grid grid-cols-2 gap-2 mb-3 p-1 bg-gray-100 rounded-xl">
      <button onClick={() => setMethod('online')}
       className={`py-2 rounded-lg text-xs font-medium transition-colors ${method === 'online' ? 'bg-white shadow-sm text-ink' : 'text-soot'}`}>
-      پرداختِ آنلاین
+      پرداخت آنلاین
      </button>
      <button onClick={() => setMethod('card')}
       className={`py-2 rounded-lg text-xs font-medium transition-colors ${method === 'card' ? 'bg-white shadow-sm text-ink' : 'text-soot'}`}>
@@ -1443,10 +1443,10 @@ function StagePayment({ icon, title, desc, amount, onPaid, onDone, resourceId, c
 
    {method === 'online' && onlineOn ? (
     <>
-     <p className="text-xs text-soot mb-3 text-center">بعدِ پرداخت بلافاصله می‌توانید ادامه دهید.</p>
+     <p className="text-xs text-soot mb-3 text-center">بعد پرداخت بلافاصله می‌توانید ادامه دهید.</p>
      <button onClick={payOnline} disabled={onlineLoading}
       className="w-full py-3 bg-ink text-white rounded-xl text-sm font-medium disabled:opacity-40">
-      {onlineLoading ? 'در حال اتصال به درگاه...' : 'پرداختِ آنلاین'}
+      {onlineLoading ? 'در حال اتصال به درگاه...' : 'پرداخت آنلاین'}
      </button>
     </>
    ) : (
@@ -1461,14 +1461,14 @@ function StagePayment({ icon, title, desc, amount, onPaid, onDone, resourceId, c
       className="w-full py-3 bg-ink text-white rounded-xl text-sm font-medium disabled:opacity-40">
       {submitting ? 'در حال ثبت...' : 'پرداخت کردم'}
      </button>
-     <p className="text-[11px] text-soot mt-2 text-center">پس از واریز، متنِ فیش را وارد و «پرداخت کردم» را بزنید تا بررسی و تأیید شود.</p>
+     <p className="text-[11px] text-soot mt-2 text-center">پس از واریز، متن فیش را وارد و «پرداخت کردم» را بزنید تا بررسی و تأیید شود.</p>
     </>
    )}
   </div>
  )
 }
 
-// نوارِ پیشرفتِ مراحل — حالا طولش متغیر است (هر تعداد مصاحبه/ارزیابی که واقعاً وجود دارد) + درمان در انتها
+// نوار پیشرفت مراحل — حالا طولش متغیر است (هر تعداد مصاحبه/ارزیابی که واقعا وجود دارد) + درمان در انتها
 function StageProgress({ stages, inTreatment }: { stages: CaseStage[]; inTreatment: boolean }) {
  const items = stages.map(s => ({
   icon: s.stage_type === 'assessment' ? '' : '',
@@ -1495,9 +1495,9 @@ function StageProgress({ stages, inTreatment }: { stages: CaseStage[]; inTreatme
  )
 }
 // ==================== REVIEW BOX ====================
-// نظر/امتیازِ واقعیِ مراجع — سرور خودش چک می‌کند که واقعاً جلسه‌ی گذشته‌ای با
-// این دکتر داشته؛ اگر نداشته باشد فقط پیامِ خطا نشان داده می‌شود (فرمِ اضافه‌ای
-// برایِ «آیا واجد شرایطی» نمی‌سازیم — سرور مرجعِ نهایی است).
+// نظر/امتیاز واقعی مراجع — سرور خودش چک می‌کند که واقعا جلسه‌ی گذشته‌ای با
+// این دکتر داشته؛ اگر نداشته باشد فقط پیام خطا نشان داده می‌شود (فرم اضافه‌ای
+// برای «آیا واجد شرایطی» نمی‌سازیم — سرور مرجع نهایی است).
 function ReviewBox({ resourceId, caseNumber, phone, slug }: { resourceId: string; caseNumber: string; phone: string; slug: string }) {
  const [rating, setRating] = useState(0)
  const [comment, setComment] = useState('')
@@ -1506,7 +1506,7 @@ function ReviewBox({ resourceId, caseNumber, phone, slug }: { resourceId: string
  const [err, setErr] = useState('')
 
  async function submit() {
-  if (!rating) { setErr('لطفاً امتیاز را انتخاب کنید'); return }
+  if (!rating) { setErr('لطفا امتیاز را انتخاب کنید'); return }
   setSubmitting(true); setErr('')
   const res = await fetch(`/api/t/${slug}/psy/reviews`, {
    method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -1520,7 +1520,7 @@ function ReviewBox({ resourceId, caseNumber, phone, slug }: { resourceId: string
 
  if (done) return (
   <div className="bg-white rounded-xl border border-sand p-4 text-center">
-   <p className="text-sm text-emerald-600">ممنون از نظرتان! پس از بررسیِ دکتر منتشر می‌شود.</p>
+   <p className="text-sm text-emerald-600">ممنون از نظرتان! پس از بررسی دکتر منتشر می‌شود.</p>
   </div>
  )
 
@@ -1532,12 +1532,12 @@ function ReviewBox({ resourceId, caseNumber, phone, slug }: { resourceId: string
      <button key={n} onClick={() => setRating(n)} className={n <= rating ? 'text-amber-500' : 'text-gray-200'}>★</button>
     ))}
    </div>
-   <textarea value={comment} onChange={e => setComment(e.target.value)} rows={3} placeholder="نظرِ شما (اختیاری)..."
+   <textarea value={comment} onChange={e => setComment(e.target.value)} rows={3} placeholder="نظر شما (اختیاری)..."
     className="w-full text-sm px-3 py-2 border border-sand rounded-xl focus:outline-none focus:border-ink resize-none mb-2" />
    {err && <p className="text-xs text-red-600 mb-2 text-center">{err}</p>}
    <button onClick={submit} disabled={submitting}
     className="w-full py-2.5 bg-ink text-white rounded-xl text-sm font-medium disabled:opacity-40">
-    {submitting ? 'در حال ثبت...' : 'ثبتِ نظر'}
+    {submitting ? 'در حال ثبت...' : 'ثبت نظر'}
    </button>
   </div>
  )

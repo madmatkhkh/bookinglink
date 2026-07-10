@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// تشخیص و بارگذاریِ tenant — از slug یا از دامنه‌ی اختصاصی
+// تشخیص و بارگذاری tenant — از slug یا از دامنه‌ی اختصاصی
 // ─────────────────────────────────────────────────────────────────────────────
 import { sb } from './supabase'
 import { NextRequest, NextResponse } from 'next/server'
@@ -20,7 +20,7 @@ export async function getActiveTenant(slug: string): Promise<Tenant | null> {
   return data as Tenant
 }
 
-/** tenant فعال از دامنه‌ی اختصاصیِ تاییدشده — برای middleware/routing */
+/** tenant فعال از دامنه‌ی اختصاصی تاییدشده — برای middleware/routing */
 export async function getTenantByDomain(domain: string): Promise<Tenant | null> {
   const { data } = await sb().from('tenants').select(TENANT_COLS)
     .eq('custom_domain', domain).eq('domain_verified', true).single()
@@ -28,13 +28,13 @@ export async function getTenantByDomain(domain: string): Promise<Tenant | null> 
   return data as Tenant
 }
 
-/** گاردِ روت‌های عمومیِ tenant: یا tenant فعال یا 404 */
+/** گارد روت‌های عمومی tenant: یا tenant فعال یا 404 */
 export async function requireTenant(slug: string): Promise<Tenant | NextResponse> {
   const t = await getActiveTenant(slug)
   return t ?? NextResponse.json({ error: 'یافت نشد' }, { status: 404 })
 }
 
-/** گاردِ روت‌های پنل: tenant فعال + نشستِ معتبرِ صاحبِ همان tenant */
+/** گارد روت‌های پنل: tenant فعال + نشست معتبر صاحب همان tenant */
 export async function requirePanel(req: NextRequest, slug: string): Promise<Tenant | NextResponse> {
   const t = await getActiveTenant(slug)
   if (!t) return NextResponse.json({ error: 'یافت نشد' }, { status: 404 })
@@ -47,10 +47,10 @@ export function isTenantResponse(x: Tenant | NextResponse): x is NextResponse {
   return x instanceof NextResponse
 }
 
-// ── دسترسیِ چندکارمندی ────────────────────────────────────────────────────────
-// نتیجه‌ی این گارد: یا صاحبِ مجموعه (resourceId=null → همه‌چیز را می‌بیند)
-// یا یک کارمند/منبعِ مشخص (resourceId=<id> → فقط دیتای خودش). هر روتِ پنلی که
-// باید بینِ owner و staff فرق بگذارد، به‌جایِ requirePanel از این استفاده کند.
+// ── دسترسی چندکارمندی ────────────────────────────────────────────────────────
+// نتیجه‌ی این گارد: یا صاحب مجموعه (resourceId=null → همه‌چیز را می‌بیند)
+// یا یک کارمند/منبع مشخص (resourceId=<id> → فقط دیتای خودش). هر روت پنلی که
+// باید بین owner و staff فرق بگذارد، به‌جای requirePanel از این استفاده کند.
 export type PanelAuth = { tenant: Tenant; resourceId: string | null; isOwner: boolean }
 
 export async function requirePanelAuth(req: NextRequest, slug: string): Promise<PanelAuth | NextResponse> {

@@ -5,7 +5,7 @@ import { isSuperAuthed } from '@/lib/auth'
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-// همه‌ی تیکت‌ها، جدیدترین اول — به‌همراه نامِ/slugِ tenant برایِ نمایش
+// همه‌ی تیکت‌ها، جدیدترین اول — به‌همراه نام/slug tenant برای نمایش
 export async function GET(req: NextRequest) {
   if (!isSuperAuthed(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const status = req.nextUrl.searchParams.get('status')

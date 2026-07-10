@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 
-// ── سیستمِ دیالوگِ داخلِ‌برنامه (جایگزینِ alert/confirm/prompt مرورگر) ──
+// ── سیستم دیالوگ داخل‌برنامه (جایگزین alert/confirm/prompt مرورگر) ──
 type Kind = 'alert' | 'confirm' | 'prompt'
 type DialogReq = {
   id: number

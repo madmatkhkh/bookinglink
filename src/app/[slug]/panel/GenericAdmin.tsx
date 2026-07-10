@@ -1,9 +1,9 @@
 'use client'
 // ─────────────────────────────────────────────────────────────────────────────
-// پنلِ جنریک (نیچ‌های غیرروانشناسی مثلِ سالن) — سرویس‌محور، چندمنبعی.
-// از روت‌های عمومیِ /panel/* استفاده می‌کند (نه psy). این پنل فعلاً تک‌کاربره
+// پنل جنریک (نیچ‌های غیرروانشناسی مثل سالن) — سرویس‌محور، چندمنبعی.
+// از روت‌های عمومی /panel/* استفاده می‌کند (نه psy). این پنل فعلا تک‌کاربره
 // است (فقط owner لاگین می‌کند — panel/login همیشه به owner_phone پیامک می‌زند)؛
-// staff-login زیرساختِ آینده است، هنوز به هیچ‌کدام از این روت‌ها وصل نشده.
+// staff-login زیرساخت آینده است، هنوز به هیچ‌کدام از این روت‌ها وصل نشده.
 // ─────────────────────────────────────────────────────────────────────────────
 import { useEffect, useState, useCallback } from 'react'
 import { useParams } from 'next/navigation'
@@ -66,7 +66,7 @@ function GenericPanel() {
       <div className="bg-accent" style={{ ['--brand' as any]: ov.profile?.theme_color || '212 83 126' }}>
         <div className="max-w-3xl mx-auto px-5 py-4 flex items-center justify-between text-white">
           <div>
-            <div className="font-bold">{ov.profile?.display_name || 'پنلِ مدیریت'}</div>
+            <div className="font-bold">{ov.profile?.display_name || 'پنل مدیریت'}</div>
             <div className="text-xs opacity-80">/{slug}</div>
           </div>
         </div>
@@ -109,7 +109,7 @@ function GenericPanel() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// تبِ رزروها — منتظرِ تأیید بالا (چون فوری‌ترین کارِ روزانه است)، بعد پیشِ‌رو
+// تب رزروها — منتظر تأیید بالا (چون فوری‌ترین کار روزانه است)، بعد پیش‌رو
 // ─────────────────────────────────────────────────────────────────────────────
 function BookingsTab({ ov, L, slug, reload, uiAlert, uiConfirm }: any) {
   const [busyId, setBusyId] = useState<string | null>(null)
@@ -141,7 +141,7 @@ function BookingsTab({ ov, L, slug, reload, uiAlert, uiConfirm }: any) {
               {b.resources?.name ? ` · ${b.resources.name}` : ''}
             </div>
             {b.client_note && <div className="mt-1.5 text-xs text-ink bg-sand/60 rounded-lg px-2 py-1">{b.client_note}</div>}
-            {b.payment_ref && <div className="mt-1 text-[11px] text-soot">پیگیریِ پرداخت: <span dir="ltr">{b.payment_ref}</span></div>}
+            {b.payment_ref && <div className="mt-1 text-[11px] text-soot">پیگیری پرداخت: <span dir="ltr">{b.payment_ref}</span></div>}
           </div>
           <div className="text-left shrink-0">
             <span className="text-[11px] px-2.5 py-1 rounded-full bg-sand text-soot block mb-1">{BOOKING_STATUS_LABEL[b.status] || b.status}</span>
@@ -163,16 +163,16 @@ function BookingsTab({ ov, L, slug, reload, uiAlert, uiConfirm }: any) {
   return (
     <div className="space-y-5">
       <div>
-        <h2 className="text-sm font-bold text-ink mb-2">منتظرِ تأییدِ پرداخت {pending.length > 0 && `(${toFarsiNum(pending.length)})`}</h2>
+        <h2 className="text-sm font-bold text-ink mb-2">منتظر تأیید پرداخت {pending.length > 0 && `(${toFarsiNum(pending.length)})`}</h2>
         {pending.length === 0 ? (
-          <p className="text-sm text-soot bg-white rounded-2xl border border-sand p-5 text-center">چیزی منتظرِ تأیید نیست.</p>
+          <p className="text-sm text-soot bg-white rounded-2xl border border-sand p-5 text-center">چیزی منتظر تأیید نیست.</p>
         ) : (
           <div className="space-y-3">
             {pending.map(b => (
               <BookingCard key={b.id} b={b} actions={
                 <>
-                  <ActionBtn label="تأییدِ پرداخت" onClick={() => act(b.id, 'confirm')} />
-                  <ActionBtn label="ردِ پرداخت" danger onClick={() => act(b.id, 'reject', 'پرداخت رد شود؟ مراجع دوباره باید واریز کند.')} />
+                  <ActionBtn label="تأیید پرداخت" onClick={() => act(b.id, 'confirm')} />
+                  <ActionBtn label="رد پرداخت" danger onClick={() => act(b.id, 'reject', 'پرداخت رد شود؟ مراجع دوباره باید واریز کند.')} />
                 </>
               } />
             ))}
@@ -181,7 +181,7 @@ function BookingsTab({ ov, L, slug, reload, uiAlert, uiConfirm }: any) {
       </div>
 
       <div>
-        <h2 className="text-sm font-bold text-ink mb-2">برنامه‌ی پیشِ‌رو</h2>
+        <h2 className="text-sm font-bold text-ink mb-2">برنامه‌ی پیش‌رو</h2>
         {upcoming.length === 0 ? (
           <p className="text-sm text-soot bg-white rounded-2xl border border-sand p-5 text-center">هنوز {L.booking}ی ثبت نشده.</p>
         ) : (
@@ -207,12 +207,12 @@ function BookingsTab({ ov, L, slug, reload, uiAlert, uiConfirm }: any) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// تبِ سرویس‌ها — CRUD کامل
+// تب سرویس‌ها — CRUD کامل
 // ─────────────────────────────────────────────────────────────────────────────
 const EMPTY_SERVICE = { id: '', name: '', duration_minutes: 60, price: 0, mode: 'in_person', description: '', is_active: true, sort_order: 0 }
 
 function ServicesTab({ ov, slug, reload, uiAlert, uiConfirm }: any) {
-  const [editing, setEditing] = useState<string | null>(null) // null=بسته، ''=فرمِ تازه
+  const [editing, setEditing] = useState<string | null>(null) // null=بسته، ''=فرم تازه
   const [form, setForm] = useState<typeof EMPTY_SERVICE>(EMPTY_SERVICE)
   const [saving, setSaving] = useState(false)
   const all: Service[] = ov.services || []
@@ -221,7 +221,7 @@ function ServicesTab({ ov, slug, reload, uiAlert, uiConfirm }: any) {
   function openEdit(s: Service) { setForm({ ...s }); setEditing(s.id) }
 
   async function save() {
-    if (!form.name.trim()) { await uiAlert('نامِ سرویس لازم است'); return }
+    if (!form.name.trim()) { await uiAlert('نام سرویس لازم است'); return }
     setSaving(true)
     const isNew = editing === ''
     const res = await fetch(`/api/t/${slug}/panel/services`, {
@@ -242,7 +242,7 @@ function ServicesTab({ ov, slug, reload, uiAlert, uiConfirm }: any) {
   }
 
   async function remove(s: Service) {
-    if (!await uiConfirm(`سرویسِ «${s.name}» غیرفعال شود؟ رزروهای قبلی‌اش دست‌نخورده می‌مانند.`)) return
+    if (!await uiConfirm(`سرویس «${s.name}» غیرفعال شود؟ رزروهای قبلی‌اش دست‌نخورده می‌مانند.`)) return
     await fetch(`/api/t/${slug}/panel/services`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: s.id }) })
     reload()
   }
@@ -251,14 +251,14 @@ function ServicesTab({ ov, slug, reload, uiAlert, uiConfirm }: any) {
     <div className="space-y-3">
       {editing === null && (
         <button onClick={openNew} className="w-full py-2.5 rounded-xl border-2 border-dashed border-sand text-soot text-sm hover:border-accent hover:text-accent transition-colors">
-          + افزودنِ سرویسِ تازه
+          + افزودن سرویس تازه
         </button>
       )}
 
       {editing !== null && (
         <div className="rounded-2xl border border-sand bg-white p-4 space-y-3">
           <input value={form.name} onChange={e => setForm(s => ({ ...s, name: e.target.value }))}
-            placeholder="نامِ سرویس" className="w-full text-sm px-3 py-2 border border-sand rounded-lg" />
+            placeholder="نام سرویس" className="w-full text-sm px-3 py-2 border border-sand rounded-lg" />
           <div className="grid grid-cols-2 gap-2">
             <div>
               <label className="text-[11px] text-soot block mb-1">مدت (دقیقه)</label>
@@ -285,11 +285,11 @@ function ServicesTab({ ov, slug, reload, uiAlert, uiConfirm }: any) {
             </div>
           </div>
           <textarea value={form.description} onChange={e => setForm(s => ({ ...s, description: e.target.value }))}
-            placeholder="توضیحِ کوتاه (اختیاری)" rows={2}
+            placeholder="توضیح کوتاه (اختیاری)" rows={2}
             className="w-full text-sm px-3 py-2 border border-sand rounded-lg resize-none" />
           <div className="flex gap-2">
             <button onClick={save} disabled={saving} className="flex-1 py-2.5 bg-accent text-white rounded-xl text-sm font-medium disabled:opacity-50">
-              {saving ? 'در حالِ ذخیره…' : editing === '' ? 'ساختِ سرویس' : 'ذخیره‌ی تغییرات'}
+              {saving ? 'در حال ذخیره…' : editing === '' ? 'ساخت سرویس' : 'ذخیره‌ی تغییرات'}
             </button>
             <button onClick={() => setEditing(null)} className="px-4 py-2.5 border border-sand rounded-xl text-sm text-soot">انصراف</button>
           </div>
@@ -325,7 +325,7 @@ function ServicesTab({ ov, slug, reload, uiAlert, uiConfirm }: any) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// تبِ برنامه — ساعاتِ هفتگیِ تکرارشونده + روزهایِ تعطیل، per-resource
+// تب برنامه — ساعات هفتگی تکرارشونده + روزهای تعطیل، per-resource
 // ─────────────────────────────────────────────────────────────────────────────
 function ScheduleTab({ ov, slug, reload, uiAlert, uiConfirm, L }: any) {
   const resources: Resource[] = (ov.resources || []).filter((r: Resource) => r.is_active)
@@ -375,13 +375,13 @@ function ScheduleTab({ ov, slug, reload, uiAlert, uiConfirm, L }: any) {
   }
 
   async function removeOverride(id: string) {
-    if (!await uiConfirm('این روزِ تعطیل حذف شود؟')) return
+    if (!await uiConfirm('این روز تعطیل حذف شود؟')) return
     await fetch(`/api/t/${slug}/panel/schedule`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) })
     reload()
   }
 
   if (resources.length === 0) {
-    return <div className="text-sm text-soot bg-white rounded-2xl border border-sand p-6 text-center">اول یک {L.resource} فعال بساز (تبِ تنظیمات).</div>
+    return <div className="text-sm text-soot bg-white rounded-2xl border border-sand p-6 text-center">اول یک {L.resource} فعال بساز (تب تنظیمات).</div>
   }
 
   return (
@@ -395,11 +395,11 @@ function ScheduleTab({ ov, slug, reload, uiAlert, uiConfirm, L }: any) {
 
       <div className="rounded-2xl border border-sand bg-white p-4">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-bold text-ink">ساعاتِ کاریِ هفتگی</h2>
-          <button onClick={addRow} className="text-xs text-accent font-medium">+ افزودنِ بازه</button>
+          <h2 className="text-sm font-bold text-ink">ساعات کاری هفتگی</h2>
+          <button onClick={addRow} className="text-xs text-accent font-medium">+ افزودن بازه</button>
         </div>
         {rows.length === 0 ? (
-          <p className="text-xs text-soot text-center py-4">هنوز بازه‌ای تعریف نشده — یعنی این {L.resource} هیچ زمانِ آزادی برایِ رزرو ندارد.</p>
+          <p className="text-xs text-soot text-center py-4">هنوز بازه‌ای تعریف نشده — یعنی این {L.resource} هیچ زمان آزادی برای رزرو ندارد.</p>
         ) : (
           <div className="space-y-2">
             {rows.map((row, i) => (
@@ -426,12 +426,12 @@ function ScheduleTab({ ov, slug, reload, uiAlert, uiConfirm, L }: any) {
         )}
         <button onClick={saveWeekly} disabled={saving}
           className="w-full mt-3 py-2.5 bg-accent text-white rounded-xl text-sm font-medium disabled:opacity-50">
-          {saving ? 'در حالِ ذخیره…' : 'ذخیره‌ی ساعاتِ هفتگی'}
+          {saving ? 'در حال ذخیره…' : 'ذخیره‌ی ساعات هفتگی'}
         </button>
       </div>
 
       <div className="rounded-2xl border border-sand bg-white p-4">
-        <h2 className="text-sm font-bold text-ink mb-3">روزهایِ تعطیلِ استثنا</h2>
+        <h2 className="text-sm font-bold text-ink mb-3">روزهای تعطیل استثنا</h2>
         <div className="flex items-center gap-1.5 mb-3">
           <select value={closeDate.d} onChange={e => setCloseDate(s => ({ ...s, d: parseInt(e.target.value) }))}
             className="text-xs border border-sand rounded-lg px-2 py-1.5 bg-white">
@@ -448,7 +448,7 @@ function ScheduleTab({ ov, slug, reload, uiAlert, uiConfirm, L }: any) {
           <button onClick={addClosedDay} className="mr-auto text-xs px-3 py-1.5 bg-accent text-white rounded-lg font-medium">+ تعطیل کن</button>
         </div>
         {overrides.length === 0 ? (
-          <p className="text-xs text-soot text-center py-2">تعطیلیِ استثنایی ثبت نشده.</p>
+          <p className="text-xs text-soot text-center py-2">تعطیلی استثنایی ثبت نشده.</p>
         ) : (
           <div className="space-y-1.5">
             {overrides.map(o => (
@@ -465,7 +465,7 @@ function ScheduleTab({ ov, slug, reload, uiAlert, uiConfirm, L }: any) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// تبِ مشتریان — جست‌وجو با شماره، پرونده‌ی سفارشیِ نیچ + تاریخچه‌ی نوبت‌ها
+// تب مشتریان — جست‌وجو با شماره، پرونده‌ی سفارشی نیچ + تاریخچه‌ی نوبت‌ها
 // ─────────────────────────────────────────────────────────────────────────────
 function ClientsTab({ slug, uiAlert, L }: any) {
   const [phone, setPhone] = useState('')
@@ -480,7 +480,7 @@ function ClientsTab({ slug, uiAlert, L }: any) {
 
   async function search() {
     const p = toLatinNum(phone).trim()
-    if (!/^09\d{9}$/.test(p)) { await uiAlert('شماره‌ی موبایلِ معتبر وارد کن'); return }
+    if (!/^09\d{9}$/.test(p)) { await uiAlert('شماره‌ی موبایل معتبر وارد کن'); return }
     setLoading(true)
     const res = await fetch(`/api/t/${slug}/panel/records?phone=${encodeURIComponent(p)}`, { cache: 'no-store' })
     const d = await res.json().catch(() => ({}))
@@ -519,7 +519,7 @@ function ClientsTab({ slug, uiAlert, L }: any) {
       {searched && (
         <>
           <div className="rounded-2xl border border-sand bg-white p-4 space-y-3">
-            <h2 className="text-sm font-bold text-ink">{record ? 'پرونده‌ی مشتری' : `${L.client}ِ تازه`}</h2>
+            <h2 className="text-sm font-bold text-ink">{record ? 'پرونده‌ی مشتری' : `${L.client} تازه`}</h2>
             <input value={name} onChange={e => setName(e.target.value)} placeholder="نام" className="w-full text-sm px-3 py-2 border border-sand rounded-lg" />
             {fields.map((f: any) => (
               <div key={f.key}>
@@ -541,7 +541,7 @@ function ClientsTab({ slug, uiAlert, L }: any) {
               </div>
             ))}
             <button onClick={save} disabled={saving} className="w-full py-2.5 bg-accent text-white rounded-xl text-sm font-medium disabled:opacity-50">
-              {saving ? 'در حالِ ذخیره…' : 'ذخیره‌ی پرونده'}
+              {saving ? 'در حال ذخیره…' : 'ذخیره‌ی پرونده'}
             </button>
           </div>
 
@@ -568,7 +568,7 @@ function ClientsTab({ slug, uiAlert, L }: any) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// تبِ تنظیمات — پروفایلِ کسب‌وکار + مدیریتِ پرسنل
+// تب تنظیمات — پروفایل کسب‌وکار + مدیریت پرسنل
 // ─────────────────────────────────────────────────────────────────────────────
 function rgbToHex(rgb: string): string {
   const parts = String(rgb || '').trim().split(/\s+/).map(Number)
@@ -590,7 +590,7 @@ function SettingsTab({ ov, slug, reload, uiAlert, uiConfirm, L }: any) {
   const [savingProfile, setSavingProfile] = useState(false)
 
   async function saveProfile() {
-    if (!form.display_name.trim()) { await uiAlert('نامِ نمایشی لازم است'); return }
+    if (!form.display_name.trim()) { await uiAlert('نام نمایشی لازم است'); return }
     setSavingProfile(true)
     const res = await fetch(`/api/t/${slug}/panel/profile`, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form),
@@ -603,13 +603,13 @@ function SettingsTab({ ov, slug, reload, uiAlert, uiConfirm, L }: any) {
   return (
     <div className="space-y-4">
       <div className="rounded-2xl border border-sand bg-white p-4 space-y-3">
-        <h2 className="text-sm font-bold text-ink">پروفایلِ کسب‌وکار</h2>
+        <h2 className="text-sm font-bold text-ink">پروفایل کسب‌وکار</h2>
         <input value={form.display_name} onChange={e => setForm(s => ({ ...s, display_name: e.target.value }))}
-          placeholder="نامِ نمایشی" className="w-full text-sm px-3 py-2 border border-sand rounded-lg" />
+          placeholder="نام نمایشی" className="w-full text-sm px-3 py-2 border border-sand rounded-lg" />
         <input value={form.title} onChange={e => setForm(s => ({ ...s, title: e.target.value }))}
           placeholder="عنوان/تخصص" className="w-full text-sm px-3 py-2 border border-sand rounded-lg" />
         <textarea value={form.bio} onChange={e => setForm(s => ({ ...s, bio: e.target.value }))}
-          placeholder="معرفیِ کوتاه" rows={3} className="w-full text-sm px-3 py-2 border border-sand rounded-lg resize-none" />
+          placeholder="معرفی کوتاه" rows={3} className="w-full text-sm px-3 py-2 border border-sand rounded-lg resize-none" />
         <input value={form.location_text} onChange={e => setForm(s => ({ ...s, location_text: e.target.value }))}
           placeholder="آدرس/شهر" className="w-full text-sm px-3 py-2 border border-sand rounded-lg" />
         <div className="flex items-center gap-2">
@@ -619,26 +619,26 @@ function SettingsTab({ ov, slug, reload, uiAlert, uiConfirm, L }: any) {
         </div>
         <div className="flex items-end gap-3">
           <div>
-            <label className="text-[11px] text-soot block mb-1">رنگِ برند</label>
+            <label className="text-[11px] text-soot block mb-1">رنگ برند</label>
             <input type="color" value={rgbToHex(form.theme_color)}
               onChange={e => setForm(s => ({ ...s, theme_color: hexToRgb(e.target.value) }))}
               className="w-12 h-10 border border-sand rounded-lg cursor-pointer" />
           </div>
           <div className="flex-1">
-            <label className="text-[11px] text-soot block mb-1">مقدارِ خام</label>
+            <label className="text-[11px] text-soot block mb-1">مقدار خام</label>
             <input dir="ltr" value={form.theme_color} onChange={e => setForm(s => ({ ...s, theme_color: e.target.value }))}
               className="w-full text-sm px-3 py-2 border border-sand rounded-lg tnum" />
           </div>
         </div>
         <div className="pt-2 border-t border-sand">
-          <p className="text-[11px] text-soot mb-2">شماره‌کارت برایِ دریافتِ پرداختِ کارت‌به‌کارت</p>
+          <p className="text-[11px] text-soot mb-2">شماره‌کارت برای دریافت پرداخت کارت‌به‌کارت</p>
           <input dir="ltr" value={form.card_number} onChange={e => setForm(s => ({ ...s, card_number: toLatinNum(e.target.value).replace(/\D/g, '').slice(0, 16) }))}
             placeholder="شماره‌ی کارت (۱۶ رقم)" className="w-full text-sm px-3 py-2 border border-sand rounded-lg tnum mb-2" />
           <input value={form.card_holder_name} onChange={e => setForm(s => ({ ...s, card_holder_name: e.target.value }))}
-            placeholder="نامِ صاحبِ کارت" className="w-full text-sm px-3 py-2 border border-sand rounded-lg" />
+            placeholder="نام صاحب کارت" className="w-full text-sm px-3 py-2 border border-sand rounded-lg" />
         </div>
         <button onClick={saveProfile} disabled={savingProfile} className="w-full py-2.5 bg-accent text-white rounded-xl text-sm font-medium disabled:opacity-50">
-          {savingProfile ? 'در حالِ ذخیره…' : 'ذخیره‌ی پروفایل'}
+          {savingProfile ? 'در حال ذخیره…' : 'ذخیره‌ی پروفایل'}
         </button>
       </div>
 
@@ -747,22 +747,22 @@ function GenericLogin({ slug, onSuccess }: { slug: string; onSuccess: () => void
         <div className="text-center mb-6">
           <div className="text-4xl mb-3">🔐</div>
           <h1 className="text-lg font-bold text-ink">ورود به پنل</h1>
-          <p className="text-xs text-soot mt-1.5">کدِ ورود به موبایلِ صاحبِ پنل فرستاده می‌شود.</p>
+          <p className="text-xs text-soot mt-1.5">کد ورود به موبایل صاحب پنل فرستاده می‌شود.</p>
         </div>
         {err && <div className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg p-2.5 mb-3 text-center">{err}</div>}
         {!sent ? (
           <button onClick={send} disabled={busy} className="w-full py-3 rounded-xl bg-accent text-white font-medium disabled:opacity-50">
-            {busy ? 'در حال ارسال…' : 'ارسالِ کدِ ورود'}
+            {busy ? 'در حال ارسال…' : 'ارسال کد ورود'}
           </button>
         ) : (
           <div className="space-y-3">
-            {dev && <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-2.5 text-center">کدِ تست: <strong className="text-base">{dev}</strong></div>}
+            {dev && <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-2.5 text-center">کد تست: <strong className="text-base">{dev}</strong></div>}
             <input value={code} onChange={e => setCode(e.target.value)} dir="ltr" inputMode="numeric" autoFocus placeholder="کد 5 رقمی"
               className="w-full p-3 rounded-xl border border-sand text-lg text-center tracking-widest" />
             <button onClick={verify} disabled={busy || code.trim().length < 5} className="w-full py-3 rounded-xl bg-accent text-white font-medium disabled:opacity-40">ورود</button>
             <div className="text-center">
               {resend.canResend ? (
-                <button onClick={send} disabled={busy} className="text-sm text-ink font-medium hover:underline disabled:opacity-40">ارسالِ دوباره‌ی کد</button>
+                <button onClick={send} disabled={busy} className="text-sm text-ink font-medium hover:underline disabled:opacity-40">ارسال دوباره‌ی کد</button>
               ) : (
                 <p className="text-xs text-soot">کد نیامد؟ تا <span className="tnum font-medium text-ink">{toFarsiNum(resend.secondsLeft)}</span> ثانیه‌ی دیگر می‌توانی دوباره درخواست کنی</p>
               )}

@@ -17,7 +17,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
     .eq('id', booking_id).eq('tenant_id', t.id).eq('client_phone', phone).single()
   if (!booking) return NextResponse.json({ error: 'رزرو یافت نشد' }, { status: 404 })
   if (booking.status !== 'pending_payment')
-    return NextResponse.json({ error: 'این رزرو در حالتِ پرداخت نیست' }, { status: 400 })
+    return NextResponse.json({ error: 'این رزرو در حالت پرداخت نیست' }, { status: 400 })
 
   await sb().from('bookings')
     .update({ status: 'payment_submitted', payment_ref: String(payment_ref || '').slice(0, 60) })

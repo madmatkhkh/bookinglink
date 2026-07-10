@@ -1,24 +1,24 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// احرازِ هویت — چهار نقش، چهار سازوکار، همه در یک‌جا (نه کپی در هر route؛
-// درسِ حفره‌های isAuthed پراکنده در psych-booking)
+// احراز هویت — چهار نقش، چهار سازوکار، همه در یک‌جا (نه کپی در هر route؛
+// درس حفره‌های isAuthed پراکنده در psych-booking)
 //
-// 1) مراجع:   کوکیِ امضاشده با HMAC («phone.sig») پس از تاییدِ OTP
-// 2) متخصص (صاحبِ مجموعه): توکنِ نشستِ ذخیره‌شده در tenants.owner_session پس از OTP
-// 3) کارمند (یک «منبع»/پرسنل): توکنِ نشستِ ذخیره‌شده در resources.owner_session —
-//    مستقل از صاحبِ مجموعه؛ برای مجموعه‌هایی با چند نفر پرسنل که هرکدام باید
+// 1) مراجع:   کوکی امضاشده با HMAC («phone.sig») پس از تایید OTP
+// 2) متخصص (صاحب مجموعه): توکن نشست ذخیره‌شده در tenants.owner_session پس از OTP
+// 3) کارمند (یک «منبع»/پرسنل): توکن نشست ذخیره‌شده در resources.owner_session —
+//    مستقل از صاحب مجموعه؛ برای مجموعه‌هایی با چند نفر پرسنل که هرکدام باید
 //    فقط دیتای خودشان را ببینند (نه فقط روانشناسی؛ هر نیچی که چندکارمندی شد).
-// 4) سوپرادمین: توکنِ امضاشده‌ی موقت (نه خودِ رمز) پس از واردکردنِ SUPER_SECRET
+// 4) سوپرادمین: توکن امضاشده‌ی موقت (نه خود رمز) پس از واردکردن SUPER_SECRET
 //
 // سخت‌سازی‌های امنیتی (این نسخه):
 // - AUTH_SECRET دیگر fallback ندارد — اگر ست نشده باشد، با خطای روشن fail می‌شود
-//   (fallbackِ عمومیِ داخلِ سورس یعنی کوکیِ قابلِ‌جعل برای هرکسی که کد را دیده).
-// - کدِ OTP پنج‌رقمی شد (100هزار حالت به‌جای 10هزار).
-// - rate limit دیتابیس‌محور (جدولِ auth_throttle — چون serverless هستیم و
-//   حافظه‌ی داخلی بینِ نمونه‌ها مشترک نیست): هم صدورِ OTP هم تلاش‌های تایید.
-// - کوکیِ سوپرادمین دیگر خودِ SUPER_SECRET نیست — یک توکنِ امضاشده‌ی 7روزه است؛
-//   با عوض‌کردنِ هرکدام از SUPER_SECRET/AUTH_SECRET همه‌ی نشست‌ها باطل می‌شوند.
-// - کد فقط وقتی در پاسخِ HTTP برمی‌گردد که OTP_ECHO_CODE=true باشد (حالتِ
-//   موقتِ پیش‌ازپیامک). با اتصالِ پنلِ پیامک این env حذف می‌شود.
+//   (fallback عمومی داخل سورس یعنی کوکی قابل‌جعل برای هرکسی که کد را دیده).
+// - کد OTP پنج‌رقمی شد (100هزار حالت به‌جای 10هزار).
+// - rate limit دیتابیس‌محور (جدول auth_throttle — چون serverless هستیم و
+//   حافظه‌ی داخلی بین نمونه‌ها مشترک نیست): هم صدور OTP هم تلاش‌های تایید.
+// - کوکی سوپرادمین دیگر خود SUPER_SECRET نیست — یک توکن امضاشده‌ی 7روزه است؛
+//   با عوض‌کردن هرکدام از SUPER_SECRET/AUTH_SECRET همه‌ی نشست‌ها باطل می‌شوند.
+// - کد فقط وقتی در پاسخ HTTP برمی‌گردد که OTP_ECHO_CODE=true باشد (حالت
+//   موقت پیش‌ازپیامک). با اتصال پنل پیامک این env حذف می‌شود.
 // ─────────────────────────────────────────────────────────────────────────────
 import { createHmac, timingSafeEqual, randomUUID, randomInt } from 'crypto'
 import { NextRequest, NextResponse } from 'next/server'
@@ -28,7 +28,7 @@ import { sendOtpEmail, emailConfigured } from './email'
 
 function SECRET(): string {
   const s = process.env.AUTH_SECRET
-  if (!s) throw new Error('AUTH_SECRET تنظیم نشده — بدونِ آن هیچ کوکی‌ای امن نیست. آن را در env ست کن.')
+  if (!s) throw new Error('AUTH_SECRET تنظیم نشده — بدون آن هیچ کوکی‌ای امن نیست. آن را در env ست کن.')
   return s
 }
 
@@ -47,9 +47,9 @@ function safeEqual(a: string, b: string): boolean {
 }
 
 // ── rate limiting (دیتابیس‌محور) ─────────────────────────────────────────────
-// شمارشِ رخدادهای اخیرِ یک «کلید» در جدولِ auth_throttle. اگر از سقف رد شده،
-// false برمی‌گرداند (و رخدادِ تازه ثبت نمی‌کند)؛ وگرنه رخداد را ثبت می‌کند.
-// پاکسازیِ ردیف‌های کهنه‌ی همان کلید هم همین‌جا انجام می‌شود (fire-and-forget).
+// شمارش رخدادهای اخیر یک «کلید» در جدول auth_throttle. اگر از سقف رد شده،
+// false برمی‌گرداند (و رخداد تازه ثبت نمی‌کند)؛ وگرنه رخداد را ثبت می‌کند.
+// پاکسازی ردیف‌های کهنه‌ی همان کلید هم همین‌جا انجام می‌شود (fire-and-forget).
 
 export async function checkThrottle(key: string, max: number, windowSec: number): Promise<boolean> {
   const db = sb()
@@ -57,32 +57,32 @@ export async function checkThrottle(key: string, max: number, windowSec: number)
   const { count, error } = await db.from('auth_throttle')
     .select('id', { count: 'exact', head: true })
     .eq('key', key).gte('created_at', since)
-  // اگر خودِ جدول در دسترس نبود (مثلاً migration هنوز اجرا نشده)، ورود را
-  // نمی‌بندیم ولی سمتِ سرور لاگ می‌کنیم — امنیت نباید کلِ سیستم را قفل کند.
+  // اگر خود جدول در دسترس نبود (مثلا migration هنوز اجرا نشده)، ورود را
+  // نمی‌بندیم ولی سمت سرور لاگ می‌کنیم — امنیت نباید کل سیستم را قفل کند.
   if (error) { console.error('auth_throttle error (آیا migration 0008 اجرا شده؟):', error); return true }
   if ((count || 0) >= max) return false
   await db.from('auth_throttle').insert({ key })
-  // پاکسازیِ کهنه‌ها (بدونِ await — نتیجه مهم نیست)
+  // پاکسازی کهنه‌ها (بدون await — نتیجه مهم نیست)
   db.from('auth_throttle').delete().eq('key', key).lt('created_at', since).then(() => {}, () => {})
   return true
 }
 
-/** IPِ درخواست برای کلیدهای throttle (پشتِ Vercel از x-forwarded-for) */
+/** IP درخواست برای کلیدهای throttle (پشت Vercel از x-forwarded-for) */
 export function requestIp(req: NextRequest): string {
   return (req.headers.get('x-forwarded-for') || '').split(',')[0].trim() || 'unknown'
 }
 
 // ── مراجع ────────────────────────────────────────────────────────────────────
 
-/** پس از تاییدِ OTP: کوکیِ امضاشده‌ی هویتِ مراجع را می‌نشاند — می‌تواند شماره یا
- * ایمیل باشد (برایِ مراجعِ خارج از ایران که با ایمیل وارد شده) */
+/** پس از تایید OTP: کوکی امضاشده‌ی هویت مراجع را می‌نشاند — می‌تواند شماره یا
+ * ایمیل باشد (برای مراجع خارج از ایران که با ایمیل وارد شده) */
 export function setClientCookie(res: NextResponse, phone: string) {
   res.cookies.set(CLIENT_COOKIE, `${phone}.${sign(phone)}`, {
     httpOnly: true, sameSite: 'lax', secure: true, path: '/', maxAge: 60 * 60 * 24 * 90,
   })
 }
 
-/** هویتِ تاییدشده‌ی مراجع از کوکی (شماره یا ایمیل)؛ در صورتِ دستکاری null */
+/** هویت تاییدشده‌ی مراجع از کوکی (شماره یا ایمیل)؛ در صورت دستکاری null */
 export function getClientPhone(req: NextRequest): string | null {
   const raw = req.cookies.get(CLIENT_COOKIE)?.value
   if (!raw) return null
@@ -92,13 +92,13 @@ export function getClientPhone(req: NextRequest): string | null {
   return safeEqual(sign(phone), sig) ? phone : null
 }
 
-// ── مجوزِ پرداختِ محدود به یک پرونده (فلوِ مصاحبه‌ی اولیه) ─────────────────────
-// مراجعِ تازه هنوز OTP نزده (پیامک هم که وصل نیست)، ولی باید بلافاصله بعد از
-// ثبتِ فرم، هزینه‌ی مصاحبه‌ی *همان* پرونده‌ای که خودش ساخت را پرداخت کند.
-// به‌جای برگشتن به authِ «دانستنِ شماره‌کیس+شماره‌تلفن» (که حفره بود)، خودِ
-// /psy/book موقعِ ساختِ پرونده یک کوکیِ امضاشده‌ی محدود می‌نشاند: فقط برای
-// «ثبتِ پرداختِ» همان یک پرونده معتبر است (نه خواندنِ هیچ دیتایی) و 2 ساعته
-// منقضی می‌شود. جعلش بدونِ AUTH_SECRET ممکن نیست.
+// ── مجوز پرداخت محدود به یک پرونده (فلو مصاحبه‌ی اولیه) ─────────────────────
+// مراجع تازه هنوز OTP نزده (پیامک هم که وصل نیست)، ولی باید بلافاصله بعد از
+// ثبت فرم، هزینه‌ی مصاحبه‌ی *همان* پرونده‌ای که خودش ساخت را پرداخت کند.
+// به‌جای برگشتن به auth «دانستن شماره‌کیس+شماره‌تلفن» (که حفره بود)، خود
+// /psy/book موقع ساخت پرونده یک کوکی امضاشده‌ی محدود می‌نشاند: فقط برای
+// «ثبت پرداخت» همان یک پرونده معتبر است (نه خواندن هیچ دیتایی) و 2 ساعته
+// منقضی می‌شود. جعلش بدون AUTH_SECRET ممکن نیست.
 
 export const PAY_COOKIE = 'case_pay'
 
@@ -108,7 +108,7 @@ export function setPayCookie(res: NextResponse, caseNumber: string) {
   })
 }
 
-/** شماره‌کیسِ دارای مجوزِ پرداخت از کوکی؛ در صورتِ دستکاری null */
+/** شماره‌کیس دارای مجوز پرداخت از کوکی؛ در صورت دستکاری null */
 export function getPayCase(req: NextRequest): string | null {
   const raw = req.cookies.get(PAY_COOKIE)?.value
   if (!raw) return null
@@ -120,7 +120,7 @@ export function getPayCase(req: NextRequest): string | null {
 
 // ── متخصص (پنل) ──────────────────────────────────────────────────────────────
 
-/** ورودِ موفق: توکنِ نشستِ تازه می‌سازد، در دیتابیس می‌نشاند و کوکی می‌دهد */
+/** ورود موفق: توکن نشست تازه می‌سازد، در دیتابیس می‌نشاند و کوکی می‌دهد */
 export async function createPanelSession(res: NextResponse, tenantId: string) {
   const token = randomUUID()
   await sb().from('tenants').update({ owner_session: token }).eq('id', tenantId)
@@ -129,7 +129,7 @@ export async function createPanelSession(res: NextResponse, tenantId: string) {
   })
 }
 
-/** اگر کوکیِ پنل با نشستِ ذخیره‌شده‌ی همین tenant بخواند، شناسه‌اش را برمی‌گرداند */
+/** اگر کوکی پنل با نشست ذخیره‌شده‌ی همین tenant بخواند، شناسه‌اش را برمی‌گرداند */
 export async function getPanelTenantId(req: NextRequest, expectedTenantId: string): Promise<string | null> {
   const raw = req.cookies.get(PANEL_COOKIE)?.value
   if (!raw) return null
@@ -141,12 +141,12 @@ export async function getPanelTenantId(req: NextRequest, expectedTenantId: strin
   return data?.owner_session && safeEqual(data.owner_session, token) ? tenantId : null
 }
 
-// ── کارمند (نشستِ مستقلِ هر «منبع») ───────────────────────────────────────────
+// ── کارمند (نشست مستقل هر «منبع») ───────────────────────────────────────────
 // همان الگوی createPanelSession/getPanelTenantId، ولی روی resources به‌جای
 // tenants — چون در یک مجموعه ممکن است چند نفر هم‌زمان با شماره‌های خودشان
 // وارد شوند. کوکی هم tenantId هم resourceId را حمل می‌کند.
 
-/** ورودِ موفقِ کارمند: توکنِ نشستِ تازه روی همان resource می‌نشیند */
+/** ورود موفق کارمند: توکن نشست تازه روی همان resource می‌نشیند */
 export async function createStaffSession(res: NextResponse, tenantId: string, resourceId: string) {
   const token = randomUUID()
   await sb().from('resources').update({ owner_session: token }).eq('id', resourceId)
@@ -155,7 +155,7 @@ export async function createStaffSession(res: NextResponse, tenantId: string, re
   })
 }
 
-/** اگر کوکیِ کارمند معتبر و مالِ همین tenant باشد، شناسه‌ی resource را برمی‌گرداند */
+/** اگر کوکی کارمند معتبر و مال همین tenant باشد، شناسه‌ی resource را برمی‌گرداند */
 export async function getStaffResourceId(req: NextRequest, expectedTenantId: string): Promise<string | null> {
   const raw = req.cookies.get(STAFF_COOKIE)?.value
   if (!raw) return null
@@ -169,7 +169,7 @@ export async function getStaffResourceId(req: NextRequest, expectedTenantId: str
   return data.owner_session && safeEqual(data.owner_session, token) ? resourceId : null
 }
 
-/** خروج: نشستِ فعال (owner یا کارمند، هرکدام معتبر بود) را در دیتابیس باطل و کوکی را پاک می‌کند */
+/** خروج: نشست فعال (owner یا کارمند، هرکدام معتبر بود) را در دیتابیس باطل و کوکی را پاک می‌کند */
 export async function clearPanelSession(req: NextRequest, res: NextResponse, tenantId: string) {
   const ownerId = await getPanelTenantId(req, tenantId)
   if (ownerId) await sb().from('tenants').update({ owner_session: null }).eq('id', tenantId)
@@ -180,9 +180,9 @@ export async function clearPanelSession(req: NextRequest, res: NextResponse, ten
 }
 
 // ── سوپرادمین ────────────────────────────────────────────────────────────────
-// کوکی دیگر خودِ SUPER_SECRET نیست — یک توکنِ «super.<زمانِ‌صدور>.<امضا>» است.
-// امضا هم AUTH_SECRET هم SUPER_SECRET را در بر می‌گیرد؛ عوض‌کردنِ هرکدام
-// همه‌ی نشست‌های فعال را باطل می‌کند. عمرِ توکن 7 روز است.
+// کوکی دیگر خود SUPER_SECRET نیست — یک توکن «super.<زمان‌صدور>.<امضا>» است.
+// امضا هم AUTH_SECRET هم SUPER_SECRET را در بر می‌گیرد؛ عوض‌کردن هرکدام
+// همه‌ی نشست‌های فعال را باطل می‌کند. عمر توکن 7 روز است.
 
 const SUPER_TTL_MS = 7 * 24 * 60 * 60 * 1000
 
@@ -190,7 +190,7 @@ function superSig(issuedAt: string): string {
   return sign(`super.${issuedAt}.${process.env.SUPER_SECRET || ''}`)
 }
 
-/** پس از واردکردنِ درستِ SUPER_SECRET: توکنِ نشستِ امضاشده روی پاسخ می‌نشیند */
+/** پس از واردکردن درست SUPER_SECRET: توکن نشست امضاشده روی پاسخ می‌نشیند */
 export function createSuperSession(res: NextResponse) {
   const issuedAt = String(Date.now())
   res.cookies.set(SUPER_COOKIE, `${issuedAt}.${superSig(issuedAt)}`, {
@@ -210,13 +210,13 @@ export function isSuperAuthed(req: NextRequest): boolean {
   return safeEqual(superSig(issuedAt), sig)
 }
 
-// ── توکنِ یک‌بارمصرفِ impersonate (ضدِ CSRF) ─────────────────────────────────
-// روتِ impersonate عمداً GET است (تحویلِ کوکی + ریدایرکت در یک پاسخ)، ولی کوکیِ
-// sameSite=lax روی ناوبریِ GET سطحِ‌بالا ارسال می‌شود — یعنی یک سایتِ مخرب
-// می‌توانست سوپرادمینِ لاگین‌شده را با یک لینک وادار به impersonate کند. راه‌حل
-// بدونِ شکستنِ الگویِ GET: لینک فقط با یک توکنِ امضاشده‌ی کوتاه‌عمر (۱۰ دقیقه)
-// معتبر است که فقط از پاسخِ APIِ احرازشده‌ی /api/super/tenants/[id] صادر می‌شود —
-// چیزی که سایتِ مهاجم به آن دسترسی ندارد.
+// ── توکن یک‌بارمصرف impersonate (ضد CSRF) ─────────────────────────────────
+// روت impersonate عمدا GET است (تحویل کوکی + ریدایرکت در یک پاسخ)، ولی کوکی
+// sameSite=lax روی ناوبری GET سطح‌بالا ارسال می‌شود — یعنی یک سایت مخرب
+// می‌توانست سوپرادمین لاگین‌شده را با یک لینک وادار به impersonate کند. راه‌حل
+// بدون شکستن الگوی GET: لینک فقط با یک توکن امضاشده‌ی کوتاه‌عمر (۱۰ دقیقه)
+// معتبر است که فقط از پاسخ API احرازشده‌ی /api/super/tenants/[id] صادر می‌شود —
+// چیزی که سایت مهاجم به آن دسترسی ندارد.
 
 const IMPERSONATE_TTL_MS = 10 * 60 * 1000
 
@@ -241,10 +241,10 @@ export type IssueOtpResult = { ok: true; code: string } | { ok: false; throttled
 export type VerifyOtpResult = 'ok' | 'bad' | 'throttled'
 export type OtpChannel = 'sms' | 'email'
 
-/** آیا کد باید در پاسخِ HTTP برگردد؟ فقط در حالتِ موقتِ پیش‌ازاتصال — و فقط اگر
- * کانالِ همان درخواست (پیامک یا ایمیل) هنوز واقعاً تنظیم نشده باشد.
- * ⚠️ باگِ قبلی: این تابع فقط smsConfigured() را چک می‌کرد — یعنی وقتی پیامک از
- * قبل وصل بود ولی ایمیل هنوز نه، ورودِ ایمیلی نه ایمیلِ واقعی می‌فرستاد نه کد
+/** آیا کد باید در پاسخ HTTP برگردد؟ فقط در حالت موقت پیش‌ازاتصال — و فقط اگر
+ * کانال همان درخواست (پیامک یا ایمیل) هنوز واقعا تنظیم نشده باشد.
+ * ⚠️ باگ قبلی: این تابع فقط smsConfigured() را چک می‌کرد — یعنی وقتی پیامک از
+ * قبل وصل بود ولی ایمیل هنوز نه، ورود ایمیلی نه ایمیل واقعی می‌فرستاد نه کد
  * echo می‌شد؛ کاربر هیچ‌کدی نمی‌دید. حالا هر کانال جدا چک می‌شود. */
 export function otpEchoEnabled(channel: OtpChannel = 'sms'): boolean {
   const configured = channel === 'email' ? emailConfigured() : smsConfigured()
@@ -253,14 +253,14 @@ export function otpEchoEnabled(channel: OtpChannel = 'sms'): boolean {
 }
 
 /**
- * کدِ تازه (5 رقمی) می‌سازد و ذخیره می‌کند.
+ * کد تازه (5 رقمی) می‌سازد و ذخیره می‌کند.
  * rate limit: حداکثر 3 صدور برای هر شماره/ایمیل و 10 صدور برای هر IP در هر 10
- * دقیقه — هم ضدِ brute force هم (بعد از اتصالِ پیامک/ایمیل) ضدِ سوزاندنِ اعتبار.
+ * دقیقه — هم ضد brute force هم (بعد از اتصال پیامک/ایمیل) ضد سوزاندن اعتبار.
  *
- * channel='email' برایِ مراجع/متخصصِ خارج از ایران که پیامکِ ایرانی بهش نمی‌رسد؛
- * identifier در این حالت آدرسِ ایمیل است (نه شماره) ولی همان ستونِ phone در
- * جدولِ otps ذخیره می‌شود — این جدول از قبل یک شناسه‌ی عمومی نگه می‌داشت، فقط
- * اسمِ ستونش تاریخی مانده.
+ * channel='email' برای مراجع/متخصص خارج از ایران که پیامک ایرانی بهش نمی‌رسد؛
+ * identifier در این حالت آدرس ایمیل است (نه شماره) ولی همان ستون phone در
+ * جدول otps ذخیره می‌شود — این جدول از قبل یک شناسه‌ی عمومی نگه می‌داشت، فقط
+ * اسم ستونش تاریخی مانده.
  */
 export async function issueOtp(identifier: string, ip?: string, channel: OtpChannel = 'sms'): Promise<IssueOtpResult> {
   if (!(await checkThrottle(`otp:issue:${identifier}`, 3, 600))) return { ok: false, throttled: true }
@@ -268,8 +268,8 @@ export async function issueOtp(identifier: string, ip?: string, channel: OtpChan
   const code = String(randomInt(10000, 100000)) // 5 رقم، از CSPRNG نه Math.random
   const expires_at = new Date(Date.now() + 5 * 60 * 1000).toISOString()
   await sb().from('otps').insert({ phone: identifier, code, expires_at, channel })
-  // اگر ارسالِ واقعی تنظیم شده، همین‌جا بفرست. اگر شکست خورد، کد را از دیتابیس
-  // پاک می‌کنیم — کدی که به دستِ کاربر نمی‌رسد نباید معتبر بماند.
+  // اگر ارسال واقعی تنظیم شده، همین‌جا بفرست. اگر شکست خورد، کد را از دیتابیس
+  // پاک می‌کنیم — کدی که به دست کاربر نمی‌رسد نباید معتبر بماند.
   if (channel === 'email') {
     if (emailConfigured()) {
       const sent = await sendOtpEmail(identifier, code)
@@ -289,9 +289,9 @@ export async function issueOtp(identifier: string, ip?: string, channel: OtpChan
 }
 
 /**
- * کد را بررسی و در صورتِ صحت مصرف (حذف) می‌کند.
- * rate limit: حداکثر 5 تلاشِ تایید برای هر شماره/ایمیل در هر 10 دقیقه — با کدِ
- * 5رقمی یعنی brute force عملاً ناممکن.
+ * کد را بررسی و در صورت صحت مصرف (حذف) می‌کند.
+ * rate limit: حداکثر 5 تلاش تایید برای هر شماره/ایمیل در هر 10 دقیقه — با کد
+ * 5رقمی یعنی brute force عملا ناممکن.
  */
 export async function verifyOtp(identifier: string, code: string): Promise<VerifyOtpResult> {
   if (!(await checkThrottle(`otp:verify:${identifier}`, 5, 600))) return 'throttled'
@@ -304,13 +304,13 @@ export async function verifyOtp(identifier: string, code: string): Promise<Verif
   return 'ok'
 }
 
-export const OTP_THROTTLED_MSG = 'تعدادِ تلاش‌ها زیاد شده — چند دقیقه صبر کن و دوباره امتحان کن'
+export const OTP_THROTTLED_MSG = 'تعداد تلاش‌ها زیاد شده — چند دقیقه صبر کن و دوباره امتحان کن'
 
 function toEnDigits(s: string): string {
   return String(s).replace(/[۰-۹]/g, ch => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(ch)))
 }
 
-/** نرمال‌سازیِ شماره‌ی موبایل: ارقامِ فارسی، فاصله، +98 → 09xxxxxxxxx */
+/** نرمال‌سازی شماره‌ی موبایل: ارقام فارسی، فاصله، +98 → 09xxxxxxxxx */
 export function normalizePhone(raw: string): string {
   let p = toEnDigits(String(raw || '')).replace(/[^0-9]/g, '')
   if (p.startsWith('98') && p.length === 12) p = '0' + p.slice(2)
@@ -318,17 +318,17 @@ export function normalizePhone(raw: string): string {
   return p
 }
 
-/** چکِ سطحی/کافیِ فرمتِ ایمیل — برایِ ورودی‌هایِ کاربر، نه اعتبارسنجیِ RFC کامل */
+/** چک سطحی/کافی فرمت ایمیل — برای ورودی‌های کاربر، نه اعتبارسنجی RFC کامل */
 export function isValidEmail(raw: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(raw || '').trim())
 }
 
-// ── تطبیقِ هویتِ مراجع (شماره یا ایمیل) ──────────────────────────────────────
-// مراجع می‌تواند با شماره یا با ایمیل وارد شده باشد (کوکیِ CLIENT_COOKIE هرکدام
+// ── تطبیق هویت مراجع (شماره یا ایمیل) ──────────────────────────────────────
+// مراجع می‌تواند با شماره یا با ایمیل وارد شده باشد (کوکی CLIENT_COOKIE هرکدام
 // را که بود نگه می‌دارد) — این تابع یک‌جا چک می‌کند که «این هویت متعلق به این
-// پرونده هست یا نه»، فارغ از این‌که شماره باشد یا ایمیل. همه‌ی routeهایِ
+// پرونده هست یا نه»، فارغ از این‌که شماره باشد یا ایمیل. همه‌ی routeهای
 // کلاینت‌محور (data/pay/cancel/stage-book/schedule-one/buy-session) از همین
-// استفاده می‌کنند تا منطقِ تطبیق یک‌جا و یکسان بماند.
+// استفاده می‌کنند تا منطق تطبیق یک‌جا و یکسان بماند.
 export function matchesClientIdentity(
   row: { contact_phone?: string | null; contact2_phone?: string | null; contact_email?: string | null; contact2_email?: string | null },
   identity: string

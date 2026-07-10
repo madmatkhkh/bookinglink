@@ -6,13 +6,13 @@ import { issueOtp, verifyOtp, normalizePhone, createStaffSession, requestIp, otp
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-// ورودِ کارمند: برخلافِ ورودِ صاحبِ مجموعه (که شماره از قبل روی tenant است)،
+// ورود کارمند: برخلاف ورود صاحب مجموعه (که شماره از قبل روی tenant است)،
 // اینجا کاربر شماره‌ی خودش را می‌دهد — چون در یک مجموعه چند نفر پرسنل با
-// شماره‌های جدا وجود دارد. طبقِ درخواستِ صریحِ صاحبِ پروژه، قبل از صدورِ OTP
-// چک می‌شود که این شماره واقعاً یک درمانگرِ فعالِ همین مجموعه باشد — تا برایِ
-// شماره‌های اشتباه/بی‌ربط پیامکِ الکی ارسال نشود. (نکته: این یعنی پاسخ نشان
-// می‌دهد آیا شماره عضوِ مجموعه هست یا نه — تبادلِ آگاهانه‌ای بینِ صرفه‌جوییِ
-// پیامک/وضوحِ خطا و مخفی‌ماندنِ لیستِ شماره‌های کارمندان.)
+// شماره‌های جدا وجود دارد. طبق درخواست صریح صاحب پروژه، قبل از صدور OTP
+// چک می‌شود که این شماره واقعا یک درمانگر فعال همین مجموعه باشد — تا برای
+// شماره‌های اشتباه/بی‌ربط پیامک الکی ارسال نشود. (نکته: این یعنی پاسخ نشان
+// می‌دهد آیا شماره عضو مجموعه هست یا نه — تبادل آگاهانه‌ای بین صرفه‌جویی
+// پیامک/وضوح خطا و مخفی‌ماندن لیست شماره‌های کارمندان.)
 export async function POST(req: NextRequest, { params }: { params: { slug: string } }) {
   const t = await getActiveTenant(params.slug)
   if (!t) return NextResponse.json({ error: 'یافت نشد' }, { status: 404 })
@@ -30,7 +30,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
     const issued = await issueOtp(phone, requestIp(req))
     if (!issued.ok) {
       if ('throttled' in issued) return NextResponse.json({ error: OTP_THROTTLED_MSG }, { status: 429 })
-      return NextResponse.json({ error: issued.smsError || 'ارسالِ پیامک ناموفق بود — دوباره تلاش کن' }, { status: 502 })
+      return NextResponse.json({ error: issued.smsError || 'ارسال پیامک ناموفق بود — دوباره تلاش کن' }, { status: 502 })
     }
     // TODO(sms): این‌جا کد با پیامک ارسال می‌شود. تا آن موقع فقط با OTP_ECHO_CODE=true.
     return NextResponse.json({ success: true, ...(otpEchoEnabled() ? { dev_code: issued.code } : {}) })

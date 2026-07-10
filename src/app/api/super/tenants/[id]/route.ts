@@ -6,16 +6,16 @@ import { getNiche } from '@/lib/niche'
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-// کلیدهایِ ماژول‌های سطحِ مراجعِ روانشناسی که از پنلِ سوپرادمین هم قابلِ سوییچ‌اند
-// (همان لیستِ PATIENT_FEATURE_KEYS در lib/psy.ts — این‌جا برایِ جلوگیری از
-// importِ یک فایلِ کاملاً مخصوصِ نیچ در روتِ سطحِ پلتفرم، تکرار شده).
+// کلیدهای ماژول‌های سطح مراجع روانشناسی که از پنل سوپرادمین هم قابل سوییچ‌اند
+// (همان لیست PATIENT_FEATURE_KEYS در lib/psy.ts — این‌جا برای جلوگیری از
+// import یک فایل کاملا مخصوص نیچ در روت سطح پلتفرم، تکرار شده).
 const PSY_FEATURE_LABELS: Record<string, string> = {
-  patient_buy_extra_session: 'خریدِ جلسه‌ی جایگزین',
-  patient_self_cancel: 'کنسلِ خودکار توسطِ مراجع',
+  patient_buy_extra_session: 'خرید جلسه‌ی جایگزین',
+  patient_self_cancel: 'کنسل خودکار توسط مراجع',
 }
 const PSY_FEATURE_KEYS = Object.keys(PSY_FEATURE_LABELS)
 
-// جزئیاتِ کاملِ یک tenant: پروفایل، منابع (پرسنل)، آمارِ برحسبِ نیچ، ماژول‌ها.
+// جزئیات کامل یک tenant: پروفایل، منابع (پرسنل)، آمار برحسب نیچ، ماژول‌ها.
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
   if (!isSuperAuthed(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const id = params.id
@@ -33,7 +33,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     .select('id, name, title, phone, is_active, is_selectable, sort_order, created_at')
     .eq('tenant_id', id).order('sort_order').order('created_at')
 
-  // وضعیتِ شبایِ تسویه (فقط روانشناسی، فقط برایِ نمایش — تصمیم‌گیریِ تسویه‌ی دستی)
+  // وضعیت شبای تسویه (فقط روانشناسی، فقط برای نمایش — تصمیم‌گیری تسویه‌ی دستی)
   let shebaByResource = new Map<string, boolean>()
   if (tenant.niche_key === 'psychology' && resources?.length) {
     const { data: profiles } = await sb().from('psy_resource_profiles')
@@ -85,12 +85,12 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     resources: (resources || []).map(r => ({ ...r, has_sheba: shebaByResource.get(r.id) || false })),
     stats,
     features,
-    // توکنِ کوتاه‌عمرِ impersonate — فقط از همین پاسخِ احرازشده قابلِ‌دریافت است (ضدِ CSRF)
+    // توکن کوتاه‌عمر impersonate — فقط از همین پاسخ احرازشده قابل‌دریافت است (ضد CSRF)
     impersonate_token: signImpersonateToken(tenant.id),
   })
 }
 
-// ویرایشِ فیلدهایِ tenant: {owner_phone?, display_name?, status?, plan?, custom_domain?, domain_verified?}
+// ویرایش فیلدهای tenant: {owner_phone?, display_name?, status?, plan?, custom_domain?, domain_verified?}
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   if (!isSuperAuthed(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const id = params.id
@@ -117,22 +117,22 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (b.custom_domain !== undefined) {
     const d = String(b.custom_domain || '').trim().toLowerCase()
     tenantPatch.custom_domain = d || null
-    tenantPatch.domain_verified = false // با تغییرِ دامنه، تایید صفر می‌شود
+    tenantPatch.domain_verified = false // با تغییر دامنه، تایید صفر می‌شود
   }
   if (b.domain_verified !== undefined) tenantPatch.domain_verified = !!b.domain_verified
 
   if (Object.keys(tenantPatch).length) {
     const { error } = await sb().from('tenants').update(tenantPatch).eq('id', id)
     if (error) {
-      if (error.code === '23505') return NextResponse.json({ error: 'این دامنه قبلاً ثبت شده' }, { status: 409 })
+      if (error.code === '23505') return NextResponse.json({ error: 'این دامنه قبلا ثبت شده' }, { status: 409 })
       console.error('super/tenants/[id] PATCH (tenants) error:', error)
       return NextResponse.json({ error: 'ذخیره‌ی تغییرات ناموفق بود', detail: `${error.code || ''} ${error.message || ''}`.trim() }, { status: 500 })
     }
   }
 
-  // برگشت به پلنِ رایگان: کارت‌به‌کارت برایِ همه‌ی درمانگرهایِ این مجموعه خاموش و
-  // آنلاین اجباراً روشن می‌شود (سیاستِ کسب‌وکاری: کارمزدِ پلتفرم فقط از تراکنشِ
-  // آنلاین قابلِ‌دریافت است). این فقط برایِ پاکیزگیِ دیتاست — دفاعِ واقعی در
+  // برگشت به پلن رایگان: کارت‌به‌کارت برای همه‌ی درمانگرهای این مجموعه خاموش و
+  // آنلاین اجبارا روشن می‌شود (سیاست کسب‌وکاری: کارمزد پلتفرم فقط از تراکنش
+  // آنلاین قابل‌دریافت است). این فقط برای پاکیزگی دیتاست — دفاع واقعی در
   // effectivePaymentMethods (lib/psy.ts) است که در لحظه‌ی مصرف همیشه این را اعمال می‌کند.
   let forcedCardDisabledCount = 0
   if (tenantPatch.plan === 'free' && existing.niche_key === 'psychology') {
@@ -158,14 +158,14 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const { error } = await sb().from('tenant_profiles').upsert({ tenant_id: id, display_name: displayName })
     if (error) {
       console.error('super/tenants/[id] PATCH (tenant_profiles) error:', error)
-      return NextResponse.json({ error: 'ذخیره‌ی نامِ نمایشی ناموفق بود', detail: `${error.code || ''} ${error.message || ''}`.trim() }, { status: 500 })
+      return NextResponse.json({ error: 'ذخیره‌ی نام نمایشی ناموفق بود', detail: `${error.code || ''} ${error.message || ''}`.trim() }, { status: 500 })
     }
   }
 
   return NextResponse.json({ success: true, forced_card_disabled_count: forcedCardDisabledCount })
 }
 
-// حذفِ کاملِ tenant (بازگشت‌ناپذیر — همه‌ی جدول‌های وابسته با on delete cascade پاک می‌شوند)
+// حذف کامل tenant (بازگشت‌ناپذیر — همه‌ی جدول‌های وابسته با on delete cascade پاک می‌شوند)
 export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
   if (!isSuperAuthed(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const id = params.id

@@ -26,11 +26,11 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   const [jy, jm, jd] = dateStr.split('/').map(Number)
   if (!jy || !jm || !jd) return NextResponse.json({ error: 'تاریخ نامعتبر' }, { status: 400 })
 
-  // منبعِ آزاد برای این ساعت پیدا کن (resource_id مشخص یا «هر منبع»)
+  // منبع آزاد برای این ساعت پیدا کن (resource_id مشخص یا «هر منبع»)
   const reqResource = resource_id ? String(resource_id) : null
   const freeResource = await findFreeResource(t.id, service, dateStr, timeStr, reqResource)
   if (!freeResource)
-    return NextResponse.json({ error: 'این ساعت دیگر خالی نیست؛ ساعتِ دیگری انتخاب کنید' }, { status: 409 })
+    return NextResponse.json({ error: 'این ساعت دیگر خالی نیست؛ ساعت دیگری انتخاب کنید' }, { status: 409 })
 
   const booking_ts = jalaliDateTimeToTimestamp(dateStr, timeStr)!
   const { data, error } = await sb().from('bookings').insert({
@@ -43,9 +43,9 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
 
   if (error) {
     if (error.code === '23505')
-      return NextResponse.json({ error: 'این ساعت همین الان رزرو شد؛ ساعتِ دیگری انتخاب کنید' }, { status: 409 })
+      return NextResponse.json({ error: 'این ساعت همین الان رزرو شد؛ ساعت دیگری انتخاب کنید' }, { status: 409 })
     console.error('book POST error:', error)
-    return NextResponse.json({ error: 'مشکلی در ثبتِ رزرو پیش آمد. دوباره تلاش کنید.' }, { status: 500 })
+    return NextResponse.json({ error: 'مشکلی در ثبت رزرو پیش آمد. دوباره تلاش کنید.' }, { status: 500 })
   }
 
   const { data: profile } = await sb().from('tenant_profiles')

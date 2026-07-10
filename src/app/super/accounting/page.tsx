@@ -1,13 +1,13 @@
 'use client'
 // ─────────────────────────────────────────────────────────────────────────────
-// حسابداریِ نوبت‌لینک — سه نما:
-//   • بر اساسِ متخصص: هر متخصص چقدر گردش داشته، چقدرش سهمِ نوبت‌لینک، چقدرش سهمِ خودش
-//     (کلیک رویِ هرکدام → دفترِ حساب را فیلترشده رویِ همان متخصص باز می‌کند)
-//   • دفترِ حساب: ریزِ هر تراکنش (کِی، کدام مراجع/متخصص، چه مبلغی، آنلاین/دستی)
-//   • تسویه: بدهیِ پلتفرم به هر متخصص + ثبتِ واریزِ دستی
+// حسابداری نوبت‌لینک — سه نما:
+//   • بر اساس متخصص: هر متخصص چقدر گردش داشته، چقدرش سهم نوبت‌لینک، چقدرش سهم خودش
+//     (کلیک روی هرکدام → دفتر حساب را فیلترشده روی همان متخصص باز می‌کند)
+//   • دفتر حساب: ریز هر تراکنش (کی، کدام مراجع/متخصص، چه مبلغی، آنلاین/دستی)
+//   • تسویه: بدهی پلتفرم به هر متخصص + ثبت واریز دستی
 //
-// واژه‌ی «متخصص» عمداً استفاده می‌شود، نه «دکتر» — پلتفرم چندنیچی است (روانشناسی،
-// سالن، ...) و هر واژه‌ی مخصوصِ یک نیچ اینجا (که سراسرِ پلتفرم را نشان می‌دهد) غلط است.
+// واژه‌ی «متخصص» عمدا استفاده می‌شود، نه «دکتر» — پلتفرم چندنیچی است (روانشناسی،
+// سالن، ...) و هر واژه‌ی مخصوص یک نیچ اینجا (که سراسر پلتفرم را نشان می‌دهد) غلط است.
 // ─────────────────────────────────────────────────────────────────────────────
 import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
@@ -43,7 +43,7 @@ function AccountingInner() {
   const [authed, setAuthed] = useState<boolean | null>(null)
   const [tab, setTab] = useState<'specialists' | 'ledger' | 'settlements'>('specialists')
 
-  // ledger + بر اساسِ متخصص (از همون /api/super/accounting می‌آید)
+  // ledger + بر اساس متخصص (از همون /api/super/accounting می‌آید)
   const [entries, setEntries] = useState<LedgerEntry[]>([])
   const [totals, setTotals] = useState<Totals | null>(null)
   const [bySpecialist, setBySpecialist] = useState<BySpecialist[]>([])
@@ -94,7 +94,7 @@ function AccountingInner() {
   }
 
   async function markSettled(s: SettlementSummary) {
-    const ok = await dialog.uiConfirm(`تسویه‌ی ${money(s.outstanding)} تومان برایِ ${s.resource_name || 'این متخصص'} ثبت شود؟ این یعنی سهمِ او را به شبایش واریز کرده‌اید.`)
+    const ok = await dialog.uiConfirm(`تسویه‌ی ${money(s.outstanding)} تومان برای ${s.resource_name || 'این متخصص'} ثبت شود؟ این یعنی سهم او را به شبایش واریز کرده‌اید.`)
     if (!ok) return
     setBusyResource(s.resource_id)
     const res = await fetch('/api/super/settlements', {
@@ -102,23 +102,23 @@ function AccountingInner() {
       body: JSON.stringify({ resource_id: s.resource_id, amount: s.outstanding }),
     })
     setBusyResource(null)
-    if (!res.ok) { const d = await res.json().catch(() => ({})); await dialog.uiAlert(d.error || 'ثبتِ تسویه ناموفق بود'); return }
+    if (!res.ok) { const d = await res.json().catch(() => ({})); await dialog.uiAlert(d.error || 'ثبت تسویه ناموفق بود'); return }
     loadSettlements()
   }
 
   if (authed === null || (loading && tab !== 'settlements')) {
-    return <main className="min-h-screen grid place-items-center text-soot">در حالِ بارگذاری…</main>
+    return <main className="min-h-screen grid place-items-center text-soot">در حال بارگذاری…</main>
   }
 
   return (
     <main className="min-h-screen max-w-4xl mx-auto px-4 py-8 space-y-6">
       <header>
-        <a href="/super" className="text-xs text-soot underline">← بازگشت به لیستِ متخصص‌ها</a>
-        <h1 className="text-xl font-bold text-ink mt-1">حسابداریِ {PLATFORM_NAME}</h1>
+        <a href="/super" className="text-xs text-soot underline">← بازگشت به لیست متخصص‌ها</a>
+        <h1 className="text-xl font-bold text-ink mt-1">حسابداری {PLATFORM_NAME}</h1>
       </header>
 
       <div className="flex bg-white rounded-xl border border-sand p-1 gap-1 max-w-lg">
-        {([['specialists', 'بر اساسِ متخصص'], ['ledger', 'دفترِ حساب'], ['settlements', 'تسویه']] as const).map(([k, lbl]) => (
+        {([['specialists', 'بر اساس متخصص'], ['ledger', 'دفتر حساب'], ['settlements', 'تسویه']] as const).map(([k, lbl]) => (
           <button key={k} onClick={() => setTab(k)}
             className={`flex-1 text-sm py-2 rounded-lg font-medium transition-all ${tab === k ? 'bg-ink text-white' : 'text-soot'}`}>
             {lbl}
@@ -126,11 +126,11 @@ function AccountingInner() {
         ))}
       </div>
 
-      {/* ════════════════════ بر اساسِ متخصص ════════════════════ */}
+      {/* ════════════════════ بر اساس متخصص ════════════════════ */}
       {tab === 'specialists' && (
         <>
           <p className="text-xs text-soot">
-            هر متخصص چقدر کار کرده، چقدرش سهمِ {PLATFORM_NAME} بوده، چقدرش سهمِ خودِ متخصص — رویِ اسمِ هرکدام بزن تا همه‌ی تراکنش‌هایش را ببینی.
+            هر متخصص چقدر کار کرده، چقدرش سهم {PLATFORM_NAME} بوده، چقدرش سهم خود متخصص — روی اسم هرکدام بزن تا همه‌ی تراکنش‌هایش را ببینی.
           </p>
           {bySpecialist.length === 0 ? (
             <p className="text-sm text-soot bg-white rounded-2xl border border-sand p-10 text-center">هنوز تراکنشی ثبت نشده.</p>
@@ -153,15 +153,15 @@ function AccountingInner() {
                   </div>
                   <div className="text-left shrink-0 space-y-1">
                     <div>
-                      <div className="text-[10px] text-soot">گردشِ کل</div>
+                      <div className="text-[10px] text-soot">گردش کل</div>
                       <div className="text-sm font-bold text-ink tnum">{money(s.gross)}</div>
                     </div>
                     <div>
-                      <div className="text-[10px] text-soot">سهمِ {PLATFORM_NAME}</div>
+                      <div className="text-[10px] text-soot">سهم {PLATFORM_NAME}</div>
                       <div className="text-xs font-medium text-emerald-700 tnum">{money(s.commission)}</div>
                     </div>
                     <div>
-                      <div className="text-[10px] text-soot">سهمِ متخصص</div>
+                      <div className="text-[10px] text-soot">سهم متخصص</div>
                       <div className="text-xs font-medium text-ink tnum">{money(s.specialistShare)}</div>
                     </div>
                   </div>
@@ -172,28 +172,28 @@ function AccountingInner() {
         </>
       )}
 
-      {/* ════════════════════ دفترِ حساب ════════════════════ */}
+      {/* ════════════════════ دفتر حساب ════════════════════ */}
       {tab === 'ledger' && (
         <>
           {resourceFilter && (
             <div className="flex items-center justify-between bg-sky-50 border border-sky-200 rounded-xl px-4 py-2.5">
-              <span className="text-sm text-sky-800">فیلترشده رویِ: <strong>{resourceFilter.name}</strong></span>
-              <button onClick={() => setResourceFilter(null)} className="text-xs text-sky-700 underline">پاک‌کردنِ فیلتر ×</button>
+              <span className="text-sm text-sky-800">فیلترشده روی: <strong>{resourceFilter.name}</strong></span>
+              <button onClick={() => setResourceFilter(null)} className="text-xs text-sky-700 underline">پاک‌کردن فیلتر ×</button>
             </div>
           )}
 
           {totals && (
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <div className="bg-white rounded-2xl border border-sand p-4">
-                <div className="text-[11px] text-soot">کلِ دریافتی (ناخالص)</div>
+                <div className="text-[11px] text-soot">کل دریافتی (ناخالص)</div>
                 <div className="text-lg font-bold text-ink tnum mt-1">{money(totals.gross)}</div>
               </div>
               <div className="bg-white rounded-2xl border border-sand p-4">
-                <div className="text-[11px] text-soot">کارمزدِ پلتفرم</div>
+                <div className="text-[11px] text-soot">کارمزد پلتفرم</div>
                 <div className="text-lg font-bold text-emerald-700 tnum mt-1">{money(totals.commission)}</div>
               </div>
               <div className="bg-white rounded-2xl border border-sand p-4">
-                <div className="text-[11px] text-soot">سهمِ متخصص‌ها</div>
+                <div className="text-[11px] text-soot">سهم متخصص‌ها</div>
                 <div className="text-lg font-bold text-ink tnum mt-1">{money(totals.doctorShare)}</div>
               </div>
               <div className="bg-white rounded-2xl border border-sand p-4">
@@ -241,7 +241,7 @@ function AccountingInner() {
                         <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${e.method === 'online' ? 'bg-sky-100 text-sky-700' : 'bg-sand text-soot'}`}>
                           {e.method === 'online' ? 'آنلاین' : 'کارت‌به‌کارت'}
                         </span>
-                        {e.split_applied && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700">تسهیمِ خودکار</span>}
+                        {e.split_applied && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700">تسهیم خودکار</span>}
                       </div>
                       <div className="text-[11px] text-soot mt-0.5 flex items-center gap-1.5 flex-wrap">
                         <span>{e.tenant_name || e.tenant_slug}</span>
@@ -271,7 +271,7 @@ function AccountingInner() {
               </div>
             )}
           </div>
-          <p className="text-[11px] text-soot">دفترِ حساب تغییرناپذیر است — هر ردیف سندِ دائمیِ یک تراکنش است و ویرایش/حذف نمی‌شود.</p>
+          <p className="text-[11px] text-soot">دفتر حساب تغییرناپذیر است — هر ردیف سند دائمی یک تراکنش است و ویرایش/حذف نمی‌شود.</p>
         </>
       )}
 
@@ -279,16 +279,16 @@ function AccountingInner() {
       {tab === 'settlements' && (
         <>
           {settleLoading ? (
-            <p className="text-sm text-soot text-center py-10">در حالِ بارگذاری…</p>
+            <p className="text-sm text-soot text-center py-10">در حال بارگذاری…</p>
           ) : (
             <>
               <div className="bg-white rounded-2xl border border-sand p-5">
-                <h2 className="text-sm font-display font-bold text-ink mb-1">بدهیِ پلتفرم به متخصص‌ها</h2>
+                <h2 className="text-sm font-display font-bold text-ink mb-1">بدهی پلتفرم به متخصص‌ها</h2>
                 <p className="text-xs text-soot mb-4">
-                  سهمِ متخصص از پرداختِ آنلاین که هنوز به او واریز نشده. با «تسویه شد» مبلغ ثبت می‌شود و از بدهیِ معوق کم می‌شود.
+                  سهم متخصص از پرداخت آنلاین که هنوز به او واریز نشده. با «تسویه شد» مبلغ ثبت می‌شود و از بدهی معوق کم می‌شود.
                 </p>
                 {summary.length === 0 ? (
-                  <p className="text-sm text-soot text-center py-6">بدهیِ معوقی وجود ندارد.</p>
+                  <p className="text-sm text-soot text-center py-6">بدهی معوقی وجود ندارد.</p>
                 ) : (
                   <div className="space-y-2">
                     {summary.map(s => (
@@ -309,13 +309,13 @@ function AccountingInner() {
                           {s.settlement_sheba ? (
                             <span dir="ltr" className="tnum">{s.settlement_sheba}</span>
                           ) : (
-                            <span className="text-amber-700">بدونِ شبا</span>
+                            <span className="text-amber-700">بدون شبا</span>
                           )}
                         </div>
                         {s.outstanding > 0 && (
                           <button onClick={() => markSettled(s)} disabled={busyResource === s.resource_id}
                             className="mt-2 w-full py-2 bg-ink text-white rounded-lg text-xs font-medium disabled:opacity-50">
-                            {busyResource === s.resource_id ? 'در حالِ ثبت…' : `تسویه شد (${money(s.outstanding)} تومان)`}
+                            {busyResource === s.resource_id ? 'در حال ثبت…' : `تسویه شد (${money(s.outstanding)} تومان)`}
                           </button>
                         )}
                       </div>

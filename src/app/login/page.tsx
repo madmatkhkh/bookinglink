@@ -1,13 +1,13 @@
 'use client'
 // ─────────────────────────────────────────────────────────────────────────────
-// ورودِ متخصص — طراحیِ مونوکروم، دو ستونه.
+// ورود متخصص — طراحی مونوکروم، دو ستونه.
 //
-// این صفحه دیگر خودش OTP را دست‌کاری نمی‌کند — قبلاً به /api/t/<slug>/otp وصل
-// بود که کوکیِ «مراجع» می‌نشاند، نه نشستِ پنلِ متخصص؛ یعنی بعدِ «ورودِ موفق»
-// دوباره به لاگین برمی‌گشت (باگ). راهِ درست این نبود که OTP را اینجا هم پیاده
-// کنیم؛ خودِ `/[slug]/panel` از قبل یک فلوِ OTPِ کامل و درست دارد (owner/staff،
-// هر دو کوکیِ صحیح). این صفحه فقط نشانیِ کارگاه را می‌گیرد، وجودش را با یک
-// endpoint سبک و عمومی چک می‌کند، و کاربر را به همان پنلِ واقعی هدایت می‌کند.
+// این صفحه دیگر خودش OTP را دست‌کاری نمی‌کند — قبلا به /api/t/<slug>/otp وصل
+// بود که کوکی «مراجع» می‌نشاند، نه نشست پنل متخصص؛ یعنی بعد «ورود موفق»
+// دوباره به لاگین برمی‌گشت (باگ). راه درست این نبود که OTP را اینجا هم پیاده
+// کنیم؛ خود `/[slug]/panel` از قبل یک فلو OTP کامل و درست دارد (owner/staff،
+// هر دو کوکی صحیح). این صفحه فقط نشانی کارگاه را می‌گیرد، وجودش را با یک
+// endpoint سبک و عمومی چک می‌کند، و کاربر را به همان پنل واقعی هدایت می‌کند.
 // ─────────────────────────────────────────────────────────────────────────────
 import { useState } from 'react'
 import { PLATFORM_NAME } from '@/lib/config'
@@ -43,7 +43,7 @@ export default function Login() {
 
   return (
     <div className="min-h-screen grid md:grid-cols-2">
-      {/* ── سمتِ فرم ─────────────────────────────────────────────────────── */}
+      {/* ── سمت فرم ─────────────────────────────────────────────────────── */}
       <div className="flex flex-col p-8">
         <div className="flex items-center justify-between">
           <a href="/" className="flex items-center gap-2 text-ink">
@@ -59,11 +59,11 @@ export default function Login() {
           <div className="w-full max-w-sm animate-nl-up">
             <h1 className="font-display font-extrabold text-3xl tracking-tightest mb-2">ورود به پنل</h1>
             <p className="text-sm text-soot leading-relaxed mb-7">
-              نشانیِ کارگاهت را وارد کن؛ کدِ ورود (پیامکی) داخلِ همان پنل ازت پرسیده می‌شود.
+              نشانی کارگاهت را وارد کن؛ کد ورود (پیامکی) داخل همان پنل ازت پرسیده می‌شود.
             </p>
 
             <form onSubmit={goToPanel}>
-              <label className="block text-[13px] font-semibold text-ink/80 mb-1.5">نشانیِ کارگاه</label>
+              <label className="block text-[13px] font-semibold text-ink/80 mb-1.5">نشانی کارگاه</label>
               <div className="flex items-stretch mb-5" dir="ltr">
                 <span className="inline-flex items-center px-3 text-[13px] text-soot bg-paper border border-sand border-l-0 rounded-l-xl">nobatlink.com/</span>
                 <input value={slug} onChange={e => setSlug(e.target.value)} placeholder="your-name" required autoFocus
@@ -71,7 +71,7 @@ export default function Login() {
               </div>
               {err && <p className="text-[13px] text-ink bg-sand rounded-lg px-3 py-2 mb-4">{err}</p>}
               <button disabled={busy || !slug.trim()} className="w-full font-display font-bold text-white bg-ink py-3 rounded-xl shadow-sm hover:-translate-y-0.5 transition disabled:opacity-60">
-                {busy ? 'در حالِ بررسی…' : 'برو به پنل ←'}
+                {busy ? 'در حال بررسی…' : 'برو به پنل ←'}
               </button>
             </form>
 
@@ -83,16 +83,16 @@ export default function Login() {
         <div className="text-center text-[12px] text-soot/70">© 1404 {PLATFORM_NAME}</div>
       </div>
 
-      {/* ── سمتِ برند (مشکی) ─────────────────────────────────────────────── */}
+      {/* ── سمت برند (مشکی) ─────────────────────────────────────────────── */}
       <div className="relative hidden md:flex flex-col justify-center bg-ink text-white p-14 overflow-hidden">
         <div className="absolute inset-0 pointer-events-none" style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(255,255,255,.06) 1px, transparent 0)', backgroundSize: '26px 26px' }} />
         <div className="relative max-w-md">
           <div className="inline-flex items-center gap-2 text-[13px] text-white/70 border border-white/15 rounded-full px-3 py-1.5 mb-7">
             <span className="w-1.5 h-1.5 rounded-full bg-white" style={{ animation: 'nlPulse 2s infinite' }} />
-            داشبوردِ {PLATFORM_NAME}
+            داشبورد {PLATFORM_NAME}
           </div>
           <h2 className="font-display font-extrabold text-3xl leading-snug tracking-tightest mb-4">همه‌ی نوبت‌هایت،<br />یک‌جا و مرتب</h2>
-          <p className="text-[15px] text-white/70 leading-loose mb-10">وارد شو تا تقویم، مراجعین و یادآوری‌های پیامکی‌ات را مدیریت کنی — بدونِ هماهنگیِ دستی.</p>
+          <p className="text-[15px] text-white/70 leading-loose mb-10">وارد شو تا تقویم، مراجعین و یادآوری‌های پیامکی‌ات را مدیریت کنی — بدون هماهنگی دستی.</p>
           <div className="rounded-2xl border border-white/12 bg-white/5 p-5 backdrop-blur">
             <div className="flex items-center justify-between mb-4">
               <span className="font-display font-bold text-sm">امروز · یک‌شنبه</span>

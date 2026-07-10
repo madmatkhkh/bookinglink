@@ -7,8 +7,8 @@ import { toLatinNum } from '@/lib/calendar'
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-// ?service=<id>[&resource=<id>]&month=YYYY/MM → تعدادِ اسلاتِ خالیِ هر روز
-// ?service=<id>[&resource=<id>]&date=YYYY/MM/DD → ساعت‌های خالیِ آن روز
+// ?service=<id>[&resource=<id>]&month=YYYY/MM → تعداد اسلات خالی هر روز
+// ?service=<id>[&resource=<id>]&date=YYYY/MM/DD → ساعت‌های خالی آن روز
 export async function GET(req: NextRequest, { params }: { params: { slug: string } }) {
   const t = await requireTenant(params.slug)
   if (isTenantResponse(t)) return t

@@ -7,8 +7,8 @@ export const dynamic = 'force-dynamic'
 export const revalidate = 0
 const NO_STORE = { 'Cache-Control': 'no-store, max-age=0, must-revalidate' }
 
-// فرمِ رزروِ per-resource. owner با ?resource_id= مشخص می‌کند فرمِ کدام دکتر را
-// می‌بیند/ویرایش می‌کند؛ کارمند همیشه فقط فرمِ خودش را.
+// فرم رزرو per-resource. owner با ?resource_id= مشخص می‌کند فرم کدام دکتر را
+// می‌بیند/ویرایش می‌کند؛ کارمند همیشه فقط فرم خودش را.
 async function resolveTargetId(req: NextRequest, tenantId: string, isOwner: boolean, ownResourceId: string | null): Promise<string | null> {
   if (!isOwner) return ownResourceId
   const q = req.nextUrl.searchParams.get('resource_id')

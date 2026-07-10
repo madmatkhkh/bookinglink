@@ -7,15 +7,15 @@ export const dynamic = 'force-dynamic'
 export const revalidate = 0
 const NO_STORE = { 'Cache-Control': 'no-store, max-age=0, must-revalidate' }
 
-// پروفایلِ per-resource: نام/عنوان/آواتار (روی خودِ resources) + بج/نوعِ
+// پروفایل per-resource: نام/عنوان/آواتار (روی خود resources) + بج/نوع
 // جلسه/کارت (روی psy_resource_profiles). owner می‌تواند با ?resource_id=
-// پروفایلِ هرکسی را ببیند/ویرایش کند؛ کارمند همیشه فقط پروفایلِ خودش را.
+// پروفایل هرکسی را ببیند/ویرایش کند؛ کارمند همیشه فقط پروفایل خودش را.
 
 async function resolveTargetId(req: NextRequest, tenantId: string, isOwner: boolean, ownResourceId: string | null): Promise<string | null> {
   if (!isOwner) return ownResourceId
   const q = req.nextUrl.searchParams.get('resource_id')
   if (q) return q
-  // owner بدونِ resource_id: اگر فقط یک منبع دارد همان پیش‌فرض است (تک‌دکترها)
+  // owner بدون resource_id: اگر فقط یک منبع دارد همان پیش‌فرض است (تک‌دکترها)
   const { data } = await sb().from('resources').select('id').eq('tenant_id', tenantId)
     .order('sort_order').order('created_at').limit(1).maybeSingle()
   return data?.id || null
@@ -71,7 +71,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   if ('settlement_sheba' in body) {
     const sheba = String(body.settlement_sheba || '').trim().toUpperCase().replace(/\s/g, '')
     if (sheba && !isValidSheba(sheba))
-      return NextResponse.json({ error: 'فرمتِ شماره‌شبا درست نیست (باید IR و ۲۴ رقم باشد)' }, { status: 400 })
+      return NextResponse.json({ error: 'فرمت شماره‌شبا درست نیست (باید IR و ۲۴ رقم باشد)' }, { status: 400 })
     profilePatch.settlement_sheba = sheba
   }
   if ('settlement_sheba_holder_name' in body) profilePatch.settlement_sheba_holder_name = String(body.settlement_sheba_holder_name || '').trim().slice(0, 80)
@@ -79,20 +79,20 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   if ('companion_label' in body) profilePatch.companion_label = String(body.companion_label || '').trim().slice(0, 20)
   if ('meet_link' in body) {
     const link = String(body.meet_link || '').trim().slice(0, 300)
-    // اعتبارسنجیِ سطحی: اگر خالی نیست باید یک URL معتبر باشد (ترجیحاً meet.google.com، ولی سایرِ سرویس‌های ویدیوکال هم رد نمی‌شوند)
+    // اعتبارسنجی سطحی: اگر خالی نیست باید یک URL معتبر باشد (ترجیحا meet.google.com، ولی سایر سرویس‌های ویدیوکال هم رد نمی‌شوند)
     if (link && !/^https?:\/\//.test(link))
-      return NextResponse.json({ error: 'لینکِ جلسه باید با http:// یا https:// شروع شود' }, { status: 400 })
+      return NextResponse.json({ error: 'لینک جلسه باید با http:// یا https:// شروع شود' }, { status: 400 })
     profilePatch.meet_link = link
   }
   if ('payment_methods' in body) {
     let pm = mergePaymentMethods(body.payment_methods)
     if (a.tenant.plan !== 'pro') {
-      // پلنِ رایگان: فقط پرداختِ آنلاین مجاز است — هرچه دکتر بفرستد نادیده گرفته و
-      // به مقدارِ درست force می‌شود (نه خطا، چون این فیلد همیشه همراهِ کلِ پروفایل
+      // پلن رایگان: فقط پرداخت آنلاین مجاز است — هرچه دکتر بفرستد نادیده گرفته و
+      // به مقدار درست force می‌شود (نه خطا، چون این فیلد همیشه همراه کل پروفایل
       // ارسال می‌شود و نباید ذخیره‌ی بقیه‌ی تنظیمات را خراب کند).
       pm = { card_to_card: false, online: true }
     } else if (!pm.card_to_card && !pm.online) {
-      return NextResponse.json({ error: 'حداقل یک روشِ پرداخت باید فعال بماند' }, { status: 400 })
+      return NextResponse.json({ error: 'حداقل یک روش پرداخت باید فعال بماند' }, { status: 400 })
     }
     profilePatch.payment_methods = pm
   }

@@ -1,8 +1,8 @@
 'use client'
 // ─────────────────────────────────────────────────────────────────────────────
-// روترِ پنل: نیچِ tenant را می‌گیرد و پنلِ درست را نشان می‌دهد.
-//   • psychology → PsychologyAdmin (پنلِ کاملِ روانشناسی، منتقل‌شده از psych-booking)
-//   • بقیه       → GenericAdmin (پنلِ سرویس‌محورِ عمومی)
+// روتر پنل: نیچ tenant را می‌گیرد و پنل درست را نشان می‌دهد.
+//   • psychology → PsychologyAdmin (پنل کامل روانشناسی، منتقل‌شده از psych-booking)
+//   • بقیه       → GenericAdmin (پنل سرویس‌محور عمومی)
 // ─────────────────────────────────────────────────────────────────────────────
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'

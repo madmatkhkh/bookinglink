@@ -1,8 +1,8 @@
 'use client'
 // ─────────────────────────────────────────────────────────────────────────────
-// مدیریتِ نیچ‌ها (تمپلیت‌های نیچی) — طبقِ «قانونِ طلایی»ِ پروژه: ساختار = کد،
-// محتوا/قابلیت = دیتا. این صفحه یعنی افزودنِ نیچِ سوم/چهارم بدونِ دست‌زدن به
-// دیتابیس یا کد — فقط پرکردنِ فرم.
+// مدیریت نیچ‌ها (تمپلیت‌های نیچی) — طبق «قانون طلایی» پروژه: ساختار = کد،
+// محتوا/قابلیت = دیتا. این صفحه یعنی افزودن نیچ سوم/چهارم بدون دست‌زدن به
+// دیتابیس یا کد — فقط پرکردن فرم.
 // ─────────────────────────────────────────────────────────────────────────────
 import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
@@ -40,7 +40,7 @@ type NicheForm = {
   booking_label: string
   default_theme: string
   record_fields: RecordFieldRow[]
-  default_features: string // comma-separated برای ویرایشِ ساده
+  default_features: string // comma-separated برای ویرایش ساده
   sample_services: SampleServiceRow[]
   setup_price: number
   sort_order: number
@@ -104,7 +104,7 @@ function NicheEditor({ initial, onCancel, onSaved }: { initial: NicheForm; onCan
 
   async function save() {
     if (!f.key.trim() || !f.display_name.trim()) {
-      await dialog.uiAlert('کلید و نامِ نمایشی لازم است')
+      await dialog.uiAlert('کلید و نام نمایشی لازم است')
       return
     }
     setSaving(true)
@@ -144,7 +144,7 @@ function NicheEditor({ initial, onCancel, onSaved }: { initial: NicheForm; onCan
     <div className="bg-white border border-sand rounded-2xl p-5 space-y-5">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
-          <label className="block text-xs text-soot mb-1">کلید (لاتین، ثابت — مثلاً beauty_salon)</label>
+          <label className="block text-xs text-soot mb-1">کلید (لاتین، ثابت — مثلا beauty_salon)</label>
           <input
             dir="ltr" disabled={!isNew}
             className="w-full border border-sand rounded-xl px-3 py-2 text-sm disabled:bg-sand/40 disabled:text-soot"
@@ -152,7 +152,7 @@ function NicheEditor({ initial, onCancel, onSaved }: { initial: NicheForm; onCan
           />
         </div>
         <div>
-          <label className="block text-xs text-soot mb-1">نامِ نمایشی</label>
+          <label className="block text-xs text-soot mb-1">نام نمایشی</label>
           <input
             className="w-full border border-sand rounded-xl px-3 py-2 text-sm"
             value={f.display_name} onChange={e => setF(s => ({ ...s, display_name: e.target.value }))}
@@ -161,7 +161,7 @@ function NicheEditor({ initial, onCancel, onSaved }: { initial: NicheForm; onCan
       </div>
 
       <div>
-        <label className="block text-xs text-soot mb-1">تگ‌لاین (یک جمله‌ی کوتاه، برایِ لندینگ)</label>
+        <label className="block text-xs text-soot mb-1">تگ‌لاین (یک جمله‌ی کوتاه، برای لندینگ)</label>
         <input
           className="w-full border border-sand rounded-xl px-3 py-2 text-sm"
           value={f.tagline} onChange={e => setF(s => ({ ...s, tagline: e.target.value }))}
@@ -170,17 +170,17 @@ function NicheEditor({ initial, onCancel, onSaved }: { initial: NicheForm; onCan
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div>
-          <label className="block text-xs text-soot mb-1">برچسبِ «مراجع/مشتری»</label>
+          <label className="block text-xs text-soot mb-1">برچسب «مراجع/مشتری»</label>
           <input className="w-full border border-sand rounded-xl px-3 py-2 text-sm" value={f.client_label}
             onChange={e => setF(s => ({ ...s, client_label: e.target.value }))} />
         </div>
         <div>
-          <label className="block text-xs text-soot mb-1">برچسبِ «ارائه‌دهنده»</label>
+          <label className="block text-xs text-soot mb-1">برچسب «ارائه‌دهنده»</label>
           <input className="w-full border border-sand rounded-xl px-3 py-2 text-sm" value={f.resource_label}
             onChange={e => setF(s => ({ ...s, resource_label: e.target.value }))} />
         </div>
         <div>
-          <label className="block text-xs text-soot mb-1">برچسبِ «نوبت»</label>
+          <label className="block text-xs text-soot mb-1">برچسب «نوبت»</label>
           <input className="w-full border border-sand rounded-xl px-3 py-2 text-sm" value={f.booking_label}
             onChange={e => setF(s => ({ ...s, booking_label: e.target.value }))} />
         </div>
@@ -188,13 +188,13 @@ function NicheEditor({ initial, onCancel, onSaved }: { initial: NicheForm; onCan
 
       <div className="flex items-end gap-3">
         <div>
-          <label className="block text-xs text-soot mb-1">رنگِ برند</label>
+          <label className="block text-xs text-soot mb-1">رنگ برند</label>
           <input type="color" value={rgbToHex(f.default_theme)}
             onChange={e => setF(s => ({ ...s, default_theme: hexToRgb(e.target.value) }))}
             className="w-12 h-10 border border-sand rounded-xl cursor-pointer" />
         </div>
         <div className="flex-1">
-          <label className="block text-xs text-soot mb-1">مقدارِ خام (R G B)</label>
+          <label className="block text-xs text-soot mb-1">مقدار خام (R G B)</label>
           <input dir="ltr" className="w-full border border-sand rounded-xl px-3 py-2 text-sm tnum" value={f.default_theme}
             onChange={e => setF(s => ({ ...s, default_theme: e.target.value }))} />
         </div>
@@ -205,13 +205,13 @@ function NicheEditor({ initial, onCancel, onSaved }: { initial: NicheForm; onCan
         </div>
       </div>
 
-      {/* فیلدهایِ پرونده — فقط برایِ نیچ‌هایِ جنریک واقعاً مصرف می‌شود (پنلِ ثبتِ اطلاعاتِ مشتری) */}
+      {/* فیلدهای پرونده — فقط برای نیچ‌های جنریک واقعا مصرف می‌شود (پنل ثبت اطلاعات مشتری) */}
       <div>
         <div className="flex items-center justify-between mb-2">
-          <label className="text-xs text-soot">فیلدهایِ پرونده‌ی مشتری</label>
-          <button onClick={addRecordField} className="text-xs text-ink underline">+ افزودنِ فیلد</button>
+          <label className="text-xs text-soot">فیلدهای پرونده‌ی مشتری</label>
+          <button onClick={addRecordField} className="text-xs text-ink underline">+ افزودن فیلد</button>
         </div>
-        <p className="text-[11px] text-soot mb-2">این فیلدها در پنلِ «پرونده‌ی مشتری» برایِ نیچ‌هایِ جنریک نمایش داده می‌شوند. برایِ روانشناسی بی‌اثرند (فرمِ رزروِ خودش را دارد).</p>
+        <p className="text-[11px] text-soot mb-2">این فیلدها در پنل «پرونده‌ی مشتری» برای نیچ‌های جنریک نمایش داده می‌شوند. برای روانشناسی بی‌اثرند (فرم رزرو خودش را دارد).</p>
         <div className="space-y-2">
           {f.record_fields.map((rf, i) => (
             <div key={i} className="flex flex-wrap gap-2 items-center border border-sand rounded-xl p-2">
@@ -222,7 +222,7 @@ function NicheEditor({ initial, onCancel, onSaved }: { initial: NicheForm; onCan
               <select className="border border-sand rounded-lg px-2 py-1.5 text-xs bg-white" value={rf.type}
                 onChange={e => updateRecordField(i, { type: e.target.value })}>
                 <option value="text">متن</option>
-                <option value="textarea">متنِ بلند</option>
+                <option value="textarea">متن بلند</option>
                 <option value="number">عدد</option>
                 <option value="select">تک‌گزینه‌ای</option>
               </select>
@@ -239,13 +239,13 @@ function NicheEditor({ initial, onCancel, onSaved }: { initial: NicheForm; onCan
       {/* سرویس‌های نمونه */}
       <div>
         <div className="flex items-center justify-between mb-2">
-          <label className="text-xs text-soot">سرویس‌هایِ نمونه (هنگامِ ساختِ tenantِ تازه ساخته می‌شوند)</label>
-          <button onClick={addSampleService} className="text-xs text-ink underline">+ افزودنِ سرویس</button>
+          <label className="text-xs text-soot">سرویس‌های نمونه (هنگام ساخت tenant تازه ساخته می‌شوند)</label>
+          <button onClick={addSampleService} className="text-xs text-ink underline">+ افزودن سرویس</button>
         </div>
         <div className="space-y-2">
           {f.sample_services.map((sv, i) => (
             <div key={i} className="flex flex-wrap gap-2 items-center border border-sand rounded-xl p-2">
-              <input placeholder="نامِ سرویس" className="flex-1 min-w-[120px] border border-sand rounded-lg px-2 py-1.5 text-xs"
+              <input placeholder="نام سرویس" className="flex-1 min-w-[120px] border border-sand rounded-lg px-2 py-1.5 text-xs"
                 value={sv.name} onChange={e => updateSampleService(i, { name: e.target.value })} />
               <input type="number" placeholder="دقیقه" className="w-20 border border-sand rounded-lg px-2 py-1.5 text-xs tnum"
                 value={sv.duration_minutes} onChange={e => updateSampleService(i, { duration_minutes: Number(e.target.value) || 60 })} />
@@ -264,15 +264,15 @@ function NicheEditor({ initial, onCancel, onSaved }: { initial: NicheForm; onCan
       </div>
 
       <div>
-        <label className="block text-xs text-soot mb-1">ماژول‌هایِ پیش‌فرض (کلیدها با کاما)</label>
+        <label className="block text-xs text-soot mb-1">ماژول‌های پیش‌فرض (کلیدها با کاما)</label>
         <input dir="ltr" className="w-full border border-sand rounded-xl px-3 py-2 text-sm"
           value={f.default_features} onChange={e => setF(s => ({ ...s, default_features: e.target.value }))} />
-        <p className="text-[11px] text-soot mt-1">فقط کلیدهایی که خودِ کد می‌شناسد اثر دارند (مثلاً برایِ روانشناسی: patient_buy_extra_session, patient_self_cancel). برایِ نیچِ تازه، این فقط بایگانی می‌شود تا وقتی کدِ مربوطه نوشته شود.</p>
+        <p className="text-[11px] text-soot mt-1">فقط کلیدهایی که خود کد می‌شناسد اثر دارند (مثلا برای روانشناسی: patient_buy_extra_session, patient_self_cancel). برای نیچ تازه، این فقط بایگانی می‌شود تا وقتی کد مربوطه نوشته شود.</p>
       </div>
 
       <div className="flex gap-2 pt-2 border-t border-sand">
         <button onClick={save} disabled={saving} className="bg-ink text-white rounded-xl px-5 py-2 text-sm font-medium disabled:opacity-50">
-          {saving ? 'در حالِ ذخیره…' : isNew ? 'ساختِ نیچ' : 'ذخیره‌ی تغییرات'}
+          {saving ? 'در حال ذخیره…' : isNew ? 'ساخت نیچ' : 'ذخیره‌ی تغییرات'}
         </button>
         <button onClick={onCancel} className="text-sm border border-sand rounded-xl px-4 py-2 text-ink">انصراف</button>
       </div>
@@ -286,7 +286,7 @@ function NichesInner() {
   const [authed, setAuthed] = useState<boolean | null>(null)
   const [niches, setNiches] = useState<Niche[]>([])
   const [loading, setLoading] = useState(true)
-  const [editingKey, setEditingKey] = useState<string | null>(null) // null=بسته، ''=فرمِ ساختِ تازه
+  const [editingKey, setEditingKey] = useState<string | null>(null) // null=بسته، ''=فرم ساخت تازه
   const [busyKey, setBusyKey] = useState<string | null>(null)
 
   const load = useCallback(async () => {
@@ -314,10 +314,10 @@ function NichesInner() {
 
   async function remove(n: Niche) {
     if (n.tenant_count > 0) {
-      await dialog.uiAlert(`${n.tenant_count} متخصص از این نیچ استفاده می‌کنند — اول غیرفعالش کن، حذفِ کامل ممکن نیست.`)
+      await dialog.uiAlert(`${n.tenant_count} متخصص از این نیچ استفاده می‌کنند — اول غیرفعالش کن، حذف کامل ممکن نیست.`)
       return
     }
-    const ok = await dialog.uiConfirm(`نیچِ «${n.display_name}» کاملاً حذف شود؟`)
+    const ok = await dialog.uiConfirm(`نیچ «${n.display_name}» کاملا حذف شود؟`)
     if (!ok) return
     setBusyKey(n.key)
     const res = await fetch(`/api/super/niches?key=${encodeURIComponent(n.key)}`, { method: 'DELETE' })
@@ -328,18 +328,18 @@ function NichesInner() {
   }
 
   if (authed === null || loading) {
-    return <main className="min-h-screen grid place-items-center text-soot">در حالِ بارگذاری…</main>
+    return <main className="min-h-screen grid place-items-center text-soot">در حال بارگذاری…</main>
   }
 
   return (
     <main className="min-h-screen max-w-3xl mx-auto px-4 py-8 space-y-6">
       <header>
-        <a href="/super" className="text-xs text-soot underline">← بازگشت به لیستِ متخصص‌ها</a>
+        <a href="/super" className="text-xs text-soot underline">← بازگشت به لیست متخصص‌ها</a>
         <div className="flex items-center justify-between mt-1">
-          <h1 className="text-xl font-bold text-ink">مدیریتِ نیچ‌هایِ {PLATFORM_NAME}</h1>
+          <h1 className="text-xl font-bold text-ink">مدیریت نیچ‌های {PLATFORM_NAME}</h1>
           {editingKey === null && (
             <button onClick={() => setEditingKey('')} className="bg-ink text-white rounded-xl px-4 py-2 text-sm font-medium">
-              + نیچِ تازه
+              + نیچ تازه
             </button>
           )}
         </div>

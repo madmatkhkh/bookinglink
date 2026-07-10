@@ -8,30 +8,30 @@ export const revalidate = 0
 export const maxDuration = 60
 
 // ─────────────────────────────────────────────────────────────────────────────
-// یادآوریِ پیامکیِ خودکار — چیزی که لندینگ قولش را می‌داد ولی وجود نداشت.
+// یادآوری پیامکی خودکار — چیزی که لندینگ قولش را می‌داد ولی وجود نداشت.
 //
-// هر روز (vercel.json → crons، ساعتِ ۱۸ به وقتِ ایران) اجرا می‌شود:
+// هر روز (vercel.json → crons، ساعت ۱۸ به وقت ایران) اجرا می‌شود:
 //   ۱) نوبت‌های «فردا» را در سه جدول پیدا می‌کند:
-//        psy_sessions (جلساتِ confirmed و زمان‌بندی‌شده)
-//        psy_stages   (مصاحبه/ارزیابیِ booked)
-//        bookings     (نیچِ عمومی، confirmed)
-//   ۲) به شماره‌ی مراجع پیامکِ یادآوری (الگویِ SMS_IR_REMINDER_TEMPLATE_ID) می‌فرستد
-//   ۳) reminder_sent=true می‌کند (migration 0019) تا اجرای دوباره پیامِ تکراری نفرستد
+//        psy_sessions (جلسات confirmed و زمان‌بندی‌شده)
+//        psy_stages   (مصاحبه/ارزیابی booked)
+//        bookings     (نیچ عمومی، confirmed)
+//   ۲) به شماره‌ی مراجع پیامک یادآوری (الگوی SMS_IR_REMINDER_TEMPLATE_ID) می‌فرستد
+//   ۳) reminder_sent=true می‌کند (migration 0019) تا اجرای دوباره پیام تکراری نفرستد
 //
 // امنیت: فقط با Authorization: Bearer <CRON_SECRET> اجرا می‌شود — Vercel Cron
-// اگر env با نامِ CRON_SECRET تعریف شده باشد، همین هدر را خودش می‌فرستد؛ یعنی
-// هیچ‌کسِ دیگری نمی‌تواند با صدازدنِ دستیِ این URL اعتبارِ پیامکی را بسوزاند.
+// اگر env با نام CRON_SECRET تعریف شده باشد، همین هدر را خودش می‌فرستد؛ یعنی
+// هیچ‌کس دیگری نمی‌تواند با صدازدن دستی این URL اعتبار پیامکی را بسوزاند.
 //
-// تاریخ‌ها در دیتابیس ممکن است با یا بدونِ صفرِ پیشوند ذخیره شده باشند
+// تاریخ‌ها در دیتابیس ممکن است با یا بدون صفر پیشوند ذخیره شده باشند
 // ('1405/04/05' یا '1405/4/5') — هر دو شکل کوئری می‌شود.
 // ─────────────────────────────────────────────────────────────────────────────
 
 function tomorrowJalali(): { padded: string; unpadded: string; display: string } {
-  // «فردا» به وقتِ ایران (UTC+3:30)
+  // «فردا» به وقت ایران (UTC+3:30)
   const iranNow = new Date(Date.now() + 3.5 * 3600 * 1000)
   const t = new Date(iranNow.getTime() + 24 * 3600 * 1000)
   const j = gregorianToJalali(t.getUTCFullYear(), t.getUTCMonth() + 1, t.getUTCDate())
-  // ⚠️ قراردادِ کدبیس: gregorianToJalali ماهِ 0-indexed برمی‌گرداند (همه‌ی
+  // ⚠️ قرارداد کدبیس: gregorianToJalali ماه 0-indexed برمی‌گرداند (همه‌ی
   // صداکننده‌ها +1 می‌کنند) — این‌جا هم همان.
   const month = j.month + 1
   return {
@@ -52,14 +52,14 @@ export async function GET(req: NextRequest) {
   const dates = padded === unpadded ? [padded] : [padded, unpadded]
   const db = sb()
 
-  // نامِ نمایشیِ هر tenant برایِ متنِ پیامک (یک بار برای همه)
+  // نام نمایشی هر tenant برای متن پیامک (یک بار برای همه)
   const { data: profiles } = await db.from('tenant_profiles').select('tenant_id, display_name')
   const tenantName = new Map((profiles || []).map(p => [p.tenant_id, p.display_name || 'نوبت‌لینک']))
   const nameOf = (tid: string) => tenantName.get(tid) || 'نوبت‌لینک'
 
   let sent = 0, failed = 0
 
-  // ۱) جلساتِ درمانِ روانشناسی
+  // ۱) جلسات درمان روانشناسی
   const { data: sessions } = await db.from('psy_sessions')
     .select('id, tenant_id, case_number, session_time')
     .in('session_date', dates).eq('status', 'confirmed').eq('paid', true).eq('reminder_sent', false)
@@ -73,7 +73,7 @@ export async function GET(req: NextRequest) {
     else failed++
   }
 
-  // ۲) مراحلِ مصاحبه/ارزیابیِ زمان‌بندی‌شده
+  // ۲) مراحل مصاحبه/ارزیابی زمان‌بندی‌شده
   const { data: stages } = await db.from('psy_stages')
     .select('id, tenant_id, case_number, session_time')
     .in('session_date', dates).eq('status', 'booked').eq('reminder_sent', false)
@@ -87,7 +87,7 @@ export async function GET(req: NextRequest) {
     else failed++
   }
 
-  // ۳) رزروهای نیچِ عمومی
+  // ۳) رزروهای نیچ عمومی
   const { data: bookings } = await db.from('bookings')
     .select('id, tenant_id, client_phone, booking_time')
     .in('booking_date', dates).eq('status', 'confirmed').eq('reminder_sent', false)

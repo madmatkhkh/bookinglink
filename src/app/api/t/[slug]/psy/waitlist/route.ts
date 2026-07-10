@@ -6,14 +6,14 @@ import { getClientPhone, matchesClientIdentity } from '@/lib/auth'
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-// مراجع وقتی هیچ ساعتِ خالی‌ای برایِ روزهایِ نزدیک پیدا نمی‌کند، خودش را به
-// لیستِ انتظار اضافه می‌کند. هیچ‌جا خودکار «رزرو» نمی‌شود — فقط وقتی دکتر یک
-// ساعتِ آزادِ تازه می‌بیند، از همین لیست کسی را دستی مطلع می‌کند (پیامک/ایمیل).
+// مراجع وقتی هیچ ساعت خالی‌ای برای روزهای نزدیک پیدا نمی‌کند، خودش را به
+// لیست انتظار اضافه می‌کند. هیچ‌جا خودکار «رزرو» نمی‌شود — فقط وقتی دکتر یک
+// ساعت آزاد تازه می‌بیند، از همین لیست کسی را دستی مطلع می‌کند (پیامک/ایمیل).
 export async function POST(req: NextRequest, { params }: { params: { slug: string } }) {
   const t = await getActiveTenant(params.slug)
   if (!t) return NextResponse.json({ error: 'یافت نشد' }, { status: 404 })
   const phone = getClientPhone(req)
-  if (!phone) return NextResponse.json({ error: 'ابتدا با کدِ یک‌بارمصرف وارد شوید' }, { status: 401 })
+  if (!phone) return NextResponse.json({ error: 'ابتدا با کد یک‌بارمصرف وارد شوید' }, { status: 401 })
 
   const { case_number, resource_id, session_type, note } = await req.json()
   if (!case_number || !resource_id) return NextResponse.json({ error: 'ناقص' }, { status: 400 })
@@ -23,7 +23,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   if (!booking || !matchesClientIdentity(booking, phone))
     return NextResponse.json({ error: 'دسترسی ندارید' }, { status: 403 })
 
-  // از قبل توی لیستِ انتظارِ همین دکتر با وضعیتِ pending نباشد (بی‌فایده‌ی تکراری)
+  // از قبل توی لیست انتظار همین دکتر با وضعیت pending نباشد (بی‌فایده‌ی تکراری)
   const { data: existing } = await sb().from('psy_waitlist').select('id')
     .eq('tenant_id', t.id).eq('resource_id', resource_id).eq('case_number', case_number).eq('status', 'pending').maybeSingle()
   if (existing) return NextResponse.json({ success: true, already: true })

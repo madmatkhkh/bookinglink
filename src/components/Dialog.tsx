@@ -1,5 +1,5 @@
 'use client'
-// دیالوگ‌های درون‌برنامه‌ای به‌جای alert/confirm مرورگر (میراثِ DialogHost)
+// دیالوگ‌های درون‌برنامه‌ای به‌جای alert/confirm مرورگر (میراث DialogHost)
 import { createContext, useContext, useState, useCallback, ReactNode } from 'react'
 
 type DialogState =

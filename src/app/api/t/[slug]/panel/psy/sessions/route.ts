@@ -48,7 +48,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   if (isPanelAuthResponse(a)) return a
   const body = await req.json()
 
-  // جلسه همیشه resource_id را از پرونده‌ی صاحبش به ارث می‌برد — نه از ورودیِ کاربر
+  // جلسه همیشه resource_id را از پرونده‌ی صاحبش به ارث می‌برد — نه از ورودی کاربر
   let caseQ = sb().from('psy_cases').select('resource_id').eq('tenant_id', a.tenant.id).eq('case_number', body.case_number)
   if (!a.isOwner) caseQ = caseQ.eq('resource_id', a.resourceId)
   const { data: parentCase } = await caseQ.maybeSingle()
@@ -57,7 +57,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   const count = await sb().from('psy_sessions').select('id', { count: 'exact' })
     .eq('tenant_id', a.tenant.id).eq('case_number', body.case_number)
   const { paid, price, resource_id: _ignored, ...rest } = body
-  // قیمت: اگر دکتر خودش عددی داده همان، وگرنه از رویِ تنظیماتِ خودش برایِ نوعِ این جلسه
+  // قیمت: اگر دکتر خودش عددی داده همان، وگرنه از روی تنظیمات خودش برای نوع این جلسه
   let finalPrice = typeof price === 'number' && price >= 0 ? price : undefined
   if (finalPrice === undefined) {
     const pricing = await getResourcePricing(parentCase.resource_id)
@@ -69,7 +69,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
     status: 'confirmed', paid: paid === true,
   }]).select().single()
 
-  // اگر دکتر جلسه را همان لحظه paid ثبت کرد (کارت‌به‌کارتِ حضوری) → دفترِ حساب
+  // اگر دکتر جلسه را همان لحظه paid ثبت کرد (کارت‌به‌کارت حضوری) → دفتر حساب
   if (paid === true && data) {
     await recordLedgerEntry({
       tenantId: a.tenant.id,
@@ -101,7 +101,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { slug: stri
   const { data, error } = await q.select().single()
   if (error) { console.error('src/app/api/t/[slug]/panel/psy/sessions/route.ts error:', error); return NextResponse.json({ error: 'مشکلی پیش آمد. دوباره تلاش کنید.' }, { status: 500 }) }
 
-  // گذار به paid (تاییدِ کارت‌به‌کارتِ جلسه‌ی جایگزین) → دفترِ حساب
+  // گذار به paid (تایید کارت‌به‌کارت جلسه‌ی جایگزین) → دفتر حساب
   if (updates.paid === true && before && !before.paid && data) {
     const freshEntry = await recordLedgerEntry({
       tenantId: a.tenant.id, resourceId: data.resource_id || null, caseNumber: data.case_number,
@@ -109,11 +109,11 @@ export async function PATCH(req: NextRequest, { params }: { params: { slug: stri
       commissionAmount: 0, doctorAmount: data.price || 0,
       sourceTable: 'psy_sessions', sourceId: data.id, recordedBy: a.isOwner ? 'owner' : 'staff',
     })
-    // مصرفِ کدِ تخفیفِ کارت‌به‌کارت فقط لحظه‌ی تاییدِ واقعی — و فقط یک بار (گیت روی ثبتِ تازه‌ی ledger)
+    // مصرف کد تخفیف کارت‌به‌کارت فقط لحظه‌ی تایید واقعی — و فقط یک بار (گیت روی ثبت تازه‌ی ledger)
     if (freshEntry && data.discount_code && data.resource_id)
       await redeemDiscountCodeByCode(data.resource_id, data.discount_code)
   }
-  // ثبتِ بازپرداخت وقتی refund نهایی می‌شود → ردیفِ outflow (پولِ برگشتی به مراجع)
+  // ثبت بازپرداخت وقتی refund نهایی می‌شود → ردیف outflow (پول برگشتی به مراجع)
   if (updates.refund_status === 'done' && before && before.refund_status !== 'done' && data) {
     const full = data.price || 0
     const refundAmount = data.refund_amount || Math.round(full * (100 - (data.refund_percent || 0)) / 100)
@@ -122,7 +122,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { slug: stri
         tenantId: a.tenant.id, resourceId: data.resource_id || null, caseNumber: data.case_number,
         purpose: 'refund', method: 'card_to_card', direction: 'outflow', amount: refundAmount,
         commissionAmount: 0, doctorAmount: refundAmount,
-        sourceTable: 'psy_sessions', sourceId: data.id, note: `بازپرداختِ ${data.refund_percent || 0}٪`,
+        sourceTable: 'psy_sessions', sourceId: data.id, note: `بازپرداخت ${data.refund_percent || 0}٪`,
         recordedBy: a.isOwner ? 'owner' : 'staff',
       })
     }

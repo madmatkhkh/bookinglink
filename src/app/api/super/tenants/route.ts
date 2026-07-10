@@ -7,10 +7,10 @@ import { getNiche } from '@/lib/niche'
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-// شمارشِ سبکِ «آیا این tenant واقعاً استفاده می‌شود؟» — هر نیچ جدولِ رکوردِ اصلیِ
-// خودش را دارد (روانشناسی → پرونده، جنریک → رزرو). برایِ تعدادِ کمِ فعلیِ
-// tenantها (فازِ آنبوردینگِ دستی)، یک شمارشِ جدا per-tenant به‌صرفه‌تر از یک
-// ویو/RPCِ تازه است؛ اگر تعدادِ tenantها زیاد شد، این نقطه کاندیدِ بهینه‌سازی است.
+// شمارش سبک «آیا این tenant واقعا استفاده می‌شود؟» — هر نیچ جدول رکورد اصلی
+// خودش را دارد (روانشناسی → پرونده، جنریک → رزرو). برای تعداد کم فعلی
+// tenantها (فاز آنبوردینگ دستی)، یک شمارش جدا per-tenant به‌صرفه‌تر از یک
+// ویو/RPC تازه است؛ اگر تعداد tenantها زیاد شد، این نقطه کاندید بهینه‌سازی است.
 async function withRecordsCount<T extends { id: string; niche_key: string }>(tenants: T[]) {
   const psyIds = tenants.filter(t => t.niche_key === 'psychology').map(t => t.id)
   const genericIds = tenants.filter(t => t.niche_key !== 'psychology').map(t => t.id)
@@ -53,14 +53,14 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ tenants, summary })
 }
 
-// ساختِ tenant تازه با نیچِ انتخابی: {slug, owner_phone, display_name, niche_key}
+// ساخت tenant تازه با نیچ انتخابی: {slug, owner_phone, display_name, niche_key}
 export async function POST(req: NextRequest) {
   if (!isSuperAuthed(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const b = await req.json()
 
   const slug = String(b.slug || '').trim().toLowerCase()
-  if (!SLUG_PATTERN.test(slug)) return NextResponse.json({ error: 'slug نامعتبر (لاتینِ کوچک، عدد، خطِ تیره)' }, { status: 400 })
-  if (RESERVED_SLUGS.includes(slug)) return NextResponse.json({ error: 'این slug رزروِ سیستم است' }, { status: 400 })
+  if (!SLUG_PATTERN.test(slug)) return NextResponse.json({ error: 'slug نامعتبر (لاتین کوچک، عدد، خط تیره)' }, { status: 400 })
+  if (RESERVED_SLUGS.includes(slug)) return NextResponse.json({ error: 'این slug رزرو سیستم است' }, { status: 400 })
   const phone = normalizePhone(b.owner_phone)
   if (!/^09\d{9}$/.test(phone)) return NextResponse.json({ error: 'شماره‌ی موبایل معتبر نیست' }, { status: 400 })
 
@@ -71,16 +71,16 @@ export async function POST(req: NextRequest) {
   const { data: tenant, error } = await sb().from('tenants')
     .insert({ slug, owner_phone: phone, niche_key: nicheKey }).select().single()
   if (error) {
-    if (error.code === '23505') return NextResponse.json({ error: 'این slug قبلاً گرفته شده' }, { status: 409 })
+    if (error.code === '23505') return NextResponse.json({ error: 'این slug قبلا گرفته شده' }, { status: 409 })
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
   const displayName = String(b.display_name || '').trim().slice(0, 60)
-  // پروفایل با رنگِ پیش‌فرضِ نیچ
+  // پروفایل با رنگ پیش‌فرض نیچ
   await sb().from('tenant_profiles').insert({
     tenant_id: tenant.id, display_name: displayName, theme_color: niche.default_theme,
   })
-  // منبعِ پیش‌فرض («خودم») تا tenant از روزِ اول قابلِ رزرو باشد
+  // منبع پیش‌فرض («خودم») تا tenant از روز اول قابل رزرو باشد
   const { data: res } = await sb().from('resources').insert({
     tenant_id: tenant.id, name: displayName || 'خودم', is_selectable: true, sort_order: 0,
   }).select('id').single()
@@ -93,7 +93,7 @@ export async function POST(req: NextRequest) {
       }))
     )
   }
-  // ماژول‌های پیش‌فرضِ نیچ
+  // ماژول‌های پیش‌فرض نیچ
   if (niche.default_features?.length) {
     await sb().from('tenant_features').insert(
       niche.default_features.map((key: string) => ({
@@ -101,8 +101,8 @@ export async function POST(req: NextRequest) {
       }))
     )
   }
-  // نیچِ روانشناسی: تنظیماتِ کلینیک (سطحِ tenant) + پروفایلِ دکترِ پیش‌فرض با badgeِ نمونه
-  // (نام/عنوان از قبل روی resources نشسته؛ بج‌ها per-resource‌اند، قابلِ ویرایش از پنل → تنظیمات)
+  // نیچ روانشناسی: تنظیمات کلینیک (سطح tenant) + پروفایل دکتر پیش‌فرض با badge نمونه
+  // (نام/عنوان از قبل روی resources نشسته؛ بج‌ها per-resource‌اند، قابل ویرایش از پنل → تنظیمات)
   if (nicheKey === 'psychology') {
     await sb().from('psy_clinic_settings').insert({ tenant_id: tenant.id })
     if (res?.id) {
@@ -131,14 +131,14 @@ export async function PATCH(req: NextRequest) {
   if (b.custom_domain !== undefined) {
     const d = String(b.custom_domain || '').trim().toLowerCase()
     patch.custom_domain = d || null
-    patch.domain_verified = false // با تغییرِ دامنه، تایید صفر می‌شود
+    patch.domain_verified = false // با تغییر دامنه، تایید صفر می‌شود
   }
   if (b.domain_verified !== undefined) patch.domain_verified = !!b.domain_verified
   if (Object.keys(patch).length === 0) return NextResponse.json({ error: 'چیزی برای تغییر نیست' }, { status: 400 })
 
   const { error } = await sb().from('tenants').update(patch).eq('id', b.id)
   if (error) {
-    if (error.code === '23505') return NextResponse.json({ error: 'این دامنه قبلاً ثبت شده' }, { status: 409 })
+    if (error.code === '23505') return NextResponse.json({ error: 'این دامنه قبلا ثبت شده' }, { status: 409 })
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
   return NextResponse.json({ success: true })

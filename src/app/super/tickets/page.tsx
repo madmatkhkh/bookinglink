@@ -1,5 +1,5 @@
 'use client'
-// ─── تیکت‌هایِ پشتیبانی — دیدنِ همه‌ی تیکت‌هایِ متخصص‌ها + پاسخ/تغییرِ وضعیت ───
+// ─── تیکت‌های پشتیبانی — دیدن همه‌ی تیکت‌های متخصص‌ها + پاسخ/تغییر وضعیت ───
 import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { DialogProvider, useDialog } from '@/components/Dialog'
@@ -11,8 +11,8 @@ type Ticket = {
   subject: string; message: string; status: string; admin_reply: string | null; created_at: string
 }
 
-const STATUS_LABEL: Record<string, string> = { open: 'ثبت‌شده', in_progress: 'در حالِ بررسی', resolved: 'حل‌شده', closed: 'بسته‌شده' }
-const CATEGORY_LABEL: Record<string, string> = { bug: '🐞 مشکل/باگ', feature: '💡 قابلیتِ تازه', billing: '💳 مالی/پلن', other: '❓ سایر' }
+const STATUS_LABEL: Record<string, string> = { open: 'ثبت‌شده', in_progress: 'در حال بررسی', resolved: 'حل‌شده', closed: 'بسته‌شده' }
+const CATEGORY_LABEL: Record<string, string> = { bug: '🐞 مشکل/باگ', feature: '💡 قابلیت تازه', billing: '💳 مالی/پلن', other: '❓ سایر' }
 
 function TicketsInner() {
   const dialog = useDialog()
@@ -47,7 +47,7 @@ function TicketsInner() {
 
   async function sendReply(id: string) {
     const reply = (replyDrafts[id] || '').trim()
-    if (!reply) { await dialog.uiAlert('متنِ پاسخ را بنویس'); return }
+    if (!reply) { await dialog.uiAlert('متن پاسخ را بنویس'); return }
     setBusyId(id)
     await fetch('/api/super/tickets', {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
@@ -58,7 +58,7 @@ function TicketsInner() {
   }
 
   if (authed === null || loading) {
-    return <main className="min-h-screen grid place-items-center text-soot">در حالِ بارگذاری…</main>
+    return <main className="min-h-screen grid place-items-center text-soot">در حال بارگذاری…</main>
   }
 
   const openCount = tickets.filter(t => t.status === 'open').length
@@ -66,10 +66,10 @@ function TicketsInner() {
   return (
     <main className="min-h-screen max-w-3xl mx-auto px-4 py-8 space-y-6">
       <header>
-        <a href="/super" className="text-xs text-soot underline">← بازگشت به لیستِ متخصص‌ها</a>
+        <a href="/super" className="text-xs text-soot underline">← بازگشت به لیست متخصص‌ها</a>
         <div className="flex items-center justify-between mt-1">
-          <h1 className="text-xl font-bold text-ink">تیکت‌هایِ پشتیبانیِ {PLATFORM_NAME}</h1>
-          <span className="text-sm text-soot tnum">{openCount} بازِ رسیدگی‌نشده</span>
+          <h1 className="text-xl font-bold text-ink">تیکت‌های پشتیبانی {PLATFORM_NAME}</h1>
+          <span className="text-sm text-soot tnum">{openCount} باز رسیدگی‌نشده</span>
         </div>
       </header>
 
@@ -113,7 +113,7 @@ function TicketsInner() {
             <p className="text-sm text-ink leading-relaxed">{t.message}</p>
             {t.admin_reply && (
               <div className="bg-sand/60 rounded-xl p-2.5">
-                <p className="text-[11px] text-soot mb-0.5">پاسخِ قبلی:</p>
+                <p className="text-[11px] text-soot mb-0.5">پاسخ قبلی:</p>
                 <p className="text-xs text-ink leading-relaxed">{t.admin_reply}</p>
               </div>
             )}
@@ -126,7 +126,7 @@ function TicketsInner() {
               />
               <button onClick={() => sendReply(t.id)} disabled={busyId === t.id}
                 className="text-xs bg-ink text-white rounded-xl px-4 py-2 disabled:opacity-50 shrink-0">
-                ارسالِ پاسخ
+                ارسال پاسخ
               </button>
             </div>
             <div className="flex gap-1.5 flex-wrap pt-1">

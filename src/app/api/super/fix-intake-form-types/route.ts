@@ -5,9 +5,9 @@ import { isSuperAuthed } from '@/lib/auth'
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-// یک‌بار-اجرا: فرم‌هایی که قبل از اضافه‌شدنِ نوع‌های «تاریخ» و «شماره‌تماس»
-// ذخیره شده بودند، هنوز birth_date/mother_phone را به‌عنوانِ متنِ ساده دارند —
-// چون تغییرِ DEFAULT_INTAKE_FORM در کد فقط رویِ فرم‌های تازه اثر می‌گذارد، نه
+// یک‌بار-اجرا: فرم‌هایی که قبل از اضافه‌شدن نوع‌های «تاریخ» و «شماره‌تماس»
+// ذخیره شده بودند، هنوز birth_date/mother_phone را به‌عنوان متن ساده دارند —
+// چون تغییر DEFAULT_INTAKE_FORM در کد فقط روی فرم‌های تازه اثر می‌گذارد، نه
 // فرم‌هایی که از قبل در دیتابیس ذخیره شده‌اند. این route همه‌شان را یک‌جا اصلاح می‌کند.
 export async function POST(req: NextRequest) {
   if (!isSuperAuthed(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

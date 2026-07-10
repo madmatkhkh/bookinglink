@@ -6,12 +6,12 @@ export const dynamic = 'force-dynamic'
 export const revalidate = 0
 const NO_STORE = { 'Cache-Control': 'no-store, max-age=0, must-revalidate' }
 
-// وضعیتِ تسویه‌ی سهمِ متخصص‌ها از تراکنش‌هایِ آنلاین.
+// وضعیت تسویه‌ی سهم متخصص‌ها از تراکنش‌های آنلاین.
 //
-// منطق: در پرداختِ آنلاین کلِ پول اول به حسابِ پلتفرم می‌رود. سهمِ متخصص (doctor_amount)
-// یا خودکار (تسهیمِ زیبال، split_applied=true) واریز شده، یا پلتفرم باید دستی
-// واریز کند. «بدهیِ معوق» = مجموعِ سهمِ متخصص از تراکنش‌هایِ آنلاینی که split نشده،
-// منهایِ آنچه قبلاً در settlements برایش ثبتِ تسویه شده.
+// منطق: در پرداخت آنلاین کل پول اول به حساب پلتفرم می‌رود. سهم متخصص (doctor_amount)
+// یا خودکار (تسهیم زیبال، split_applied=true) واریز شده، یا پلتفرم باید دستی
+// واریز کند. «بدهی معوق» = مجموع سهم متخصص از تراکنش‌های آنلاینی که split نشده،
+// منهای آنچه قبلا در settlements برایش ثبت تسویه شده.
 export async function GET(req: NextRequest) {
   if (!isSuperAuthed(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
   const resourceInfo = new Map((resources || []).map(r => [r.id, r]))
   const shebaByResource = new Map((profiles || []).map(p => [p.resource_id, p]))
 
-  // جمعِ سهمِ معوق (فقط split نشده و inflow) per-resource
+  // جمع سهم معوق (فقط split نشده و inflow) per-resource
   const owedByResource = new Map<string, number>()
   const autoByResource = new Map<string, number>()
   for (const e of entries || []) {
@@ -42,7 +42,7 @@ export async function GET(req: NextRequest) {
       owedByResource.set(e.resource_id, (owedByResource.get(e.resource_id) || 0) + (e.doctor_amount || 0))
     }
   }
-  // جمعِ تسویه‌های ثبت‌شده per-resource
+  // جمع تسویه‌های ثبت‌شده per-resource
   const settledByResource = new Map<string, number>()
   for (const s of settlements || []) {
     if (!s.resource_id) continue
@@ -61,10 +61,10 @@ export async function GET(req: NextRequest) {
       resource_name: r?.name || null,
       tenant_slug: tn?.slug || null,
       tenant_name: tn?.name || null,
-      auto_settled: autoByResource.get(rid) || 0,   // خودکار توسطِ تسهیمِ زیبال
-      owed_gross: owedGross,                         // کلِ سهمِ معوقِ دستی
+      auto_settled: autoByResource.get(rid) || 0,   // خودکار توسط تسهیم زیبال
+      owed_gross: owedGross,                         // کل سهم معوق دستی
       settled_manual: settled,                       // آنچه دستی تسویه شده
-      outstanding: Math.max(0, owedGross - settled), // باقیِ بدهیِ واقعی
+      outstanding: Math.max(0, owedGross - settled), // باقی بدهی واقعی
       settlement_sheba: sheba?.settlement_sheba || null,
       settlement_holder: sheba?.settlement_sheba_holder_name || null,
     }
@@ -80,13 +80,13 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ summary, settlements: settlementRows }, { headers: NO_STORE })
 }
 
-// ثبتِ تسویه: {resource_id, amount, reference?, note?} — tenant_id از خودِ resource
+// ثبت تسویه: {resource_id, amount, reference?, note?} — tenant_id از خود resource
 export async function POST(req: NextRequest) {
   if (!isSuperAuthed(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const b = await req.json().catch(() => ({}))
   if (!b.resource_id) return NextResponse.json({ error: 'resource_id لازم است' }, { status: 400 })
   const amount = Math.round(Number(b.amount) || 0)
-  if (amount <= 0) return NextResponse.json({ error: 'مبلغِ تسویه نامعتبر است' }, { status: 400 })
+  if (amount <= 0) return NextResponse.json({ error: 'مبلغ تسویه نامعتبر است' }, { status: 400 })
 
   const { data: resource } = await sb().from('resources').select('tenant_id').eq('id', b.resource_id).maybeSingle()
   if (!resource) return NextResponse.json({ error: 'منبع یافت نشد' }, { status: 404 })
@@ -98,7 +98,7 @@ export async function POST(req: NextRequest) {
   })
   if (error) {
     console.error('super/settlements POST error:', error)
-    return NextResponse.json({ error: 'ثبتِ تسویه ناموفق بود', detail: `${error.code || ''} ${error.message || ''}`.trim() }, { status: 500 })
+    return NextResponse.json({ error: 'ثبت تسویه ناموفق بود', detail: `${error.code || ''} ${error.message || ''}`.trim() }, { status: 500 })
   }
   return NextResponse.json({ success: true })
 }

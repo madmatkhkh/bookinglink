@@ -1,13 +1,13 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// موتورِ محاسبه‌ی اسلات‌های خالی — نسخه‌ی چند‌منبعی
+// موتور محاسبه‌ی اسلات‌های خالی — نسخه‌ی چند‌منبعی
 //
 // اسلات ذخیره نمی‌شود، محاسبه می‌شود، حالا به‌ازای هر منبع:
-//   (برنامه‌ی هفتگیِ منبع + استثناهای منبع) − (رزروهای زنده‌ی منبع) − (گذشته/مهلت)
+//   (برنامه‌ی هفتگی منبع + استثناهای منبع) − (رزروهای زنده‌ی منبع) − (گذشته/مهلت)
 //
-// دو حالتِ رزرو:
-//   • منبعِ مشخص: مشتری «مینا» را انتخاب کرده → فقط اسلات‌های مینا.
-//   • هر منبع: مشتری فرقی نمی‌گذارد → اجتماعِ اسلات‌های همه‌ی منبع‌های واجد،
-//     و هنگامِ ثبت، یک منبعِ آزاد به او تخصیص می‌یابد.
+// دو حالت رزرو:
+//   • منبع مشخص: مشتری «مینا» را انتخاب کرده → فقط اسلات‌های مینا.
+//   • هر منبع: مشتری فرقی نمی‌گذارد → اجتماع اسلات‌های همه‌ی منبع‌های واجد،
+//     و هنگام ثبت، یک منبع آزاد به او تخصیص می‌یابد.
 // ─────────────────────────────────────────────────────────────────────────────
 import { sb } from './supabase'
 import { jalaliWeekday, jalaliDateTimeToTimestamp, timeKey, minutesToTime, jalaliKey, getDaysInJalaliMonth, toLatinNum } from './calendar'
@@ -25,7 +25,7 @@ function modeCompatible(rangeMode: string, serviceMode: string): boolean {
   return rangeMode === serviceMode
 }
 
-/** منبع‌هایی که این سرویس را ارائه می‌دهند. نبودِ ردیف در service_resources = همه. */
+/** منبع‌هایی که این سرویس را ارائه می‌دهند. نبود ردیف در service_resources = همه. */
 async function resourcesForService(tenantId: string, serviceId: string): Promise<string[]> {
   const [{ data: allRes }, { data: mapped }] = await Promise.all([
     sb().from('resources').select('id').eq('tenant_id', tenantId).eq('is_active', true),
@@ -49,7 +49,7 @@ function effectiveRanges(
   return weekly.filter(w => w.resource_id === resourceId && w.weekday === wd)
 }
 
-/** اسلات‌های یک منبعِ مشخص در یک روز (مجموعه‌ی timeKeyهای خالی) */
+/** اسلات‌های یک منبع مشخص در یک روز (مجموعه‌ی timeKeyهای خالی) */
 function slotsForResource(
   dateStr: string, jy: number, jm: number, jd: number, resourceId: string,
   service: ServiceRow, weekly: WeeklyRow[], overrides: OverrideRow[],
@@ -72,8 +72,8 @@ function slotsForResource(
 }
 
 /**
- * ساعت‌های خالیِ یک روز.
- * resourceId مشخص → اسلات‌های همان منبع. resourceId=null → اجتماعِ همه‌ی منبع‌های واجد.
+ * ساعت‌های خالی یک روز.
+ * resourceId مشخص → اسلات‌های همان منبع. resourceId=null → اجتماع همه‌ی منبع‌های واجد.
  */
 export async function computeDaySlots(
   tenantId: string, service: ServiceRow, jy: number, jm: number, jd: number,
@@ -110,8 +110,8 @@ export async function computeDaySlots(
 }
 
 /**
- * برای ثبتِ رزرو: یک منبعِ آزاد برای این تاریخ/ساعت پیدا می‌کند.
- * اگر resourceId داده شده، فقط همان را بررسی می‌کند. خروجی: id منبعِ آزاد یا null.
+ * برای ثبت رزرو: یک منبع آزاد برای این تاریخ/ساعت پیدا می‌کند.
+ * اگر resourceId داده شده، فقط همان را بررسی می‌کند. خروجی: id منبع آزاد یا null.
  */
 export async function findFreeResource(
   tenantId: string, service: ServiceRow, dateStr: string, timeStr: string,
@@ -145,7 +145,7 @@ export async function findFreeResource(
   return null
 }
 
-/** تعدادِ اسلاتِ خالیِ هر روزِ ماه (اجتماعِ منبع‌ها) — برای رنگ‌آمیزیِ تقویم */
+/** تعداد اسلات خالی هر روز ماه (اجتماع منبع‌ها) — برای رنگ‌آمیزی تقویم */
 export async function computeMonthAvailability(
   tenantId: string, service: ServiceRow, jy: number, jm: number,
   resourceId: string | null = null,

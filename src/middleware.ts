@@ -1,18 +1,18 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// میدل‌ور دامنه‌ی اختصاصی — تا امروز getTenantByDomain و مدیریتِ custom_domain
-// در پنلِ super وجود داشت ولی هیچ‌چیزی درخواست‌های دامنه‌ی اختصاصی را به مسیرِ
-// /{slug} نگاشت نمی‌کرد؛ یعنی قابلیت عملاً مرده بود. این میدل‌ور آن حلقه‌ی گم‌شده است:
+// میدل‌ور دامنه‌ی اختصاصی — تا امروز getTenantByDomain و مدیریت custom_domain
+// در پنل super وجود داشت ولی هیچ‌چیزی درخواست‌های دامنه‌ی اختصاصی را به مسیر
+// /{slug} نگاشت نمی‌کرد؛ یعنی قابلیت عملا مرده بود. این میدل‌ور آن حلقه‌ی گم‌شده است:
 //
 //   clinic-x.com/…  →  rewrite به  nobatlink.com/{slug}/…  (URL کاربر عوض نمی‌شود)
 //
 // نکات:
-//   • فقط برای هاست‌هایی غیر از دامنه‌ی خودِ پلتفرم (PLATFORM_DOMAIN) و *.vercel.app
+//   • فقط برای هاست‌هایی غیر از دامنه‌ی خود پلتفرم (PLATFORM_DOMAIN) و *.vercel.app
 //     فعال می‌شود — روی دامنه‌ی اصلی هیچ سرباری ندارد.
-//   • فقط domain_verified=true و tenantِ active نگاشت می‌شود (همان قواعدِ getTenantByDomain).
-//   • lookup با یک fetch سبک به REST خودِ Supabase انجام می‌شود (کلاینتِ کاملِ
-//     supabase-js در edge لازم نیست) + کشِ درون-نمونه‌ای ۶۰ثانیه‌ای تا هر
-//     درخواست یک رفت‌وبرگشتِ دیتابیس نخورد.
-//   • مسیرهای /api و /_next دست نمی‌خورند تا API ها همان قراردادِ /api/t/{slug}
+//   • فقط domain_verified=true و tenant active نگاشت می‌شود (همان قواعد getTenantByDomain).
+//   • lookup با یک fetch سبک به REST خود Supabase انجام می‌شود (کلاینت کامل
+//     supabase-js در edge لازم نیست) + کش درون-نمونه‌ای ۶۰ثانیه‌ای تا هر
+//     درخواست یک رفت‌وبرگشت دیتابیس نخورد.
+//   • مسیرهای /api و /_next دست نمی‌خورند تا API ها همان قرارداد /api/t/{slug}
 //     را نگه دارند (صفحات خودشان با همان slug صدا می‌زنند).
 // ─────────────────────────────────────────────────────────────────────────────
 import { NextRequest, NextResponse } from 'next/server'
@@ -55,7 +55,7 @@ export async function middleware(req: NextRequest) {
   if (!slug) return NextResponse.next()
 
   const url = req.nextUrl.clone()
-  // اگر مسیر از قبل با همان slug شروع می‌شود (مثلاً لینک‌های داخلیِ خودِ اپ)، دوباره پیشوند نزن
+  // اگر مسیر از قبل با همان slug شروع می‌شود (مثلا لینک‌های داخلی خود اپ)، دوباره پیشوند نزن
   if (url.pathname === `/${slug}` || url.pathname.startsWith(`/${slug}/`))
     return NextResponse.next()
   url.pathname = `/${slug}${url.pathname === '/' ? '' : url.pathname}`

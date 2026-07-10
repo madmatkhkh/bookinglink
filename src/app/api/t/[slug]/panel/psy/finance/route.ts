@@ -8,10 +8,10 @@ export const dynamic = 'force-dynamic'
 export const revalidate = 0
 const NO_STORE = { 'Cache-Control': 'no-store, max-age=0, must-revalidate' }
 
-// مبلغِ واقعی همیشه از رویِ ستونِ price ذخیره‌شده روی خودِ ردیف خوانده می‌شود (همان
-// چیزی که واقعاً از دکتر/مراجع در آن لحظه‌ی خاص خواسته شده)؛ فقط برایِ ردیف‌هایِ
-// خیلی قدیمی که price ذخیره‌شده صفر است (پیش از پیاده‌شدنِ قیمت‌گذاریِ per-resource)
-// با قیمتِ فعلیِ همان دکتر بازمحاسبه می‌شود — تقریبی، نه قیمتِ واقعیِ آن زمان.
+// مبلغ واقعی همیشه از روی ستون price ذخیره‌شده روی خود ردیف خوانده می‌شود (همان
+// چیزی که واقعا از دکتر/مراجع در آن لحظه‌ی خاص خواسته شده)؛ فقط برای ردیف‌های
+// خیلی قدیمی که price ذخیره‌شده صفر است (پیش از پیاده‌شدن قیمت‌گذاری per-resource)
+// با قیمت فعلی همان دکتر بازمحاسبه می‌شود — تقریبی، نه قیمت واقعی آن زمان.
 const sessPrice = (s: any, pricing: any) => s.price || resolvePrice(s.session_type, pricing)
 const pkgTotal = (p: any, pricing: any) => p.price || packageAmount(p, pricing)
 
@@ -27,7 +27,7 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
   const a = await requirePanelAuth(req, params.slug)
   if (isPanelAuthResponse(a)) return a
   const t = a.tenant
-  // کارمند فقط گزارشِ مالیِ خودش را می‌بیند؛ owner می‌تواند با ?resource_id= فیلتر کند یا همه را ببیند
+  // کارمند فقط گزارش مالی خودش را می‌بیند؛ owner می‌تواند با ?resource_id= فیلتر کند یا همه را ببیند
   const resourceFilter = a.isOwner ? req.nextUrl.searchParams.get('resource_id') : a.resourceId
 
   const from = req.nextUrl.searchParams.get('from')
@@ -56,8 +56,8 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
   const P = (packages || []).filter(x => inRange(x.created_at))
   const S = (sessions || []).filter(x => inRange(x.created_at))
 
-  // نگاشتِ قیمتِ فعلیِ هر resource — فقط به‌عنوانِ fallback برایِ ردیف‌هایِ خیلی
-  // قدیمی که ستونِ price‌شان صفر مانده (پیش از قیمت‌گذاریِ per-resource)
+  // نگاشت قیمت فعلی هر resource — فقط به‌عنوان fallback برای ردیف‌های خیلی
+  // قدیمی که ستون price‌شان صفر مانده (پیش از قیمت‌گذاری per-resource)
   const resourceIds = Array.from(new Set([...P, ...S].map(x => x.resource_id).filter(Boolean)))
   const pricingEntries = await Promise.all(resourceIds.map(async id => [id, await getResourcePricing(id)] as [string, Pricing]))
   const pricingMap = new Map<string, Pricing>(pricingEntries)
@@ -73,7 +73,7 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
     const k = jalaliMonthKey(iso); if (k) monthly[k] = (monthly[k] || 0) + amount
   }
 
-  // مصاحبه/ارزیابی حالا از psy_stages می‌آید (هر مرحله یک ردیفِ مستقل، هر تعداد ممکن)
+  // مصاحبه/ارزیابی حالا از psy_stages می‌آید (هر مرحله یک ردیف مستقل، هر تعداد ممکن)
   for (const st of St) {
     const bucket = st.stage_type === 'assessment' ? 'assessment' : 'interview'
     if (st.paid) { paid[bucket] += st.price || 0; paidCount[bucket]++; addMonthly(st.created_at, st.price || 0) }
@@ -129,9 +129,9 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
   for (const r of refundsList) r.name = nameByCase[r.case_number] || r.case_number
   refundsList.sort((a, b) => (a.date < b.date ? 1 : -1))
 
-  // تسویه‌ی پرداختِ آنلاین — چقدر پول از تراکنش‌هایِ آنلاین (که همه‌شان اول به
-  // حسابِ خودِ پلتفرم می‌رود) بابتِ سهمِ همین دکتر مانده، و چقدرش خودکار
-  // (سرویسِ تسهیمِ زیبال) مستقیم به شبایِ او واریز شده.
+  // تسویه‌ی پرداخت آنلاین — چقدر پول از تراکنش‌های آنلاین (که همه‌شان اول به
+  // حساب خود پلتفرم می‌رود) بابت سهم همین دکتر مانده، و چقدرش خودکار
+  // (سرویس تسهیم زیبال) مستقیم به شبای او واریز شده.
   let intentsQ = sb().from('psy_payment_intents').select('*').eq('tenant_id', t.id).eq('status', 'paid')
   if (resourceFilter) intentsQ = intentsQ.eq('resource_id', resourceFilter)
   const { data: intents } = await intentsQ

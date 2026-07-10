@@ -9,8 +9,8 @@ function genCase(): string {
   return `PRV-${Math.floor(1000 + Math.random() * 9000)}`
 }
 
-// owner بدونِ resource_id همه‌ی پرونده‌های مجموعه را می‌بیند (یا فیلترشده با
-// ?resource_id= از سوییچرِ پنل)؛ کارمند همیشه فقط پرونده‌های خودش را.
+// owner بدون resource_id همه‌ی پرونده‌های مجموعه را می‌بیند (یا فیلترشده با
+// ?resource_id= از سوییچر پنل)؛ کارمند همیشه فقط پرونده‌های خودش را.
 export async function GET(req: NextRequest, { params }: { params: { slug: string } }) {
   const a = await requirePanelAuth(req, params.slug)
   if (isPanelAuthResponse(a)) return a
@@ -21,11 +21,11 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
     if (filterId) q = q.eq('resource_id', filterId)
   }
   const { data, error } = await q.order('created_at', { ascending: false })
-  if (error) { console.error('psy/cases GET error:', error); return NextResponse.json({ error: 'خطا در خواندنِ پرونده‌ها' }, { status: 500 }) }
+  if (error) { console.error('psy/cases GET error:', error); return NextResponse.json({ error: 'خطا در خواندن پرونده‌ها' }, { status: 500 }) }
   return NextResponse.json({ bookings: data })
 }
 
-// افزودنِ پرونده‌ی دستی توسطِ دکتر — به‌کدام «منبع» تعلق بگیرد؟
+// افزودن پرونده‌ی دستی توسط دکتر — به‌کدام «منبع» تعلق بگیرد؟
 async function resolveResourceForNewCase(tenantId: string, isOwner: boolean, ownResourceId: string | null, bodyResourceId?: string): Promise<string | null> {
   if (!isOwner) return ownResourceId
   if (bodyResourceId) return bodyResourceId
@@ -79,7 +79,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   if (error) {
     console.error('psy/cases POST error:', error)
     return NextResponse.json({
-      error: 'مشکلی در ثبتِ پرونده پیش آمد. دوباره تلاش کنید.',
+      error: 'مشکلی در ثبت پرونده پیش آمد. دوباره تلاش کنید.',
       detail: `${error.code || ''} ${error.message || ''}`.trim(),
     }, { status: 500 })
   }
@@ -93,19 +93,19 @@ export async function PATCH(req: NextRequest, { params }: { params: { slug: stri
   const { id } = body
   if (!id) return NextResponse.json({ error: 'id لازم است' }, { status: 400 })
 
-  // ستون‌های واقعیِ psy_cases که مستقیم قابلِ ویرایش‌اند
+  // ستون‌های واقعی psy_cases که مستقیم قابل ویرایش‌اند
   const ALLOWED = [
     'status', 'doctor_notes', 'reject_reason',
     'client_name', 'client_name_en', 'birth_date', 'reason',
     'contact_name', 'contact_phone', 'contact2_name', 'contact2_phone',
     'session_type', 'office_location',
   ]
-  // فقط owner اجازه دارد پرونده را بینِ دکترها جابه‌جا کند
+  // فقط owner اجازه دارد پرونده را بین دکترها جابه‌جا کند
   if (a.isOwner && body.resource_id !== undefined) ALLOWED.push('resource_id')
 
   const patch: Record<string, any> = {}
   for (const k of ALLOWED) if (body[k] !== undefined) patch[k] = body[k]
-  // فیلدهای تفصیلی داخلِ details (jsonb) — ادغام با موجود
+  // فیلدهای تفصیلی داخل details (jsonb) — ادغام با موجود
   if (body.details && typeof body.details === 'object') {
     const { data: cur } = await sb().from('psy_cases').select('details')
       .eq('id', id).eq('tenant_id', a.tenant.id).single()
@@ -120,7 +120,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { slug: stri
   return NextResponse.json({ success: true })
 }
 
-// حذفِ کاملِ پرونده + جلسه‌ها و پکیج‌ها
+// حذف کامل پرونده + جلسه‌ها و پکیج‌ها
 export async function DELETE(req: NextRequest, { params }: { params: { slug: string } }) {
   const a = await requirePanelAuth(req, params.slug)
   if (isPanelAuthResponse(a)) return a
@@ -138,6 +138,6 @@ export async function DELETE(req: NextRequest, { params }: { params: { slug: str
     await sb().from('psy_stages').delete().eq('tenant_id', a.tenant.id).eq('case_number', c.case_number)
   }
   const { error } = await sb().from('psy_cases').delete().eq('id', id).eq('tenant_id', a.tenant.id)
-  if (error) { console.error('psy/cases DELETE error:', error); return NextResponse.json({ error: 'مشکلی در حذفِ پرونده پیش آمد.' }, { status: 500 }) }
+  if (error) { console.error('psy/cases DELETE error:', error); return NextResponse.json({ error: 'مشکلی در حذف پرونده پیش آمد.' }, { status: 500 }) }
   return NextResponse.json({ success: true })
 }

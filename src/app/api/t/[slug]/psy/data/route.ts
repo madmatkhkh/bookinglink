@@ -10,10 +10,10 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
   const t = await getActiveTenant(params.slug)
   if (!t) return NextResponse.json({ error: 'یافت نشد' }, { status: 404 })
   const case_number = req.nextUrl.searchParams.get('case_number')
-  // auth با کوکیِ امضاشده‌ی OTP — نه شماره‌ای که کلاینت خودش در query می‌فرستد؛
-  // وگرنه هرکس شماره‌کیس + شماره‌تلفنِ یک مراجع را «بداند» کلِ پرونده را می‌خواند.
+  // auth با کوکی امضاشده‌ی OTP — نه شماره‌ای که کلاینت خودش در query می‌فرستد؛
+  // وگرنه هرکس شماره‌کیس + شماره‌تلفن یک مراجع را «بداند» کل پرونده را می‌خواند.
   const phone = getClientPhone(req)
-  if (!phone) return NextResponse.json({ error: 'ابتدا با کدِ یک‌بارمصرف وارد شوید' }, { status: 401 })
+  if (!phone) return NextResponse.json({ error: 'ابتدا با کد یک‌بارمصرف وارد شوید' }, { status: 401 })
   if (!case_number) return NextResponse.json({ error: 'ناقص' }, { status: 400 })
 
   const { data: booking } = await sb().from('psy_cases').select('*')

@@ -17,27 +17,27 @@ export default function InterviewPage() {
  const [step, setStep] = useState<Step>(1)
  const [selectedDoctorId, setSelectedDoctorId] = useState('')
  const [sessionType, setSessionType] = useState<'online'|'offline'|''>('')
- const [officeLoc, setOfficeLoc] = useState('')  // عنوانِ مکانِ حضوریِ انتخاب‌شده
- const [selKey, setSelKey] = useState('')     // کلیدِ گزینه‌ی انتخاب‌شده (برای های‌لایت)
+ const [officeLoc, setOfficeLoc] = useState('')  // عنوان مکان حضوری انتخاب‌شده
+ const [selKey, setSelKey] = useState('')     // کلید گزینه‌ی انتخاب‌شده (برای های‌لایت)
  const [loading, setLoading] = useState(false)
  const [caseNumber, setCaseNumber] = useState('')
  const [stageId, setStageId] = useState('')
- // نام و شماره‌تماس همیشه ثابت‌اند (برای OTP لازم‌اند)؛ بقیه‌ی سوال‌ها کاملاً
- // دیتایی‌اند و از فرمِ تنظیم‌شده‌ی همین دکتر می‌آیند.
+ // نام و شماره‌تماس همیشه ثابت‌اند (برای OTP لازم‌اند)؛ بقیه‌ی سوال‌ها کاملا
+ // دیتایی‌اند و از فرم تنظیم‌شده‌ی همین دکتر می‌آیند.
  const [clientName, setClientName] = useState('')
  const [contactPhone, setContactPhone] = useState('')
- // ایمیلِ اختیاری — برایِ مراجعِ خارج از ایران که پیامکِ ایرانی بهش نمی‌رسد؛
- // اگر پر شود، هم برایِ ورودِ جایگزین هم برایِ یادآوریِ ایمیلی استفاده می‌شود.
+ // ایمیل اختیاری — برای مراجع خارج از ایران که پیامک ایرانی بهش نمی‌رسد؛
+ // اگر پر شود، هم برای ورود جایگزین هم برای یادآوری ایمیلی استفاده می‌شود.
  const [contactEmail, setContactEmail] = useState('')
  const [intakeForm, setIntakeForm] = useState<IntakeForm>({ sections: [] })
  const [intakeLoaded, setIntakeLoaded] = useState(false)
  const [answers, setAnswers] = useState<Record<string, any>>({})
  const setAnswer = (id: string, v: any) => setAnswers(a => ({ ...a, [id]: v }))
- // فرمِ درازِ قدیمی به یک ویزاردِ چندمرحله‌ای تبدیل شد — مرحله‌ی 0 = مشخصاتِ تماس، بقیه = هر بخش یک صفحه
+ // فرم دراز قدیمی به یک ویزارد چندمرحله‌ای تبدیل شد — مرحله‌ی 0 = مشخصات تماس، بقیه = هر بخش یک صفحه
  const [pageIdx, setPageIdx] = useState(0)
 
 
- // گزینه‌های نوعِ جلسه: آنلاین (در صورتِ فعال‌بودن) + یک کارت به‌ازای هر مکانِ حضوری
+ // گزینه‌های نوع جلسه: آنلاین (در صورت فعال‌بودن) + یک کارت به‌ازای هر مکان حضوری
  const sessionOptions = useMemo(() => {
   const opts: { key: string; type: 'online' | 'offline'; loc: string; icon: string; label: string; desc: string; price: string }[] = []
   if (onlineAvailable(settings.session_modes)) {
@@ -51,8 +51,8 @@ export default function InterviewPage() {
   return opts
  }, [settings.session_modes, settings.office_locations])
 
- // اگر فقط یک دکتر بود، خودکار انتخاب شود (بدونِ نیاز به انتخابگر)؛ اگر چند دکتر
- // بود، مراجع باید صریح انتخاب کند — پیشِ‌فرض گذاشتنِ یکی از چند دکتر گمراه‌کننده است.
+ // اگر فقط یک دکتر بود، خودکار انتخاب شود (بدون نیاز به انتخابگر)؛ اگر چند دکتر
+ // بود، مراجع باید صریح انتخاب کند — پیش‌فرض گذاشتن یکی از چند دکتر گمراه‌کننده است.
  useEffect(() => {
   if (!settings.loaded) return
   if (settings.doctors.length === 1) setSelectedDoctorId(settings.doctors[0].id)
@@ -62,7 +62,7 @@ export default function InterviewPage() {
  const displayDoctor = settings.doctors.find(d => d.id === selectedDoctorId) || settings.doctors[0]
  const needsDoctorPick = settings.doctors.length > 1
 
- // فرمِ رزروِ همان دکتر را بخوان — وقتی دکتر مشخص شد (تک‌دکترها فوراً، چنددکترها بعدِ انتخاب)
+ // فرم رزرو همان دکتر را بخوان — وقتی دکتر مشخص شد (تک‌دکترها فورا، چنددکترها بعد انتخاب)
  useEffect(() => {
   if (!settings.loaded) return
   if (needsDoctorPick && !selectedDoctorId) return
@@ -84,7 +84,7 @@ export default function InterviewPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
  }, [settings.loaded, sessionOptions])
 
- // toggle عمومی برای فیلدهای چندگزینه‌ای — همان رفتارِ «هیچ‌کدام» منحصربه‌فرد
+ // toggle عمومی برای فیلدهای چندگزینه‌ای — همان رفتار «هیچ‌کدام» منحصربه‌فرد
  function toggleMulti(fieldId: string, option: string) {
   setAnswers(a => {
    const cur: string[] = Array.isArray(a[fieldId]) ? a[fieldId] : []
@@ -94,7 +94,7 @@ export default function InterviewPage() {
   })
  }
 
- // شماره‌ی موبایلِ ایرانی: دقیقاً 11 رقم، با 09 شروع می‌شود (ارقامِ فارسی هم قبول است)
+ // شماره‌ی موبایل ایرانی: دقیقا 11 رقم، با 09 شروع می‌شود (ارقام فارسی هم قبول است)
  function isValidIranPhone(v: string): boolean {
   return /^09\d{9}$/.test(toLatinNum(v).trim())
  }
@@ -103,12 +103,12 @@ export default function InterviewPage() {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim())
  }
 
- // اعتبارسنجی: نام/تماس همیشه اجباری + هرچه در فرمِ این دکتر اجباری علامت خورده
- // (طبقِ همان تابعِ مشترکی که سمتِ سرور هم استفاده می‌شود — فیلدهای مخفیِ شرطی حساب نمی‌شوند)
+ // اعتبارسنجی: نام/تماس همیشه اجباری + هرچه در فرم این دکتر اجباری علامت خورده
+ // (طبق همان تابع مشترکی که سمت سرور هم استفاده می‌شود — فیلدهای مخفی شرطی حساب نمی‌شوند)
  function missingFields(): string[] {
   const miss: string[] = []
   if (!clientName.trim()) miss.push('نام')
-  // شماره یا ایمیل — حداقل یکی لازم است (نه لزوماً شماره‌ی ایرانی؛ مراجعِ خارج
+  // شماره یا ایمیل — حداقل یکی لازم است (نه لزوما شماره‌ی ایرانی؛ مراجع خارج
   // از ایران با ایمیل ادامه می‌دهد)
   if (!contactPhone.trim() && !contactEmail.trim()) miss.push('شماره تماس یا ایمیل')
   else {
@@ -121,7 +121,7 @@ export default function InterviewPage() {
  async function handleSubmit() {
   const miss = missingFields()
   if (miss.length) {
-   uiAlert('لطفاً این موارد را کامل کنید:\n• ' + miss.join('\n• '))
+   uiAlert('لطفا این موارد را کامل کنید:\n• ' + miss.join('\n• '))
    return
   }
   setLoading(true)
@@ -136,12 +136,12 @@ export default function InterviewPage() {
    })
    const data = await res.json()
    if (data.caseNumber) { setCaseNumber(data.caseNumber); setStageId(data.stageId || ''); setStep('pay') }
-   else uiAlert((data.error || 'خطا در ثبت اطلاعات') + (data.detail ? `\n\n(جزئیاتِ فنی برای پشتیبانی: ${data.detail})` : ''))
+   else uiAlert((data.error || 'خطا در ثبت اطلاعات') + (data.detail ? `\n\n(جزئیات فنی برای پشتیبانی: ${data.detail})` : ''))
   } catch { uiAlert('خطا در ارتباط با سرور') }
   setLoading(false)
  }
 
- // پرداختِ کارت‌به‌کارتِ مصاحبه (پس از ثبت فرم)
+ // پرداخت کارت‌به‌کارت مصاحبه (پس از ثبت فرم)
  async function submitInterviewPayment(ref: string, discountCode?: string) {
   setLoading(true)
   try {
@@ -150,7 +150,7 @@ export default function InterviewPage() {
     body: JSON.stringify({ case_number: caseNumber, phone: contactPhone, stage_id: stageId, payment_ref: ref, discount_code: discountCode || undefined })
    })
    if (res.ok) setStep('done')
-   else uiAlert('ثبتِ پرداخت ناموفق بود')
+   else uiAlert('ثبت پرداخت ناموفق بود')
   } catch { uiAlert('خطا در ارتباط با سرور') }
   setLoading(false)
  }
@@ -172,7 +172,7 @@ export default function InterviewPage() {
      </div>
     )}
     <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 text-sm text-amber-700">
-     پرداختِ شما در انتظار <b>تأیید</b> است. پس از تأیید، از پنل مراجع می‌توانید <b>وقتِ مصاحبه</b> را انتخاب کنید.
+     پرداخت شما در انتظار <b>تأیید</b> است. پس از تأیید، از پنل مراجع می‌توانید <b>وقت مصاحبه</b> را انتخاب کنید.
     </div>
     <a href={`/${slug}/my`} className="block mt-3 w-full py-3 bg-ink text-white rounded-xl text-sm font-medium hover:bg-ink/90 transition-colors">ورود به پنل مراجع</a>
    </div>
@@ -264,7 +264,7 @@ export default function InterviewPage() {
      </div>
     )}
 
-    {/* Step 3 - فرم کامل (کاملاً دیتایی — از فرمِ تنظیم‌شده‌ی همین دکتر)، به‌صورتِ ویزاردِ چندمرحله‌ای */}
+    {/* Step 3 - فرم کامل (کاملا دیتایی — از فرم تنظیم‌شده‌ی همین دکتر)، به‌صورت ویزارد چندمرحله‌ای */}
     {step === 3 && (() => {
      const visibleSections = intakeForm.sections
       .map(s => ({ ...s, fields: s.fields.filter(f => fieldVisible(f, answers)) }))
@@ -290,16 +290,16 @@ export default function InterviewPage() {
        const v = answers[f.id]
        const empty = f.type === 'multiselect' ? !Array.isArray(v) || v.length === 0 : !String(v ?? '').trim()
        if (f.required && empty) { miss.push(f.label); continue }
-       if (f.type === 'phone' && !empty && !isValidIranPhone(String(v))) miss.push(`${f.label} (فرمتِ شماره نامعتبر است)`)
-       if (f.type === 'email' && !empty && !isValidEmailFmt(String(v))) miss.push(`${f.label} (فرمتِ ایمیل نامعتبر است)`)
+       if (f.type === 'phone' && !empty && !isValidIranPhone(String(v))) miss.push(`${f.label} (فرمت شماره نامعتبر است)`)
+       if (f.type === 'email' && !empty && !isValidEmailFmt(String(v))) miss.push(`${f.label} (فرمت ایمیل نامعتبر است)`)
       }
       return miss
      }
 
      async function goNext() {
       const miss = missingOnThisPage()
-      if (miss.length) { uiAlert('لطفاً این موارد را کامل کنید:\n• ' + miss.join('\n• ')); return }
-      // قبل از ادامه، مطمئن شو همین نام+شماره از قبل ثبت نشده (تا مراجع کلِ فرم رو الکی پر نکنه)
+      if (miss.length) { uiAlert('لطفا این موارد را کامل کنید:\n• ' + miss.join('\n• ')); return }
+      // قبل از ادامه، مطمئن شو همین نام+شماره از قبل ثبت نشده (تا مراجع کل فرم رو الکی پر نکنه)
       if (safeIdx === 0) {
        try {
         const res = await fetch(`/api/t/${slug}/psy/check-existing`, {
@@ -307,7 +307,7 @@ export default function InterviewPage() {
          body: JSON.stringify({ clientName, phone: contactPhone, email: contactEmail.trim() || undefined }),
         })
         const d = await res.json()
-        if (d.exists) { uiAlert('پرونده‌ای با همین نام و شماره‌تماس قبلاً ثبت شده است. اگر برای شخصِ دیگری است، نام را متفاوت وارد کنید.'); return }
+        if (d.exists) { uiAlert('پرونده‌ای با همین نام و شماره‌تماس قبلا ثبت شده است. اگر برای شخص دیگری است، نام را متفاوت وارد کنید.'); return }
        } catch {}
       }
       if (safeIdx === totalPages - 1) handleSubmit()
@@ -336,10 +336,10 @@ export default function InterviewPage() {
         <div className="text-center py-10 text-soot text-sm">در حال بارگذاری فرم...</div>
        ) : (
         <>
-         {/* نوارِ پیشرفت */}
+         {/* نوار پیشرفت */}
          <div className="mb-5">
           <div className="flex items-center justify-between mb-1.5">
-           <span className="text-xs text-soot">{safeIdx === 0 ? 'مشخصاتِ تماس' : currentSection?.title}</span>
+           <span className="text-xs text-soot">{safeIdx === 0 ? 'مشخصات تماس' : currentSection?.title}</span>
            <span className="text-[11px] text-soot">{toFarsiNum(safeIdx + 1)} از {toFarsiNum(totalPages)}</span>
           </div>
           <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
@@ -353,7 +353,7 @@ export default function InterviewPage() {
            <Field label="شماره تماس" value={contactPhone} onChange={setContactPhone} placeholder="0912..." dir="ltr" />
            <div className="col-span-2">
             <Field label="ایمیل" value={contactEmail} onChange={setContactEmail} placeholder="example@gmail.com" dir="ltr" />
-            <p className="text-[11px] text-soot mt-1">حداقل یکی از شماره یا ایمیل لازم است — برایِ مراجعِ خارج از ایران، ایمیل به‌تنهایی کافی است.</p>
+            <p className="text-[11px] text-soot mt-1">حداقل یکی از شماره یا ایمیل لازم است — برای مراجع خارج از ایران، ایمیل به‌تنهایی کافی است.</p>
            </div>
           </div>
          ) : (
@@ -407,7 +407,7 @@ function Field({ label, value, onChange, placeholder, dir, textarea }: {
  )
 }
 
-// یک فیلد را طبقِ نوعِ تعریف‌شده‌اش (توسطِ خودِ دکتر) رندر می‌کند
+// یک فیلد را طبق نوع تعریف‌شده‌اش (توسط خود دکتر) رندر می‌کند
 function DynamicField({ field, value, onChange, onToggle }: {
  field: FormField; value: any; onChange: (v: string) => void; onToggle: (option: string) => void
 }) {
@@ -456,9 +456,9 @@ function DynamicField({ field, value, onChange, onToggle }: {
  )
 }
 
-// انتخابگرِ تاریخِ شمسی — یک تقویمِ واقعی (نه سه‌تا select ساده). به‌جای selectِ
-// بومیِ مرورگر (که لیستش دراز و بی‌سبک است)، ماه/سال با یه دراپ‌داونِ کوچیکِ
-// خودمان (اسکرول‌شونده، هم‌شکلِ بقیه‌ی پنل) انتخاب می‌شوند.
+// انتخابگر تاریخ شمسی — یک تقویم واقعی (نه سه‌تا select ساده). به‌جای select
+// بومی مرورگر (که لیستش دراز و بی‌سبک است)، ماه/سال با یه دراپ‌داون کوچیک
+// خودمان (اسکرول‌شونده، هم‌شکل بقیه‌ی پنل) انتخاب می‌شوند.
 function MiniDropdown({ value, label, options, onSelect, open, onToggle }: {
  value: number; label: string; options: { value: number; label: string }[]
  onSelect: (v: number) => void; open: boolean; onToggle: () => void
@@ -520,7 +520,7 @@ function JalaliDatePicker({ value, onChange }: { value: string; onChange: (v: st
   <div className="relative" ref={wrapRef}>
    <button type="button" onClick={() => { setOpen(o => !o); setOpenWhich(null) }}
     className="w-full text-sm px-3 py-2.5 border border-sand rounded-xl bg-white flex items-center justify-between focus:outline-none focus:border-ink hover:border-gray-300 transition-colors">
-    <span className={displayValue ? 'text-ink' : 'text-soot'}>{displayValue || 'انتخابِ تاریخِ تولد'}</span>
+    <span className={displayValue ? 'text-ink' : 'text-soot'}>{displayValue || 'انتخاب تاریخ تولد'}</span>
     <span className="text-soot text-base"></span>
    </button>
    {open && (
@@ -583,7 +583,7 @@ function StepBar({ current }: { current: number }) {
   </div>
  )
 }
-// صفحه‌ی پرداختِ کارت‌به‌کارتِ مصاحبه‌ی اولیه
+// صفحه‌ی پرداخت کارت‌به‌کارت مصاحبه‌ی اولیه
 function InterviewPayScreen({ amount, cards, loaded, loading, onPay, paymentMethods, slug, caseNumber, phone, stageId, resourceId }: {
  amount: number; cards: PaymentCardInfo[]; loaded: boolean; loading: boolean; onPay: (ref: string, discountCode?: string) => void
  paymentMethods?: PaymentMethods; slug: string; caseNumber: string; phone: string; stageId: string; resourceId?: string
@@ -595,7 +595,7 @@ function InterviewPayScreen({ amount, cards, loaded, loading, onPay, paymentMeth
  const [onlineLoading, setOnlineLoading] = useState(false)
  const [onlineError, setOnlineError] = useState('')
 
- // کدِ تخفیف — اختیاری، فقط اگر دکتر چیزی به مراجع گفته باشد
+ // کد تخفیف — اختیاری، فقط اگر دکتر چیزی به مراجع گفته باشد
  const [showDiscount, setShowDiscount] = useState(false)
  const [discountCode, setDiscountCode] = useState('')
  const [discountChecking, setDiscountChecking] = useState(false)
@@ -609,7 +609,7 @@ function InterviewPayScreen({ amount, cards, loaded, loading, onPay, paymentMeth
    const res = await fetch(`/api/t/${slug}/psy/discount-check?resource_id=${resourceId}&code=${encodeURIComponent(discountCode.trim())}&amount=${amount}`)
    const d = await res.json()
    setDiscountResult(d)
-  } catch { setDiscountResult({ ok: false, error: 'خطا در بررسیِ کد' }) }
+  } catch { setDiscountResult({ ok: false, error: 'خطا در بررسی کد' }) }
   setDiscountChecking(false)
  }
 
@@ -632,7 +632,7 @@ function InterviewPayScreen({ amount, cards, loaded, loading, onPay, paymentMeth
    <div className="max-w-sm w-full bg-white rounded-2xl border border-sand p-6">
     <div className="text-center mb-4">
      <div className="w-16 h-16 rounded-full bg-sand flex items-center justify-center mx-auto mb-3 text-3xl">💳</div>
-     <h1 className="text-lg font-display font-medium text-ink">پرداختِ هزینه‌ی مصاحبه</h1>
+     <h1 className="text-lg font-display font-medium text-ink">پرداخت هزینه‌ی مصاحبه</h1>
     </div>
 
     <div className="bg-sand border border-sand rounded-xl p-4 mb-3">
@@ -648,11 +648,11 @@ function InterviewPayScreen({ amount, cards, loaded, loading, onPay, paymentMeth
     {resourceId && (
      <div className="mb-3">
       {!showDiscount ? (
-       <button onClick={() => setShowDiscount(true)} className="text-xs text-soot underline">کدِ تخفیف دارید؟</button>
+       <button onClick={() => setShowDiscount(true)} className="text-xs text-soot underline">کد تخفیف دارید؟</button>
       ) : (
        <div className="flex gap-2">
         <input value={discountCode} onChange={e => { setDiscountCode(e.target.value.toUpperCase()); setDiscountResult(null) }}
-         dir="ltr" placeholder="کدِ تخفیف" className="flex-1 text-sm px-3 py-2 border border-sand rounded-lg tnum" />
+         dir="ltr" placeholder="کد تخفیف" className="flex-1 text-sm px-3 py-2 border border-sand rounded-lg tnum" />
         <button onClick={checkDiscount} disabled={discountChecking || !discountCode.trim()}
          className="px-3 py-2 border border-sand rounded-lg text-xs text-ink disabled:opacity-50">
          {discountChecking ? '...' : 'اعمال'}
@@ -671,7 +671,7 @@ function InterviewPayScreen({ amount, cards, loaded, loading, onPay, paymentMeth
      <div className="grid grid-cols-2 gap-2 mb-3 p-1 bg-gray-100 rounded-xl">
       <button onClick={() => setMethod('online')}
        className={`py-2 rounded-lg text-xs font-medium transition-colors ${method === 'online' ? 'bg-white shadow-sm text-ink' : 'text-soot'}`}>
-       پرداختِ آنلاین
+       پرداخت آنلاین
       </button>
       <button onClick={() => setMethod('card')}
        className={`py-2 rounded-lg text-xs font-medium transition-colors ${method === 'card' ? 'bg-white shadow-sm text-ink' : 'text-soot'}`}>
@@ -682,11 +682,11 @@ function InterviewPayScreen({ amount, cards, loaded, loading, onPay, paymentMeth
 
     {method === 'online' && online ? (
      <>
-      <p className="text-xs text-soot mb-3 text-center">بعدِ پرداخت بلافاصله می‌توانید وقتِ مصاحبه را بگیرید.</p>
+      <p className="text-xs text-soot mb-3 text-center">بعد پرداخت بلافاصله می‌توانید وقت مصاحبه را بگیرید.</p>
       {onlineError && <div className="text-xs text-red-600 bg-red-500/10 border border-red-500/20 rounded-lg p-2.5 mb-3 text-center">{onlineError}</div>}
       <button onClick={payOnline} disabled={onlineLoading}
        className="w-full py-3 bg-ink text-white rounded-xl text-sm font-medium disabled:opacity-40">
-       {onlineLoading ? 'در حال اتصال به درگاه...' : 'پرداختِ آنلاین'}
+       {onlineLoading ? 'در حال اتصال به درگاه...' : 'پرداخت آنلاین'}
       </button>
      </>
     ) : (
@@ -702,7 +702,7 @@ function InterviewPayScreen({ amount, cards, loaded, loading, onPay, paymentMeth
        className="w-full py-3 bg-ink text-white rounded-xl text-sm font-medium disabled:opacity-40">
        {loading ? 'در حال ثبت...' : 'پرداخت کردم'}
       </button>
-      <p className="text-[11px] text-soot mt-2 text-center">پس از تأیید پرداخت، از پنل مراجع وقتِ مصاحبه را می‌گیرید.</p>
+      <p className="text-[11px] text-soot mt-2 text-center">پس از تأیید پرداخت، از پنل مراجع وقت مصاحبه را می‌گیرید.</p>
      </>
     )}
    </div>

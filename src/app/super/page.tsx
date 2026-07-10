@@ -1,6 +1,6 @@
 'use client'
-// ─── پنلِ سوپرادمینِ پلتفرم ──────────────────────────────────────
-// ورود با SUPER_SECRET، داشبوردِ خلاصه، فیلتر/جست‌وجو، لیست/ساخت/تعلیقِ tenantها
+// ─── پنل سوپرادمین پلتفرم ──────────────────────────────────────
+// ورود با SUPER_SECRET، داشبورد خلاصه، فیلتر/جست‌وجو، لیست/ساخت/تعلیق tenantها
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { DialogProvider, useDialog } from '@/components/Dialog'
 import { PLATFORM_NAME } from '@/lib/config'
@@ -51,12 +51,12 @@ function SuperInner() {
   const [summary, setSummary] = useState<Summary | null>(null)
   const [loading, setLoading] = useState(false)
 
-  // فیلتر/جست‌وجویِ لیست
+  // فیلتر/جست‌وجوی لیست
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'suspended' | 'pending'>('all')
   const [nicheFilter, setNicheFilter] = useState('all')
 
-  // فرمِ ساختِ tenant تازه
+  // فرم ساخت tenant تازه
   const [slug, setSlug] = useState('')
   const [phone, setPhone] = useState('')
   const [name, setName] = useState('')
@@ -116,7 +116,7 @@ function SuperInner() {
 
   async function createTenant() {
     if (!slug.trim() || !phone.trim()) {
-      await dialog.uiAlert('slug و شماره‌ی موبایلِ متخصص را وارد کنید')
+      await dialog.uiAlert('slug و شماره‌ی موبایل متخصص را وارد کنید')
       return
     }
     setCreating(true)
@@ -128,7 +128,7 @@ function SuperInner() {
     const d = await res.json().catch(() => ({}))
     setCreating(false)
     if (!res.ok) {
-      await dialog.uiAlert(d.error || 'ساختِ tenant ناموفق بود')
+      await dialog.uiAlert(d.error || 'ساخت tenant ناموفق بود')
       return
     }
     setSlug(''); setPhone(''); setName('')
@@ -148,19 +148,19 @@ function SuperInner() {
   }
 
   if (authed === null) {
-    return <main className="min-h-screen grid place-items-center text-soot">در حالِ بارگذاری…</main>
+    return <main className="min-h-screen grid place-items-center text-soot">در حال بارگذاری…</main>
   }
 
   if (!authed) {
     return (
       <main className="min-h-screen grid place-items-center px-4">
         <div className="w-full max-w-sm bg-white border border-sand rounded-2xl p-6 space-y-4">
-          <h1 className="text-lg font-bold text-ink">مدیریتِ {PLATFORM_NAME}</h1>
+          <h1 className="text-lg font-bold text-ink">مدیریت {PLATFORM_NAME}</h1>
           <input
             type="password"
             dir="ltr"
             className="w-full border border-sand rounded-xl px-3 py-2 text-sm"
-            placeholder="رمزِ مدیریت"
+            placeholder="رمز مدیریت"
             value={secret}
             onChange={e => setSecret(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && login()}
@@ -170,7 +170,7 @@ function SuperInner() {
             disabled={busy}
             className="w-full bg-ink text-white rounded-xl py-2.5 text-sm font-medium disabled:opacity-50"
           >
-            {busy ? 'در حالِ ورود…' : 'ورود'}
+            {busy ? 'در حال ورود…' : 'ورود'}
           </button>
         </div>
       </main>
@@ -180,7 +180,7 @@ function SuperInner() {
   return (
     <main className="min-h-screen max-w-3xl mx-auto px-4 py-8 space-y-8">
       <header className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-ink">مدیریتِ {PLATFORM_NAME}</h1>
+        <h1 className="text-xl font-bold text-ink">مدیریت {PLATFORM_NAME}</h1>
         <div className="flex items-center gap-3">
           <a href="/super/accounting" className="text-xs border border-sand rounded-xl px-3 py-1.5 text-ink">
             حسابداری
@@ -189,13 +189,13 @@ function SuperInner() {
             تیکت‌ها
           </a>
           <a href="/super/niches" className="text-xs border border-sand rounded-xl px-3 py-1.5 text-ink">
-            مدیریتِ نیچ‌ها
+            مدیریت نیچ‌ها
           </a>
           <span className="text-sm text-soot tnum">{tenants.length} متخصص</span>
         </div>
       </header>
 
-      {/* داشبوردِ خلاصه */}
+      {/* داشبورد خلاصه */}
       {summary && (
         <section className="grid grid-cols-2 sm:grid-cols-5 gap-3">
           <button
@@ -234,18 +234,18 @@ function SuperInner() {
       )}
       {summary && summary.inactive > 0 && (
         <p className="text-xs text-amber-700 -mt-4">
-          {summary.inactive} متخصص هنوز هیچ پرونده/رزروی ثبت نکرده‌اند — کاندیدِ پیگیریِ آنبوردینگ.
+          {summary.inactive} متخصص هنوز هیچ پرونده/رزروی ثبت نکرده‌اند — کاندید پیگیری آنبوردینگ.
         </p>
       )}
 
-      {/* ساختِ tenant تازه */}
+      {/* ساخت tenant تازه */}
       <section className="bg-white border border-sand rounded-2xl p-5 space-y-3">
-        <h2 className="font-bold text-ink text-sm">افزودنِ متخصصِ جدید</h2>
+        <h2 className="font-bold text-ink text-sm">افزودن متخصص جدید</h2>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <input
             dir="ltr"
             className="border border-sand rounded-xl px-3 py-2 text-sm"
-            placeholder="slug (مثلاً sara)"
+            placeholder="slug (مثلا sara)"
             value={slug}
             onChange={e => setSlug(e.target.value)}
           />
@@ -253,13 +253,13 @@ function SuperInner() {
             dir="ltr"
             inputMode="numeric"
             className="border border-sand rounded-xl px-3 py-2 text-sm"
-            placeholder="موبایلِ متخصص 09…"
+            placeholder="موبایل متخصص 09…"
             value={phone}
             onChange={e => setPhone(e.target.value)}
           />
           <input
             className="border border-sand rounded-xl px-3 py-2 text-sm"
-            placeholder="نامِ نمایشی (اختیاری)"
+            placeholder="نام نمایشی (اختیاری)"
             value={name}
             onChange={e => setName(e.target.value)}
           />
@@ -276,7 +276,7 @@ function SuperInner() {
           disabled={creating}
           className="bg-ink text-white rounded-xl px-5 py-2 text-sm font-medium disabled:opacity-50"
         >
-          {creating ? 'در حالِ ساخت…' : 'بساز'}
+          {creating ? 'در حال ساخت…' : 'بساز'}
         </button>
       </section>
 
@@ -298,9 +298,9 @@ function SuperInner() {
         </select>
       </section>
 
-      {/* لیستِ tenantها */}
+      {/* لیست tenantها */}
       <section className="space-y-3">
-        {loading && <p className="text-sm text-soot">در حالِ بارگذاری…</p>}
+        {loading && <p className="text-sm text-soot">در حال بارگذاری…</p>}
         {!loading && tenants.length === 0 && (
           <p className="text-sm text-soot">هنوز متخصصی ثبت نشده.</p>
         )}
@@ -319,7 +319,7 @@ function SuperInner() {
                   <span className="text-[11px] px-2 py-0.5 rounded-full bg-blue-50 text-blue-700">تازه</span>
                 )}
                 {t.records_count === 0 && (
-                  <span className="text-[11px] px-2 py-0.5 rounded-full bg-amber-50 text-amber-700">بدونِ فعالیت</span>
+                  <span className="text-[11px] px-2 py-0.5 rounded-full bg-amber-50 text-amber-700">بدون فعالیت</span>
                 )}
               </div>
               <div className="text-xs text-soot mt-1 flex items-center gap-3 flex-wrap">

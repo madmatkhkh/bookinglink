@@ -13,7 +13,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   if (!t) return NextResponse.json({ error: 'یافت نشد' }, { status: 404 })
   const { session_id, case_number, refund_card } = await req.json()
   const phone = getClientPhone(req)
-  if (!phone) return NextResponse.json({ error: 'ابتدا با کدِ یک‌بارمصرف وارد شوید' }, { status: 401 })
+  if (!phone) return NextResponse.json({ error: 'ابتدا با کد یک‌بارمصرف وارد شوید' }, { status: 401 })
 
   const { data: booking } = await sb().from('psy_cases').select('contact_phone, contact2_phone, contact_email, contact2_email')
     .eq('tenant_id', t.id).eq('case_number', case_number).single()
@@ -29,7 +29,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
 
   const policy = session.resource_id ? await getCancellationPolicy(session.resource_id) : null
   if (policy && !policy.enabled)
-    return NextResponse.json({ error: 'کنسلیِ خودکار برای این پرونده غیرفعال است — با دکتر هماهنگ کنید' }, { status: 403 })
+    return NextResponse.json({ error: 'کنسلی خودکار برای این پرونده غیرفعال است — با دکتر هماهنگ کنید' }, { status: 403 })
 
   const ts = jalaliDateTimeToTimestamp(session.session_date, session.session_time)
   const hours = ts === null ? null : (ts - Date.now()) / (1000 * 60 * 60)

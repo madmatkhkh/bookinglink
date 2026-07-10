@@ -6,10 +6,10 @@ export const PERSIAN_MONTHS = [
 
 export const PERSIAN_WEEKDAYS = ['ش','ی','د','س','چ','پ','ج']
 
-// طبقِ تصمیمِ صریحِ صاحبِ پروژه: هیچ‌جای نوبت‌لینک رقمِ فارسی نمایش داده نمی‌شود —
+// طبق تصمیم صریح صاحب پروژه: هیچ‌جای نوبت‌لینک رقم فارسی نمایش داده نمی‌شود —
 // نه فقط در دیتابیس، در UI هم. این تابع (با همین نام، تا همه‌ی صداکننده‌هایش در
-// کل پروژه بدونِ نیاز به تغییرِ تک‌تک‌شان درست شوند) دیگر تبدیل به رقمِ فارسی
-// نمی‌کند؛ فقط رشته‌ی همان عددِ لاتین را برمی‌گرداند.
+// کل پروژه بدون نیاز به تغییر تک‌تک‌شان درست شوند) دیگر تبدیل به رقم فارسی
+// نمی‌کند؛ فقط رشته‌ی همان عدد لاتین را برمی‌گرداند.
 export function toFarsiNum(n: number | string): string {
   return String(n)
 }
@@ -99,7 +99,7 @@ export function jalaliToGregorian(jy: number, jm: number, jd: number) {
   return d2g(jdn)
 }
 
-// ── زمانِ یک جلسه‌ی شمسی (به وقت ایران UTC+3:30) به‌صورت timestamp ──
+// ── زمان یک جلسه‌ی شمسی (به وقت ایران UTC+3:30) به‌صورت timestamp ──
 export function jalaliDateTimeToTimestamp(dateStr: string, timeStr: string): number | null {
   if (!dateStr || !timeStr) return null
   const [jy, jm, jd] = toLatinNum(dateStr).split('/').map(Number)
@@ -110,19 +110,19 @@ export function jalaliDateTimeToTimestamp(dateStr: string, timeStr: string): num
   return Date.UTC(gy, gm - 1, gd, h || 0, min || 0) - 3.5 * 3600 * 1000
 }
 
-// ── نامِ کوتاهِ روزهای هفته (الیاس برای خوانایی در تقویم‌ها) ─────────
+// ── نام کوتاه روزهای هفته (الیاس برای خوانایی در تقویم‌ها) ─────────
 export const PERSIAN_WEEKDAYS_SHORT = PERSIAN_WEEKDAYS
 export const PERSIAN_WEEKDAYS_FULL = ['شنبه','یکشنبه','دوشنبه','سه‌شنبه','چهارشنبه','پنجشنبه','جمعه']
 
-// ── روزِ هفته‌ی ایرانی برای تاریخِ جلالی: 0=شنبه ... 6=جمعه ─────────
+// ── روز هفته‌ی ایرانی برای تاریخ جلالی: 0=شنبه ... 6=جمعه ─────────
 export function jalaliWeekday(jy: number, jm: number, jd: number): number {
   const { gy, gm, gd } = jalaliToGregorian(jy, jm, jd)
   const jsDay = new Date(Date.UTC(gy, gm - 1, gd)).getUTCDay() // 0=یکشنبه
   return (jsDay + 1) % 7
 }
 
-// ── کلیدِ استانداردِ تاریخ: 'YYYY/MM/DD' با ارقامِ لاتین و صفرِ پیشوند ──
-// (صفرِ پیشوند = ترتیبِ الفبایی همان ترتیبِ زمانی است)
+// ── کلید استاندارد تاریخ: 'YYYY/MM/DD' با ارقام لاتین و صفر پیشوند ──
+// (صفر پیشوند = ترتیب الفبایی همان ترتیب زمانی است)
 export function jalaliKey(y: number, m: number, d: number): string {
   return `${y}/${String(m).padStart(2, '0')}/${String(d).padStart(2, '0')}`
 }
@@ -133,7 +133,7 @@ export function timeKey(t: string): number {
   return (isNaN(h) ? 0 : h) * 60 + (isNaN(m) ? 0 : m)
 }
 
-// ── دقیقه از نیمه‌شب → 'HH:MM' کانونیک (ارقامِ لاتین، دو رقمی) ──────
+// ── دقیقه از نیمه‌شب → 'HH:MM' کانونیک (ارقام لاتین، دو رقمی) ──────
 export function minutesToTime(min: number): string {
   const h = Math.floor(min / 60), m = min % 60
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`

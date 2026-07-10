@@ -6,8 +6,8 @@ import { getClinicSettings, listPublicDoctors, PATIENT_FEATURE_KEYS } from '@/li
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-// تنظیماتِ عمومیِ کلینیک برای صفحه‌های سمتِ مراجع: آدرس‌های مشترک (settings) +
-// لیستِ دکترهای قابل‌انتخاب (doctors؛ تک‌دکترها یک آیتم می‌گیرند) + ماژول‌های فعال.
+// تنظیمات عمومی کلینیک برای صفحه‌های سمت مراجع: آدرس‌های مشترک (settings) +
+// لیست دکترهای قابل‌انتخاب (doctors؛ تک‌دکترها یک آیتم می‌گیرند) + ماژول‌های فعال.
 export async function GET(_req: NextRequest, { params }: { params: { slug: string } }) {
   const t = await getActiveTenant(params.slug)
   if (!t) return NextResponse.json({ error: 'یافت نشد' }, { status: 404 })

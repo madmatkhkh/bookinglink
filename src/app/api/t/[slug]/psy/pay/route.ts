@@ -11,9 +11,9 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   const t = await getActiveTenant(params.slug)
   if (!t) return NextResponse.json({ error: 'یافت نشد' }, { status: 404 })
   const { package_id, session_id, stage_id, case_number, payment_ref, discount_code } = await req.json()
-  // auth با کوکیِ امضاشده — نه شماره‌ای که کلاینت در body می‌فرستد. دو راهِ مجاز:
-  // 1) کوکیِ مراجعِ OTPشده که شماره‌اش روی پرونده باشد (پنلِ /my)
-  // 2) کوکیِ مجوزِ پرداختِ همین پرونده (فلوِ مصاحبه‌ی اولیه، درست بعد از ثبتِ فرم)
+  // auth با کوکی امضاشده — نه شماره‌ای که کلاینت در body می‌فرستد. دو راه مجاز:
+  // 1) کوکی مراجع OTPشده که شماره‌اش روی پرونده باشد (پنل /my)
+  // 2) کوکی مجوز پرداخت همین پرونده (فلو مصاحبه‌ی اولیه، درست بعد از ثبت فرم)
   const phone = getClientPhone(req)
   const grantedCase = getPayCase(req)
 
@@ -23,21 +23,21 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   const viaPhone = !!phone && matchesClientIdentity(booking, phone)
   const viaGrant = !!grantedCase && grantedCase === case_number
   if (!viaPhone && !viaGrant)
-    return NextResponse.json({ error: 'ابتدا با کدِ یک‌بارمصرف وارد شوید' }, { status: 401 })
+    return NextResponse.json({ error: 'ابتدا با کد یک‌بارمصرف وارد شوید' }, { status: 401 })
 
   if (booking.resource_id) {
     const methods = effectivePaymentMethods(await getPaymentMethods(booking.resource_id), t.plan)
-    if (!methods.card_to_card) return NextResponse.json({ error: 'پرداختِ کارت‌به‌کارت برای این مجموعه فعال نیست' }, { status: 400 })
+    if (!methods.card_to_card) return NextResponse.json({ error: 'پرداخت کارت‌به‌کارت برای این مجموعه فعال نیست' }, { status: 400 })
   }
 
-  // کدِ تخفیف (اختیاری) — قیمتِ ذخیره‌شده‌ی همان رکورد را قبل از ثبتِ ارجاعِ
-  // پرداخت کم می‌کند؛ اصلِ قیمت برایِ حسابرسی در original_price می‌ماند.
-  // دو تغییرِ مهم نسبت به نسخه‌ی قبل:
-  //   ۱) کدِ نامعتبر دیگر «بی‌سروصدا» رد نمی‌شود — خطا به مراجع برمی‌گردد تا فکر
+  // کد تخفیف (اختیاری) — قیمت ذخیره‌شده‌ی همان رکورد را قبل از ثبت ارجاع
+  // پرداخت کم می‌کند؛ اصل قیمت برای حسابرسی در original_price می‌ماند.
+  // دو تغییر مهم نسبت به نسخه‌ی قبل:
+  //   ۱) کد نامعتبر دیگر «بی‌سروصدا» رد نمی‌شود — خطا به مراجع برمی‌گردد تا فکر
   //      نکند تخفیف اعمال شده درحالی‌که نشده.
-  //   ۲) used_count این‌جا +۱ نمی‌شود — کارت‌به‌کارت تا تاییدِ دکتر «ادعا»ست نه
-  //      پرداخت؛ مصرفِ کد فقط لحظه‌ی confirm_payment در پنل ثبت می‌شود (وگرنه
-  //      می‌شد بدونِ هیچ پرداختی ظرفیتِ کدها را سوزاند).
+  //   ۲) used_count این‌جا +۱ نمی‌شود — کارت‌به‌کارت تا تایید دکتر «ادعا»ست نه
+  //      پرداخت؛ مصرف کد فقط لحظه‌ی confirm_payment در پنل ثبت می‌شود (وگرنه
+  //      می‌شد بدون هیچ پرداختی ظرفیت کدها را سوزاند).
   const bookingResourceId = booking.resource_id
   async function applyDiscount(table: 'psy_stages' | 'psy_sessions' | 'psy_packages', id: string, currentPrice: number): Promise<string | null> {
     if (!discount_code || !bookingResourceId) return null

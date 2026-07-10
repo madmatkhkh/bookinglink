@@ -30,7 +30,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   const t = await requirePanel(req, params.slug)
   if (isTenantResponse(t)) return t
   const s = cleanService(await req.json())
-  if (!s.name) return NextResponse.json({ error: 'نامِ سرویس لازم است' }, { status: 400 })
+  if (!s.name) return NextResponse.json({ error: 'نام سرویس لازم است' }, { status: 400 })
   const { data, error } = await sb().from('services').insert({ ...s, tenant_id: t.id }).select().single()
   if (error) { console.error('src/app/api/t/[slug]/panel/services/route.ts error:', error); return NextResponse.json({ error: 'مشکلی پیش آمد. دوباره تلاش کنید.' }, { status: 500 }) }
   return NextResponse.json({ service: data })
@@ -42,14 +42,14 @@ export async function PATCH(req: NextRequest, { params }: { params: { slug: stri
   const body = await req.json()
   if (!body.id) return NextResponse.json({ error: 'id لازم است' }, { status: 400 })
   const s = cleanService(body)
-  if (!s.name) return NextResponse.json({ error: 'نامِ سرویس لازم است' }, { status: 400 })
+  if (!s.name) return NextResponse.json({ error: 'نام سرویس لازم است' }, { status: 400 })
   const { data, error } = await sb().from('services').update(s)
     .eq('id', body.id).eq('tenant_id', t.id).select().single()
   if (error) { console.error('src/app/api/t/[slug]/panel/services/route.ts error:', error); return NextResponse.json({ error: 'مشکلی پیش آمد. دوباره تلاش کنید.' }, { status: 500 }) }
   return NextResponse.json({ service: data })
 }
 
-// حذفِ نرم: غیرفعال می‌کنیم تا رزروهای قدیمی که به سرویس ارجاع دارند نشکنند
+// حذف نرم: غیرفعال می‌کنیم تا رزروهای قدیمی که به سرویس ارجاع دارند نشکنند
 export async function DELETE(req: NextRequest, { params }: { params: { slug: string } }) {
   const t = await requirePanel(req, params.slug)
   if (isTenantResponse(t)) return t

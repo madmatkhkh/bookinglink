@@ -6,10 +6,10 @@ export const dynamic = 'force-dynamic'
 export const revalidate = 0
 const NO_STORE = { 'Cache-Control': 'no-store, max-age=0, must-revalidate' }
 
-// دفترِ حسابِ کاملِ پلتفرم + خلاصه‌ی «بر اساسِ متخصص» (هر متخصص چقدر گردش داشته،
-// چقدرش سهمِ نوبت‌لینک بوده، چقدرش سهمِ خودِ متخصص). پلتفرم چندنیچی است (روانشناسی،
-// سالن، ...) پس این‌جا از واژه‌ی خنثیِ «متخصص» استفاده می‌شود، نه واژه‌ای مثلِ «دکتر»
-// که فقط مالِ یک نیچ است.
+// دفتر حساب کامل پلتفرم + خلاصه‌ی «بر اساس متخصص» (هر متخصص چقدر گردش داشته،
+// چقدرش سهم نوبت‌لینک بوده، چقدرش سهم خود متخصص). پلتفرم چندنیچی است (روانشناسی،
+// سالن، ...) پس این‌جا از واژه‌ی خنثی «متخصص» استفاده می‌شود، نه واژه‌ای مثل «دکتر»
+// که فقط مال یک نیچ است.
 //
 // پارامترها: ?tenant_id=&resource_id=&method=&purpose=&from=&to=&limit=
 export async function GET(req: NextRequest) {
@@ -36,12 +36,12 @@ export async function GET(req: NextRequest) {
 
   const [{ data: entries }, { data: aggRows }] = await Promise.all([
     applyFilters(sb().from('ledger_entries').select('*').order('created_at', { ascending: false })).limit(limit),
-    // ردیفِ سبک، بدونِ سقفِ نمایش — پایه‌ی محاسبه‌ی «بر اساسِ متخصص» تا با محدودیتِ
-    // لیستِ نمایشی قاطی نشود و همیشه دقیق بماند
+    // ردیف سبک، بدون سقف نمایش — پایه‌ی محاسبه‌ی «بر اساس متخصص» تا با محدودیت
+    // لیست نمایشی قاطی نشود و همیشه دقیق بماند
     applyFilters(sb().from('ledger_entries').select('resource_id, tenant_id, method, direction, amount, commission_amount, doctor_amount')),
   ])
 
-  // نام‌هایِ tenant و resource برایِ نمایش
+  // نام‌های tenant و resource برای نمایش
   const [{ data: tenants }, { data: resources }, { data: profiles }] = await Promise.all([
     sb().from('tenants').select('id, slug, tenant_profiles(display_name)'),
     sb().from('resources').select('id, name'),
@@ -65,7 +65,7 @@ export async function GET(req: NextRequest) {
     }
   })
 
-  // خلاصه‌ی کلِ فیلترِ فعلی
+  // خلاصه‌ی کل فیلتر فعلی
   const totals = rows.reduce((acc, e) => {
     if (e.direction === 'outflow') { acc.refunds += e.amount; return acc }
     acc.gross += e.amount
@@ -75,7 +75,7 @@ export async function GET(req: NextRequest) {
     return acc
   }, { gross: 0, commission: 0, doctorShare: 0, online: 0, cardToCard: 0, refunds: 0 })
 
-  // خلاصه‌ی «بر اساسِ متخصص» — هر متخصص چقدر گردش داشته/چقدرش سهمِ نوبت‌لینک/چقدرش سهمِ خودش
+  // خلاصه‌ی «بر اساس متخصص» — هر متخصص چقدر گردش داشته/چقدرش سهم نوبت‌لینک/چقدرش سهم خودش
   const byResourceMap = new Map<string, {
     resource_id: string; tenant_id: string; gross: number; commission: number
     specialistShare: number; online: number; cardToCard: number; refunds: number; count: number

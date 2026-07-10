@@ -12,7 +12,7 @@ function canonTime(t: string): string | null {
   return minutesToTime(k)
 }
 
-// تاییدِ اینکه این منبع مالِ همین tenant است
+// تایید اینکه این منبع مال همین tenant است
 async function ownsResource(tenantId: string, resourceId: string): Promise<boolean> {
   const { data } = await sb().from('resources').select('id').eq('id', resourceId).eq('tenant_id', tenantId).single()
   return !!data
@@ -28,7 +28,7 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
   return NextResponse.json({ weekly: weekly || [], overrides: overrides || [] })
 }
 
-// PUT: جایگزینیِ برنامه‌ی یک منبعِ مشخص — { resource_id, weekly: [...] }
+// PUT: جایگزینی برنامه‌ی یک منبع مشخص — { resource_id, weekly: [...] }
 export async function PUT(req: NextRequest, { params }: { params: { slug: string } }) {
   const t = await requirePanel(req, params.slug)
   if (isTenantResponse(t)) return t
@@ -42,7 +42,7 @@ export async function PUT(req: NextRequest, { params }: { params: { slug: string
     const weekday = parseInt(toLatinNum(r.weekday))
     const start = canonTime(r.start_time), end = canonTime(r.end_time)
     if (isNaN(weekday) || weekday < 0 || weekday > 6 || !start || !end)
-      return NextResponse.json({ error: 'ردیفِ نامعتبر' }, { status: 400 })
+      return NextResponse.json({ error: 'ردیف نامعتبر' }, { status: 400 })
     if (timeKey(start) >= timeKey(end))
       return NextResponse.json({ error: `بازه‌ی ${start} تا ${end} نامعتبر است` }, { status: 400 })
     rows.push({
@@ -63,7 +63,7 @@ export async function PUT(req: NextRequest, { params }: { params: { slug: string
   return NextResponse.json({ success: true })
 }
 
-// POST: بستنِ یک روز برای یک منبع — { resource_id, date }
+// POST: بستن یک روز برای یک منبع — { resource_id, date }
 export async function POST(req: NextRequest, { params }: { params: { slug: string } }) {
   const t = await requirePanel(req, params.slug)
   if (isTenantResponse(t)) return t

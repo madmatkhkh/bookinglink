@@ -51,11 +51,11 @@ export async function PATCH(req: NextRequest, { params }: { params: { slug: stri
   const { id, resource_id: _ignored, price: _ignoredPrice, ...updates } = await req.json()
   if (!id) return NextResponse.json({ error: 'id لازم است' }, { status: 400 })
 
-  // وضعیتِ فعلی را قبل از آپدیت می‌خوانیم تا «گذار به paid» را تشخیص دهیم (نه هر آپدیتِ paid)
+  // وضعیت فعلی را قبل از آپدیت می‌خوانیم تا «گذار به paid» را تشخیص دهیم (نه هر آپدیت paid)
   const { data: before } = await sb().from('psy_packages').select('*').eq('id', id).eq('tenant_id', a.tenant.id).maybeSingle()
 
-  // اگر ترکیبِ جلسات عوض شده، قیمت هم دوباره از رویِ تنظیماتِ همان دکتر محاسبه می‌شود
-  // (کلاینت هرگز مستقیم قیمت را تعیین نمی‌کند — طبقِ همان قاعده‌ی POST).
+  // اگر ترکیب جلسات عوض شده، قیمت هم دوباره از روی تنظیمات همان دکتر محاسبه می‌شود
+  // (کلاینت هرگز مستقیم قیمت را تعیین نمی‌کند — طبق همان قاعده‌ی POST).
   const compositionKeys = ['primary_sessions', 'primary_session_type', 'secondary_sessions', 'secondary_session_type']
   if (compositionKeys.some(k => k in updates) && before) {
     const merged = { ...before, ...updates }
@@ -67,8 +67,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { slug: stri
   const { data, error } = await q.select().single()
   if (error) { console.error('src/app/api/t/[slug]/panel/psy/packages/route.ts error:', error); return NextResponse.json({ error: 'مشکلی پیش آمد. دوباره تلاش کنید.' }, { status: 500 }) }
 
-  // گذار به paid → ثبت در دفترِ حساب (کارت‌به‌کارت؛ آنلاین از callback ثبت می‌شود
-  // که این ردیف idempotent است پس تداخل ندارد). فقط وقتی قبلاً paid نبوده.
+  // گذار به paid → ثبت در دفتر حساب (کارت‌به‌کارت؛ آنلاین از callback ثبت می‌شود
+  // که این ردیف idempotent است پس تداخل ندارد). فقط وقتی قبلا paid نبوده.
   if (updates.paid === true && before && !before.paid && data) {
     const freshEntry = await recordLedgerEntry({
       tenantId: a.tenant.id,
@@ -83,7 +83,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { slug: stri
       sourceId: data.id,
       recordedBy: a.isOwner ? 'owner' : 'staff',
     })
-    // مصرفِ کدِ تخفیفِ کارت‌به‌کارت فقط لحظه‌ی تاییدِ واقعی — و فقط یک بار (گیت روی ثبتِ تازه‌ی ledger)
+    // مصرف کد تخفیف کارت‌به‌کارت فقط لحظه‌ی تایید واقعی — و فقط یک بار (گیت روی ثبت تازه‌ی ledger)
     if (freshEntry && data.discount_code && data.resource_id)
       await redeemDiscountCodeByCode(data.resource_id, data.discount_code)
   }

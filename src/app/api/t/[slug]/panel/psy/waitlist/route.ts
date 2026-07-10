@@ -13,7 +13,7 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
   let q = sb().from('psy_waitlist').select('*').eq('tenant_id', a.tenant.id).eq('status', 'pending').order('created_at', { ascending: true })
   if (!a.isOwner) q = q.eq('resource_id', a.resourceId)
   const { data } = await q
-  // اسمِ مراجع برایِ نمایش (join دستی، چون waitlist فقط case_number دارد)
+  // اسم مراجع برای نمایش (join دستی، چون waitlist فقط case_number دارد)
   const caseNumbers = Array.from(new Set((data || []).map(w => w.case_number)))
   const { data: cases } = caseNumbers.length
     ? await sb().from('psy_cases').select('case_number, client_name').eq('tenant_id', a.tenant.id).in('case_number', caseNumbers)
@@ -23,8 +23,8 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
   return NextResponse.json({ waitlist: rows })
 }
 
-// اطلاع‌رسانی به یک نفرِ لیستِ انتظار — پیامک/ایمیلِ آزاد (نه خودکار، دکتر خودش
-// تصمیم می‌گیرد کِی و برایِ کدام ساعتِ تازه‌آزادشده این را بزند)
+// اطلاع‌رسانی به یک نفر لیست انتظار — پیامک/ایمیل آزاد (نه خودکار، دکتر خودش
+// تصمیم می‌گیرد کی و برای کدام ساعت تازه‌آزادشده این را بزند)
 export async function POST(req: NextRequest, { params }: { params: { slug: string } }) {
   const a = await requirePanelAuth(req, params.slug)
   if (isPanelAuthResponse(a)) return a
@@ -42,7 +42,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
     sent = sent || r.ok
   }
   if (entry.contact_email && emailConfigured()) {
-    const r = await sendCampaignEmail(entry.contact_email, 'ظرفیتِ تازه برایِ نوبت', message.trim())
+    const r = await sendCampaignEmail(entry.contact_email, 'ظرفیت تازه برای نوبت', message.trim())
     sent = sent || r.ok
   }
   await sb().from('psy_waitlist').update({ status: 'notified' }).eq('id', id)

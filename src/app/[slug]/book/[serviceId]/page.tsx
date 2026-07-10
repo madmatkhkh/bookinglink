@@ -1,9 +1,9 @@
 'use client'
 // ─────────────────────────────────────────────────────────────────────────────
 // فلوی رزرو — تک‌صفحه، سه گام:
-// 1) انتخابِ روز (تقویمِ جلالی؛ روزها بی‌درنگ، دسترس‌پذیری آسنکرون) و ساعت
+// 1) انتخاب روز (تقویم جلالی؛ روزها بی‌درنگ، دسترس‌پذیری آسنکرون) و ساعت
 // 2) شماره‌ی موبایل + OTP + نام (ورود و رزرو یکی می‌شوند)
-// 3) کارت‌به‌کارت و اعلامِ پرداخت
+// 3) کارت‌به‌کارت و اعلام پرداخت
 // ─────────────────────────────────────────────────────────────────────────────
 import { useState, useEffect, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
@@ -102,7 +102,7 @@ function BookingFlow() {
    body: JSON.stringify({ phone }),
   })
   const d = await r.json(); setBusy(false)
-  if (!r.ok) { uiAlert(d.error || 'خطا در ارسالِ کد'); return }
+  if (!r.ok) { uiAlert(d.error || 'خطا در ارسال کد'); return }
   setOtpSent(true); setDevCode(d.dev_code || ''); resend.start()
  }
 
@@ -118,7 +118,7 @@ function BookingFlow() {
  }
 
  async function submitBooking() {
-  if (!name.trim()) { uiAlert('نامِ خود را بنویسید'); return }
+  if (!name.trim()) { uiAlert('نام خود را بنویسید'); return }
   setBusy(true)
   const r = await fetch(`/api/t/${slug}/book`, {
    method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -126,7 +126,7 @@ function BookingFlow() {
   })
   const d = await r.json(); setBusy(false)
   if (!r.ok) {
-   uiAlert(d.error || 'خطا در ثبتِ رزرو')
+   uiAlert(d.error || 'خطا در ثبت رزرو')
    if (r.status === 409) { setStep(1); setPickedTime(''); pickDay(parseInt(toLatinNum(pickedDate).split('/')[2])) }
    return
   }
@@ -146,7 +146,7 @@ function BookingFlow() {
  }
 
  if (loadErr) return <main className="min-h-screen flex items-center justify-center p-6 text-sm text-soot">صفحه یافت نشد.</main>
- if (!service || !profile) return <main className="min-h-screen flex items-center justify-center p-6 text-sm text-soot">در حالِ بارگذاری…</main>
+ if (!service || !profile) return <main className="min-h-screen flex items-center justify-center p-6 text-sm text-soot">در حال بارگذاری…</main>
 
  const steps = ['زمان', 'مشخصات', 'پرداخت']
 
@@ -162,7 +162,7 @@ function BookingFlow() {
      </div>
     </div>
 
-    {/* ریلِ گام‌ها */}
+    {/* ریل گام‌ها */}
     <div className="flex items-center gap-2 mb-6">
      {steps.map((label, i) => (
       <div key={label} className="flex-1 text-center">
@@ -175,10 +175,10 @@ function BookingFlow() {
     {/* ── گام 1: تقویم و ساعت ── */}
     {step === 1 && (
      <div>
-      {/* انتخابِ پرسنل — فقط اگر بیش از یک منبعِ انتخاب‌شدنی باشد */}
+      {/* انتخاب پرسنل — فقط اگر بیش از یک منبع انتخاب‌شدنی باشد */}
       {resources.length > 1 && (
        <div className="mb-5">
-        <div className="text-xs font-bold text-soot mb-2">انتخابِ {labels.resource}</div>
+        <div className="text-xs font-bold text-soot mb-2">انتخاب {labels.resource}</div>
         <div className="flex gap-2 flex-wrap">
          <button onClick={() => { setPickedResource(null); setPickedDate(''); setDaySlots(null); setPickedTime('') }}
           className={`px-4 py-2.5 rounded-xl text-sm border ${pickedResource === null ? 'bg-accent text-white border-accent font-bold' : 'bg-white border-sand text-soot'}`}>
@@ -212,11 +212,11 @@ function BookingFlow() {
 
       {pickedDate && (
        <div className="mt-5">
-        <div className="text-xs font-bold text-soot mb-2">ساعت‌های خالیِ {fmtDate(pickedDate)}</div>
+        <div className="text-xs font-bold text-soot mb-2">ساعت‌های خالی {fmtDate(pickedDate)}</div>
         {daySlots === null ? (
-         <div className="text-xs text-soot">در حالِ بارگذاری…</div>
+         <div className="text-xs text-soot">در حال بارگذاری…</div>
         ) : daySlots.length === 0 ? (
-         <div className="text-xs text-soot">این روز ساعتِ خالی ندارد.</div>
+         <div className="text-xs text-soot">این روز ساعت خالی ندارد.</div>
         ) : (
          <div className="grid grid-cols-4 gap-2">
           {daySlots.map(t => (
@@ -242,7 +242,7 @@ function BookingFlow() {
     {step === 2 && (
      <div className="space-y-4">
       <div className="rounded-2xl border border-sand bg-white p-4 text-sm">
-       {fmtDate(pickedDate)} · ساعتِ <span className="tnum">{toFarsiNum(pickedTime)}</span>
+       {fmtDate(pickedDate)} · ساعت <span className="tnum">{toFarsiNum(pickedTime)}</span>
        <button onClick={() => setStep(1)} className="text-accent text-xs mr-2 underline underline-offset-4">تغییر</button>
       </div>
 
@@ -254,24 +254,24 @@ function BookingFlow() {
         {!otpSent ? (
          <button onClick={sendOtp} disabled={busy}
           className="w-full py-3 rounded-2xl bg-accent text-white font-medium disabled:opacity-50">
-          {busy ? 'در حالِ ارسال…' : 'دریافتِ کدِ تایید'}
+          {busy ? 'در حال ارسال…' : 'دریافت کد تایید'}
          </button>
         ) : (
          <div className="space-y-3">
           {devCode && (
            <div className="text-xs text-amber-700 bg-amber-500/10 border border-amber-500/20 rounded-xl p-3">
-            کدِ تست (تا اتصالِ پیامک): <strong className="tnum">{devCode}</strong>
+            کد تست (تا اتصال پیامک): <strong className="tnum">{devCode}</strong>
            </div>
           )}
           <input value={code} onChange={e => setCode(e.target.value)} dir="ltr" inputMode="numeric"
-           placeholder="کدِ 5 رقمی" className="w-full p-3 rounded-xl border border-sand bg-white text-sm tnum text-center" />
+           placeholder="کد 5 رقمی" className="w-full p-3 rounded-xl border border-sand bg-white text-sm tnum text-center" />
           <button onClick={verifyCode} disabled={busy}
            className="w-full py-3 rounded-2xl bg-accent text-white font-medium disabled:opacity-50">
-           تاییدِ کد
+           تایید کد
           </button>
           <div className="text-center">
            {resend.canResend ? (
-            <button onClick={sendOtp} disabled={busy} className="text-sm text-ink font-medium hover:underline disabled:opacity-40">ارسالِ دوباره‌ی کد</button>
+            <button onClick={sendOtp} disabled={busy} className="text-sm text-ink font-medium hover:underline disabled:opacity-40">ارسال دوباره‌ی کد</button>
            ) : (
             <p className="text-xs text-soot">کد نیامد؟ تا <span className="tnum font-medium text-ink">{resend.secondsLeft}</span> ثانیه‌ی دیگر می‌توانی دوباره درخواست کنی</p>
            )}
@@ -292,7 +292,7 @@ function BookingFlow() {
          className="w-full p-3 rounded-xl border border-sand bg-white text-sm" />
         <button onClick={submitBooking} disabled={busy}
          className="w-full py-3 rounded-2xl bg-accent text-white font-medium disabled:opacity-50">
-         {busy ? 'در حالِ ثبت…' : 'ثبتِ نوبت و رفتن به پرداخت'}
+         {busy ? 'در حال ثبت…' : 'ثبت نوبت و رفتن به پرداخت'}
         </button>
        </div>
       )}
@@ -303,25 +303,25 @@ function BookingFlow() {
     {step === 3 && payInfo && !done && (
      <div className="space-y-4">
       <div className="rounded-2xl border border-sand bg-white p-5">
-       <div className="text-xs text-soot mb-1">مبلغِ قابلِ پرداخت</div>
+       <div className="text-xs text-soot mb-1">مبلغ قابل پرداخت</div>
        <div className="text-2xl font-display font-extrabold tnum">{toFarsiNum(payInfo.amount.toLocaleString('en-US'))} <span className="text-sm font-normal">تومان</span></div>
        <div className="mt-4 pt-4 border-t border-sand">
         <div className="text-xs text-soot mb-1">کارت‌به‌کارت به</div>
         <div className="text-lg font-bold tnum tracking-wider" dir="ltr">
          {toFarsiNum((payInfo.card_number || '').replace(/(\d{4})(?=\d)/g, '$1-'))}
         </div>
-        <div className="text-xs text-soot mt-1">به نامِ {payInfo.card_holder_name}</div>
+        <div className="text-xs text-soot mt-1">به نام {payInfo.card_holder_name}</div>
        </div>
       </div>
-      <label className="block text-xs font-bold text-soot">شماره‌ی پیگیری یا 4 رقمِ آخرِ کارتِ خودتان</label>
+      <label className="block text-xs font-bold text-soot">شماره‌ی پیگیری یا 4 رقم آخر کارت خودتان</label>
       <input value={payRef} onChange={e => setPayRef(e.target.value)} dir="ltr"
        className="w-full p-3 rounded-xl border border-sand bg-white text-sm tnum" />
       <button onClick={submitPayment} disabled={busy || !payRef.trim()}
        className="w-full py-3 rounded-2xl bg-accent text-white font-medium disabled:opacity-30">
-       {busy ? 'در حالِ ثبت…' : 'پرداخت کردم — ثبتِ نهایی'}
+       {busy ? 'در حال ثبت…' : 'پرداخت کردم — ثبت نهایی'}
       </button>
       <p className="text-[11px] text-soot leading-relaxed">
-       پس از تاییدِ پرداخت توسطِ {profile.display_name}، نوبتِ شما قطعی می‌شود. وضعیت را از «نوبت‌های من» دنبال کنید.
+       پس از تایید پرداخت توسط {profile.display_name}، نوبت شما قطعی می‌شود. وضعیت را از «نوبت‌های من» دنبال کنید.
       </p>
      </div>
     )}
@@ -330,9 +330,9 @@ function BookingFlow() {
     {done && (
      <div className="text-center py-10">
       <div className="text-5xl mb-4">✅</div>
-      <h2 className="font-display font-extrabold text-lg mb-2">پرداختِ شما ثبت شد</h2>
+      <h2 className="font-display font-extrabold text-lg mb-2">پرداخت شما ثبت شد</h2>
       <p className="text-sm text-soot leading-relaxed mb-6">
-       نوبتِ {fmtDate(pickedDate)} ساعتِ <span className="tnum">{toFarsiNum(pickedTime)}</span> پس از تاییدِ پرداخت قطعی می‌شود.
+       نوبت {fmtDate(pickedDate)} ساعت <span className="tnum">{toFarsiNum(pickedTime)}</span> پس از تایید پرداخت قطعی می‌شود.
       </p>
       <button onClick={() => router.push(`/${slug}/my`)}
        className="w-full py-3 rounded-2xl bg-accent text-white font-medium">

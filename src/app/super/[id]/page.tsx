@@ -1,8 +1,8 @@
 'use client'
 // ─────────────────────────────────────────────────────────────────────────────
-// جزئیاتِ یک tenant: ویرایشِ اطلاعاتِ پایه (شماره‌ی مالک، نامِ نمایشی، دامنه)،
-// نمایشِ منابع/آمار، سوییچِ ماژول‌ها، ورودِ مستقیم به‌جایِ owner (پشتیبانی)،
-// و حذفِ کاملِ tenant.
+// جزئیات یک tenant: ویرایش اطلاعات پایه (شماره‌ی مالک، نام نمایشی، دامنه)،
+// نمایش منابع/آمار، سوییچ ماژول‌ها، ورود مستقیم به‌جای owner (پشتیبانی)،
+// و حذف کامل tenant.
 // ─────────────────────────────────────────────────────────────────────────────
 import { useCallback, useEffect, useState } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
@@ -64,8 +64,8 @@ function Inner() {
   useEffect(() => {
     const err = searchParams.get('impersonate_error')
     if (!err) return
-    dialog.uiAlert(err === 'suspended' ? 'این مجموعه فعال نیست — فقط برایِ مجموعه‌هایِ فعال ممکن است.'
-      : err === 'expired' ? 'لینکِ ورود منقضی شده بود — دوباره دکمه‌ی ورود را بزن.'
+    dialog.uiAlert(err === 'suspended' ? 'این مجموعه فعال نیست — فقط برای مجموعه‌های فعال ممکن است.'
+      : err === 'expired' ? 'لینک ورود منقضی شده بود — دوباره دکمه‌ی ورود را بزن.'
       : 'مجموعه یافت نشد.')
     router.replace(`/super/${id}`)
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -78,14 +78,14 @@ function Inner() {
     const j = await res.json().catch(() => ({}))
     if (!res.ok) { await dialog.uiAlert(j.error || 'ذخیره ناموفق بود'); return false }
     if (j.forced_card_disabled_count > 0) {
-      await dialog.uiAlert(`کارت‌به‌کارتِ ${j.forced_card_disabled_count} درمانگر (که روشن بود) به‌خاطرِ برگشت به پلنِ رایگان خاموش شد؛ پرداختِ آنلاین برایشان اجباری شد.`)
+      await dialog.uiAlert(`کارت‌به‌کارت ${j.forced_card_disabled_count} درمانگر (که روشن بود) به‌خاطر برگشت به پلن رایگان خاموش شد؛ پرداخت آنلاین برایشان اجباری شد.`)
     }
     return true
   }
 
   async function savePhone() {
     if (!/^09\d{9}$/.test(phone.trim())) { await dialog.uiAlert('شماره‌ی موبایل معتبر نیست'); return }
-    const ok = await dialog.uiConfirm('تغییرِ این شماره یعنی متخصص با شماره‌ی قبلی دیگر نمی‌تواند وارد پنل شود. ادامه می‌دهید؟')
+    const ok = await dialog.uiConfirm('تغییر این شماره یعنی متخصص با شماره‌ی قبلی دیگر نمی‌تواند وارد پنل شود. ادامه می‌دهید؟')
     if (!ok) return
     setSavingPhone(true)
     const success = await patch({ owner_phone: phone.trim() })
@@ -132,10 +132,10 @@ function Inner() {
 
   function impersonate() {
     if (!d) return
-    dialog.uiConfirm('واردِ پنلِ این متخصص می‌شوید (به‌جایِ او). اگر خودش همین الان از جایی دیگر لاگین باشد، نشستش باطل می‌شود. ادامه؟')
+    dialog.uiConfirm('وارد پنل این متخصص می‌شوید (به‌جای او). اگر خودش همین الان از جایی دیگر لاگین باشد، نشستش باطل می‌شود. ادامه؟')
       .then(ok => {
         if (!ok) return
-        // توکنِ ضدِ CSRF کوتاه‌عمر است — همان لحظه یک نسخه‌ی تازه از APIِ احرازشده می‌گیریم
+        // توکن ضد CSRF کوتاه‌عمر است — همان لحظه یک نسخه‌ی تازه از API احرازشده می‌گیریم
         fetch(`/api/super/tenants/${id}`, { cache: 'no-store' })
           .then(r => r.json())
           .then(j => { if (j?.impersonate_token) window.open(`/api/super/tenants/${id}/impersonate?token=${encodeURIComponent(j.impersonate_token)}`, '_blank') })
@@ -153,7 +153,7 @@ function Inner() {
   }
 
   if (loading || !d) {
-    return <main className="min-h-screen grid place-items-center text-soot">در حالِ بارگذاری…</main>
+    return <main className="min-h-screen grid place-items-center text-soot">در حال بارگذاری…</main>
   }
 
   const t = d.tenant
@@ -185,7 +185,7 @@ function Inner() {
           target="_blank"
           className="text-xs border border-sand rounded-xl px-3 py-1.5 text-ink shrink-0"
         >
-          پنلِ عمومی
+          پنل عمومی
         </a>
       </header>
 
@@ -203,14 +203,14 @@ function Inner() {
         </div>
       </section>
 
-      {/* اطلاعاتِ پایه */}
+      {/* اطلاعات پایه */}
       <section className="bg-white border border-sand rounded-2xl p-5 space-y-4">
-        <h2 className="font-bold text-ink text-sm">اطلاعاتِ پایه</h2>
+        <h2 className="font-bold text-ink text-sm">اطلاعات پایه</h2>
 
         <div className="flex flex-col sm:flex-row gap-2">
           <input
             className="flex-1 border border-sand rounded-xl px-3 py-2 text-sm"
-            placeholder="نامِ نمایشی"
+            placeholder="نام نمایشی"
             value={name}
             onChange={e => setName(e.target.value)}
           />
@@ -219,7 +219,7 @@ function Inner() {
             disabled={savingName || name.trim() === t.display_name}
             className="text-xs border border-sand rounded-xl px-4 py-2 text-ink disabled:opacity-40 shrink-0"
           >
-            {savingName ? 'در حالِ ذخیره…' : 'ذخیره'}
+            {savingName ? 'در حال ذخیره…' : 'ذخیره'}
           </button>
         </div>
 
@@ -228,7 +228,7 @@ function Inner() {
             dir="ltr"
             inputMode="numeric"
             className="flex-1 border border-sand rounded-xl px-3 py-2 text-sm tnum"
-            placeholder="موبایلِ مالک 09…"
+            placeholder="موبایل مالک 09…"
             value={phone}
             onChange={e => setPhone(e.target.value)}
           />
@@ -237,10 +237,10 @@ function Inner() {
             disabled={savingPhone || phone.trim() === t.owner_phone}
             className="text-xs border border-sand rounded-xl px-4 py-2 text-ink disabled:opacity-40 shrink-0"
           >
-            {savingPhone ? 'در حالِ ذخیره…' : 'ذخیره'}
+            {savingPhone ? 'در حال ذخیره…' : 'ذخیره'}
           </button>
         </div>
-        <p className="text-[11px] text-soot -mt-2">این شماره برایِ ورودِ owner به پنل استفاده می‌شود.</p>
+        <p className="text-[11px] text-soot -mt-2">این شماره برای ورود owner به پنل استفاده می‌شود.</p>
 
         <div className="flex items-center gap-2 pt-2 border-t border-sand">
           <span className="text-xs text-soot">وضعیت:</span>
@@ -274,11 +274,11 @@ function Inner() {
           ))}
         </div>
         <p className="text-[11px] text-soot -mt-2">
-          پلنِ رایگان: فقط پرداختِ آنلاینِ زیبال (کارت‌به‌کارت غیرفعال است). با برگشت به رایگان، اگر کارت‌به‌کارت برایِ درمانگری روشن بود، خودکار خاموش و آنلاین اجباری می‌شود.
+          پلن رایگان: فقط پرداخت آنلاین زیبال (کارت‌به‌کارت غیرفعال است). با برگشت به رایگان، اگر کارت‌به‌کارت برای درمانگری روشن بود، خودکار خاموش و آنلاین اجباری می‌شود.
         </p>
 
         <div className="text-xs text-soot pt-2 border-t border-sand">
-          تاریخِ ساخت: <span className="tnum">{new Date(t.created_at).toLocaleDateString('fa-IR')}</span>
+          تاریخ ساخت: <span className="tnum">{new Date(t.created_at).toLocaleDateString('fa-IR')}</span>
         </div>
       </section>
 
@@ -298,7 +298,7 @@ function Inner() {
             disabled={savingDomain || domain.trim() === (t.custom_domain || '')}
             className="text-xs border border-sand rounded-xl px-4 py-2 text-ink disabled:opacity-40 shrink-0"
           >
-            {savingDomain ? 'در حالِ ذخیره…' : 'ذخیره'}
+            {savingDomain ? 'در حال ذخیره…' : 'ذخیره'}
           </button>
         </div>
         <label className="flex items-center gap-2 text-xs text-soot">
@@ -309,7 +309,7 @@ function Inner() {
             disabled={!t.custom_domain}
             className="w-4 h-4 accent-ink"
           />
-          دامنه تاییدشده است (verify دستی — منطقِ خودکار هنوز پیاده نشده)
+          دامنه تاییدشده است (verify دستی — منطق خودکار هنوز پیاده نشده)
         </label>
       </section>
 
@@ -326,11 +326,11 @@ function Inner() {
               </div>
               <div className="flex gap-1.5 shrink-0">
                 {!r.is_active && <span className="text-[11px] px-2 py-0.5 rounded-full bg-red-50 text-red-700">غیرفعال</span>}
-                {r.is_selectable && <span className="text-[11px] px-2 py-0.5 rounded-full bg-sand text-soot">قابلِ انتخاب</span>}
+                {r.is_selectable && <span className="text-[11px] px-2 py-0.5 rounded-full bg-sand text-soot">قابل انتخاب</span>}
                 {d.niche?.key === 'psychology' && (
                   r.has_sheba
                     ? <span className="text-[11px] px-2 py-0.5 rounded-full bg-green-100 text-green-800">شبا ثبت‌شده</span>
-                    : <span className="text-[11px] px-2 py-0.5 rounded-full bg-amber-50 text-amber-700">بدونِ شبا</span>
+                    : <span className="text-[11px] px-2 py-0.5 rounded-full bg-amber-50 text-amber-700">بدون شبا</span>
                 )}
               </div>
             </div>
@@ -338,10 +338,10 @@ function Inner() {
         </div>
       </section>
 
-      {/* ماژول‌های پنلِ مراجع (فقط روانشناسی فعلاً) */}
+      {/* ماژول‌های پنل مراجع (فقط روانشناسی فعلا) */}
       {d.features.length > 0 && (
         <section className="bg-white border border-sand rounded-2xl p-5 space-y-3">
-          <h2 className="font-bold text-ink text-sm">ماژول‌هایِ پنلِ مراجع</h2>
+          <h2 className="font-bold text-ink text-sm">ماژول‌های پنل مراجع</h2>
           {d.features.map(f => (
             <label key={f.feature_key} className="flex items-center justify-between gap-3 p-2 rounded-xl cursor-pointer">
               <span className="text-sm text-ink">{f.label}</span>
@@ -364,22 +364,22 @@ function Inner() {
           disabled={t.status !== 'active'}
           className="bg-ink text-white rounded-xl px-5 py-2 text-sm font-medium disabled:opacity-50"
         >
-          ورود به پنل به‌جایِ owner (تبِ تازه)
+          ورود به پنل به‌جای owner (تب تازه)
         </button>
-        {t.status !== 'active' && <p className="text-[11px] text-soot">فقط برایِ مجموعه‌هایِ فعال ممکن است.</p>}
+        {t.status !== 'active' && <p className="text-[11px] text-soot">فقط برای مجموعه‌های فعال ممکن است.</p>}
       </section>
 
       {/* منطقه‌ی خطر */}
       <section className="bg-white border border-red-200 rounded-2xl p-5 space-y-3">
-        <h2 className="font-bold text-red-700 text-sm">حذفِ کاملِ این مجموعه</h2>
+        <h2 className="font-bold text-red-700 text-sm">حذف کامل این مجموعه</h2>
         <p className="text-xs text-soot">
-          همه‌ی پرونده‌ها، نوبت‌ها، پرداخت‌ها و تنظیماتِ این مجموعه برایِ همیشه پاک می‌شود. بازگشت‌ناپذیر است.
+          همه‌ی پرونده‌ها، نوبت‌ها، پرداخت‌ها و تنظیمات این مجموعه برای همیشه پاک می‌شود. بازگشت‌ناپذیر است.
         </p>
         <div className="flex flex-col sm:flex-row gap-2">
           <input
             dir="ltr"
             className="flex-1 border border-red-200 rounded-xl px-3 py-2 text-sm"
-            placeholder={`برایِ تایید، «${t.slug}» را تایپ کن`}
+            placeholder={`برای تایید، «${t.slug}» را تایپ کن`}
             value={confirmSlug}
             onChange={e => setConfirmSlug(e.target.value)}
           />
@@ -388,7 +388,7 @@ function Inner() {
             disabled={deleting || confirmSlug.trim() !== t.slug}
             className="text-xs bg-red-600 text-white rounded-xl px-4 py-2 disabled:opacity-40 shrink-0"
           >
-            {deleting ? 'در حالِ حذف…' : 'حذفِ کامل'}
+            {deleting ? 'در حال حذف…' : 'حذف کامل'}
           </button>
         </div>
       </section>

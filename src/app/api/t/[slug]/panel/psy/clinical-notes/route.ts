@@ -5,8 +5,8 @@ import { requirePanelAuth, isPanelAuthResponse } from '@/lib/tenant'
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-// یادداشتِ بالینیِ ساختاریافته (SOAP/DAP) — کاملاً خصوصی، هیچ‌جا به مراجع
-// نمایش داده نمی‌شود (جدا از doctor_note_for_patient که برایِ خودِ اوست).
+// یادداشت بالینی ساختاریافته (SOAP/DAP) — کاملا خصوصی، هیچ‌جا به مراجع
+// نمایش داده نمی‌شود (جدا از doctor_note_for_patient که برای خود اوست).
 export async function GET(req: NextRequest, { params }: { params: { slug: string } }) {
   const a = await requirePanelAuth(req, params.slug)
   if (isPanelAuthResponse(a)) return a

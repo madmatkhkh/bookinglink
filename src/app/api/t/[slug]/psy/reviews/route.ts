@@ -7,15 +7,15 @@ import { jalaliDateTimeToTimestamp } from '@/lib/calendar'
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-// مراجع فقط برایِ دکتری که واقعاً نزدش جلسه‌ای داشته (تاریخِ گذشته، نه صرفاً
-// رزروشده) می‌تواند نظر بگذارد — و فقط یک نظر برایِ هر دکتر (unique constraintِ
-// دیتابیس هم همین را تضمین می‌کند). نظرها تا تاییدِ دکتر برایِ عموم نمایش داده
+// مراجع فقط برای دکتری که واقعا نزدش جلسه‌ای داشته (تاریخ گذشته، نه صرفا
+// رزروشده) می‌تواند نظر بگذارد — و فقط یک نظر برای هر دکتر (unique constraint
+// دیتابیس هم همین را تضمین می‌کند). نظرها تا تایید دکتر برای عموم نمایش داده
 // نمی‌شوند (status='pending' پیش‌فرض).
 export async function POST(req: NextRequest, { params }: { params: { slug: string } }) {
   const t = await getActiveTenant(params.slug)
   if (!t) return NextResponse.json({ error: 'یافت نشد' }, { status: 404 })
   const phone = getClientPhone(req)
-  if (!phone) return NextResponse.json({ error: 'ابتدا با کدِ یک‌بارمصرف وارد شوید' }, { status: 401 })
+  if (!phone) return NextResponse.json({ error: 'ابتدا با کد یک‌بارمصرف وارد شوید' }, { status: 401 })
 
   const { case_number, resource_id, rating, comment } = await req.json()
   const ratingNum = Number(rating)
@@ -28,7 +28,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   if (!booking || !matchesClientIdentity(booking, phone))
     return NextResponse.json({ error: 'دسترسی ندارید' }, { status: 403 })
 
-  // چک: واقعاً جلسه‌ی گذشته‌ای با این دکتر داشته (session یا stageِ held/booked با تاریخِ گذشته)
+  // چک: واقعا جلسه‌ی گذشته‌ای با این دکتر داشته (session یا stage held/booked با تاریخ گذشته)
   const db = sb()
   const [{ data: sessions }, { data: stages }] = await Promise.all([
     db.from('psy_sessions').select('session_date, session_time').eq('tenant_id', t.id).eq('case_number', case_number)
@@ -41,12 +41,12 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
     return ts !== null && ts < Date.now()
   })
   if (!hadPastSession)
-    return NextResponse.json({ error: 'فقط بعد از برگزاریِ جلسه می‌توانید نظر بگذارید' }, { status: 403 })
+    return NextResponse.json({ error: 'فقط بعد از برگزاری جلسه می‌توانید نظر بگذارید' }, { status: 403 })
 
   const { error } = await sb().from('psy_reviews').upsert({
     tenant_id: t.id, resource_id, case_number, rating: ratingNum, comment: String(comment || '').trim().slice(0, 500),
     status: 'pending',
   }, { onConflict: 'tenant_id,case_number,resource_id' })
-  if (error) { console.error('psy/reviews POST error:', error); return NextResponse.json({ error: 'ثبتِ نظر ناموفق بود' }, { status: 500 }) }
+  if (error) { console.error('psy/reviews POST error:', error); return NextResponse.json({ error: 'ثبت نظر ناموفق بود' }, { status: 500 }) }
   return NextResponse.json({ success: true })
 }

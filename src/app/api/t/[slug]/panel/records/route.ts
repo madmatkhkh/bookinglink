@@ -7,7 +7,7 @@ import { normalizePhone } from '@/lib/auth'
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-// GET ?phone=… → پرونده‌ی یک مشتری + تعریفِ فیلدهای نیچ
+// GET ?phone=… → پرونده‌ی یک مشتری + تعریف فیلدهای نیچ
 export async function GET(req: NextRequest, { params }: { params: { slug: string } }) {
   const t = await requirePanel(req, params.slug)
   if (isTenantResponse(t)) return t
@@ -26,7 +26,7 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
   return NextResponse.json({ fields, record: record || null, history: history || [] })
 }
 
-// PUT {phone, name, data} → ذخیره‌ی پرونده (select-then-update/insert، بدونِ اتکا به upsert)
+// PUT {phone, name, data} → ذخیره‌ی پرونده (select-then-update/insert، بدون اتکا به upsert)
 export async function PUT(req: NextRequest, { params }: { params: { slug: string } }) {
   const t = await requirePanel(req, params.slug)
   if (isTenantResponse(t)) return t

@@ -6,9 +6,9 @@ import { issueOtp, verifyOtp, setClientCookie, normalizePhone, isValidEmail, mat
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-// ورودِ مراجع با شماره (پیش‌فرض، پیامکی) یا ایمیل (برایِ مراجعِ خارج از ایران —
-// پیامکِ ایرانی همیشه به شماره‌های خارجی نمی‌رسد). کلاینت یا `phone` یا `email`
-// می‌فرستد، نه هر دو؛ بقیه‌ی فلو (صدور/تاییدِ کد، ست‌کردنِ کوکی) برای هر دو یکسان است.
+// ورود مراجع با شماره (پیش‌فرض، پیامکی) یا ایمیل (برای مراجع خارج از ایران —
+// پیامک ایرانی همیشه به شماره‌های خارجی نمی‌رسد). کلاینت یا `phone` یا `email`
+// می‌فرستد، نه هر دو؛ بقیه‌ی فلو (صدور/تایید کد، ست‌کردن کوکی) برای هر دو یکسان است.
 export async function POST(req: NextRequest, { params }: { params: { slug: string } }) {
   const t = await getActiveTenant(params.slug)
   if (!t) return NextResponse.json({ error: 'یافت نشد' }, { status: 404 })
@@ -28,10 +28,10 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
     const issued = await issueOtp(identifier, requestIp(req), viaEmail ? 'email' : 'sms')
     if (!issued.ok) {
       if ('throttled' in issued) return NextResponse.json({ error: OTP_THROTTLED_MSG }, { status: 429 })
-      return NextResponse.json({ error: issued.smsError || (viaEmail ? 'ارسالِ ایمیل ناموفق بود — دوباره تلاش کن' : 'ارسالِ پیامک ناموفق بود — دوباره تلاش کن') }, { status: 502 })
+      return NextResponse.json({ error: issued.smsError || (viaEmail ? 'ارسال ایمیل ناموفق بود — دوباره تلاش کن' : 'ارسال پیامک ناموفق بود — دوباره تلاش کن') }, { status: 502 })
     }
     // TODO(sms/email): این‌جا کد ارسال می‌شود. تا آن موقع فقط با OTP_ECHO_CODE=true
-    // در پاسخ برمی‌گردد؛ روی پروداکشنِ واقعی این env باید حذف شود.
+    // در پاسخ برمی‌گردد؛ روی پروداکشن واقعی این env باید حذف شود.
     return NextResponse.json({ success: true, ...(otpEchoEnabled(viaEmail ? 'email' : 'sms') ? { dev_code: issued.code } : {}) })
   }
 
@@ -52,7 +52,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   }
   if (!booking) return NextResponse.json({ error: viaEmail ? 'پرونده‌ای با این ایمیل یافت نشد' : 'پرونده‌ای با این شماره یافت نشد' }, { status: 404 })
   if (!matchesClientIdentity(booking, identifier)) return NextResponse.json({ error: 'دسترسی ندارید' }, { status: 403 })
-  // نشستِ مراجع: از این به بعد routeهای دیتا/پرداخت/رزرو با همین کوکیِ امضاشده
+  // نشست مراجع: از این به بعد routeهای دیتا/پرداخت/رزرو با همین کوکی امضاشده
   // auth می‌شوند، نه با شماره‌ای که کلاینت خودش در query/body می‌فرستد.
   const res = NextResponse.json({ success: true, booking })
   setClientCookie(res, identifier)

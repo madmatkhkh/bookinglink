@@ -1,5 +1,5 @@
 // ───────────────────────────────────────────────────────────────
-// مراحلِ پیش‌ازدرمانِ پرونده (جدولِ psy_stages) — دیگر فلوی هاردکدِ
+// مراحل پیش‌ازدرمان پرونده (جدول psy_stages) — دیگر فلوی هاردکد
 // «مصاحبه یک‌بار → ارزیابی یک‌بار» نیست. هر پرونده هر تعداد مرحله از
 // هر نوع می‌تواند داشته باشد. هر مرحله این چرخه را طی می‌کند:
 //   awaiting_payment → payment_submitted → awaiting_booking → booked
@@ -25,11 +25,11 @@ export const STAGE_TYPE_LABEL: Record<string, string> = {
 export const STAGE_STATUS_LABEL: Record<string, string> = {
   [STAGE_STATUS.AWAITING_PAYMENT]: 'منتظر پرداخت',
   [STAGE_STATUS.PAYMENT_SUBMITTED]: 'پرداخت اعلام شد (تأیید کنید)',
-  [STAGE_STATUS.AWAITING_BOOKING]: 'منتظر گرفتنِ وقت',
+  [STAGE_STATUS.AWAITING_BOOKING]: 'منتظر گرفتن وقت',
   [STAGE_STATUS.BOOKED]: 'رزرو شد',
 }
 
-// برچسبِ ترکیبی برای نمایشِ سریع («مصاحبه: منتظر پرداخت»)
+// برچسب ترکیبی برای نمایش سریع («مصاحبه: منتظر پرداخت»)
 export function stageLabel(stageType: string, status: string): string {
   const t = STAGE_TYPE_LABEL[stageType] || stageType
   const s = STAGE_STATUS_LABEL[status] || status

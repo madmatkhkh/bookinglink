@@ -22,7 +22,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   const t = await requirePanel(req, params.slug)
   if (isTenantResponse(t)) return t
   const { key, enabled } = await req.json()
-  if (!PATIENT_FEATURE_KEYS.includes(key)) return NextResponse.json({ error: 'کلیدِ نامعتبر' }, { status: 400 })
+  if (!PATIENT_FEATURE_KEYS.includes(key)) return NextResponse.json({ error: 'کلید نامعتبر' }, { status: 400 })
 
   const { data: existing } = await sb().from('tenant_features').select('tenant_id')
     .eq('tenant_id', t.id).eq('feature_key', key).maybeSingle()

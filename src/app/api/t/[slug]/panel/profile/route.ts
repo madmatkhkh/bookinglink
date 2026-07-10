@@ -18,7 +18,7 @@ export async function PUT(req: NextRequest, { params }: { params: { slug: string
   if (isTenantResponse(t)) return t
   const b = await req.json()
 
-  // theme_color: تریپلتِ «R G B»
+  // theme_color: تریپلت «R G B»
   let theme = String(b.theme_color || '').trim()
   if (!/^\d{1,3} \d{1,3} \d{1,3}$/.test(theme)) theme = '13 148 136'
 
@@ -33,7 +33,7 @@ export async function PUT(req: NextRequest, { params }: { params: { slug: string
     card_number: toLatinNum(String(b.card_number || '')).replace(/[^0-9]/g, '').slice(0, 16),
     card_holder_name: String(b.card_holder_name || '').trim().slice(0, 60),
   }
-  if (!patch.display_name) return NextResponse.json({ error: 'نامِ نمایشی لازم است' }, { status: 400 })
+  if (!patch.display_name) return NextResponse.json({ error: 'نام نمایشی لازم است' }, { status: 400 })
 
   const { error } = await sb().from('tenant_profiles').update(patch).eq('tenant_id', t.id)
   if (error) { console.error('src/app/api/t/[slug]/panel/profile/route.ts error:', error); return NextResponse.json({ error: 'مشکلی پیش آمد. دوباره تلاش کنید.' }, { status: 500 }) }

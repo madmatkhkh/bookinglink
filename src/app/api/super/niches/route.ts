@@ -39,7 +39,7 @@ function cleanSampleServices(raw: unknown): SampleServiceInput[] {
     .filter(s => s.name)
 }
 
-// لیستِ کاملِ نیچ‌ها (شاملِ غیرفعال‌ها) + تعدادِ tenantِ هرکدام — برایِ پنلِ مدیریت
+// لیست کامل نیچ‌ها (شامل غیرفعال‌ها) + تعداد tenant هرکدام — برای پنل مدیریت
 export async function GET(req: NextRequest) {
   if (!isSuperAuthed(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const { data: niches } = await sb().from('niches').select('*').order('sort_order')
@@ -51,7 +51,7 @@ export async function GET(req: NextRequest) {
   })
 }
 
-// ساختِ نیچِ تازه — دیتاییِ کامل: {key, display_name, tagline, icon, client_label,
+// ساخت نیچ تازه — دیتایی کامل: {key, display_name, tagline, icon, client_label,
 // resource_label, booking_label, default_theme, record_fields, default_features,
 // sample_services, setup_price, sort_order}
 export async function POST(req: NextRequest) {
@@ -59,9 +59,9 @@ export async function POST(req: NextRequest) {
   const b = await req.json().catch(() => ({}))
 
   const key = String(b.key || '').trim().toLowerCase()
-  if (!KEY_PATTERN.test(key)) return NextResponse.json({ error: 'کلید نامعتبر است (حروفِ لاتینِ کوچک/عدد/آندرلاین، با حرف شروع شود)' }, { status: 400 })
+  if (!KEY_PATTERN.test(key)) return NextResponse.json({ error: 'کلید نامعتبر است (حروف لاتین کوچک/عدد/آندرلاین، با حرف شروع شود)' }, { status: 400 })
   const displayName = String(b.display_name || '').trim()
-  if (!displayName) return NextResponse.json({ error: 'نامِ نمایشی لازم است' }, { status: 400 })
+  if (!displayName) return NextResponse.json({ error: 'نام نمایشی لازم است' }, { status: 400 })
 
   const row = {
     key,
@@ -81,15 +81,15 @@ export async function POST(req: NextRequest) {
 
   const { data: niche, error } = await sb().from('niches').insert(row).select().single()
   if (error) {
-    if (error.code === '23505') return NextResponse.json({ error: 'این کلید قبلاً وجود دارد' }, { status: 409 })
+    if (error.code === '23505') return NextResponse.json({ error: 'این کلید قبلا وجود دارد' }, { status: 409 })
     console.error('super/niches POST error:', error)
-    return NextResponse.json({ error: 'ساختِ نیچ ناموفق بود', detail: `${error.code || ''} ${error.message || ''}`.trim() }, { status: 500 })
+    return NextResponse.json({ error: 'ساخت نیچ ناموفق بود', detail: `${error.code || ''} ${error.message || ''}`.trim() }, { status: 500 })
   }
   return NextResponse.json({ niche })
 }
 
-// ویرایشِ نیچِ موجود — {key, ...فیلدهایِ تغییرکرده}. خودِ key قابلِ‌تغییر نیست
-// (primary key و مرجعِ tenants.niche_key — تغییرش نیازِ یک مهاجرتِ دستی دارد).
+// ویرایش نیچ موجود — {key, ...فیلدهای تغییرکرده}. خود key قابل‌تغییر نیست
+// (primary key و مرجع tenants.niche_key — تغییرش نیاز یک مهاجرت دستی دارد).
 export async function PATCH(req: NextRequest) {
   if (!isSuperAuthed(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const b = await req.json().catch(() => ({}))
@@ -99,7 +99,7 @@ export async function PATCH(req: NextRequest) {
   const patch: Record<string, any> = {}
   if (b.display_name !== undefined) {
     const v = String(b.display_name || '').trim()
-    if (!v) return NextResponse.json({ error: 'نامِ نمایشی نمی‌تواند خالی باشد' }, { status: 400 })
+    if (!v) return NextResponse.json({ error: 'نام نمایشی نمی‌تواند خالی باشد' }, { status: 400 })
     patch.display_name = v
   }
   if (b.tagline !== undefined) patch.tagline = String(b.tagline || '').trim().slice(0, 200)
@@ -109,7 +109,7 @@ export async function PATCH(req: NextRequest) {
   if (b.booking_label !== undefined) patch.booking_label = String(b.booking_label || 'نوبت').trim().slice(0, 30)
   if (b.default_theme !== undefined) {
     if (!/^\d{1,3} \d{1,3} \d{1,3}$/.test(String(b.default_theme || '').trim()))
-      return NextResponse.json({ error: 'فرمتِ رنگ درست نیست (سه عددِ R G B با فاصله)' }, { status: 400 })
+      return NextResponse.json({ error: 'فرمت رنگ درست نیست (سه عدد R G B با فاصله)' }, { status: 400 })
     patch.default_theme = b.default_theme.trim()
   }
   if (b.record_fields !== undefined) patch.record_fields = cleanRecordFields(b.record_fields)
@@ -129,7 +129,7 @@ export async function PATCH(req: NextRequest) {
   return NextResponse.json({ success: true })
 }
 
-// حذفِ یک نیچ — فقط اگر هیچ tenantی به آن وصل نباشد (وگرنه FK رد می‌کند)
+// حذف یک نیچ — فقط اگر هیچ tenantی به آن وصل نباشد (وگرنه FK رد می‌کند)
 export async function DELETE(req: NextRequest) {
   if (!isSuperAuthed(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const key = req.nextUrl.searchParams.get('key') || ''

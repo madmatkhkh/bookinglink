@@ -1,6 +1,6 @@
 'use client'
-// تقویمِ ماهانه‌ی جلالیِ عمومی — روزها بی‌درنگ رندر می‌شوند، محتوایِ هر روز
-// (تعدادِ اسلات و…) از بیرون تزریق می‌شود تا لودِ آسنکرون تقویم را فلش ندهد.
+// تقویم ماهانه‌ی جلالی عمومی — روزها بی‌درنگ رندر می‌شوند، محتوای هر روز
+// (تعداد اسلات و…) از بیرون تزریق می‌شود تا لود آسنکرون تقویم را فلش ندهد.
 import { PERSIAN_MONTHS, PERSIAN_WEEKDAYS_SHORT, getDaysInJalaliMonth, jalaliWeekday, toFarsiNum } from '@/lib/calendar'
 import { ReactNode } from 'react'
 

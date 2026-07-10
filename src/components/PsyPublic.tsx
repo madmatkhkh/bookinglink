@@ -1,11 +1,11 @@
 'use client'
 // ─────────────────────────────────────────────────────────────────────────────
-// کامپوننت‌های عمومیِ سمتِ مراجعِ روانشناسی (نسخه‌ی چندمستاجری + چندکارمندی).
-// تنظیماتِ کلینیک (سطحِ tenant) و پروفایلِ دکترها (سطحِ resource) حالا جدا از
-// هم ذخیره می‌شوند؛ این فایل آن‌ها را برای صفحه‌های عمومی در یک شکلِ ترکیبیِ
+// کامپوننت‌های عمومی سمت مراجع روانشناسی (نسخه‌ی چندمستاجری + چندکارمندی).
+// تنظیمات کلینیک (سطح tenant) و پروفایل دکترها (سطح resource) حالا جدا از
+// هم ذخیره می‌شوند؛ این فایل آن‌ها را برای صفحه‌های عمومی در یک شکل ترکیبی
 // آشنا (همان چیزی که همیشه بوده: doctor_name/avatar_url/badges/...) ادغام
 // می‌کند تا صفحه‌های موجود (interview، my) نیازی به تغییر نداشته باشند.
-// اگر مجموعه چند دکتر داشت، «doctors» کاملِ لیست را هم برمی‌گرداند.
+// اگر مجموعه چند دکتر داشت، «doctors» کامل لیست را هم برمی‌گرداند.
 // ─────────────────────────────────────────────────────────────────────────────
 import { useEffect, useState } from 'react'
 import type { OfficeLocation, PaymentCardInfo, SessionMode, PublicDoctor } from '@/lib/psy'
@@ -38,7 +38,7 @@ function buildView(settings: { office_locations?: OfficeLocation[] } | null, doc
   }
 }
 
-// هوک: تنظیماتِ عمومیِ کلینیکِ یک tenant را در کلاینت می‌گیرد (شکلِ ترکیبیِ آشنا)
+// هوک: تنظیمات عمومی کلینیک یک tenant را در کلاینت می‌گیرد (شکل ترکیبی آشنا)
 export function usePublicClinic(slug: string): PublicClinicView & { loaded: boolean; doctors: PublicDoctor[] } {
   const [state, setState] = useState<PublicClinicView & { loaded: boolean; doctors: PublicDoctor[] }>({
     ...EMPTY_VIEW, loaded: false, doctors: [],
@@ -58,7 +58,7 @@ export function usePublicClinic(slug: string): PublicClinicView & { loaded: bool
   return state
 }
 
-// هوک: ماژول‌های فعال/غیرفعالِ پنلِ مراجع (خریدِ جلسه‌ی جبرانی، کنسلِ خودکار و...)
+// هوک: ماژول‌های فعال/غیرفعال پنل مراجع (خرید جلسه‌ی جبرانی، کنسل خودکار و...)
 export function usePatientFeatures(slug: string): Record<string, boolean> {
   const [flags, setFlags] = useState<Record<string, boolean>>({
     patient_buy_extra_session: true, patient_self_cancel: true,
