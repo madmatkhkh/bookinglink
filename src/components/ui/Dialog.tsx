@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 // ── سیستم دیالوگ داخل‌برنامه (جایگزین alert/confirm/prompt مرورگر) ──
 type Kind = 'alert' | 'confirm' | 'prompt'
@@ -45,8 +45,41 @@ export function DialogHost() {
   const current = queue[0]
   useEffect(() => { if (current?.kind === 'prompt') setVal(current.defaultValue || '') }, [current?.id]) // eslint-disable-line
 
+  // بستن با یکبار پاسخ‌دهی و جلوکشیدن صف — همیشه (چه با کلیک، چه با دکمه‌ی
+  // برگشت) از همینجا رد می‌شود، پس تعریفش قبل از هر early-return لازم است.
+  function close(v: any) { current?.resolve(v); queue = queue.slice(1); emit() }
+
+  // یکپارچه‌سازی با دکمه‌ی برگشت گوشی/مرورگر: تا وقتی این دیالوگ باز است، یک
+  // ورودی تاریخچه اشغالش کرده — اولین برگشت فقط همین دیالوگ را می‌بندد، نه
+  // این‌که کاربر را از کل صفحه‌ی زیرین هم بیرون ببرد. اگر دیالوگ با خود دکمه‌ی
+  // تأیید/انصراف بسته شود (نه با برگشت)، همان ورودی تاریخچه را مصرف می‌کنیم
+  // (history.back) تا دیگر یک برگشت اضافه‌ی بی‌فایده روی صف نماند.
+  const wasOpen = useRef(false)
+  const closingViaPop = useRef(false)
+  useEffect(() => {
+    if (current && !wasOpen.current) {
+      window.history.pushState({ __dialog: true }, '')
+      wasOpen.current = true
+    } else if (!current && wasOpen.current) {
+      wasOpen.current = false
+      if (!closingViaPop.current) window.history.back()
+      closingViaPop.current = false
+    }
+  }, [current])
+
+  useEffect(() => {
+    function handlePopState() {
+      if (wasOpen.current && current) {
+        closingViaPop.current = true
+        close(current.kind === 'confirm' ? false : current.kind === 'prompt' ? null : undefined)
+      }
+    }
+    window.addEventListener('popstate', handlePopState)
+    return () => window.removeEventListener('popstate', handlePopState)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [current])
+
   if (!current) return null
-  const close = (v: any) => { current.resolve(v); queue = queue.slice(1); emit() }
   const okLabel = current.okText || (current.kind === 'confirm' ? 'تأیید' : current.kind === 'prompt' ? 'ثبت' : 'باشه')
 
   return (

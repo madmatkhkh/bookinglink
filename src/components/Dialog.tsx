@@ -1,6 +1,6 @@
 'use client'
 // دیالوگ‌های درون‌برنامه‌ای به‌جای alert/confirm مرورگر (میراث DialogHost)
-import { createContext, useContext, useState, useCallback, ReactNode } from 'react'
+import { createContext, useContext, useState, useCallback, useRef, useEffect, ReactNode } from 'react'
 
 type DialogState =
   | { kind: 'alert'; message: string; resolve: () => void }
@@ -28,6 +28,34 @@ export function DialogProvider({ children }: { children: ReactNode }) {
     else dlg.resolve(ok)
     setDlg(null)
   }
+
+  // یکپارچه‌سازی با دکمه‌ی برگشت گوشی/مرورگر — همان الگوی DialogHost: تا این
+  // دیالوگ باز است یک ورودی تاریخچه اشغالش کرده، اولین برگشت فقط همین را
+  // می‌بندد نه صفحه‌ی زیرین را.
+  const wasOpen = useRef(false)
+  const closingViaPop = useRef(false)
+  useEffect(() => {
+    if (dlg && !wasOpen.current) {
+      window.history.pushState({ __dialog: true }, '')
+      wasOpen.current = true
+    } else if (!dlg && wasOpen.current) {
+      wasOpen.current = false
+      if (!closingViaPop.current) window.history.back()
+      closingViaPop.current = false
+    }
+  }, [dlg])
+
+  useEffect(() => {
+    function handlePopState() {
+      if (wasOpen.current && dlg) {
+        closingViaPop.current = true
+        close(dlg.kind === 'confirm' ? false : undefined as any)
+      }
+    }
+    window.addEventListener('popstate', handlePopState)
+    return () => window.removeEventListener('popstate', handlePopState)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dlg])
 
   return (
     <DialogCtx.Provider value={{ uiAlert, uiConfirm }}>
