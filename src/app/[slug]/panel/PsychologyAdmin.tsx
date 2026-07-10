@@ -4977,7 +4977,7 @@ function PanelLogin({ slug, onSuccess }: { slug: string; onSuccess: () => void }
      <h1 className="text-lg font-display font-bold text-ink">ورود به پنلِ مدیریت</h1>
      <p className="text-xs text-soot mt-1.5 leading-relaxed">
       {mode === 'owner'
-       ? 'کدِ ورود به شماره‌ی موبایلِ ثبت‌شده‌ی صاحبِ این مجموعه فرستاده می‌شود.'
+       ? 'کدِ ورود به شماره‌ی موبایل یا ایمیلِ ثبت‌شده‌ی صاحبِ این مجموعه فرستاده می‌شود.'
        : 'اگر درمانگرِ این مجموعه‌اید، شماره‌ی موبایلِ خودتان را وارد کنید.'}
      </p>
     </div>

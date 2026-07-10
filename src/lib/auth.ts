@@ -241,11 +241,14 @@ export type IssueOtpResult = { ok: true; code: string } | { ok: false; throttled
 export type VerifyOtpResult = 'ok' | 'bad' | 'throttled'
 export type OtpChannel = 'sms' | 'email'
 
-/** آیا کد باید در پاسخِ HTTP برگردد؟ فقط در حالتِ موقتِ پیش‌ازپیامک — و فقط اگر
- * پیامکِ واقعی هنوز تنظیم نشده باشد (وگرنه حتی با OTP_ECHO_CODE=true فراموش‌شده
- * در env، کدِ محرمانه در پاسخِ HTTP لو نمی‌رود). */
-export function otpEchoEnabled(): boolean {
-  if (smsConfigured()) return false
+/** آیا کد باید در پاسخِ HTTP برگردد؟ فقط در حالتِ موقتِ پیش‌ازاتصال — و فقط اگر
+ * کانالِ همان درخواست (پیامک یا ایمیل) هنوز واقعاً تنظیم نشده باشد.
+ * ⚠️ باگِ قبلی: این تابع فقط smsConfigured() را چک می‌کرد — یعنی وقتی پیامک از
+ * قبل وصل بود ولی ایمیل هنوز نه، ورودِ ایمیلی نه ایمیلِ واقعی می‌فرستاد نه کد
+ * echo می‌شد؛ کاربر هیچ‌کدی نمی‌دید. حالا هر کانال جدا چک می‌شود. */
+export function otpEchoEnabled(channel: OtpChannel = 'sms'): boolean {
+  const configured = channel === 'email' ? emailConfigured() : smsConfigured()
+  if (configured) return false
   return process.env.OTP_ECHO_CODE === 'true'
 }
 

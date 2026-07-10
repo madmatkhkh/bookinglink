@@ -32,7 +32,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
     }
     // TODO(sms/email): این‌جا کد ارسال می‌شود. تا آن موقع فقط با OTP_ECHO_CODE=true
     // در پاسخ برمی‌گردد؛ روی پروداکشنِ واقعی این env باید حذف شود.
-    return NextResponse.json({ success: true, ...(otpEchoEnabled() ? { dev_code: issued.code } : {}) })
+    return NextResponse.json({ success: true, ...(otpEchoEnabled(viaEmail ? 'email' : 'sms') ? { dev_code: issued.code } : {}) })
   }
 
   const ok = await verifyOtp(identifier, String(body.code))

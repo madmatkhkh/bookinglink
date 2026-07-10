@@ -26,8 +26,9 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   const clientName = String(b.clientName || '').trim().replace(/\s+/g, ' ')
   const rawAnswers: Record<string, any> = answers && typeof answers === 'object' ? answers : {}
 
-  // ایمیلِ اختیاری — برایِ مراجعِ خارج از ایران که پیامکِ ایرانی بهش نمی‌رسد.
-  // اگر پر شده باشد باید فرمتش معتبر باشد؛ خالی کاملاً مجاز است (شماره کافی است).
+  // ایمیل یا شماره — حداقل یکی لازم است (نه لزوماً شماره)؛ برایِ مراجعِ خارج از
+  // ایران که شماره‌ی ایرانی ندارد، ایمیل به‌تنهایی کافی است. اگر هرکدام پر شده،
+  // باید فرمتش معتبر باشد.
   const email = b.contactEmail ? String(b.contactEmail).trim().toLowerCase() : ''
   if (email && !isValidEmail(email))
     return NextResponse.json({ error: 'ایمیل معتبر نیست' }, { status: 400 })
@@ -35,17 +36,20 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   // نرمال‌سازیِ شماره یک بار و همین‌جا — هم برایِ چک هم برایِ ذخیره. (باگِ قبلی:
   // چک روی نسخه‌ی نرمال‌شده بود ولی نسخه‌ی خام ذخیره می‌شد؛ مراجعی که با ارقامِ
   // فارسی/فاصله شماره می‌زد، بعداً با OTPِ نرمال‌شده هرگز به پرونده‌اش نمی‌رسید.)
-  const phone = normalizePhone(contactPhone || '')
-  if (!clientName || !phone)
-    return NextResponse.json({ error: 'نام و شماره تماس لازم است' }, { status: 400 })
-  if (!/^09\d{9}$/.test(phone))
+  const phone = contactPhone ? normalizePhone(contactPhone) : ''
+  if (!clientName || (!phone && !email))
+    return NextResponse.json({ error: 'نام و حداقل یکی از شماره‌تماس یا ایمیل لازم است' }, { status: 400 })
+  if (phone && !/^09\d{9}$/.test(phone))
     return NextResponse.json({ error: 'شماره تماس معتبر نیست (باید 11 رقم و با 09 شروع شود)' }, { status: 400 })
 
-  // یک پرونده با همین نام + همین شماره قبلاً ثبت نشده باشد (تغییرِ نام یا شماره
-  // آزاد است — فقط ترکیبِ عینِ یکسان مسدود می‌شود)
-  const { data: dup } = await sb().from('psy_cases').select('id')
-    .eq('tenant_id', t.id).eq('client_name', clientName).eq('contact_phone', phone).maybeSingle()
-  if (dup) return NextResponse.json({ error: 'پرونده‌ای با همین نام و شماره‌تماس قبلاً ثبت شده است.' }, { status: 409 })
+  // یک پرونده با همین نام + همین شماره/ایمیل قبلاً ثبت نشده باشد (تغییرِ نام یا
+  // شماره آزاد است — فقط ترکیبِ عینِ یکسان مسدود می‌شود)
+  const db = sb()
+  const [{ data: dupByPhone }, { data: dupByEmail }] = await Promise.all([
+    phone ? db.from('psy_cases').select('id').eq('tenant_id', t.id).eq('client_name', clientName).eq('contact_phone', phone).maybeSingle() : Promise.resolve({ data: null }),
+    email ? db.from('psy_cases').select('id').eq('tenant_id', t.id).eq('client_name', clientName).eq('contact_email', email).maybeSingle() : Promise.resolve({ data: null }),
+  ])
+  if (dupByPhone || dupByEmail) return NextResponse.json({ error: 'پرونده‌ای با همین نام و شماره‌تماس/ایمیل قبلاً ثبت شده است.' }, { status: 409 })
 
   // فعلاً صفحه‌ی عمومی دکتری را انتخاب نمی‌گیرد مگر بیش از یک دکتر باشد
   let finalResourceId: string | null = null

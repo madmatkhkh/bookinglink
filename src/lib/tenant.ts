@@ -7,11 +7,11 @@ import { getPanelTenantId, getStaffResourceId } from './auth'
 
 export type Tenant = {
   id: string; slug: string; status: string; plan: string
-  owner_phone: string; niche_key: string
+  owner_phone: string; owner_email: string | null; niche_key: string
   custom_domain: string | null; domain_verified: boolean
 }
 
-const TENANT_COLS = 'id, slug, status, plan, owner_phone, niche_key, custom_domain, domain_verified'
+const TENANT_COLS = 'id, slug, status, plan, owner_phone, owner_email, niche_key, custom_domain, domain_verified'
 
 /** tenant فعال از slug */
 export async function getActiveTenant(slug: string): Promise<Tenant | null> {

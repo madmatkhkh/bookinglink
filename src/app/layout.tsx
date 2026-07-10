@@ -2,7 +2,7 @@ import './globals.css'
 import type { Metadata } from 'next'
 
 // metadataBase از دامنه‌ی پلتفرم — لینک‌های og/twitter مطلق می‌شوند
-const domain = process.env.PLATFORM_DOMAIN || 'nobatlink.ir'
+const domain = process.env.PLATFORM_DOMAIN || 'nobatlink.com'
 
 export const metadata: Metadata = {
   metadataBase: new URL(`https://${domain}`),

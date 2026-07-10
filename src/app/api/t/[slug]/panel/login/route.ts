@@ -10,18 +10,23 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   const t = await getActiveTenant(params.slug)
   if (!t) return NextResponse.json({ error: 'یافت نشد' }, { status: 404 })
 
+  // هویتِ صاحبِ این tenant می‌تواند شماره باشد یا ایمیل (owner_phone خالی یعنی
+  // با ایمیل ثبت‌نام کرده) — کلاینت چیزی انتخاب نمی‌کند، همانی که در دیتابیس
+  // ذخیره شده استفاده می‌شود.
+  const viaEmail = !t.owner_phone && !!t.owner_email
+  const identifier = viaEmail ? t.owner_email! : t.owner_phone
+
   const body = await req.json().catch(() => ({}))
   if (!body.code) {
-    const issued = await issueOtp(t.owner_phone, requestIp(req))
+    const issued = await issueOtp(identifier, requestIp(req), viaEmail ? 'email' : 'sms')
     if (!issued.ok) {
       if ('throttled' in issued) return NextResponse.json({ error: OTP_THROTTLED_MSG }, { status: 429 })
-      return NextResponse.json({ error: issued.smsError || 'ارسالِ پیامک ناموفق بود — دوباره تلاش کن' }, { status: 502 })
+      return NextResponse.json({ error: issued.smsError || (viaEmail ? 'ارسالِ ایمیل ناموفق بود — دوباره تلاش کن' : 'ارسالِ پیامک ناموفق بود — دوباره تلاش کن') }, { status: 502 })
     }
-    // TODO(sms): این‌جا کد با پیامک ارسال می‌شود. تا آن موقع فقط با OTP_ECHO_CODE=true.
-    return NextResponse.json({ success: true, ...(otpEchoEnabled() ? { dev_code: issued.code } : {}) })
+    return NextResponse.json({ success: true, ...(otpEchoEnabled(viaEmail ? 'email' : 'sms') ? { dev_code: issued.code } : {}) })
   }
 
-  const ok = await verifyOtp(t.owner_phone, String(body.code))
+  const ok = await verifyOtp(identifier, String(body.code))
   if (ok === 'throttled') return NextResponse.json({ error: OTP_THROTTLED_MSG }, { status: 429 })
   if (ok !== 'ok') return NextResponse.json({ error: 'کد نادرست یا منقضی است' }, { status: 400 })
 

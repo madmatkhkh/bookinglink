@@ -4,7 +4,7 @@
 //
 // پیش‌نیاز: یک حسابِ رایگان در resend.com بساز، دامنه‌ات را verify کن (یا موقتاً
 // از دامنه‌ی پیش‌فرضِ Resend برایِ تست استفاده کن)، یک API Key بساز و در env
-// بگذار: RESEND_API_KEY و EMAIL_FROM (مثلاً 'نوبت‌لینک <no-reply@nobatlink.ir>').
+// بگذار: RESEND_API_KEY و EMAIL_FROM (مثلاً 'نوبت‌لینک <no-reply@mail.nobatlink.com>').
 //
 // وقتی این envها ست نباشند، این تابع کاری نمی‌کند (silent no-op) — دقیقاً
 // همان الگویِ sms.ts؛ ورودِ ایمیلی تا وصل‌شدنِ این سرویس فقط با

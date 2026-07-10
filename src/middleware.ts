@@ -21,7 +21,7 @@ const CACHE_TTL_MS = 60 * 1000
 const domainCache = new Map<string, { slug: string | null; at: number }>()
 
 function platformHosts(): string[] {
-  const d = (process.env.PLATFORM_DOMAIN || '').trim().toLowerCase()
+  const d = (process.env.PLATFORM_DOMAIN || 'nobatlink.com').trim().toLowerCase()
   const hosts = ['localhost']
   if (d) { hosts.push(d, `www.${d}`) }
   return hosts

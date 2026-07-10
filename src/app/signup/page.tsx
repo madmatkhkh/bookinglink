@@ -18,6 +18,9 @@ export default function Signup() {
   const [name, setName] = useState('')
   const [slug, setSlug] = useState('')
   const [phone, setPhone] = useState('')
+  const [email, setEmail] = useState('')
+  // ثبت‌نام با شماره یا ایمیل — صاحبِ کارگاهِ خارج از ایران شماره‌ی ایرانی ندارد
+  const [contactMode, setContactMode] = useState<'phone' | 'email'>('phone')
   const [niche, setNiche] = useState('')
   const [step, setStep] = useState<'details' | 'code'>('details')
   const [code, setCode] = useState('')
@@ -47,7 +50,7 @@ export default function Signup() {
     try {
       const r = await fetch('/api/signup', {
         method: 'POST', headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ name, slug, phone, niche_key: niche }),
+        body: JSON.stringify(contactMode === 'email' ? { name, slug, email, niche_key: niche } : { name, slug, phone, niche_key: niche }),
       })
       const d = await r.json().catch(() => ({}))
       if (!r.ok) { setErr(d.error || 'خطا در ثبت‌نام'); return }
@@ -61,7 +64,7 @@ export default function Signup() {
     try {
       const r = await fetch('/api/signup', {
         method: 'POST', headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ name, slug, phone, niche_key: niche, code }),
+        body: JSON.stringify(contactMode === 'email' ? { name, slug, email, niche_key: niche, code } : { name, slug, phone, niche_key: niche, code }),
       })
       const d = await r.json().catch(() => ({}))
       if (!r.ok) { setErr(d.error || 'کد نادرست است'); return }
@@ -113,8 +116,17 @@ export default function Signup() {
             </div>
             <p className={`text-[12px] mt-1.5 mb-4 ${slugMsg ? 'text-red-500' : 'text-soot'}`}>{slugMsg || (slug && slugOk ? '✓ این نشانی در دسترس است' : 'نشانیِ لینکِ عمومی‌ات')}</p>
 
-            <label className="block text-[13px] font-semibold text-ink/80 mb-1.5">شماره‌ی موبایل</label>
-            <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="0912 000 0000" inputMode="tel" required className={field + ' mb-5'} dir="ltr" />
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-[13px] font-semibold text-ink/80">{contactMode === 'phone' ? 'شماره‌ی موبایل' : 'ایمیل'}</label>
+              <button type="button" onClick={() => setContactMode(m => m === 'phone' ? 'email' : 'phone')} className="text-[12px] text-soot underline">
+                {contactMode === 'phone' ? 'خارج از ایرانی؟ با ایمیل ثبت‌نام کن' : 'با شماره‌ی ایرانی ثبت‌نام کن'}
+              </button>
+            </div>
+            {contactMode === 'phone' ? (
+              <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="0912 000 0000" inputMode="tel" required className={field + ' mb-5'} dir="ltr" />
+            ) : (
+              <input value={email} onChange={e => setEmail(e.target.value)} placeholder="example@gmail.com" type="email" required className={field + ' mb-5'} dir="ltr" />
+            )}
 
             <label className="block text-[13px] font-semibold text-ink/80 mb-2">حوزه‌ی کاری</label>
             <div className="grid sm:grid-cols-2 gap-2.5 mb-6">
@@ -136,7 +148,7 @@ export default function Signup() {
         ) : (
           <form onSubmit={verifyAndCreate}>
             <p className="text-sm text-soot leading-relaxed mb-5">
-              کدِ 5 رقمیِ ارسال‌شده به <b className="text-ink" dir="ltr">{phone}</b> را وارد کن تا کارگاهت ساخته شود.
+              کدِ 5 رقمیِ ارسال‌شده به <b className="text-ink" dir="ltr">{contactMode === 'email' ? email : phone}</b> را وارد کن تا کارگاهت ساخته شود.
             </p>
             {devCode && (
               <p className="text-[12px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-4">

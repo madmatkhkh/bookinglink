@@ -108,9 +108,13 @@ export default function InterviewPage() {
  function missingFields(): string[] {
   const miss: string[] = []
   if (!clientName.trim()) miss.push('نام')
-  if (!contactPhone.trim()) miss.push('شماره تماس')
-  else if (!isValidIranPhone(contactPhone)) miss.push('شماره تماس (باید 11 رقم و با 09 شروع شود)')
-  if (contactEmail.trim() && !isValidEmailFmt(contactEmail)) miss.push('ایمیل (فرمت نامعتبر است)')
+  // شماره یا ایمیل — حداقل یکی لازم است (نه لزوماً شماره‌ی ایرانی؛ مراجعِ خارج
+  // از ایران با ایمیل ادامه می‌دهد)
+  if (!contactPhone.trim() && !contactEmail.trim()) miss.push('شماره تماس یا ایمیل')
+  else {
+   if (contactPhone.trim() && !isValidIranPhone(contactPhone)) miss.push('شماره تماس (باید 11 رقم و با 09 شروع شود)')
+   if (contactEmail.trim() && !isValidEmailFmt(contactEmail)) miss.push('ایمیل (فرمت نامعتبر است)')
+  }
   return [...miss, ...missingIntakeFields(intakeForm, answers)]
  }
 
@@ -273,9 +277,11 @@ export default function InterviewPage() {
       if (safeIdx === 0) {
        const miss: string[] = []
        if (!clientName.trim()) miss.push('نام')
-       if (!contactPhone.trim()) miss.push('شماره تماس')
-       else if (!isValidIranPhone(contactPhone)) miss.push('شماره تماس (باید 11 رقم و با 09 شروع شود)')
-       if (contactEmail.trim() && !isValidEmailFmt(contactEmail)) miss.push('ایمیل (فرمت نامعتبر است)')
+       if (!contactPhone.trim() && !contactEmail.trim()) miss.push('شماره تماس یا ایمیل')
+       else {
+        if (contactPhone.trim() && !isValidIranPhone(contactPhone)) miss.push('شماره تماس (باید 11 رقم و با 09 شروع شود)')
+        if (contactEmail.trim() && !isValidEmailFmt(contactEmail)) miss.push('ایمیل (فرمت نامعتبر است)')
+       }
        return miss
       }
       if (!currentSection) return []
@@ -344,9 +350,10 @@ export default function InterviewPage() {
          {safeIdx === 0 ? (
           <div className="grid grid-cols-2 gap-3">
            <Field label="نام و نام خانوادگی *" value={clientName} onChange={setClientName} placeholder="آرین رضایی" />
-           <Field label="شماره تماس *" value={contactPhone} onChange={setContactPhone} placeholder="0912..." dir="ltr" />
+           <Field label="شماره تماس" value={contactPhone} onChange={setContactPhone} placeholder="0912..." dir="ltr" />
            <div className="col-span-2">
-            <Field label="ایمیل (اختیاری — برایِ مراجعِ خارج از ایران)" value={contactEmail} onChange={setContactEmail} placeholder="example@gmail.com" dir="ltr" />
+            <Field label="ایمیل" value={contactEmail} onChange={setContactEmail} placeholder="example@gmail.com" dir="ltr" />
+            <p className="text-[11px] text-soot mt-1">حداقل یکی از شماره یا ایمیل لازم است — برایِ مراجعِ خارج از ایران، ایمیل به‌تنهایی کافی است.</p>
            </div>
           </div>
          ) : (
