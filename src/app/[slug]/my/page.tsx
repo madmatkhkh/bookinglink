@@ -151,13 +151,13 @@ export default function PatientPanel() {
  }
 
  // اگر این صفحه از bfcache (کشِ برگشت/جلوی مرورگر) برگردد، React remount
- // نمی‌شود و state دقیقاً همان لحظه‌ی خروج «منجمد» می‌ماند — یعنی با دکمه‌ی
- // برگشتِ مرورگر ممکن است چند ثانیه وضعیتِ قدیمی دیده شود تا کاربر دستی رفرش
- // کند. اینجا با eventِ pageshow (persisted=true فقط برایِ بازگشت از bfcache
- // رخ می‌دهد) دیتا را همان لحظه دوباره می‌خوانیم.
+ // نمی‌شود و state دقیقاً همان لحظه‌ی خروج «منجمد» می‌ماند. باگِ قبلی: دیتا را
+ // بی‌سروصدا در پس‌زمینه دوباره می‌خواندیم درحالی‌که همان محتوایِ منجمد رویِ
+ // صفحه می‌ماند و بعد یهو با دیتایِ تازه جایگزین می‌شد. فیکس: همان اسپلشِ
+ // «در حال بارگذاری» (restoring) را دوباره نشان می‌دهیم تا این پرش دیده نشود.
  useEffect(() => {
   function onPageShow(e: PageTransitionEvent) {
-   if (e.persisted && booking) loadData(booking.case_number)
+   if (e.persisted && booking) { setRestoring(true); loadData(booking.case_number).finally(() => setRestoring(false)) }
   }
   window.addEventListener('pageshow', onPageShow)
   return () => window.removeEventListener('pageshow', onPageShow)

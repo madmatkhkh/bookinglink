@@ -498,6 +498,9 @@ export function PsychologyAdmin() {
  const [pendingPkgs, setPendingPkgs] = useState<Package[]>([])
  const [pendingSess, setPendingSess] = useState<Session[]>([])
  const [pendingRefunds, setPendingRefunds] = useState<Session[]>([])
+ // چک‌لیستِ راه‌اندازی: آیا حداقل یک روزِ کاری با ساعتِ باز تعریف شده؟ null یعنی
+ // هنوز چک نشده (برای جلوگیری از فلاشِ «ناقص» قبل از رسیدنِ جواب).
+ const [hasWorkingDays, setHasWorkingDays] = useState<boolean | null>(null)
  const [growthSubTab, setGrowthSubTab] = useState<'waitlist' | 'reviews' | 'analytics' | 'campaigns'>('waitlist')
  const [waitlist, setWaitlist] = useState<{ id: string; client_name: string; case_number: string; contact_phone: string; contact_email: string; session_type: string | null; note: string; created_at: string }[]>([])
  const [reviews, setReviews] = useState<{ id: string; client_name: string; case_number: string; rating: number; comment: string; status: string; created_at: string }[]>([])
@@ -790,12 +793,18 @@ export function PsychologyAdmin() {
 
  useEffect(() => { fetchAll(); loadSettings(); loadProfile() }, [fetchAll])
 
- // همان دلیلِ نسخه‌ی مراجع: برگشت از bfcache (دکمه‌ی برگشتِ مرورگر) React را
- // remount نمی‌کند، پس بدونِ این، دکتر تا رفرشِ دستی وضعیتِ منجمدِ قبل از خروج
- // را می‌بیند (همان «اول قدیمی، بعد یهو جدید» که گزارش شد).
+ // همان دلیلِ نسخه‌ی مراجع: برگشت از bfcache (دکمه‌ی برگشتِ مرورگر، یا در
+ // مرورگرهایِ موبایل حتی سوییچ‌کردنِ بینِ اپ‌ها و برگشتن) React را remount
+ // نمی‌کند — یعنی همون DOM منجمدِ لحظه‌ی خروج، دقیقاً همان‌طور که بود، فوراً
+ // نشان داده می‌شود. باگِ قبلی: fetchAll را بی‌سروصدا در پس‌زمینه صدا می‌زدیم
+ // درحالی‌که همان محتوایِ قدیمی/منجمد رویِ صفحه می‌ماند، و وقتی دیتایِ تازه
+ // می‌رسید یهو جایگزین می‌شد («اول قدیمی، بعد یهو جدید» که دقیقاً گزارش شد).
+ // فیکس: همان گیتِ لودینگِ اولیه (initialLoadDone) را هم دوباره false می‌کنیم
+ // تا هرچه زودتر اسپینر جایِ محتوایِ منجمد را بگیرد؛ کاربر «صفحه‌ی قدیمی» را
+ // اصلاً نمی‌بیند، فقط اسپینر تا رسیدنِ دیتایِ تازه.
  useEffect(() => {
   function onPageShow(e: PageTransitionEvent) {
-   if (e.persisted) fetchAll()
+   if (e.persisted) { setInitialLoadDone(false); fetchAll() }
   }
   window.addEventListener('pageshow', onPageShow)
   return () => window.removeEventListener('pageshow', onPageShow)
@@ -1346,7 +1355,7 @@ export function PsychologyAdmin() {
 
  // با ورود به تب برنامه، داده‌های ماه و جلسه‌ها را بارگذاری کن
  useEffect(() => {
-  if (mainTab === 'dashboard') { loadAllSessions(); loadAllStages(); if (!profileLoaded) loadProfile(); loadDashboardFinance() }
+  if (mainTab === 'dashboard') { loadAllSessions(); loadAllStages(); if (!profileLoaded) loadProfile(); loadDashboardFinance(); if (hasWorkingDays === null) checkWorkingDays() }
   if (mainTab === 'schedule') { loadMonthSchedules(schedMonth, schedYear); loadAllSessions(); loadAllStages(); refreshBookings(); if (!profileLoaded) loadProfile() }
   if (mainTab === 'settings_hub') {
    if (!settingsLoaded) loadSettings()
@@ -1747,6 +1756,17 @@ export function PsychologyAdmin() {
   setDashboardLoaded(true)
  }
 
+ // برایِ چک‌لیستِ راه‌اندازی — فقط یک بار لازم است، سبک است (بدونِ year/month
+ // همه‌ی روزهای ثبت‌شده را برمی‌گرداند، صرفاً طولش را می‌خواهیم)
+ async function checkWorkingDays() {
+  try {
+   const res = await fetch(api('/schedule'), { cache: 'no-store' })
+   const data = await res.json()
+   const days = Array.isArray(data.schedules) ? data.schedules : []
+   setHasWorkingDays(days.some((d: any) => !d.is_off && Array.isArray(d.available_times) && d.available_times.length > 0))
+  } catch { setHasWorkingDays(false) }
+ }
+
  // اعمالِ بازه‌ی دقیقِ جلالی
  function applyCustomRange() {
   const fromTs = jalaliDateTimeToTimestamp(`${fromJ.y}/${fromJ.m}/${fromJ.d}`, '00:00')
@@ -2084,6 +2104,68 @@ export function PsychologyAdmin() {
           </p>
          </div>
         </div>
+
+        {/* چک‌لیستِ راه‌اندازیِ اولیه — فقط تا وقتی همه‌چیز کامل نشده نشان داده
+           می‌شود؛ بعدش خودش برایِ همیشه محو می‌شود. */}
+        {(() => {
+         const checklist = [
+          {
+           key: 'profile', label: 'تکمیلِ پروفایلِ عمومی (نام و عنوان)',
+           done: !!(profile.name?.trim() && profile.title?.trim()),
+           go: () => { setMainTab('settings_hub'); setSettingsSubTab('profile') },
+          },
+          {
+           key: 'schedule', label: 'تعریفِ حداقل یک روزِ کاری',
+           done: hasWorkingDays === true,
+           go: () => setMainTab('schedule'),
+          },
+          {
+           key: 'payment', label: 'تنظیمِ روشِ دریافتِ پرداخت',
+           done: (profile.payment_methods.card_to_card && profile.cards.length > 0) || (profile.payment_methods.online && !!profile.settlement_sheba),
+           go: () => { setMainTab('settings_hub'); setSettingsSubTab('payments') },
+          },
+          ...(profile.session_modes !== 'offline' ? [{
+           key: 'meet', label: 'گذاشتنِ لینکِ جلسه‌ی آنلاین (گوگل‌میت)',
+           done: !!profile.meet_link,
+           go: () => { setMainTab('settings_hub'); setSettingsSubTab('profile') },
+          }] : []),
+          ...(profile.session_modes !== 'online' ? [{
+           key: 'location', label: 'ثبتِ مکانِ حضوری',
+           done: settings.office_locations.length > 0,
+           go: () => { setMainTab('settings_hub'); setSettingsSubTab('locations') },
+          }] : []),
+         ]
+         const doneCount = checklist.filter(c => c.done).length
+         if (doneCount === checklist.length) return null
+         return (
+          <div className="bg-white rounded-2xl border border-sand p-5">
+           <div className="flex items-center justify-between mb-1">
+            <h2 className="text-sm font-display font-semibold text-ink">راه‌اندازیِ اولیه</h2>
+            <span className="text-xs text-soot tnum">{toFarsiNum(doneCount)} از {toFarsiNum(checklist.length)}</span>
+           </div>
+           <p className="text-xs text-soot mb-4">این چندتا کار رو انجام بده تا صفحه‌ات کاملاً برایِ مراجع آماده باشه.</p>
+           <div className="bg-gray-100 rounded-full h-1.5 mb-4 overflow-hidden">
+            <div className="bg-emerald-500 h-1.5 rounded-full transition-all" style={{ width: `${(doneCount / checklist.length) * 100}%` }} />
+           </div>
+           <div className="space-y-1">
+            {checklist.map(item => (
+             <button key={item.key} onClick={item.done ? undefined : item.go} disabled={item.done}
+              className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-right transition-colors ${item.done ? 'cursor-default' : 'hover:bg-gray-50'}`}>
+              <span className={`w-5 h-5 shrink-0 rounded-full flex items-center justify-center ${item.done ? 'bg-emerald-500' : 'border-2 border-sand'}`}>
+               {item.done && (
+                <svg viewBox="0 0 24 24" className="w-3 h-3 text-white" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                 <path d="M5 13l4 4L19 7" />
+                </svg>
+               )}
+              </span>
+              <span className={`flex-1 text-sm ${item.done ? 'text-soot line-through' : 'text-ink'}`}>{item.label}</span>
+              {!item.done && <span className="text-xs text-ink font-medium shrink-0">انجامش بده ←</span>}
+             </button>
+            ))}
+           </div>
+          </div>
+         )
+        })()}
 
         {/* هشدارها — فقط وقتی واقعاً اقدامی لازم است */}
         {pendingActionCount > 0 && (
