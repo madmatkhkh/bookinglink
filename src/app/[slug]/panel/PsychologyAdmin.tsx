@@ -468,6 +468,14 @@ export function PsychologyAdmin() {
  const [mainTab, setMainTab] = useState<MainTab>('dashboard')
  const [settingsSubTab, setSettingsSubTab] = useState<SettingsSub>('profile')
  const [sidebarOpen, setSidebarOpen] = useState(false)
+ // باز/بسته‌بودن زیرمنوی «تنظیمات» در سایدبار — عمدا جدا از mainTab نگه داشته
+ // شده: قبلا کلیک روی «تنظیمات» وقتی از قبل باز بود هیچ اثری نداشت (چون فقط
+ // navigateTab('settings') صدا زده می‌شد که با مقدار فعلی mainTab فرقی نمی‌کرد)
+ // — یعنی کاربر هیچ راهی برای بستنش نداشت. الان کلیک وقتی از قبل روی خودِ تب
+ // تنظیمات هستی فقط این state را toggle می‌کند (باز/بسته)، و وقتی از تب دیگری
+ // می‌آیی هم ناوبری می‌کند هم باز می‌کند.
+ const [settingsOpen, setSettingsOpen] = useState(false)
+ useEffect(() => { if (mainTab === 'settings') setSettingsOpen(true) }, [mainTab])
 
  // رفتن به یک تب اصلی — وقتی مقصد خود تنظیمات است (از نویگیشن اصلی، نه از
  // داخل زیرتب‌ها)، همیشه به زیرتب پیش‌فرض («پروفایل») برمی‌گردد، نه آخرین
@@ -2000,7 +2008,7 @@ export function PsychologyAdmin() {
   return (
    <button onClick={() => { navigateTab(item.key); onNavigate?.() }}
     className={`w-full text-right px-3 py-2.5 rounded-lg text-sm flex items-center justify-between gap-2 transition-colors ${
-     mainTab === item.key ? 'bg-sand text-ink font-medium' : 'text-soot hover:bg-gray-50'}`}>
+     mainTab === item.key ? 'bg-ink text-white font-medium' : 'text-soot hover:bg-gray-100'}`}>
     <span className="flex items-center gap-2"><Glyph icon={item.icon} /> {item.label}</span>
     {item.badge > 0 && (
      <span className="w-5 h-5 shrink-0 bg-amber-100 text-amber-800 text-[11px] rounded-full flex items-center justify-center font-bold leading-none">
@@ -2020,25 +2028,29 @@ export function PsychologyAdmin() {
     {navItems.map(item => <NavItemButton key={item.key} item={item} onNavigate={onNavigate} />)}
 
     <div>
-     <button onClick={() => { navigateTab('settings'); onNavigate?.() }}
+     <button onClick={() => {
+       if (mainTab === 'settings') setSettingsOpen(o => !o)
+       else navigateTab('settings')
+       onNavigate?.()
+      }}
       className={`w-full text-right px-3 py-2.5 rounded-lg text-sm flex items-center justify-between gap-2 transition-colors ${
-       mainTab === 'settings' ? 'bg-sand text-ink font-medium' : 'text-soot hover:bg-gray-50'}`}>
+       mainTab === 'settings' ? 'bg-ink text-white font-medium' : 'text-soot hover:bg-gray-100'}`}>
       <span className="flex items-center gap-2"><Glyph icon="⚙️" /> تنظیمات</span>
-      <svg viewBox="0 0 24 24" className={`w-3.5 h-3.5 shrink-0 transition-transform ${mainTab === 'settings' ? '-rotate-90' : ''}`}
+      <svg viewBox="0 0 24 24" className={`w-3.5 h-3.5 shrink-0 transition-transform ${settingsOpen ? '-rotate-90' : ''}`}
        fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
        <path d="M15 6l-6 6 6 6" />
       </svg>
      </button>
-     {mainTab === 'settings' && (
-      <div className="mr-2 pr-2 border-r border-sand space-y-2 my-1">
+     {mainTab === 'settings' && settingsOpen && (
+      <div className="mr-2 pr-2 border-r-2 border-sand space-y-2 my-1">
        {settingsGroups.map(group => (
         <div key={group.title}>
-         <div className="px-3 pt-1 pb-0.5 text-xs font-semibold text-ink/70">{group.title}</div>
+         <div className="px-3 pt-1 pb-0.5 text-xs font-semibold text-ink/60">{group.title}</div>
          <div className="space-y-0.5">
           {group.items.map(item => (
            <button key={item.key} onClick={() => { navigateSettingsSub(item.key); onNavigate?.() }}
             className={`w-full text-right px-3 py-2 rounded-lg text-sm flex items-center gap-2 transition-colors ${
-             settingsSubTab === item.key ? 'bg-sand text-ink font-medium' : 'text-soot hover:bg-gray-50'}`}>
+             settingsSubTab === item.key ? 'bg-gray-200 text-ink font-semibold' : 'text-soot hover:bg-gray-100'}`}>
             <Glyph icon={item.icon} /> {item.label}
            </button>
           ))}
