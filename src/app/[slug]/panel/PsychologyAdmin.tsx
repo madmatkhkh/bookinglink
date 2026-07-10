@@ -459,8 +459,11 @@ export function PsychologyAdmin() {
  // searchParams رو میخوند گاهی مقدار قدیمی/جا‌مانده رو میدید و mainTab رو
  // خودکار برمیگردوند - یعنی کلیک روی تب دیگه گاهی اصلا اثر نمیکرد. کامل به
  // state ساده برگشت داده شد تا ناوبری صددرصد قابل‌اعتماد بمونه.
- type MainTab = 'dashboard' | 'patients' | 'bookings' | 'schedule' | 'settings_hub' | 'finance' | 'growth'
- type SettingsSub = 'profile' | 'payments' | 'pricing' | 'locations' | 'form' | 'patient_panel' | 'staff' | 'account' | 'tickets'
+ // «تنظیمات» دیگر صفحه‌ی دومِ سایدبار نیست — یک تب معمولی مثل بقیه است که
+ // زیرمجموعه‌هایش (صفحه‌ی عمومی + پنل مراجع) همین‌جا زیرش باز می‌شوند.
+ // تیم/حساب/پشتیبانی هم از تنظیمات جدا شدند و تب مستقل خودشان را دارند.
+ type MainTab = 'dashboard' | 'patients' | 'bookings' | 'schedule' | 'settings' | 'finance' | 'growth' | 'staff' | 'account' | 'tickets'
+ type SettingsSub = 'profile' | 'payments' | 'pricing' | 'locations' | 'form' | 'patient_panel'
 
  const [mainTab, setMainTab] = useState<MainTab>('dashboard')
  const [settingsSubTab, setSettingsSubTab] = useState<SettingsSub>('profile')
@@ -471,11 +474,11 @@ export function PsychologyAdmin() {
  // زیرتبی که قبلا باز بود.
  function navigateTab(tab: MainTab) {
   setMainTab(tab)
-  if (tab === 'settings_hub') setSettingsSubTab('profile')
+  if (tab === 'settings') setSettingsSubTab('profile')
  }
 
  function navigateSettingsSub(sub: SettingsSub) {
-  setMainTab('settings_hub')
+  setMainTab('settings')
   setSettingsSubTab(sub)
  }
 
@@ -1390,14 +1393,16 @@ export function PsychologyAdmin() {
  useEffect(() => {
   if (mainTab === 'dashboard') { loadAllSessions(); loadAllStages(); if (!profileLoaded) loadProfile(); loadDashboardFinance(); if (hasWorkingDays === null) checkWorkingDays() }
   if (mainTab === 'schedule') { loadMonthSchedules(schedMonth, schedYear); loadAllSessions(); loadAllStages(); refreshBookings(); if (!profileLoaded) loadProfile() }
-  if (mainTab === 'settings_hub') {
+  if (mainTab === 'settings') {
    if (!settingsLoaded) loadSettings()
    loadProfile()
    loadIntakeForm()
    if (me?.isOwner !== false && !patientFeaturesLoaded) loadPatientFeatures()
+   // staffList برای سوییچر «پروفایل کدام دکتر» بالای تب‌های صفحه‌ی عمومی لازم است
    if (me?.isOwner && !staffLoaded) loadStaff()
-   loadTickets()
   }
+  if (mainTab === 'staff' && me?.isOwner && !staffLoaded) loadStaff()
+  if (mainTab === 'tickets') loadTickets()
   if (mainTab === 'finance') loadFinance()
   if (mainTab === 'growth') { loadWaitlist(); loadReviews(); loadAnalytics(); loadCampaigns() }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1925,6 +1930,9 @@ export function PsychologyAdmin() {
  // هنوز false) اصلا به این خط نمی‌رسید، رندر بعدی (initialLoadDone=true) می‌رسید
  // — یعنی تعداد هوک‌ها بین دو رندر فرق می‌کرد و React همان لحظه کرش می‌کرد
  // («خطای غیرمنتظره» که دقیقا با اضافه‌شدن گیت initialLoadDone افتاد).
+ // این دو گروه، حالا زیر خودِ تب «تنظیمات» در سایدبار اصلی نمایش داده می‌شوند
+ // (نه یک صفحه‌ی جدا). تیم/حساب/پشتیبانی از این‌جا جدا و تب مستقل خودشان‌اند.
+ type SettingsGroup = { title: string; items: { key: typeof settingsSubTab; icon: string; label: string }[] }
  const settingsGroups: SettingsGroup[] = [
   {
    title: 'صفحه‌ی عمومی', items: [
@@ -1940,17 +1948,7 @@ export function PsychologyAdmin() {
     { key: 'patient_panel' as const, icon: '⚙️', label: 'ماژول‌ها و سیاست‌ها' },
    ],
   }] : []),
-  ...(me?.isOwner ? [{
-   title: 'تیم', items: [
-    { key: 'staff' as const, icon: '👥', label: 'درمانگرها' },
-   ],
-  }] : []),
-  { title: 'حساب', items: [{ key: 'account', icon: '🪪', label: 'مشخصات حساب' }] },
-  { title: 'پشتیبانی', items: [{ key: 'tickets', icon: '🎫', label: 'تیکت' }] },
  ]
-
- // آکاردئون: فقط یک گروه هم‌زمان باز — پیش‌فرض همان گروهی که زیرتب فعلی داخلش است
- const [openGroup, setOpenGroup] = useState(() => settingsGroups.find(g => g.items.some(i => i.key === settingsSubTab))?.title || settingsGroups[0].title)
 
  // مودال‌های سفارشی هم مثل uiAlert/uiConfirm با دکمه‌ی برگشت هماهنگ می‌شوند —
  // اول برگشت فقط مودال را می‌بندد، نه صفحه‌ی زیرین را.
@@ -1990,72 +1988,79 @@ export function PsychologyAdmin() {
   { key: 'growth' as const, icon: '👥', label: 'رشد و مراجعان', badge: waitlistCount },
  ]
 
+ // این‌ها قبلا زیر «تنظیمات» صفحه‌ی دوم بودند ولی خودشان واقعا تنظیمات نیستند —
+ // حالا هم‌سطح بقیه‌ی تب‌های اصلی‌اند، بعد از خودِ تب «تنظیمات».
+ const bottomNavItems = [
+  ...(me?.isOwner ? [{ key: 'staff' as const, icon: '🩺', label: 'درمانگرها', badge: 0 }] : []),
+  { key: 'account' as const, icon: '🪪', label: 'حساب', badge: 0 },
+  { key: 'tickets' as const, icon: '🎫', label: 'پشتیبانی', badge: 0 },
+ ]
+
+ function NavItemButton({ item, onNavigate }: { item: { key: MainTab; icon: string; label: string; badge: number }; onNavigate?: () => void }) {
+  return (
+   <button onClick={() => { navigateTab(item.key); onNavigate?.() }}
+    className={`w-full text-right px-3 py-2.5 rounded-lg text-sm flex items-center justify-between gap-2 transition-colors ${
+     mainTab === item.key ? 'bg-sand text-ink font-medium' : 'text-soot hover:bg-gray-50'}`}>
+    <span className="flex items-center gap-2"><Glyph icon={item.icon} /> {item.label}</span>
+    {item.badge > 0 && (
+     <span className="w-5 h-5 shrink-0 bg-amber-100 text-amber-800 text-[11px] rounded-full flex items-center justify-center font-bold leading-none">
+      {toFarsiNum(item.badge)}
+     </span>
+    )}
+   </button>
+  )
+ }
+
+ // سایدبار حالا فقط یک «صفحه» است — قبلا کلیک روی «تنظیمات» کل سایدبار را عوض
+ // می‌کرد و به یک صفحه‌ی دوم می‌رفت؛ حالا «تنظیمات» فقط یک تب دیگر مثل بقیه است
+ // که با کلیک، زیرمجموعه‌هایش (صفحه‌ی عمومی + پنل مراجع) همین زیرش باز می‌شود.
  function NavList({ onNavigate }: { onNavigate?: () => void }) {
   return (
    <nav className="flex-1 p-2 space-y-0.5 overflow-y-auto">
-    {navItems.map(item => (
-     <button key={item.key} onClick={() => { navigateTab(item.key); onNavigate?.() }}
+    {navItems.map(item => <NavItemButton key={item.key} item={item} onNavigate={onNavigate} />)}
+
+    <div>
+     <button onClick={() => { navigateTab('settings'); onNavigate?.() }}
       className={`w-full text-right px-3 py-2.5 rounded-lg text-sm flex items-center justify-between gap-2 transition-colors ${
-       mainTab === item.key ? 'bg-sand text-ink font-medium' : 'text-soot hover:bg-gray-50'}`}>
-      <span className="flex items-center gap-2"><Glyph icon={item.icon} /> {item.label}</span>
-      {item.badge > 0 && (
-       <span className="w-5 h-5 shrink-0 bg-amber-100 text-amber-800 text-[11px] rounded-full flex items-center justify-center font-bold leading-none">
-        {toFarsiNum(item.badge)}
-       </span>
-      )}
+       mainTab === 'settings' ? 'bg-sand text-ink font-medium' : 'text-soot hover:bg-gray-50'}`}>
+      <span className="flex items-center gap-2"><Glyph icon="⚙️" /> تنظیمات</span>
+      <svg viewBox="0 0 24 24" className={`w-3.5 h-3.5 shrink-0 transition-transform ${mainTab === 'settings' ? '-rotate-90' : ''}`}
+       fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+       <path d="M15 6l-6 6 6 6" />
+      </svg>
      </button>
-    ))}
-   </nav>
-  )
- }
-
- // ─── ناوبری حالت «تنظیمات» — به سبک Cal.com: گروه‌بندی‌شده، با بازگشت صریح به پنل اصلی ───
- type SettingsGroup = { title: string; items: { key: typeof settingsSubTab; icon: string; label: string }[] }
- function SettingsNavList({ onNavigate }: { onNavigate?: () => void }) {
-  return (
-   <nav className="flex-1 p-2 space-y-1 overflow-y-auto">
-    {settingsGroups.map(group => {
-     const isOpen = openGroup === group.title
-     return (
-      <div key={group.title}>
-       <button onClick={() => setOpenGroup(isOpen ? '' : group.title)}
-        className="w-full flex items-center justify-between px-3 py-2 text-sm font-semibold text-ink/70 hover:text-ink">
-        <span>{group.title}</span>
-        <svg viewBox="0 0 24 24" className={`w-3.5 h-3.5 shrink-0 transition-transform ${isOpen ? '-rotate-90' : ''}`}
-         fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-         <path d="M15 6l-6 6 6 6" />
-        </svg>
-       </button>
-       {isOpen && (
-        <div className="space-y-0.5 mb-1">
-         {group.items.map(item => (
-          <button key={item.key} onClick={() => { navigateSettingsSub(item.key); onNavigate?.() }}
-           className={`w-full text-right px-3 py-2.5 rounded-lg text-sm flex items-center gap-2 transition-colors ${
-            settingsSubTab === item.key ? 'bg-sand text-ink font-medium' : 'text-soot hover:bg-gray-50'}`}>
-           <Glyph icon={item.icon} /> {item.label}
-          </button>
-         ))}
+     {mainTab === 'settings' && (
+      <div className="mr-2 pr-2 border-r border-sand space-y-2 my-1">
+       {settingsGroups.map(group => (
+        <div key={group.title}>
+         <div className="px-3 pt-1 pb-0.5 text-xs font-semibold text-ink/70">{group.title}</div>
+         <div className="space-y-0.5">
+          {group.items.map(item => (
+           <button key={item.key} onClick={() => { navigateSettingsSub(item.key); onNavigate?.() }}
+            className={`w-full text-right px-3 py-2 rounded-lg text-sm flex items-center gap-2 transition-colors ${
+             settingsSubTab === item.key ? 'bg-sand text-ink font-medium' : 'text-soot hover:bg-gray-50'}`}>
+            <Glyph icon={item.icon} /> {item.label}
+           </button>
+          ))}
+         </div>
         </div>
-       )}
+       ))}
       </div>
-     )
-    })}
+     )}
+    </div>
+
+    {bottomNavItems.map(item => <NavItemButton key={item.key} item={item} onNavigate={onNavigate} />)}
    </nav>
   )
  }
 
- // هدر سایدبار (هردو حالت) — نام دکتر/کلینیک؛ در حالت تنظیمات یک ردیف «← بازگشت» هم دارد
+ // هدر سایدبار — نام دکتر/کلینیک (دیگر صفحه‌ی دومی نیست که بخواهد از این‌جا برگردد)
  function SidebarHeader() {
   return (
    <div className="p-4 border-b border-sand">
-    {mainTab === 'settings_hub' ? (
-     <button onClick={() => navigateTab('patients')} className="text-xs text-soot hover:text-ink flex items-center gap-1 mb-2">
-      ← بازگشت به پنل
-     </button>
-    ) : null}
     <div className="flex items-center justify-between gap-2">
      <div className="min-w-0">
-      <div className="text-sm font-display font-semibold text-ink">{mainTab === 'settings_hub' ? 'تنظیمات' : 'پنل مدیریت'}</div>
+      <div className="text-sm font-display font-semibold text-ink">پنل مدیریت</div>
       <div className="text-xs text-soot truncate mt-0.5">
        {profile.name || me?.resourceName || 'دکتر'}{profile.title ? ` — ${profile.title}` : ''}
        {me && !me.isOwner && <span className="text-soot"> (درمانگر)</span>}
@@ -2073,6 +2078,21 @@ export function PsychologyAdmin() {
   )
  }
 
+ // سوییچ حالت تیره — دقیقا جای دکمه‌ی قدیمی «⚙️ تنظیمات» که به صفحه‌ی دوم
+ // می‌رفت؛ حالا که تنظیمات خودش یک تب معمولی در همین سایدبار است، این‌جا فقط
+ // سوییچ دارک‌مود ماند.
+ function DarkModeSwitch() {
+  return (
+   <div className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs text-soot">
+    <span className="flex items-center gap-2">🌙 حالت تیره</span>
+    <button type="button" role="switch" aria-checked={darkMode} onClick={() => toggleDark(!darkMode)}
+     className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors shrink-0 ${darkMode ? 'bg-ink' : 'bg-gray-300'}`}>
+     <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${darkMode ? 'translate-x-4' : 'translate-x-0.5'}`} />
+    </button>
+   </div>
+  )
+ }
+
  return (
   <div className={`min-h-screen bg-gray-50 sm:pr-56 ${darkMode ? 'pb-admin-dark' : ''}`} dir="rtl">
    <DialogHost />
@@ -2080,20 +2100,16 @@ export function PsychologyAdmin() {
    {/* ── سایدبار (دسکتاپ) ───────────────────────────────────────────── */}
    <aside className="hidden sm:flex sm:flex-col fixed top-0 right-0 h-full w-56 bg-white border-l border-sand z-20">
     <SidebarHeader />
-    {mainTab === 'settings_hub' ? <SettingsNavList /> : <NavList />}
+    <NavList />
     <div className="p-2 border-t border-sand space-y-1">
-     {mainTab !== 'settings_hub' && (
-      <button onClick={() => navigateTab('settings_hub')} className="w-full text-right text-xs px-3 py-2 rounded-lg text-soot hover:bg-gray-50 flex items-center gap-2">
-       ⚙️ تنظیمات
-      </button>
-     )}
+     <DarkModeSwitch />
     </div>
    </aside>
 
    {/* ── نوار بالا (موبایل) ────────────────────────────────────────── */}
    <div className="sm:hidden bg-white border-b border-sand sticky top-0 z-20 px-3 py-3 flex items-center justify-between">
     <button onClick={() => setSidebarOpen(true)} className="text-xl text-soot w-8 h-8 flex items-center justify-center">☰</button>
-    <div className="text-sm font-display font-semibold text-ink">{mainTab === 'settings_hub' ? 'تنظیمات' : 'پنل مدیریت'}</div>
+    <div className="text-sm font-display font-semibold text-ink">پنل مدیریت</div>
     <div className="w-8" />
    </div>
 
@@ -2106,13 +2122,9 @@ export function PsychologyAdmin() {
        <div className="flex-1"><SidebarHeader /></div>
        <button onClick={() => setSidebarOpen(false)} className="text-soot text-xl w-8 h-8 shrink-0 ml-2">✕</button>
       </div>
-      {mainTab === 'settings_hub' ? <SettingsNavList onNavigate={() => setSidebarOpen(false)} /> : <NavList onNavigate={() => setSidebarOpen(false)} />}
+      <NavList onNavigate={() => setSidebarOpen(false)} />
       <div className="p-2 border-t border-sand space-y-1">
-       {mainTab !== 'settings_hub' && (
-        <button onClick={() => { navigateTab('settings_hub'); setSidebarOpen(false) }} className="w-full text-right text-xs px-3 py-2 rounded-lg text-soot hover:bg-gray-50 flex items-center gap-2">
-         ⚙️ تنظیمات
-        </button>
-       )}
+       <DarkModeSwitch />
       </div>
      </aside>
     </>
@@ -2222,7 +2234,7 @@ export function PsychologyAdmin() {
          </button>
         )}
         {missingSheba && (
-         <button onClick={() => { navigateSettingsSub('payments'); setOpenGroup('صفحه‌ی عمومی') }}
+         <button onClick={() => navigateSettingsSub('payments')}
           className="w-full flex items-center justify-between bg-sky-50 border border-sky-200 rounded-2xl px-4 py-3 text-right hover:bg-sky-100 transition-colors">
           <span className="text-sm text-sky-800">برای دریافت خودکار سهمتان از پرداخت آنلاین، شماره‌شبا ثبت نکرده‌اید</span>
           <span className="text-sky-700 text-xs">تنظیم ←</span>
@@ -3689,7 +3701,7 @@ export function PsychologyAdmin() {
     {/* ════════════════════════════════════════════════════════════════
       TAB: SETTINGS
     ════════════════════════════════════════════════════════════════ */}
-    {mainTab === 'settings_hub' && (
+    {mainTab === 'settings' && (
      <div className="space-y-4 pb-24">
       {!settingsLoaded || !profileLoaded ? (
        <div className="text-center py-16 text-soot">در حال بارگذاری تنظیمات...</div>
@@ -4547,7 +4559,7 @@ export function PsychologyAdmin() {
    {/* ════════════════════════════════════════════════════════════════
      TAB: STAFF (کارمندها) — فقط owner می‌بیند
    ════════════════════════════════════════════════════════════════ */}
-   {mainTab === 'settings_hub' && settingsSubTab === 'staff' && me?.isOwner && (
+   {mainTab === 'staff' && me?.isOwner && (
     <div className="max-w-lg mx-auto pb-24">
      <div className="bg-white rounded-2xl border border-sand p-5 mb-4">
       <h2 className="text-sm font-display font-bold text-ink mb-1">درمانگرها</h2>
@@ -4633,7 +4645,7 @@ export function PsychologyAdmin() {
    {/* ════════════════════════════════════════════════════════════════
      TAB: PATIENT PANEL SETTINGS (ماژول‌هایی که مراجع می‌بیند)
    ════════════════════════════════════════════════════════════════ */}
-   {mainTab === 'settings_hub' && settingsSubTab === 'patient_panel' && (
+   {mainTab === 'settings' && settingsSubTab === 'patient_panel' && (
     <div className="max-w-3xl mx-auto">
      <div className="grid sm:grid-cols-2 gap-4">
       <div className="bg-white rounded-2xl border border-sand p-5">
@@ -4756,7 +4768,7 @@ export function PsychologyAdmin() {
    {/* ════════════════════════════════════════════════════════════════
      TAB: ACCOUNT (پلن + ظاهر) — زیر تنظیمات، برای همه (owner و درمانگر)
    ════════════════════════════════════════════════════════════════ */}
-   {mainTab === 'settings_hub' && settingsSubTab === 'account' && (
+   {mainTab === 'account' && (
     <div className="max-w-lg mx-auto space-y-4 pb-24">
      <section className="bg-white rounded-2xl border border-sand p-5">
       <h2 className="text-sm font-display font-bold text-ink mb-1">مشخصات حساب</h2>
@@ -4850,7 +4862,7 @@ export function PsychologyAdmin() {
    {/* ════════════════════════════════════════════════════════════════
      TAB: SUPPORT TICKETS (تیکت پشتیبانی)
    ════════════════════════════════════════════════════════════════ */}
-   {mainTab === 'settings_hub' && settingsSubTab === 'tickets' && (
+   {mainTab === 'tickets' && (
     <div className="max-w-lg mx-auto space-y-4 pb-24">
      <section className="bg-white rounded-2xl border border-sand p-5">
       <h2 className="text-sm font-display font-bold text-ink mb-1">ثبت تیکت تازه</h2>
