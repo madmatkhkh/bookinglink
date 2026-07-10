@@ -38,62 +38,71 @@ body { @apply bg-paper text-ink; }
    دست‌نخورده می‌ماند چون بر پایه‌ی opacity (bg-{رنگ}-500/10) ساخته شده‌اند و
    خودشان روی زمینه‌ی تیره هم درست دیده می‌شوند؛ فقط متنشان کمی روشن‌تر می‌شود
    تا کنتراست کافی داشته باشد.
+
+   🩹 فیدبک: زمینه‌ی اصلی (#0a0a0a، تقریبا مشکی خالص) روی سطح‌های بزرگ (مثل
+   فضای خالی زیر کارت‌ها) چشم را اذیت می‌کرد، و فاصله‌اش تا رنگ کارت‌ها
+   (bg-white) خیلی کم بود — کارت از پس‌زمینه به‌سختی جدا دیده می‌شد. کل پالت
+   یک پله روشن‌تر شد (مشکی خالص حذف شد) و فاصله‌ی بین لایه‌ها (زمینه/کارت/بوردر)
+   بازتر شد تا واضح از هم جدا باشند.
    ══════════════════════════════════════════════════════════════════════════ */
-.pb-admin-dark { background: #0a0a0a !important; color: #fafafa; }
+.pb-admin-dark { background: #121212 !important; color: #f5f5f5; }
 
 /* زمینه‌ها: سفید → مشکی، خاکستری روشن → خاکستری تیره (همان نسبت، معکوس) */
-.pb-admin-dark .bg-white { background: #171717 !important; }
-.pb-admin-dark .bg-white\/60 { background: rgba(23,23,23,.6) !important; }
-.pb-admin-dark .bg-white\/70 { background: rgba(23,23,23,.7) !important; }
-.pb-admin-dark .bg-white\/95 { background: rgba(23,23,23,.95) !important; }
-.pb-admin-dark .hover\:bg-white:hover { background: #1f1f1f !important; }
-.pb-admin-dark .bg-gray-50 { background: #0a0a0a !important; }
+.pb-admin-dark .bg-white { background: #1e1e1e !important; }
+.pb-admin-dark .bg-white\/60 { background: rgba(30,30,30,.6) !important; }
+.pb-admin-dark .bg-white\/70 { background: rgba(30,30,30,.7) !important; }
+.pb-admin-dark .bg-white\/95 { background: rgba(30,30,30,.95) !important; }
+.pb-admin-dark .hover\:bg-white:hover { background: #262626 !important; }
+.pb-admin-dark .bg-gray-50 { background: #121212 !important; }
 .pb-admin-dark .bg-gray-50\/50 { background: rgba(255,255,255,.03) !important; }
-.pb-admin-dark .hover\:bg-gray-50:hover { background: #1a1a1a !important; }
-.pb-admin-dark .bg-gray-100 { background: #1f1f1f !important; }
-.pb-admin-dark .hover\:bg-gray-100:hover { background: #262626 !important; }
-.pb-admin-dark .bg-gray-200 { background: #292929 !important; }
-.pb-admin-dark .bg-gray-200\/70 { background: rgba(41,41,41,.7) !important; }
-.pb-admin-dark .hover\:bg-gray-200:hover { background: #333333 !important; }
-.pb-admin-dark .bg-sand { background: #262626 !important; }
-.pb-admin-dark .hover\:bg-sand:hover { background: #333333 !important; }
+.pb-admin-dark .hover\:bg-gray-50:hover { background: #1c1c1c !important; }
+.pb-admin-dark .bg-gray-100 { background: #242424 !important; }
+.pb-admin-dark .hover\:bg-gray-100:hover { background: #2c2c2c !important; }
+.pb-admin-dark .bg-gray-200 { background: #303030 !important; }
+.pb-admin-dark .bg-gray-200\/70 { background: rgba(48,48,48,.7) !important; }
+.pb-admin-dark .hover\:bg-gray-200:hover { background: #3a3a3a !important; }
+.pb-admin-dark .bg-sand { background: #2c2c2c !important; }
+.pb-admin-dark .hover\:bg-sand:hover { background: #3a3a3a !important; }
 .pb-admin-dark .bg-black\/50 { background: rgba(0,0,0,.7) !important; }
 
-/* متن: مشکی → سفید، خاکستری تیره → خاکستری روشن (همان نسبت، معکوس) */
+/* متن: مشکی → سفید، خاکستری تیره → خاکستری روشن (همان نسبت، معکوس) — سفید
+   خالص هم عمدا حذف شد (#f5f5f5 به‌جای #fafafa)، چون سفید مطلق روی زمینه‌ی
+   تیره‌ی بزرگ هم چشم را می‌زند */
 .pb-admin-dark .text-ink,
-.pb-admin-dark .text-gray-900 { color: #fafafa !important; }
-.pb-admin-dark .text-gray-800 { color: #f0f0f0 !important; }
-.pb-admin-dark .text-gray-700 { color: #e0e0e0 !important; }
+.pb-admin-dark .text-gray-900 { color: #f5f5f5 !important; }
+.pb-admin-dark .text-gray-800 { color: #ececec !important; }
+.pb-admin-dark .text-gray-700 { color: #d8d8d8 !important; }
 .pb-admin-dark .text-soot,
 .pb-admin-dark .text-gray-600 { color: #a3a3a3 !important; }
 .pb-admin-dark .text-gray-500 { color: #8a8a8a !important; }
 .pb-admin-dark .text-gray-400 { color: #6b6b6b !important; }
 .pb-admin-dark .text-gray-300 { color: #4a4a4a !important; }
 .pb-admin-dark .hover\:text-ink:hover,
-.pb-admin-dark .hover\:text-gray-800:hover { color: #fafafa !important; }
+.pb-admin-dark .hover\:text-gray-800:hover { color: #f5f5f5 !important; }
 .pb-admin-dark .hover\:text-gray-600:hover { color: #a3a3a3 !important; }
 
-/* حاشیه‌ها: خاکستری خیلی روشن → خاکستری خیلی تیره (همان نسبت، معکوس) */
+/* حاشیه‌ها: خاکستری خیلی روشن → خاکستری خیلی تیره (همان نسبت، معکوس) —
+   پررنگ‌تر از قبل تا لبه‌ی کارت‌ها هم واضح‌تر از زمینه جدا شود */
 .pb-admin-dark .border-sand,
 .pb-admin-dark .border-gray-50,
-.pb-admin-dark .border-gray-100 { border-color: #262626 !important; }
-.pb-admin-dark .border-gray-200 { border-color: #333333 !important; }
-.pb-admin-dark .border-gray-300 { border-color: #404040 !important; }
-.pb-admin-dark .border-gray-400 { border-color: #525252 !important; }
-.pb-admin-dark .hover\:border-gray-300:hover { border-color: #404040 !important; }
-.pb-admin-dark .hover\:border-gray-400:hover { border-color: #525252 !important; }
-.pb-admin-dark .ring-gray-300 { --tw-ring-color: #404040 !important; }
+.pb-admin-dark .border-gray-100 { border-color: #363636 !important; }
+.pb-admin-dark .border-gray-200 { border-color: #404040 !important; }
+.pb-admin-dark .border-gray-300 { border-color: #4d4d4d !important; }
+.pb-admin-dark .border-gray-400 { border-color: #5c5c5c !important; }
+.pb-admin-dark .hover\:border-gray-300:hover { border-color: #4d4d4d !important; }
+.pb-admin-dark .hover\:border-gray-400:hover { border-color: #5c5c5c !important; }
+.pb-admin-dark .ring-gray-300 { --tw-ring-color: #4d4d4d !important; }
 
 /* دکمه‌های اصلی (bg-ink / bg-brand-600 با متن سفید) — این‌ها هم سفید⇄مشکی
    معکوس می‌شوند تا روی زمینه‌ی تیره ناپدید نشوند (وگرنه دکمه‌ی مشکی روی
    پس‌زمینه‌ی مشکی دیده نمی‌شد) */
-.pb-admin-dark .bg-ink { background: #fafafa !important; color: #0a0a0a !important; }
+.pb-admin-dark .bg-ink { background: #f5f5f5 !important; color: #121212 !important; }
 .pb-admin-dark .hover\:bg-ink\/90:hover,
-.pb-admin-dark .hover\:bg-ink:hover { background: #e0e0e0 !important; }
-.pb-admin-dark .bg-brand-600 { background: #fafafa !important; color: #0a0a0a !important; }
+.pb-admin-dark .hover\:bg-ink:hover { background: #dcdcdc !important; }
+.pb-admin-dark .bg-brand-600 { background: #f5f5f5 !important; color: #121212 !important; }
 .pb-admin-dark .hover\:bg-brand-700:hover,
-.pb-admin-dark .hover\:bg-brand-800:hover { background: #e0e0e0 !important; }
-.pb-admin-dark .ring-ink { --tw-ring-color: #fafafa !important; }
+.pb-admin-dark .hover\:bg-brand-800:hover { background: #dcdcdc !important; }
+.pb-admin-dark .ring-ink { --tw-ring-color: #f5f5f5 !important; }
 
 /* بج وضعیت‌ها (سبز/کهربایی/قرمز/آبی/بنفش) — پس‌زمینه/بوردر opacity-محور
    دست‌نخورده می‌ماند (خودش روی تیره درست دیده می‌شود)؛ فقط متن یک پله
