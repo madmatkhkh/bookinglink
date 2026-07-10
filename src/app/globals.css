@@ -99,7 +99,7 @@ body { @apply bg-paper text-ink; }
    دست‌نخورده می‌ماند (خودش روی تیره درست دیده می‌شود)؛ فقط متن یک پله
    روشن‌تر می‌شود تا کنتراست کافی روی زمینه‌ی مشکی داشته باشد */
 .pb-admin-dark .text-emerald-600, .pb-admin-dark .text-emerald-700 { color: #34d399 !important; }
-.pb-admin-dark .text-amber-600, .pb-admin-dark .text-amber-700 { color: #fbbf24 !important; }
+.pb-admin-dark .text-amber-600, .pb-admin-dark .text-amber-700, .pb-admin-dark .text-amber-800 { color: #fbbf24 !important; }
 .pb-admin-dark .text-red-600, .pb-admin-dark .text-red-700 { color: #f87171 !important; }
 .pb-admin-dark .text-sky-600 { color: #38bdf8 !important; }
 .pb-admin-dark .text-violet-600 { color: #a78bfa !important; }

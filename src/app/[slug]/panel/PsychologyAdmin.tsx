@@ -1489,6 +1489,13 @@ export function PsychologyAdmin() {
  const isIntakeDirty = intakeLoaded && JSON.stringify(intakeForm) !== intakeSnapshot
  const isSettingsTabDirty = isSettingsDirty || isProfileDirty || isIntakeDirty
 
+ // انصراف — برگرداندن فرم‌ها به آخرین نسخه‌ی ذخیره‌شده (snapshot)، بدون فراخوانی سرور
+ function cancelSettingsChanges() {
+  try { if (settingsSnapshot) setSettings(JSON.parse(settingsSnapshot)) } catch {}
+  try { if (profileSnapshot) setProfile(JSON.parse(profileSnapshot)) } catch {}
+  try { if (intakeSnapshot) setIntakeForm(JSON.parse(intakeSnapshot)) } catch {}
+ }
+
  async function loadSettings() {
   try {
    const res = await fetch(api('/settings'), { cache: 'no-store' })
@@ -2659,19 +2666,20 @@ export function PsychologyAdmin() {
              است که پنل مراجع را از «منتظر تعیین مرحله‌ی بعد» بیرون می‌آورد؛
              با فرم «ثبت جلسه‌ی تکی» زیر همین تب اشتباه گرفته نشود — آن یک
              جلسه‌ی مستقل می‌سازد که پرونده را وارد چرخه‌ی پرداخت/رزرو مراجع
-             نمی‌کند. */}
+             نمی‌کند. رنگ کهربایی و پرکننده‌ی عمدا پررنگ‌تر از دکمه‌ی زیرش است
+             تا این دو با هم اشتباه گرفته نشوند (فیدبک: این اشتباه واقعا رخ داد). */}
           {!selectedPatient?.current_stage_id && (
            <button onClick={() => setShowNewStage(true)}
-            className="w-full py-3 border-2 border-dashed border-ink/30 rounded-xl text-sm text-ink hover:bg-sand mb-4 transition-all font-medium">
-            + افزودن مرحله‌ی مصاحبه/ارزیابی دیگر (پرونده را وارد چرخه‌ی پرداخت می‌کند)
+            className="w-full py-3 bg-amber-500/10 border-2 border-amber-500/40 rounded-xl text-sm text-amber-800 hover:bg-amber-500/15 mb-4 transition-all font-semibold">
+            + افزودن مرحله‌ی مصاحبه/ارزیابی دیگر <span className="font-normal">— این یکی پنل مراجع را برای مراجع باز می‌کند</span>
            </button>
           )}
 
           <div className="text-xs text-soot mb-2 px-1">
-           جلسه‌های تکی دلخواه (جدا از پروتکل درمان — تاریخچه/یادداشت؛ برای بازکردن مرحله‌ی پیش‌ازدرمان مراجع از دکمه‌ی بالا استفاده کنید)
+           جلسه‌های تکی دلخواه (جدا از پروتکل درمان — تاریخچه/یادداشت؛ این‌ها در پنل مراجع نمایش داده نمی‌شوند مگر پرونده از قبل وارد فاز درمان شده باشد)
           </div>
           <button onClick={() => setShowNewSession(true)}
-           className="w-full py-3 border-2 border-dashed border-sand rounded-xl text-sm text-ink hover:bg-sand mb-4 transition-all">
+           className="w-full py-3 border-2 border-dashed border-sand rounded-xl text-sm text-soot hover:bg-gray-50 mb-4 transition-all">
            + ثبت جلسه‌ی تکی جدید
           </button>
           <div className="space-y-2">
@@ -4307,6 +4315,13 @@ export function PsychologyAdmin() {
         <div className="fixed bottom-0 inset-x-0 z-30 bg-white/95 border-t border-sand backdrop-blur">
          <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-end gap-3">
           {(settingsSaved || profileSaved || intakeSaved) && <span className="text-xs text-emerald-600 font-medium">✓ تنظیمات ذخیره شد</span>}
+          {isSettingsTabDirty && (
+           <button onClick={cancelSettingsChanges}
+            disabled={settingsSaving || profileSaving || intakeSaving}
+            className="px-6 py-2.5 border border-sand text-soot rounded-xl text-sm font-medium disabled:opacity-40 hover:bg-gray-100 transition-colors">
+            انصراف
+           </button>
+          )}
           <button onClick={async () => {
             if (me?.isOwner) await Promise.all([saveSettings(), saveProfile(), saveIntakeForm()])
             else await Promise.all([saveProfile(), saveIntakeForm()])
@@ -4480,6 +4495,19 @@ export function PsychologyAdmin() {
        </div>
        {newSess.title === 'دلخواه' && (
         <Field label="عنوان دلخواه" value={newSess.customTitle} onChange={v => setNewSess({ ...newSess, customTitle: v })} placeholder="مثلا: جلسه‌ی مشاوره‌ی خانواده" />
+       )}
+
+       {/* هشدار — این جلسه‌ی مستقل با «مرحله‌ی پیش‌ازدرمان» فرق دارد و اگر
+          پرونده هنوز نه مرحله‌ی باز دارد نه پروتکلی، این جلسه اصلا در پنل
+          مراجع دیده نمی‌شود (تا وقتی پرونده وارد فاز درمان شود). دقیقا همان
+          سردرگمی‌ای که باعث این هشدار شد: انتخاب «ارزیابی»/«مصاحبه» این‌جا با
+          دکمه‌ی جدای «افزودن مرحله‌ی مصاحبه/ارزیابی دیگر» بالای همین تب اشتباه
+          گرفته می‌شود. */}
+       {!selectedPatient?.current_stage_id && packages.length === 0 && (
+        <div className="text-xs text-amber-700 bg-amber-500/10 border border-amber-500/20 rounded-lg p-2.5 leading-relaxed">
+         ⚠️ این پرونده هنوز نه مرحله‌ی بازی دارد نه پروتکل درمانی — یعنی این جلسه‌ی مستقل، <strong>در پنل مراجع اصلا نمایش داده نمی‌شود</strong> تا وقتی پرونده وارد فاز درمان شود.
+         اگر منظورتان باز‌کردن «{newSess.title === 'دلخواه' ? 'مرحله' : newSess.title}» برای مراجع (پرداخت + نوبت‌گیری آنلاین) است، این پنجره را ببندید و از دکمه‌ی «+ افزودن مرحله‌ی مصاحبه/ارزیابی دیگر» بالای همین تب استفاده کنید.
+        </div>
        )}
 
        <p className="text-xs text-soot bg-sand border border-sand rounded-lg p-2.5">
