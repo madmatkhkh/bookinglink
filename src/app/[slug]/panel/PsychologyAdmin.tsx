@@ -549,6 +549,12 @@ export function PsychologyAdmin() {
 
  // ── Loading ────────────────────────────────────────────────────
  const [loading, setLoading] = useState(true)
+ // جدا از loading (که هر بار سوییچِ منبع/رفرش دوباره true می‌شود): این فقط یک‌بار
+ // بعدِ اولین لودِ موفق true می‌شود و دیگر false نمی‌شود — برایِ گیتِ صفحه‌ی
+ // اولیه، تا پنل با دیتایِ خالی/پیش‌فرض (۰ تومان، پرونده‌ی صفر) یک لحظه رندر
+ // نشود و بعد یهو با دیتایِ واقعی جایگزین شود («صفحه‌ی قدیمی/خالی، بعد یهو
+ // صفحه‌ی جدید» که گزارش شد).
+ const [initialLoadDone, setInitialLoadDone] = useState(false)
  const [needsLogin, setNeedsLogin] = useState(false)
  // ── تیکتِ پشتیبانی ────────────────────────────────────────────────────────────
  type Ticket = { id: string; category: string; subject: string; message: string; status: string; admin_reply?: string | null; created_at: string }
@@ -752,13 +758,14 @@ export function PsychologyAdmin() {
   setLoading(true)
   const casesUrl = viewingResourceId ? api(`/cases?resource_id=${viewingResourceId}`) : api('/cases')
   const pRes = await fetch(casesUrl, { cache: 'no-store' })
-  if (pRes.status === 401) { setNeedsLogin(true); return }
+  if (pRes.status === 401) { setNeedsLogin(true); setInitialLoadDone(true); return }
   const pData = await pRes.json()
   setPatients(pData.bookings || [])
   setBookings(pData.bookings || [])
   loadPendingPayments()
   loadMe()
   setLoading(false)
+  setInitialLoadDone(true)
  }, [router, viewingResourceId])
 
  // پرداخت‌های منتظرِ تأیید (پروتکل‌های درمان و جلسه‌های جایگزین) در همه‌ی پرونده‌ها
@@ -1863,6 +1870,15 @@ export function PsychologyAdmin() {
 
  if (needsLogin) return <PanelLogin slug={slug} onSuccess={() => { setNeedsLogin(false); fetchAll() }} />
 
+ if (!initialLoadDone) return (
+  <div className="min-h-screen bg-gray-50 flex items-center justify-center" dir="rtl">
+   <div className="text-center">
+    <div className="w-8 h-8 border-2 border-ink/20 border-t-ink rounded-full animate-spin mx-auto mb-3" />
+    <p className="text-sm text-soot">در حال بارگذاریِ پنل...</p>
+   </div>
+  </div>
+ )
+
  const pendingActionCount = pendingStages.length + pendingPkgs.length + pendingSess.length + pendingRefunds.length
 
  // تبِ «تأیید پرداخت‌ها» فقط وقتی به‌دردبخور است که کارت‌به‌کارت واقعاً استفاده می‌شود
@@ -1888,7 +1904,7 @@ export function PsychologyAdmin() {
        mainTab === item.key ? 'bg-sand text-ink font-medium' : 'text-soot hover:bg-gray-50'}`}>
       <span className="flex items-center gap-2"><Glyph icon={item.icon} /> {item.label}</span>
       {item.badge > 0 && (
-       <span className="min-w-5 h-5 px-1.5 bg-amber-400 text-white text-[11px] rounded-full flex items-center justify-center font-medium">
+       <span className="w-5 h-5 shrink-0 bg-amber-100 text-amber-800 text-[11px] rounded-full flex items-center justify-center font-bold leading-none">
         {toFarsiNum(item.badge)}
        </span>
       )}
@@ -1937,7 +1953,10 @@ export function PsychologyAdmin() {
        <button onClick={() => setOpenGroup(isOpen ? '' : group.title)}
         className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold text-ink/70 hover:text-ink">
         <span>{group.title}</span>
-        <span className={`transition-transform ${isOpen ? '-rotate-90' : ''}`}>◂</span>
+        <svg viewBox="0 0 24 24" className={`w-3 h-3 shrink-0 transition-transform ${isOpen ? '-rotate-90' : ''}`}
+         fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+         <path d="M9 6l6 6-6 6" />
+        </svg>
        </button>
        {isOpen && (
         <div className="space-y-0.5 mb-1">
@@ -2855,7 +2874,7 @@ export function PsychologyAdmin() {
               <span className="block text-[10px] mt-0.5 text-emerald-600">{toFarsiNum(totalSlots)} ساعت</span>
              )}
              {booked > 0 && (
-              <span className="absolute top-1 left-1 min-w-4 h-4 px-1 bg-amber-400 text-white text-[10px] rounded-full flex items-center justify-center font-medium">{toFarsiNum(booked)}</span>
+              <span className="absolute top-1 left-1 w-4 h-4 bg-amber-400 text-white text-[10px] rounded-full flex items-center justify-center font-medium leading-none">{toFarsiNum(booked)}</span>
              )}
             </div>
            )
@@ -3848,7 +3867,10 @@ export function PsychologyAdmin() {
                 className="text-soot text-xs shrink-0 cursor-grab active:cursor-grabbing px-0.5">⠿</span>
                <button onClick={() => { setOpenSection(x => x === section.id ? null : section.id); setBuilderSel({ sIdx, fIdx: null }) }}
                 className="flex-1 min-w-0 flex items-center gap-2 text-right">
-                <span className={`text-[9px] text-soot shrink-0 transition-transform ${isOpen ? 'rotate-90' : ''}`}>◂</span>
+                <svg viewBox="0 0 24 24" className={`w-2.5 h-2.5 text-soot shrink-0 transition-transform ${isOpen ? 'rotate-90' : ''}`}
+                 fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                 <path d="M9 6l6 6-6 6" />
+                </svg>
                 <span className="text-xs shrink-0"></span>
                 <span className="flex-1 min-w-0 truncate text-sm font-bold text-ink">{section.title || 'بخشِ بی‌نام'}</span>
                 <span className="text-[10px] text-soot shrink-0 bg-white px-1.5 py-0.5 rounded-full">{section.fields.length}</span>
