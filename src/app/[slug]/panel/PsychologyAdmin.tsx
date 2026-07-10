@@ -1522,6 +1522,19 @@ export function PsychologyAdmin() {
  const isIntakeDirty = intakeLoaded && JSON.stringify(intakeForm) !== intakeSnapshot
  const isSettingsTabDirty = isSettingsDirty || isProfileDirty || isIntakeDirty
 
+ // دکمه‌ی برگشت وقتی تغییر ذخیره‌نشده هست: قبلا این حالت اصلا با تاریخچه
+ // هماهنگ نبود، پس اولین برگشت مستقیم می‌رفت تب قبلی و نوار «ذخیره‌ی
+ // تغییرات» را با خودش (روی صفحه‌ی جدید) می‌کشید یا تغییرات بی‌سروصدا گم
+ // می‌شدند. الان مثل یک مودال رفتار می‌کند: اولین برگشت فقط تغییرات
+ // ذخیره‌نشده را دور می‌ریزد (از روی همان snapshot آخرین ذخیره‌شده) و
+ // همین‌جا می‌ماند؛ برگشت بعدی واقعا به تب قبلی می‌رود.
+ function discardSettingsEdits() {
+  if (settingsSnapshot) setSettings(JSON.parse(settingsSnapshot))
+  if (profileSnapshot) setProfile(JSON.parse(profileSnapshot))
+  if (intakeSnapshot) setIntakeForm(JSON.parse(intakeSnapshot))
+ }
+ useModalBackClose(isSettingsTabDirty, discardSettingsEdits)
+
  async function loadSettings() {
   try {
    const res = await fetch(api('/settings'), { cache: 'no-store' })
@@ -2767,7 +2780,7 @@ export function PsychologyAdmin() {
       {/* ── Modal: افزودن مرحله‌ی پیش‌ازدرمان تازه ─────────────────── */}
       {showNewStage && (
        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-        <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-xl" dir="rtl">
+        <div className="bg-white rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto p-6 shadow-xl" dir="rtl">
          <h2 className="font-display font-semibold text-ink mb-1">افزودن مرحله‌ی پیش‌ازدرمان</h2>
          <p className="text-xs text-soot mb-4">
           مراجع در پنل خودش این مرحله را می‌بیند: اول باید هزینه‌اش را پرداخت کند، بعد وقت بگیرد.
@@ -4147,7 +4160,17 @@ export function PsychologyAdmin() {
                  <button onClick={() => updateFormField(sIdx, fIdx, { hidden: !field.hidden })}
                   title={field.hidden ? 'نمایش دوباره' : 'مخفی‌کردن موقت (بدون حذف)'}
                   className={`w-8 h-8 flex items-center justify-center rounded-lg border ${field.hidden ? 'border-sand bg-gray-100 text-soot' : 'border-sand bg-white text-soot hover:text-soot'}`}>
-                  {field.hidden ? '🚫' : ''}
+                  {field.hidden ? (
+                   <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M3 3l18 18" /><path d="M10.6 5.1A10.6 10.6 0 0 1 12 5c6 0 9.5 5 10.5 7-.4.8-1.3 2.2-2.7 3.5M6.6 6.6C4.4 8 3 10.3 1.5 12c1 2 4.5 7 10.5 7 1.5 0 2.9-.3 4.1-.8" />
+                    <path d="M9.9 10a3 3 0 0 0 4.2 4.2" />
+                   </svg>
+                  ) : (
+                   <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M1.5 12S5 5 12 5s10.5 7 10.5 7-3.5 7-10.5 7S1.5 12 1.5 12z" />
+                    <circle cx="12" cy="12" r="3" />
+                   </svg>
+                  )}
                  </button>
                  <button onClick={() => removeFormField(sIdx, fIdx)}
                   className="text-xs px-2.5 py-1.5 border border-red-500/30 text-red-600 rounded-lg hover:bg-red-500/5">حذف سوال</button>
@@ -4337,7 +4360,7 @@ export function PsychologyAdmin() {
    {/* ── New Package Modal ──────────────────────────────────────────── */}
    {showNewPackage && (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-     <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-xl" dir="rtl">
+     <div className="bg-white rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto p-6 shadow-xl" dir="rtl">
       <h2 className="font-display font-semibold text-ink mb-4">تعریف پروتکل درمانی جدید</h2>
       <div className="space-y-3">
        <div>
@@ -4472,7 +4495,7 @@ export function PsychologyAdmin() {
 
    {showNewSession && (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-     <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-xl" dir="rtl">
+     <div className="bg-white rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto p-6 shadow-xl" dir="rtl">
       <h2 className="font-display font-semibold text-ink mb-4">ثبت جلسه‌ی تکی جدید</h2>
       <div className="space-y-3">
        {/* عنوان جلسه — این جلسه همیشه مستقل از پروتکل درمان است */}

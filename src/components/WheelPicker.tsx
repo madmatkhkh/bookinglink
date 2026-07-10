@@ -95,9 +95,9 @@ export function MonthYearWheel({
   return (
    <div className="flex items-center gap-2" dir="rtl">
     <WheelColumn items={PERSIAN_MONTHS} value={PERSIAN_MONTHS[month - 1]}
-     onChange={name => onChange(PERSIAN_MONTHS.indexOf(name) + 1, year)} />
+     onChange={name => onChange(PERSIAN_MONTHS.indexOf(name) + 1, year)} width="flex-1 min-w-0" />
     <WheelColumn items={years.map(toFarsiNum)} value={toFarsiNum(year)}
-     onChange={y => onChange(month, parseInt(toLatinNum(y)))} />
+     onChange={y => onChange(month, parseInt(toLatinNum(y)))} width="flex-1 min-w-0" />
    </div>
   )
 }
@@ -163,11 +163,11 @@ export function JalaliDateWheel({
        {label && <h3 className="text-sm font-display font-semibold text-ink mb-3 text-center">{label}</h3>}
        <div className="flex items-center gap-1.5">
         <WheelColumn items={dayItems.map(toFarsiNum)} value={toFarsiNum(safeD)}
-         onChange={v => setD(parseInt(toLatinNum(v)))} />
+         onChange={v => setD(parseInt(toLatinNum(v)))} width="flex-1 min-w-0" />
         <WheelColumn items={monthOpts.map(o => o.label)} value={PERSIAN_MONTHS[m - 1]}
-         onChange={label => setM(monthOpts.find(o => o.label === label)!.value)} />
+         onChange={label => setM(monthOpts.find(o => o.label === label)!.value)} width="flex-1 min-w-0" />
         <WheelColumn items={years.map(toFarsiNum)} value={toFarsiNum(y)}
-         onChange={v => setY(parseInt(toLatinNum(v)))} />
+         onChange={v => setY(parseInt(toLatinNum(v)))} width="flex-1 min-w-0" />
        </div>
        <div className="flex gap-2 mt-4">
         <button onClick={() => setOpen(false)} className="flex-1 py-2.5 border border-sand text-soot rounded-xl text-sm">انصراف</button>
