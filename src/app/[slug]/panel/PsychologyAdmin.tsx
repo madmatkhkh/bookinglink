@@ -378,7 +378,7 @@ function PendingPayCard({ name, caseNumber, amount, receipt, sub, children }: {
 // انتخابگر تاریخ جلالی (سال/ماه/روز) برای بازه‌ی گزارش
 function JalaliDateSelect({ value, onChange }: { value: { y: number; m: number; d: number }; onChange: (v: { y: number; m: number; d: number }) => void }) {
  // پوسته‌ی سازگار: بیرون همان {y,m,d} قدیمی را می‌گیرد/می‌دهد، داخلش دیگر از
- // WheelPicker استفاده می‌کند (نه سه‌تا select خامِ قدیمی).
+ // WheelPicker استفاده می‌کند (نه سه‌تا select خام قدیمی).
  const str = `${value.y}/${String(value.m).padStart(2, '0')}/${String(value.d).padStart(2, '0')}`
  return (
   <JalaliDateWheel value={str} onChange={v => {
@@ -677,8 +677,8 @@ export function PsychologyAdmin() {
  const [dragOverSectionIdx, setDragOverSectionIdx] = useState<number | null>(null)
 
  // ── Package / Session forms ────────────────────────────────────
- // پیش‌فرضِ سال/ماه باید همیشه «همین الان» باشد، نه یک تاریخِ ثابتِ کدشده که با
- // گذشتِ زمان قدیمی می‌ماند (باگِ قبلی: 1404/فروردین برای همیشه، حتی در 1405 و بعدش)
+ // پیش‌فرض سال/ماه باید همیشه «همین الان» باشد، نه یک تاریخ ثابت کدشده که با
+ // گذشت زمان قدیمی می‌ماند (باگ قبلی: 1404/فروردین برای همیشه، حتی در 1405 و بعدش)
  const [newPkg, setNewPkg] = useState(() => {
   const t = getCurrentJalali()
   return {
@@ -984,7 +984,7 @@ export function PsychologyAdmin() {
    title, session_date: '', session_time: '',
    session_type: newSess.session_type, attendee: newSess.attendee,
    // همیشه پرداخت‌نشده ثبت می‌شود — طبیعی است که هر جلسه‌ای که دکتر باز می‌کند،
-   // مراجع باید هزینه‌اش را بپردازد؛ دیگر گزینه‌ای برای علامت‌زدنِ «از قبل
+   // مراجع باید هزینه‌اش را بپردازد؛ دیگر گزینه‌ای برای علامت‌زدن «از قبل
    // پرداخت‌شده» در همین لحظه‌ی ساخت وجود ندارد.
    package_id: null, paid: false,
   }
@@ -4254,7 +4254,7 @@ export function PsychologyAdmin() {
       <h2 className="font-display font-semibold text-ink mb-4">تعریف پروتکل درمانی جدید</h2>
       <div className="space-y-3">
        <div>
-        <label className="text-xs text-soot mb-1.5 block text-center">ماه/سالِ شروعِ پروتکل</label>
+        <label className="text-xs text-soot mb-1.5 block text-center">ماه/سال شروع پروتکل</label>
         <MonthYearWheel month={parseInt(newPkg.month)} year={parseInt(newPkg.year)}
          onChange={(m, y) => setNewPkg({ ...newPkg, month: String(m), year: String(y) })} />
        </div>
@@ -4332,7 +4332,7 @@ export function PsychologyAdmin() {
         <div>
          <label className="text-xs text-soot mb-1 block">تاریخ تولد</label>
          <JalaliDateWheel value={newPatientForm.birth_date} onChange={v => setNewPatientForm({ ...newPatientForm, birth_date: v })}
-          label="تاریخِ تولد" />
+          label="تاریخ تولد" />
         </div>
         <div>
          <label className="text-xs text-soot mb-1 block">پایه‌ی تحصیلی (اختیاری)</label>

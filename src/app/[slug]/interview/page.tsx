@@ -418,7 +418,7 @@ function DynamicField({ field, value, onChange, onToggle }: {
  if (field.type === 'date') return (
   <div>
    <label className="text-xs text-soot mb-1 block">{label}</label>
-   <JalaliDateWheel value={value || ''} onChange={onChange} placeholder="انتخابِ تاریخِ تولد" label="تاریخِ تولد" yearsBack={90} />
+   <JalaliDateWheel value={value || ''} onChange={onChange} placeholder="انتخاب تاریخ تولد" label="تاریخ تولد" yearsBack={90} />
   </div>
  )
  if (field.type === 'phone') return (

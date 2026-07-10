@@ -1,20 +1,20 @@
 'use client'
 // ─────────────────────────────────────────────────────────────────────────────
-// انتخاب‌گرِ چرخشی (Wheel Picker) — همون سبکِ کوچیک/مینیمالِ پیکرهایِ بومیِ
-// موبایل (اسکرول‌کن، وسط بایسته). جایگزینِ select/inputِ خامِ قبلی برایِ هر جایی
+// انتخاب‌گر چرخشی (Wheel Picker) — همون سبک کوچیک/مینیمال پیکرهای بومی
+// موبایل (اسکرول‌کن، وسط بایسته). جایگزین select/input خام قبلی برای هر جایی
 // که تاریخ می‌گیریم.
 //
-// WheelColumn: یک ستونِ اسکرول‌پذیر با اسنپ — پایه‌ی همه‌چیز.
-// MonthYearWheel: دو ستون (ماه + سال) — برایِ جاهایی که فقط ماه/سال لازم است
-//   (مثلِ تعریفِ پروتکلِ درمان).
-// JalaliDateWheel: سه ستون (روز، ماه، سال) — برایِ تاریخِ کاملِ تولد و مشابه،
-//   به‌صورتِ modal با دکمه‌ی «تأیید»/«انصراف» (دقیقاً الگویِ پیکرِ اندروید).
+// WheelColumn: یک ستون اسکرول‌پذیر با اسنپ — پایه‌ی همه‌چیز.
+// MonthYearWheel: دو ستون (ماه + سال) — برای جاهایی که فقط ماه/سال لازم است
+//   (مثل تعریف پروتکل درمان).
+// JalaliDateWheel: سه ستون (روز، ماه، سال) — برای تاریخ کامل تولد و مشابه،
+//   به‌صورت modal با دکمه‌ی «تأیید»/«انصراف» (دقیقا الگوی پیکر اندروید).
 // ─────────────────────────────────────────────────────────────────────────────
 import { useEffect, useRef, useState } from 'react'
 import { PERSIAN_MONTHS, toFarsiNum, toLatinNum, getCurrentJalali, getDaysInJalaliMonth } from '@/lib/calendar'
 
 const ITEM_H = 36
-const VISIBLE_PAD = 2 // تعداد ردیفِ خالیِ بالا/پایین تا اولین/آخرین آیتم هم بتواند وسط بایستد
+const VISIBLE_PAD = 2 // تعداد ردیف خالی بالا/پایین تا اولین/آخرین آیتم هم بتواند وسط بایستد
 
 export function WheelColumn<T extends string | number>({
   items, value, onChange, width = 'w-full',
@@ -26,7 +26,7 @@ export function WheelColumn<T extends string | number>({
   const programmatic = useRef(false)
   const idx = Math.max(0, items.indexOf(value))
 
-  // وقتی value از بیرون عوض شد (نه از اسکرولِ خودِ کاربر)، بدون انیمیشن بپر رویِ جایگاهِ درست
+  // وقتی value از بیرون عوض شد (نه از اسکرول خود کاربر)، بدون انیمیشن بپر روی جایگاه درست
   useEffect(() => {
     if (!ref.current) return
     const target = idx * ITEM_H
@@ -79,7 +79,7 @@ export function WheelColumn<T extends string | number>({
   )
 }
 
-// ── ماه + سال (بدون روز) — برایِ پروتکلِ درمان و مشابه ──────────────────────
+// ── ماه + سال (بدون روز) — برای پروتکل درمان و مشابه ──────────────────────
 export function MonthYearWheel({
   month, year, onChange, yearsBack = 3, yearsForward = 1,
 }: {
@@ -88,11 +88,10 @@ export function MonthYearWheel({
 }) {
   const cur = getCurrentJalali()
   const years = Array.from({ length: yearsBack + yearsForward + 1 }, (_, i) => cur.year - yearsBack + i)
-  const monthItems = PERSIAN_MONTHS.map((_, i) => i + 1)
   return (
    <div className="flex items-center gap-2" dir="rtl">
-    <WheelColumn items={monthItems} value={month}
-     onChange={m => onChange(m, year)} />
+    <WheelColumn items={PERSIAN_MONTHS} value={PERSIAN_MONTHS[month - 1]}
+     onChange={name => onChange(PERSIAN_MONTHS.indexOf(name) + 1, year)} />
     <WheelColumn items={years.map(toFarsiNum)} value={toFarsiNum(year)}
      onChange={y => onChange(month, parseInt(toLatinNum(y)))} />
    </div>
@@ -103,11 +102,11 @@ function monthItemsLabeled() {
   return PERSIAN_MONTHS.map((label, i) => ({ value: i + 1, label }))
 }
 
-// ── تاریخِ کامل (روز/ماه/سال) به‌صورتِ modal — دقیقاً الگویِ پیکرِ بومیِ موبایل:
-//    دکمه‌ای که مقدارِ فعلی را نشان می‌دهد، با لمس یک overlay با سه چرخ +
+// ── تاریخ کامل (روز/ماه/سال) به‌صورت modal — دقیقا الگوی پیکر بومی موبایل:
+//    دکمه‌ای که مقدار فعلی را نشان می‌دهد، با لمس یک overlay با سه چرخ +
 //    دکمه‌ی «تأیید»/«انصراف» باز می‌شود.
 export function JalaliDateWheel({
-  value, onChange, placeholder = 'انتخابِ تاریخ', yearsBack = 90, yearsForward = 0, label,
+  value, onChange, placeholder = 'انتخاب تاریخ', yearsBack = 90, yearsForward = 0, label,
 }: {
   value: string // 'YYYY/MM/DD' یا خالی
   onChange: (v: string) => void
