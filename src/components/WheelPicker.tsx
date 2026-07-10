@@ -43,9 +43,12 @@ export function WheelColumn<T extends string | number>({
     if (settleTimer.current) clearTimeout(settleTimer.current)
     settleTimer.current = setTimeout(() => {
       if (!ref.current) return
+      // CSS scroll-snap (snap-y + snap-center + scroll-snap-stop:always) قبلا خودش
+      // اسکرول را فیزیکی دقیقا روی این آیتم نشانده — این‌جا فقط می‌خوانیم که
+      // کدام آیتم است، دوباره خودمان اسکرول را جابه‌جا نمی‌کنیم (وگرنه دو
+      // مکانیزم اسنپ با هم تداخل می‌کردند و باعث پرش می‌شدند).
       const raw = Math.round(ref.current.scrollTop / ITEM_H)
       const clamped = Math.max(0, Math.min(items.length - 1, raw))
-      ref.current.scrollTo({ top: clamped * ITEM_H, behavior: 'smooth' })
       const v = items[clamped]
       if (v !== value) onChange(v)
     }, 100)
@@ -63,7 +66,7 @@ export function WheelColumn<T extends string | number>({
         return (
          <div key={String(it)} onClick={() => ref.current?.scrollTo({ top: i * ITEM_H, behavior: 'smooth' })}
           className="flex items-center justify-center cursor-pointer select-none snap-center"
-          style={{ height: ITEM_H, scrollSnapAlign: 'center' }}>
+          style={{ height: ITEM_H, scrollSnapAlign: 'center', scrollSnapStop: 'always' }}>
           <span className={`tnum transition-all ${
             dist === 0 ? 'text-ink font-bold text-base'
             : dist === 1 ? 'text-soot text-sm'
