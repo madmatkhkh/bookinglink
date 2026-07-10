@@ -55,6 +55,8 @@ body { @apply bg-paper text-ink; }
 .pb-admin-dark .bg-gray-200 { background: #292929 !important; }
 .pb-admin-dark .bg-gray-200\/70 { background: rgba(41,41,41,.7) !important; }
 .pb-admin-dark .hover\:bg-gray-200:hover { background: #333333 !important; }
+.pb-admin-dark .bg-sand { background: #262626 !important; }
+.pb-admin-dark .hover\:bg-sand:hover { background: #333333 !important; }
 .pb-admin-dark .bg-black\/50 { background: rgba(0,0,0,.7) !important; }
 
 /* متن: مشکی → سفید، خاکستری تیره → خاکستری روشن (همان نسبت، معکوس) */

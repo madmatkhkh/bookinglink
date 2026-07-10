@@ -2008,7 +2008,7 @@ export function PsychologyAdmin() {
   return (
    <button onClick={() => { navigateTab(item.key); onNavigate?.() }}
     className={`w-full text-right px-3 py-2.5 rounded-lg text-sm flex items-center justify-between gap-2 transition-colors ${
-     mainTab === item.key ? 'bg-ink text-white font-medium' : 'text-soot hover:bg-gray-100'}`}>
+     mainTab === item.key ? 'bg-gray-200 text-ink font-semibold' : 'text-soot hover:bg-gray-100'}`}>
     <span className="flex items-center gap-2"><Glyph icon={item.icon} /> {item.label}</span>
     {item.badge > 0 && (
      <span className="w-5 h-5 shrink-0 bg-amber-100 text-amber-800 text-[11px] rounded-full flex items-center justify-center font-bold leading-none">
@@ -2034,7 +2034,7 @@ export function PsychologyAdmin() {
        onNavigate?.()
       }}
       className={`w-full text-right px-3 py-2.5 rounded-lg text-sm flex items-center justify-between gap-2 transition-colors ${
-       mainTab === 'settings' ? 'bg-ink text-white font-medium' : 'text-soot hover:bg-gray-100'}`}>
+       mainTab === 'settings' ? 'bg-gray-200 text-ink font-semibold' : 'text-soot hover:bg-gray-100'}`}>
       <span className="flex items-center gap-2"><Glyph icon="⚙️" /> تنظیمات</span>
       <svg viewBox="0 0 24 24" className={`w-3.5 h-3.5 shrink-0 transition-transform ${settingsOpen ? '-rotate-90' : ''}`}
        fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -2045,12 +2045,12 @@ export function PsychologyAdmin() {
       <div className="mr-2 pr-2 border-r-2 border-sand space-y-2 my-1">
        {settingsGroups.map(group => (
         <div key={group.title}>
-         <div className="px-3 pt-1 pb-0.5 text-xs font-semibold text-ink/60">{group.title}</div>
+         <div className="px-3 pt-1.5 pb-0.5 text-[11px] font-bold text-ink uppercase tracking-wide">{group.title}</div>
          <div className="space-y-0.5">
           {group.items.map(item => (
            <button key={item.key} onClick={() => { navigateSettingsSub(item.key); onNavigate?.() }}
             className={`w-full text-right px-3 py-2 rounded-lg text-sm flex items-center gap-2 transition-colors ${
-             settingsSubTab === item.key ? 'bg-gray-200 text-ink font-semibold' : 'text-soot hover:bg-gray-100'}`}>
+             settingsSubTab === item.key ? 'bg-sand text-ink font-semibold' : 'text-soot hover:bg-gray-100'}`}>
             <Glyph icon={item.icon} /> {item.label}
            </button>
           ))}
@@ -2097,9 +2097,9 @@ export function PsychologyAdmin() {
   return (
    <div className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs text-soot">
     <span className="flex items-center gap-2">🌙 حالت تیره</span>
-    <button type="button" role="switch" aria-checked={darkMode} onClick={() => toggleDark(!darkMode)}
-     className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors shrink-0 ${darkMode ? 'bg-ink' : 'bg-gray-300'}`}>
-     <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${darkMode ? 'translate-x-4' : 'translate-x-0.5'}`} />
+    <button type="button" role="switch" aria-checked={darkMode} onClick={() => toggleDark(!darkMode)} dir="ltr"
+     className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${darkMode ? 'bg-ink' : 'bg-gray-300'}`}>
+     <span className={`absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white transition-transform ${darkMode ? 'translate-x-4' : 'translate-x-0'}`} />
     </button>
    </div>
   )
@@ -4854,14 +4854,6 @@ export function PsychologyAdmin() {
       {tenantPlan !== 'pro' && (
        <p className="text-[11px] text-soot mt-3">در پلن رایگان، پرداخت فقط به‌صورت آنلاین (زیبال) ممکن است.</p>
       )}
-     </section>
-
-     <section className="bg-white rounded-2xl border border-sand p-5">
-      <h2 className="text-sm font-display font-bold text-ink mb-3">ظاهر پنل</h2>
-      <label className="flex items-center justify-between p-3 rounded-xl border border-sand cursor-pointer">
-       <span className="text-sm text-ink">حالت تیره</span>
-       <input type="checkbox" checked={darkMode} onChange={e => toggleDark(e.target.checked)} className="w-5 h-5 accent-ink" />
-      </label>
      </section>
 
      <button onClick={doLogout}
