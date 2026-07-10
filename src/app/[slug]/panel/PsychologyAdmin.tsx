@@ -1981,7 +1981,7 @@ export function PsychologyAdmin() {
         <span>{group.title}</span>
         <svg viewBox="0 0 24 24" className={`w-3 h-3 shrink-0 transition-transform ${isOpen ? '-rotate-90' : ''}`}
          fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-         <path d="M9 6l6 6-6 6" />
+         <path d="M15 6l-6 6 6 6" />
         </svg>
        </button>
        {isOpen && (
@@ -2100,7 +2100,7 @@ export function PsychologyAdmin() {
            سلام{profile.name ? `، ${profile.name}` : ''} 👋
           </h1>
           <p className="text-xs text-soot mt-0.5">
-           {PERSIAN_MONTHS[todayJ.month]} {toFarsiNum(todayJ.day)}، {toFarsiNum(todayJ.year)}
+           {toFarsiNum(todayJ.day)} {PERSIAN_MONTHS[todayJ.month]}، {toFarsiNum(todayJ.year)}
           </p>
          </div>
         </div>
@@ -2159,7 +2159,6 @@ export function PsychologyAdmin() {
                )}
               </span>
               <span className={`flex-1 text-sm ${item.done ? 'text-soot line-through' : 'text-ink'}`}>{item.label}</span>
-              {!item.done && <span className="text-xs text-ink font-medium shrink-0">انجامش بده ←</span>}
              </button>
             ))}
            </div>
@@ -3955,9 +3954,9 @@ export function PsychologyAdmin() {
                 className="text-soot text-xs shrink-0 cursor-grab active:cursor-grabbing px-0.5">⠿</span>
                <button onClick={() => { setOpenSection(x => x === section.id ? null : section.id); setBuilderSel({ sIdx, fIdx: null }) }}
                 className="flex-1 min-w-0 flex items-center gap-2 text-right">
-                <svg viewBox="0 0 24 24" className={`w-2.5 h-2.5 text-soot shrink-0 transition-transform ${isOpen ? 'rotate-90' : ''}`}
+                <svg viewBox="0 0 24 24" className={`w-2.5 h-2.5 text-soot shrink-0 transition-transform ${isOpen ? '-rotate-90' : ''}`}
                  fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                 <path d="M9 6l6 6-6 6" />
+                 <path d="M15 6l-6 6 6 6" />
                 </svg>
                 <span className="text-xs shrink-0"></span>
                 <span className="flex-1 min-w-0 truncate text-sm font-bold text-ink">{section.title || 'بخشِ بی‌نام'}</span>
