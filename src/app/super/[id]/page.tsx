@@ -19,6 +19,7 @@ type Detail = {
   resources: { id: string; name: string; title: string; phone: string | null; is_active: boolean; is_selectable: boolean; created_at: string; has_sheba: boolean }[]
   stats: Record<string, number>
   features: { feature_key: string; label: string; enabled: boolean }[]
+  multi_therapist?: boolean
   impersonate_token?: string
 }
 
@@ -353,6 +354,27 @@ function Inner() {
               />
             </label>
           ))}
+        </section>
+      )}
+
+      {/* حالت کلینیک — پیش‌فرض خاموش (تک‌درمانگر)؛ روشن‌کردنش تب «تیم/درمانگرها»
+         را در پنل خود متخصص نمایش می‌دهد. خود متخصص هم می‌تواند این را از
+         تب «حساب» پنل خودش روشن/خاموش کند — این‌جا فقط برای نظارت/پشتیبانی است. */}
+      {t.niche_key === 'psychology' && (
+        <section className="bg-white border border-sand rounded-2xl p-5 space-y-3">
+          <h2 className="font-bold text-ink text-sm">حالت کلینیک</h2>
+          <label className="flex items-center justify-between gap-3 p-2 rounded-xl cursor-pointer">
+            <div>
+             <span className="text-sm text-ink block">چند درمانگر (تب «تیم» در پنل نمایش داده شود)</span>
+             <span className="text-xs text-soot">پیش‌فرض خاموش است — فقط مجموعه‌هایی که واقعا چند پرسنل دارند لازمش دارند.</span>
+            </div>
+            <input
+              type="checkbox"
+              checked={!!d.multi_therapist}
+              onChange={e => toggleFeature('multi_therapist', e.target.checked)}
+              className="w-5 h-5 accent-ink shrink-0"
+            />
+          </label>
         </section>
       )}
 

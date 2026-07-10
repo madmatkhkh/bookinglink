@@ -400,6 +400,14 @@ export async function getDefaultResourceId(tenantId: string): Promise<string | n
 // کلیدهای ماژول‌هایی که مراجع در پنل خودش می‌بیند — پیش‌فرض همه روشن
 export const PATIENT_FEATURE_KEYS = ['patient_buy_extra_session', 'patient_self_cancel'] as const
 
+// «حالت کلینیک» — روشن‌کردن این کلید (در همان جدول tenant_features) تب
+// «تیم/درمانگرها» را برای owner نمایش می‌دهد. برخلاف PATIENT_FEATURE_KEYS بالا،
+// پیش‌فرضش خاموش است — اکثریت مطلق tenantها تک‌درمانگرند و این تب برایشان
+// کاملا بلااستفاده بود (فیدبک صاحب پروژه). معماری چندمنبعی زیرین (resource_id
+// روی همه‌ی جدول‌ها) دست‌نخورده می‌ماند — تک‌درمانگرها هم زیرپوستی یک منبع
+// پیش‌فرض دارند؛ این فلگ فقط UI مدیریت پرسنل را نشان/مخفی می‌کند.
+export const MULTI_THERAPIST_FEATURE_KEY = 'multi_therapist'
+
 export const onlineAvailable = (m: SessionMode) => m === 'both' || m === 'online'
 export const offlineAvailable = (m: SessionMode) => m === 'both' || m === 'offline'
 

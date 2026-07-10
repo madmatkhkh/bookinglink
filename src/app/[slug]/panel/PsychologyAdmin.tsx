@@ -476,6 +476,7 @@ export function PsychologyAdmin() {
  // می‌آیی هم ناوبری می‌کند هم باز می‌کند.
  const [settingsOpen, setSettingsOpen] = useState(false)
  useEffect(() => { if (mainTab === 'settings') setSettingsOpen(true) }, [mainTab])
+ const [togglingClinicMode, setTogglingClinicMode] = useState(false)
 
  // رفتن به یک تب اصلی — وقتی مقصد خود تنظیمات است (از نویگیشن اصلی، نه از
  // داخل زیرتب‌ها)، همیشه به زیرتب پیش‌فرض («پروفایل») برمی‌گردد، نه آخرین
@@ -681,7 +682,7 @@ export function PsychologyAdmin() {
  const [toJ, setToJ] = useState(() => { const t = getCurrentJalali(); return { y: t.year, m: t.month + 1, d: t.day } })
 
  // ── چندکارمندی: کی وارد شده (صاحب مجموعه یا یک کارمند مشخص)؟ ──
- const [me, setMe] = useState<{ isOwner: boolean; resourceId: string | null; resourceName: string | null; phone: string | null; slug: string | null } | null>(null)
+ const [me, setMe] = useState<{ isOwner: boolean; resourceId: string | null; resourceName: string | null; phone: string | null; slug: string | null; multiTherapist: boolean } | null>(null)
  const [changePhoneOpen, setChangePhoneOpen] = useState(false)
  const [newPhoneInput, setNewPhoneInput] = useState('')
  const [changePhoneCode, setChangePhoneCode] = useState('')
@@ -743,7 +744,7 @@ export function PsychologyAdmin() {
    const r = await fetch(panelApi('/whoami'), { cache: 'no-store' })
    if (r.status === 401) { setNeedsLogin(true); return }
    const d = await r.json()
-   setMe({ isOwner: !!d.isOwner, resourceId: d.resourceId || null, resourceName: d.resourceName || null, phone: d.phone || null, slug: d.slug || null })
+   setMe({ isOwner: !!d.isOwner, resourceId: d.resourceId || null, resourceName: d.resourceName || null, phone: d.phone || null, slug: d.slug || null, multiTherapist: !!d.multiTherapist })
    if (d.isOwner) loadStaff()
    loadProfile()
   } catch {}
@@ -2006,7 +2007,7 @@ export function PsychologyAdmin() {
  // این‌ها قبلا زیر «تنظیمات» صفحه‌ی دوم بودند ولی خودشان واقعا تنظیمات نیستند —
  // حالا هم‌سطح بقیه‌ی تب‌های اصلی‌اند، بعد از خودِ تب «تنظیمات».
  const bottomNavItems = [
-  ...(me?.isOwner ? [{ key: 'staff' as const, icon: '🩺', label: 'درمانگرها', badge: 0 }] : []),
+  ...(me?.isOwner && me?.multiTherapist ? [{ key: 'staff' as const, icon: '🩺', label: 'درمانگرها', badge: 0 }] : []),
   { key: 'account' as const, icon: '🪪', label: 'حساب', badge: 0 },
   { key: 'tickets' as const, icon: '🎫', label: 'پشتیبانی', badge: 0 },
  ]
@@ -4599,7 +4600,7 @@ export function PsychologyAdmin() {
    {/* ════════════════════════════════════════════════════════════════
      TAB: STAFF (کارمندها) — فقط owner می‌بیند
    ════════════════════════════════════════════════════════════════ */}
-   {mainTab === 'staff' && me?.isOwner && (
+   {mainTab === 'staff' && me?.isOwner && me?.multiTherapist && (
     <div className="max-w-lg mx-auto pb-24">
      <div className="bg-white rounded-2xl border border-sand p-5 mb-4">
       <h2 className="text-sm font-display font-bold text-ink mb-1">درمانگرها</h2>
@@ -4867,6 +4868,31 @@ export function PsychologyAdmin() {
        </div>
       )}
      </section>
+
+     {me?.isOwner && (
+      <section className="bg-white rounded-2xl border border-sand p-5">
+       <h2 className="text-sm font-display font-bold text-ink mb-1">حالت کلینیک</h2>
+       <p className="text-xs text-soot mb-4">
+        اگر بیش از یک درمانگر دارید، این را روشن کنید تا تب «تیم» برای افزودن/مدیریت پرسنل ظاهر شود.
+        اگر تک‌درمانگرید، همین‌طور خاموش بماند — چیزی از دیتای شما حذف نمی‌شود و هر وقت خواستید می‌توانید روشنش کنید.
+       </p>
+       <label className="flex items-center justify-between p-3 rounded-xl border border-sand cursor-pointer">
+        <span className="text-sm text-ink">چند درمانگر (نمایش تب «تیم»)</span>
+        <input type="checkbox" checked={!!me?.multiTherapist} disabled={togglingClinicMode}
+         onChange={async e => {
+          setTogglingClinicMode(true)
+          const res = await fetch(panelApi('/multi-therapist'), {
+           method: 'POST', headers: { 'Content-Type': 'application/json' },
+           body: JSON.stringify({ enabled: e.target.checked }),
+          })
+          setTogglingClinicMode(false)
+          if (!res.ok) { uiAlert('ذخیره‌ی تغییرات ناموفق بود'); return }
+          await loadMe()
+         }}
+         className="w-5 h-5 accent-ink" />
+       </label>
+      </section>
+     )}
 
      <section className="bg-white rounded-2xl border border-sand p-5">
       <h2 className="text-sm font-display font-bold text-ink mb-1">پلن مجموعه</h2>

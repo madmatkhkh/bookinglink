@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { sb } from '@/lib/supabase'
 import { isSuperAuthed, normalizePhone, signImpersonateToken } from '@/lib/auth'
 import { getNiche } from '@/lib/niche'
+import { MULTI_THERAPIST_FEATURE_KEY } from '@/lib/psy'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -60,14 +61,17 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   }
 
   let features: { feature_key: string; label: string; enabled: boolean }[] = []
+  let multiTherapist = false
   if (tenant.niche_key === 'psychology') {
     const { data: rows } = await sb().from('tenant_features').select('feature_key, enabled')
-      .eq('tenant_id', id).in('feature_key', PSY_FEATURE_KEYS)
+      .eq('tenant_id', id).in('feature_key', [...PSY_FEATURE_KEYS, MULTI_THERAPIST_FEATURE_KEY])
     features = PSY_FEATURE_KEYS.map(key => ({
       feature_key: key,
       label: PSY_FEATURE_LABELS[key],
       enabled: rows?.find(r => r.feature_key === key)?.enabled ?? true, // پیش‌فرض: روشن
     }))
+    // «حالت کلینیک» برخلاف بقیه‌ی ماژول‌های بالا پیش‌فرضش خاموش است (تک‌درمانگر)
+    multiTherapist = rows?.find(r => r.feature_key === MULTI_THERAPIST_FEATURE_KEY)?.enabled ?? false
   }
 
   return NextResponse.json({
@@ -85,6 +89,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     resources: (resources || []).map(r => ({ ...r, has_sheba: shebaByResource.get(r.id) || false })),
     stats,
     features,
+    multi_therapist: multiTherapist,
     // توکن کوتاه‌عمر impersonate — فقط از همین پاسخ احرازشده قابل‌دریافت است (ضد CSRF)
     impersonate_token: signImpersonateToken(tenant.id),
   })
