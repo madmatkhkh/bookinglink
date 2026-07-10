@@ -4802,7 +4802,7 @@ export function PsychologyAdmin() {
       <h2 className="text-sm font-display font-bold text-ink mb-1">ثبت تیکت تازه</h2>
       <p className="text-xs text-soot mb-4">اگه مشکلی داشتی یا قابلیتی می‌خواستی اضافه بشه، همین‌جا بنویس — مستقیم به تیم {PLATFORM_NAME} می‌رسد.</p>
       <div className="space-y-3">
-       <div className="grid grid-cols-4 gap-1.5">
+       <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
         {([
          ['bug', '🐞 مشکل/باگ'], ['feature', '💡 قابلیت تازه'], ['billing', '💳 مالی/پلن'], ['other', '❓ سایر'],
         ] as [string, string][]).map(([val, label]) => (

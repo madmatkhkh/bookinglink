@@ -697,7 +697,7 @@ function SessionCard({ session: s, num, phone, caseNumber, onUpdate }: {
        ورود به جلسه‌ی گوگل‌میت ↗
        </a>
       ) : (
-       <p className="text-xs text-soot bg-gray-50 border border-sand rounded-lg px-2.5 py-1.5 mt-1.5">
+       <p className="text-xs text-amber-700 bg-amber-500/10 border border-amber-500/20 rounded-lg px-2.5 py-1.5 mt-1.5">
         لینک جلسه هنوز از طرف دکتر ثبت نشده — نزدیک زمان جلسه دوباره سر بزنید.
        </p>
       )
@@ -1380,7 +1380,7 @@ function StageInfo({ icon, title, desc, date, time, label, delayMinutes, meetLin
       ورود به جلسه‌ی گوگل‌میت ↗
      </a>
     ) : (
-     <p className="text-xs text-soot bg-gray-50 border border-sand rounded-xl px-3 py-2 mt-2">
+     <p className="text-xs text-amber-700 bg-amber-500/10 border border-amber-500/20 rounded-xl px-3 py-2 mt-2">
       لینک جلسه هنوز از طرف دکتر ثبت نشده — نزدیک زمان جلسه دوباره سر بزنید.
      </p>
     )

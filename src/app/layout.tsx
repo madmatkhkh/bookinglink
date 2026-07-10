@@ -1,8 +1,17 @@
 import './globals.css'
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 
 // metadataBase از دامنه‌ی پلتفرم — لینک‌های og/twitter مطلق می‌شوند
 const domain = process.env.PLATFORM_DOMAIN || 'nobatlink.com'
+
+// این export قبلا اصلا وجود نداشت — بدونش مرورگر موبایل صفحه را با عرض دسکتاپ
+// (حدود 980px) رندر و بعد کوچک می‌کند تا جا شود؛ یعنی همه‌چیز ریز و برای لمس
+// سخت می‌شود، همون مشکلی که گزارش شد. width=device-width یعنی صفحه واقعا با
+// عرض خود گوشی رندر شود.
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+}
 
 export const metadata: Metadata = {
   metadataBase: new URL(`https://${domain}`),
