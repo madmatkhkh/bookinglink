@@ -9,7 +9,7 @@ import { PLATFORM_NAME } from '@/lib/config'
 
 type NicheCard = {
   key: string; display_name: string; tagline: string
-  icon: string; default_theme: string; setup_price: number
+  icon: string; default_theme: string; setup_price: number; is_active: boolean
 }
 
 // آیکون‌های خطی مونوکروم (بدون ایموجی)
@@ -211,7 +211,11 @@ export default function Landing() {
         ) : (
           <div className="grid sm:grid-cols-3 gap-4">
             {niches.map(n => (
-              <div key={n.key} className="rounded-2xl border border-ink bg-white p-6 transition hover:-translate-y-1 hover:shadow-lg">
+              <div key={n.key}
+                className={`relative rounded-2xl border p-6 transition ${n.is_active ? 'border-ink bg-white hover:-translate-y-1 hover:shadow-lg' : 'border-sand bg-gray-50/50 opacity-70'}`}>
+                {!n.is_active && (
+                  <span className="absolute top-4 left-4 text-[11px] font-semibold text-soot bg-sand px-2 py-0.5 rounded-full">به‌زودی</span>
+                )}
                 <div className="w-10 h-10 rounded-xl border border-ink flex items-center justify-center mb-4">
                   <Icon path='<path d="M12 2a7 7 0 0 0-7 7c0 3 2 4 2 7h10c0-3 2-4 2-7a7 7 0 0 0-7-7z"/><path d="M9 22h6"/>' />
                 </div>

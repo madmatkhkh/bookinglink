@@ -14,11 +14,12 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
   const a = await requirePanelAuth(req, params.slug)
   if (isPanelAuthResponse(a)) return a
 
-  const { data: feature } = await sb().from('tenant_features').select('enabled')
+  const { data: feature } = await sb().from('tenant_features').select('enabled, config')
     .eq('tenant_id', a.tenant.id).eq('feature_key', MULTI_THERAPIST_FEATURE_KEY).maybeSingle()
   const multiTherapist = !!feature?.enabled
+  const multiTherapistRequested = !multiTherapist && !!(feature?.config as any)?.requested
 
-  if (a.isOwner) return NextResponse.json({ isOwner: true, resourceId: null, resourceName: null, phone: a.tenant.owner_phone, slug: a.tenant.slug, multiTherapist })
+  if (a.isOwner) return NextResponse.json({ isOwner: true, resourceId: null, resourceName: null, phone: a.tenant.owner_phone, slug: a.tenant.slug, multiTherapist, multiTherapistRequested })
   const { data } = await sb().from('resources').select('name, phone').eq('id', a.resourceId).maybeSingle()
-  return NextResponse.json({ isOwner: false, resourceId: a.resourceId, resourceName: data?.name || null, phone: data?.phone || null, slug: a.tenant.slug, multiTherapist })
+  return NextResponse.json({ isOwner: false, resourceId: a.resourceId, resourceName: data?.name || null, phone: data?.phone || null, slug: a.tenant.slug, multiTherapist, multiTherapistRequested })
 }

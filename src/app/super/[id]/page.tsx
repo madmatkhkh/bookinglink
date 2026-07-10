@@ -20,6 +20,7 @@ type Detail = {
   stats: Record<string, number>
   features: { feature_key: string; label: string; enabled: boolean }[]
   multi_therapist?: boolean
+  multi_therapist_requested?: boolean
   impersonate_token?: string
 }
 
@@ -328,7 +329,7 @@ function Inner() {
               <div className="flex gap-1.5 shrink-0">
                 {!r.is_active && <span className="text-[11px] px-2 py-0.5 rounded-full bg-red-50 text-red-700">غیرفعال</span>}
                 {r.is_selectable && <span className="text-[11px] px-2 py-0.5 rounded-full bg-sand text-soot">قابل انتخاب</span>}
-                {d.niche?.key === 'psychology' && (
+                {(d.niche?.key === 'psychology' || d.niche?.key === 'psychology_clinic') && (
                   r.has_sheba
                     ? <span className="text-[11px] px-2 py-0.5 rounded-full bg-green-100 text-green-800">شبا ثبت‌شده</span>
                     : <span className="text-[11px] px-2 py-0.5 rounded-full bg-amber-50 text-amber-700">بدون شبا</span>
@@ -357,16 +358,24 @@ function Inner() {
         </section>
       )}
 
-      {/* حالت کلینیک — پیش‌فرض خاموش (تک‌درمانگر)؛ روشن‌کردنش تب «تیم/درمانگرها»
-         را در پنل خود متخصص نمایش می‌دهد. خود متخصص هم می‌تواند این را از
-         تب «حساب» پنل خودش روشن/خاموش کند — این‌جا فقط برای نظارت/پشتیبانی است. */}
-      {t.niche_key === 'psychology' && (
+      {/* حالت کلینیک — پیش‌فرض خاموش (تک‌درمانگر)، و فقط از همین‌جا (سوپرادمین)
+         قابل‌روشن‌شدن است. خود متخصص فقط می‌تواند «درخواست» بدهد (از تب
+         «حساب» پنل خودش)؛ اگر درخواستی معلق باشد، این‌جا با نشان کهربایی دیده
+         می‌شود — تیک‌زدن سوییچ هم تایید حساب می‌شود هم درخواست را می‌بندد. */}
+      {(t.niche_key === 'psychology' || t.niche_key === 'psychology_clinic') && (
         <section className="bg-white border border-sand rounded-2xl p-5 space-y-3">
-          <h2 className="font-bold text-ink text-sm">حالت کلینیک</h2>
+          <div className="flex items-center gap-2">
+           <h2 className="font-bold text-ink text-sm">حالت کلینیک</h2>
+           {d.multi_therapist_requested && (
+            <span className="text-[11px] font-semibold text-amber-700 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-full">
+             درخواست در انتظار تایید
+            </span>
+           )}
+          </div>
           <label className="flex items-center justify-between gap-3 p-2 rounded-xl cursor-pointer">
             <div>
-             <span className="text-sm text-ink block">چند درمانگر (تب «تیم» در پنل نمایش داده شود)</span>
-             <span className="text-xs text-soot">پیش‌فرض خاموش است — فقط مجموعه‌هایی که واقعا چند پرسنل دارند لازمش دارند.</span>
+             <span className="text-sm text-ink block">چند درمانگر (تب «درمانگرها» در پنل نمایش داده شود)</span>
+             <span className="text-xs text-soot">پیش‌فرض خاموش است — فقط از همین‌جا فعال می‌شود؛ خودِ متخصص فقط می‌تواند درخواست بدهد.</span>
             </div>
             <input
               type="checkbox"

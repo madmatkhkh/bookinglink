@@ -222,9 +222,10 @@ alter table auth_throttle enable row level security;
 alter table tenant_features enable row level security;
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- داده‌ی اولیه‌ی نیچ‌ها — دو تمپلیت آغازین
+-- داده‌ی اولیه‌ی نیچ‌ها — سه تمپلیت؛ فقط «روانشناسی» فعلا فعال است (بقیه
+-- «به‌زودی» روی لندینگ/ثبت‌نام دیده می‌شوند، تا تست نهایی‌شان تمام شود)
 -- ═══════════════════════════════════════════════════════════════════════════
-insert into niches (key, display_name, tagline, icon, client_label, resource_label, booking_label, default_theme, record_fields, default_features, sample_services, setup_price, sort_order) values
+insert into niches (key, display_name, tagline, icon, client_label, resource_label, booking_label, default_theme, record_fields, default_features, sample_services, setup_price, is_active, sort_order) values
 (
   'psychology',
   'روانشناسی و روان‌پزشکی',
@@ -243,7 +244,22 @@ insert into niches (key, display_name, tagline, icon, client_label, resource_lab
     {"name":"جلسه‌ی مشاوره‌ی فردی","duration_minutes":60,"price":0,"mode":"both"},
     {"name":"مصاحبه‌ی اولیه","duration_minutes":45,"price":0,"mode":"both"}
   ]'::jsonb,
-  0, 1
+  0, true, 1
+),
+(
+  -- ⚠️ placeholder صرفا نمایشی («به‌زودی» روی لندینگ) — هنوز هیچ tenant واقعی
+  -- نباید با این کلید ساخته شود. جزئیات کامل تصمیم معماری در
+  -- migrations/0023_clinic_and_salon_coming_soon.sql مستند شده.
+  'psychology_clinic',
+  'روانشناسی (کلینیک چند‌درمانگر)',
+  'برای مجموعه‌هایی با چند درمانگر — مدیریت تیم، تقویم مشترک و تسویه‌ی جدا برای هرکدام',
+  'brain',
+  'مراجع', 'درمانگر', 'جلسه',
+  '124 58 237',
+  '[]'::jsonb,
+  '[]'::jsonb,
+  '[]'::jsonb,
+  0, false, 2
 ),
 (
   'beauty_salon',
@@ -264,7 +280,7 @@ insert into niches (key, display_name, tagline, icon, client_label, resource_lab
     {"name":"رنگ و مش","duration_minutes":120,"price":0,"mode":"in_person"},
     {"name":"میکاپ","duration_minutes":90,"price":0,"mode":"in_person"}
   ]'::jsonb,
-  0, 2
+  0, false, 3
 );
 
 -- ═══════════════════════════════════════════════════════════════════════════

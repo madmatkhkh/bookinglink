@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { sb } from '@/lib/supabase'
 import { isSuperAuthed, normalizePhone, signImpersonateToken } from '@/lib/auth'
-import { getNiche } from '@/lib/niche'
+import { getNiche, isPsychologyNiche } from '@/lib/niche'
 import { MULTI_THERAPIST_FEATURE_KEY } from '@/lib/psy'
 
 export const dynamic = 'force-dynamic'
@@ -36,7 +36,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
 
   // وضعیت شبای تسویه (فقط روانشناسی، فقط برای نمایش — تصمیم‌گیری تسویه‌ی دستی)
   let shebaByResource = new Map<string, boolean>()
-  if (tenant.niche_key === 'psychology' && resources?.length) {
+  if (isPsychologyNiche(tenant.niche_key) && resources?.length) {
     const { data: profiles } = await sb().from('psy_resource_profiles')
       .select('resource_id, settlement_sheba').in('resource_id', resources.map(r => r.id))
     shebaByResource = new Map((profiles || []).map(p => [p.resource_id, !!p.settlement_sheba]))
@@ -44,7 +44,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
 
   // آمار: هرکدام از دو خانواده‌ی نیچ، جدول‌های خودشان را دارند.
   let stats: Record<string, number> = {}
-  if (tenant.niche_key === 'psychology') {
+  if (isPsychologyNiche(tenant.niche_key)) {
     const [cases, sessions, packages] = await Promise.all([
       sb().from('psy_cases').select('id', { count: 'exact', head: true }).eq('tenant_id', id),
       sb().from('psy_sessions').select('id', { count: 'exact', head: true }).eq('tenant_id', id),
@@ -62,8 +62,9 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
 
   let features: { feature_key: string; label: string; enabled: boolean }[] = []
   let multiTherapist = false
-  if (tenant.niche_key === 'psychology') {
-    const { data: rows } = await sb().from('tenant_features').select('feature_key, enabled')
+  let multiTherapistRequested = false
+  if (isPsychologyNiche(tenant.niche_key)) {
+    const { data: rows } = await sb().from('tenant_features').select('feature_key, enabled, config')
       .eq('tenant_id', id).in('feature_key', [...PSY_FEATURE_KEYS, MULTI_THERAPIST_FEATURE_KEY])
     features = PSY_FEATURE_KEYS.map(key => ({
       feature_key: key,
@@ -71,7 +72,9 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
       enabled: rows?.find(r => r.feature_key === key)?.enabled ?? true, // پیش‌فرض: روشن
     }))
     // «حالت کلینیک» برخلاف بقیه‌ی ماژول‌های بالا پیش‌فرضش خاموش است (تک‌درمانگر)
-    multiTherapist = rows?.find(r => r.feature_key === MULTI_THERAPIST_FEATURE_KEY)?.enabled ?? false
+    const mtRow = rows?.find(r => r.feature_key === MULTI_THERAPIST_FEATURE_KEY)
+    multiTherapist = mtRow?.enabled ?? false
+    multiTherapistRequested = !multiTherapist && !!(mtRow?.config as any)?.requested
   }
 
   return NextResponse.json({
@@ -90,6 +93,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     stats,
     features,
     multi_therapist: multiTherapist,
+    multi_therapist_requested: multiTherapistRequested,
     // توکن کوتاه‌عمر impersonate — فقط از همین پاسخ احرازشده قابل‌دریافت است (ضد CSRF)
     impersonate_token: signImpersonateToken(tenant.id),
   })
@@ -140,7 +144,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   // آنلاین قابل‌دریافت است). این فقط برای پاکیزگی دیتاست — دفاع واقعی در
   // effectivePaymentMethods (lib/psy.ts) است که در لحظه‌ی مصرف همیشه این را اعمال می‌کند.
   let forcedCardDisabledCount = 0
-  if (tenantPatch.plan === 'free' && existing.niche_key === 'psychology') {
+  if (tenantPatch.plan === 'free' && isPsychologyNiche(existing.niche_key)) {
     const { data: resources } = await sb().from('resources').select('id').eq('tenant_id', id)
     const ids = (resources || []).map(r => r.id)
     if (ids.length) {

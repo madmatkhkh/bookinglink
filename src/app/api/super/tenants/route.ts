@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { sb } from '@/lib/supabase'
 import { isSuperAuthed, normalizePhone } from '@/lib/auth'
 import { RESERVED_SLUGS, SLUG_PATTERN } from '@/lib/config'
-import { getNiche } from '@/lib/niche'
+import { getNiche, isPsychologyNiche } from '@/lib/niche'
+import { MULTI_THERAPIST_FEATURE_KEY } from '@/lib/psy'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -12,8 +13,8 @@ export const revalidate = 0
 // tenantها (فاز آنبوردینگ دستی)، یک شمارش جدا per-tenant به‌صرفه‌تر از یک
 // ویو/RPC تازه است؛ اگر تعداد tenantها زیاد شد، این نقطه کاندید بهینه‌سازی است.
 async function withRecordsCount<T extends { id: string; niche_key: string }>(tenants: T[]) {
-  const psyIds = tenants.filter(t => t.niche_key === 'psychology').map(t => t.id)
-  const genericIds = tenants.filter(t => t.niche_key !== 'psychology').map(t => t.id)
+  const psyIds = tenants.filter(t => isPsychologyNiche(t.niche_key)).map(t => t.id)
+  const genericIds = tenants.filter(t => !isPsychologyNiche(t.niche_key)).map(t => t.id)
   const counts = new Map<string, number>()
 
   await Promise.all([
@@ -36,6 +37,15 @@ export async function GET(req: NextRequest) {
     .order('created_at', { ascending: false })
   const tenants = await withRecordsCount(data || [])
 
+  // درخواست‌های معلق «حالت کلینیک» — یک کوئری برای همه، نه per-tenant، تا
+  // سوپرادمین لازم نباشد یکی‌یکی وارد جزئیات هر tenant شود تا بفهمد کسی درخواست داده.
+  const { data: pendingRows } = await sb().from('tenant_features')
+    .select('tenant_id, enabled, config').eq('feature_key', MULTI_THERAPIST_FEATURE_KEY)
+  const pendingTenantIds = new Set(
+    (pendingRows || []).filter(r => !r.enabled && !!(r.config as any)?.requested).map(r => r.tenant_id)
+  )
+  const tenantsWithRequests = tenants.map(t => ({ ...t, clinic_mode_requested: pendingTenantIds.has(t.id) }))
+
   const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000
   const byNiche: Record<string, number> = {}
   for (const t of tenants) byNiche[t.niche_key] = (byNiche[t.niche_key] || 0) + 1
@@ -47,10 +57,11 @@ export async function GET(req: NextRequest) {
     pending: tenants.filter(t => t.status === 'pending').length,
     recent_7d: tenants.filter(t => new Date(t.created_at).getTime() >= sevenDaysAgo).length,
     inactive: tenants.filter(t => t.records_count === 0).length,
+    clinic_mode_requests: pendingTenantIds.size,
     by_niche: byNiche,
   }
 
-  return NextResponse.json({ tenants, summary })
+  return NextResponse.json({ tenants: tenantsWithRequests, summary })
 }
 
 // ساخت tenant تازه با نیچ انتخابی: {slug, owner_phone, display_name, niche_key}
@@ -101,9 +112,9 @@ export async function POST(req: NextRequest) {
       }))
     )
   }
-  // نیچ روانشناسی: تنظیمات کلینیک (سطح tenant) + پروفایل دکتر پیش‌فرض با badge نمونه
+  // نیچ روانشناسی (تک‌درمانگر یا کلینیک): تنظیمات کلینیک (سطح tenant) + پروفایل دکتر پیش‌فرض با badge نمونه
   // (نام/عنوان از قبل روی resources نشسته؛ بج‌ها per-resource‌اند، قابل ویرایش از پنل → تنظیمات)
-  if (nicheKey === 'psychology') {
+  if (isPsychologyNiche(nicheKey)) {
     await sb().from('psy_clinic_settings').insert({ tenant_id: tenant.id })
     if (res?.id) {
       await sb().from('psy_resource_profiles').insert({
@@ -111,6 +122,12 @@ export async function POST(req: NextRequest) {
         badges: ['📍 شهر و منطقه‌ی خودتان', '⏱ پاسخ در 2 ساعت', '⭐ 4.9 از 5'],
         session_modes: 'both',
       })
+    }
+    // انتخاب صریح تمپلیت «کلینیک» توسط سوپرادمین یعنی حالت کلینیک را همین
+    // الان لازم دارد — نیازی به فلوی درخواست/تایید جدا نیست (خودِ سوپرادمین
+    // دارد این tenant را می‌سازد).
+    if (nicheKey === 'psychology_clinic') {
+      await sb().from('tenant_features').insert({ tenant_id: tenant.id, feature_key: MULTI_THERAPIST_FEATURE_KEY, enabled: true })
     }
   }
   return NextResponse.json({ tenant })

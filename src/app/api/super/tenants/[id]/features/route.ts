@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { sb } from '@/lib/supabase'
 import { isSuperAuthed } from '@/lib/auth'
+import { MULTI_THERAPIST_FEATURE_KEY } from '@/lib/psy'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -22,9 +23,14 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const { data: existing } = await sb().from('tenant_features').select('tenant_id')
     .eq('tenant_id', id).eq('feature_key', feature_key).maybeSingle()
 
+  // برای «حالت کلینیک»: تصمیم سوپرادمین (چه تایید چه رد دستی) همیشه هر
+  // درخواست معلقی را هم پاک می‌کند — دیگر چیزی برای نمایش «در انتظار» نمی‌ماند.
+  const patch: Record<string, any> = { enabled: !!enabled }
+  if (feature_key === MULTI_THERAPIST_FEATURE_KEY) patch.config = { requested: false }
+
   const { error } = existing
-    ? await sb().from('tenant_features').update({ enabled: !!enabled }).eq('tenant_id', id).eq('feature_key', feature_key)
-    : await sb().from('tenant_features').insert({ tenant_id: id, feature_key, enabled: !!enabled })
+    ? await sb().from('tenant_features').update(patch).eq('tenant_id', id).eq('feature_key', feature_key)
+    : await sb().from('tenant_features').insert({ tenant_id: id, feature_key, ...patch })
 
   if (error) {
     console.error('super/tenants/[id]/features PATCH error:', error)

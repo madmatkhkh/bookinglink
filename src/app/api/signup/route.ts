@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { sb } from '@/lib/supabase'
 import { issueOtp, verifyOtp, normalizePhone, isValidEmail, createPanelSession, requestIp, otpEchoEnabled, OTP_THROTTLED_MSG } from '@/lib/auth'
 import { RESERVED_SLUGS, SLUG_PATTERN } from '@/lib/config'
-import { getNiche } from '@/lib/niche'
+import { getNiche, isPsychologyNiche } from '@/lib/niche'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -36,6 +36,7 @@ export async function POST(req: NextRequest) {
   const nicheKey = String(b.niche_key || '')
   const niche = await getNiche(nicheKey)
   if (!niche) return NextResponse.json({ error: 'یک حوزه‌ی کاری معتبر انتخاب کن' }, { status: 400 })
+  if (!niche.is_active) return NextResponse.json({ error: 'این حوزه هنوز برای ثبت‌نام آماده نیست — به‌زودی باز می‌شود' }, { status: 400 })
 
   // نشانی از قبل گرفته شده؟ (چک زودهنگام؛ چک‌ نهایی هم موقع insert با unique constraint است)
   const { data: existing } = await sb().from('tenants').select('id').eq('slug', slug).maybeSingle()
@@ -84,7 +85,7 @@ export async function POST(req: NextRequest) {
       niche.default_features.map((key: string) => ({ tenant_id: tenant.id, feature_key: key, enabled: true }))
     )
   }
-  if (nicheKey === 'psychology') {
+  if (isPsychologyNiche(nicheKey)) {
     await sb().from('psy_clinic_settings').insert({ tenant_id: tenant.id })
     if (resource?.id) {
       // بج‌ها عمدا خالی — نسخه‌ی قبل ریتینگ ساختگی («4.9 از 5») برای حساب

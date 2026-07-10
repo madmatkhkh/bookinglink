@@ -11,6 +11,7 @@ import { sb } from '@/lib/supabase'
 import { toFarsiNum } from '@/lib/calendar'
 import { MODE_LABEL, PLATFORM_NAME } from '@/lib/config'
 import { getClinicSettings, listPublicDoctors } from '@/lib/psy'
+import { isPsychologyNiche } from '@/lib/niche'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -25,7 +26,7 @@ async function loadTenant(slug: string) {
 export async function generateMetadata({ params }: { params: { slug: string } }): Promise<Metadata> {
  const tenant = await loadTenant(params.slug)
  if (!tenant) return { title: 'یافت نشد' }
- if (tenant.niche_key === 'psychology') {
+ if (isPsychologyNiche(tenant.niche_key)) {
   const [doctors] = await Promise.all([listPublicDoctors(tenant.id, tenant.plan)])
   const primary = doctors[0]
   const title = `${primary?.name || 'رزرو نوبت'} — نوبت‌دهی`
@@ -50,7 +51,7 @@ export default async function PublicProfile({ params }: { params: { slug: string
  if (!tenant) notFound()
 
  // ── نیچ روانشناسی: تجربه‌ی مصاحبه/پنل مراجع ──
- if (tenant.niche_key === 'psychology') {
+ if (isPsychologyNiche(tenant.niche_key)) {
   const [clinic, doctors] = await Promise.all([getClinicSettings(tenant.id), listPublicDoctors(tenant.id, tenant.plan)])
   const primary = doctors[0]
   const c = {

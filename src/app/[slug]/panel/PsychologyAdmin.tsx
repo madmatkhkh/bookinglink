@@ -477,6 +477,7 @@ export function PsychologyAdmin() {
  const [settingsOpen, setSettingsOpen] = useState(false)
  useEffect(() => { if (mainTab === 'settings') setSettingsOpen(true) }, [mainTab])
  const [togglingClinicMode, setTogglingClinicMode] = useState(false)
+ const [clinicRequestNote, setClinicRequestNote] = useState('')
 
  // رفتن به یک تب اصلی — وقتی مقصد خود تنظیمات است (از نویگیشن اصلی، نه از
  // داخل زیرتب‌ها)، همیشه به زیرتب پیش‌فرض («پروفایل») برمی‌گردد، نه آخرین
@@ -682,7 +683,7 @@ export function PsychologyAdmin() {
  const [toJ, setToJ] = useState(() => { const t = getCurrentJalali(); return { y: t.year, m: t.month + 1, d: t.day } })
 
  // ── چندکارمندی: کی وارد شده (صاحب مجموعه یا یک کارمند مشخص)؟ ──
- const [me, setMe] = useState<{ isOwner: boolean; resourceId: string | null; resourceName: string | null; phone: string | null; slug: string | null; multiTherapist: boolean } | null>(null)
+ const [me, setMe] = useState<{ isOwner: boolean; resourceId: string | null; resourceName: string | null; phone: string | null; slug: string | null; multiTherapist: boolean; multiTherapistRequested: boolean } | null>(null)
  const [changePhoneOpen, setChangePhoneOpen] = useState(false)
  const [newPhoneInput, setNewPhoneInput] = useState('')
  const [changePhoneCode, setChangePhoneCode] = useState('')
@@ -744,7 +745,7 @@ export function PsychologyAdmin() {
    const r = await fetch(panelApi('/whoami'), { cache: 'no-store' })
    if (r.status === 401) { setNeedsLogin(true); return }
    const d = await r.json()
-   setMe({ isOwner: !!d.isOwner, resourceId: d.resourceId || null, resourceName: d.resourceName || null, phone: d.phone || null, slug: d.slug || null, multiTherapist: !!d.multiTherapist })
+   setMe({ isOwner: !!d.isOwner, resourceId: d.resourceId || null, resourceName: d.resourceName || null, phone: d.phone || null, slug: d.slug || null, multiTherapist: !!d.multiTherapist, multiTherapistRequested: !!d.multiTherapistRequested })
    if (d.isOwner) loadStaff()
    loadProfile()
   } catch {}
@@ -4872,25 +4873,56 @@ export function PsychologyAdmin() {
      {me?.isOwner && (
       <section className="bg-white rounded-2xl border border-sand p-5">
        <h2 className="text-sm font-display font-bold text-ink mb-1">حالت کلینیک</h2>
-       <p className="text-xs text-soot mb-4">
-        اگر بیش از یک درمانگر دارید، این را روشن کنید تا تب «تیم» برای افزودن/مدیریت پرسنل ظاهر شود.
-        اگر تک‌درمانگرید، همین‌طور خاموش بماند — چیزی از دیتای شما حذف نمی‌شود و هر وقت خواستید می‌توانید روشنش کنید.
-       </p>
-       <label className="flex items-center justify-between p-3 rounded-xl border border-sand cursor-pointer">
-        <span className="text-sm text-ink">چند درمانگر (نمایش تب «تیم»)</span>
-        <input type="checkbox" checked={!!me?.multiTherapist} disabled={togglingClinicMode}
-         onChange={async e => {
-          setTogglingClinicMode(true)
-          const res = await fetch(panelApi('/multi-therapist'), {
-           method: 'POST', headers: { 'Content-Type': 'application/json' },
-           body: JSON.stringify({ enabled: e.target.checked }),
-          })
-          setTogglingClinicMode(false)
-          if (!res.ok) { uiAlert('ذخیره‌ی تغییرات ناموفق بود'); return }
-          await loadMe()
-         }}
-         className="w-5 h-5 accent-ink" />
-       </label>
+       {me.multiTherapist ? (
+        <>
+         <p className="text-xs text-soot mb-2">حالت کلینیک برای مجموعه‌ی شما فعال است — تب «درمانگرها» را در سایدبار می‌بینید.</p>
+         <p className="text-[11px] text-soot">برای غیرفعال‌کردن با پشتیبانی {PLATFORM_NAME} تماس بگیرید.</p>
+        </>
+       ) : me.multiTherapistRequested ? (
+        <>
+         <p className="text-xs text-amber-700 bg-amber-500/10 border border-amber-500/20 rounded-lg p-2.5 mb-3">
+          درخواست شما ثبت شد — تا تایید پشتیبانی {PLATFORM_NAME} منتظر بمانید. بعد از تایید، تب «درمانگرها» خودکار ظاهر می‌شود.
+         </p>
+         <button onClick={async () => {
+           setTogglingClinicMode(true)
+           const res = await fetch(panelApi('/multi-therapist'), {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ request: false }),
+           })
+           setTogglingClinicMode(false)
+           if (!res.ok) { uiAlert('لغو درخواست ناموفق بود'); return }
+           await loadMe()
+          }}
+          disabled={togglingClinicMode}
+          className="text-xs text-soot border border-sand rounded-lg px-3 py-2 hover:bg-gray-50 disabled:opacity-50">
+          لغو درخواست
+         </button>
+        </>
+       ) : (
+        <>
+         <p className="text-xs text-soot mb-3">
+          اگر بیش از یک درمانگر دارید، درخواست بدهید تا پشتیبانی {PLATFORM_NAME} بعد از بررسی، تب «درمانگرها» را برایتان فعال کند.
+          اگر تک‌درمانگرید، لازم نیست کاری کنید.
+         </p>
+         <textarea value={clinicRequestNote} onChange={e => setClinicRequestNote(e.target.value)}
+          placeholder="اختیاری: چند نفر درمانگر دارید؟ (به بررسی سریع‌تر کمک می‌کند)"
+          rows={2} className="w-full text-sm px-3 py-2 border border-sand rounded-lg resize-none mb-2 focus:outline-none focus:border-ink" />
+         <button onClick={async () => {
+           setTogglingClinicMode(true)
+           const res = await fetch(panelApi('/multi-therapist'), {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ request: true, note: clinicRequestNote.trim() }),
+           })
+           setTogglingClinicMode(false)
+           if (!res.ok) { uiAlert('ثبت درخواست ناموفق بود'); return }
+           await loadMe()
+          }}
+          disabled={togglingClinicMode}
+          className="px-4 py-2.5 bg-ink text-white rounded-xl text-sm font-medium disabled:opacity-50">
+          {togglingClinicMode ? 'در حال ارسال…' : 'درخواست تبدیل به کلینیک'}
+         </button>
+        </>
+       )}
       </section>
      )}
 

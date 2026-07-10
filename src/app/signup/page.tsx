@@ -11,7 +11,7 @@ import { useEffect, useState } from 'react'
 import { PLATFORM_NAME, RESERVED_SLUGS, SLUG_PATTERN } from '@/lib/config'
 import { useResendCooldown } from '@/lib/useResendCooldown'
 
-type NicheCard = { key: string; display_name: string; tagline: string }
+type NicheCard = { key: string; display_name: string; tagline: string; is_active: boolean }
 
 export default function Signup() {
   const [niches, setNiches] = useState<NicheCard[]>([])
@@ -33,7 +33,8 @@ export default function Signup() {
   useEffect(() => {
     fetch('/api/niches').then(r => r.json()).then(d => {
       setNiches(d.niches || [])
-      if (d.niches?.[0]) setNiche(d.niches[0].key)
+      const firstActive = (d.niches || []).find((n: NicheCard) => n.is_active)
+      if (firstActive) setNiche(firstActive.key)
     }).catch(() => {})
   }, [])
 
@@ -131,8 +132,13 @@ export default function Signup() {
             <label className="block text-[13px] font-semibold text-ink/80 mb-2">حوزه‌ی کاری</label>
             <div className="grid sm:grid-cols-2 gap-2.5 mb-6">
               {niches.map(n => (
-                <button type="button" key={n.key} onClick={() => setNiche(n.key)}
-                  className={`text-right rounded-xl border p-3.5 transition ${niche === n.key ? 'border-ink bg-white ring-2 ring-ink/10' : 'border-sand hover:border-ink'}`}>
+                <button type="button" key={n.key} disabled={!n.is_active} onClick={() => n.is_active && setNiche(n.key)}
+                  className={`relative text-right rounded-xl border p-3.5 transition ${
+                    !n.is_active ? 'border-sand bg-gray-50/50 opacity-60 cursor-not-allowed'
+                    : niche === n.key ? 'border-ink bg-white ring-2 ring-ink/10' : 'border-sand hover:border-ink'}`}>
+                  {!n.is_active && (
+                    <span className="absolute top-2.5 left-2.5 text-[10px] font-semibold text-soot bg-sand px-1.5 py-0.5 rounded-full">به‌زودی</span>
+                  )}
                   <div className="font-display font-bold text-sm">{n.display_name}</div>
                   <div className="text-[11px] text-soot leading-relaxed mt-1 line-clamp-2">{n.tagline}</div>
                 </button>

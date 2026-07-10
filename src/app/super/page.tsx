@@ -14,12 +14,13 @@ type Tenant = {
   owner_phone: string
   created_at: string
   records_count: number
+  clinic_mode_requested?: boolean
   tenant_profiles: { display_name: string | null }[] | { display_name: string | null } | null
 }
 
 type Summary = {
   total: number; active: number; suspended: number; pending: number
-  recent_7d: number; inactive: number; by_niche: Record<string, number>
+  recent_7d: number; inactive: number; clinic_mode_requests?: number; by_niche: Record<string, number>
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -237,6 +238,11 @@ function SuperInner() {
           {summary.inactive} متخصص هنوز هیچ پرونده/رزروی ثبت نکرده‌اند — کاندید پیگیری آنبوردینگ.
         </p>
       )}
+      {!!summary?.clinic_mode_requests && summary.clinic_mode_requests > 0 && (
+        <p className="text-xs text-amber-700 bg-amber-500/10 border border-amber-500/20 rounded-xl px-3 py-2 -mt-2">
+          🔔 {summary.clinic_mode_requests} درخواست «تبدیل به کلینیک» در انتظار تایید شماست — روی ردیف نشان‌دارشده در لیست پایین بزنید.
+        </p>
+      )}
 
       {/* ساخت tenant تازه */}
       <section className="bg-white border border-sand rounded-2xl p-5 space-y-3">
@@ -320,6 +326,9 @@ function SuperInner() {
                 )}
                 {t.records_count === 0 && (
                   <span className="text-[11px] px-2 py-0.5 rounded-full bg-amber-50 text-amber-700">بدون فعالیت</span>
+                )}
+                {t.clinic_mode_requested && (
+                  <span className="text-[11px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-semibold">🔔 درخواست کلینیک</span>
                 )}
               </div>
               <div className="text-xs text-soot mt-1 flex items-center gap-3 flex-wrap">

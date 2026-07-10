@@ -8,6 +8,7 @@ import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { PsychologyAdmin } from './PsychologyAdmin'
 import { GenericAdmin } from './GenericAdmin'
+import { isPsychologyNiche } from '@/lib/niche'
 
 export default function PanelRouter() {
   const { slug } = useParams<{ slug: string }>()
@@ -23,6 +24,6 @@ export default function PanelRouter() {
 
   if (notFound) return <div className="min-h-screen flex items-center justify-center text-soot" dir="rtl">این صفحه پیدا نشد.</div>
   if (niche === null) return <div className="min-h-screen flex items-center justify-center text-soot" dir="rtl">در حال بارگذاری…</div>
-  if (niche === 'psychology') return <PsychologyAdmin />
+  if (isPsychologyNiche(niche)) return <PsychologyAdmin />
   return <GenericAdmin />
 }
