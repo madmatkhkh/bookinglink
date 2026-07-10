@@ -9,6 +9,7 @@ import { IntakeForm, FormField, FormFieldType, DEFAULT_INTAKE_FORM, LEGACY_DETAI
 import { DialogHost, uiAlert, uiConfirm, uiPrompt } from '@/components/ui/Dialog'
 import { useResendCooldown } from '@/lib/useResendCooldown'
 import { Glyph } from '@/components/Glyph'
+import { MonthYearWheel, JalaliDateWheel } from '@/components/WheelPicker'
 
 // در پنل ادمین همه‌ی ارقام لاتین نمایش داده می‌شوند (فقط نمایش؛ فرمت ذخیره دست‌نخورده)
 const toFarsiNum = (n: number | string) => toLatinNum(String(n))
@@ -376,22 +377,14 @@ function PendingPayCard({ name, caseNumber, amount, receipt, sub, children }: {
 
 // انتخابگر تاریخ جلالی (سال/ماه/روز) برای بازه‌ی گزارش
 function JalaliDateSelect({ value, onChange }: { value: { y: number; m: number; d: number }; onChange: (v: { y: number; m: number; d: number }) => void }) {
- const nowY = getCurrentJalali().year
- const years = [nowY - 3, nowY - 2, nowY - 1, nowY]
- const days = getDaysInJalaliMonth(value.y, value.m - 1)
- const cls = 'text-xs px-2 py-1.5 border border-sand rounded-lg bg-white focus:outline-none focus:border-ink'
+ // پوسته‌ی سازگار: بیرون همان {y,m,d} قدیمی را می‌گیرد/می‌دهد، داخلش دیگر از
+ // WheelPicker استفاده می‌کند (نه سه‌تا select خامِ قدیمی).
+ const str = `${value.y}/${String(value.m).padStart(2, '0')}/${String(value.d).padStart(2, '0')}`
  return (
-  <div className="flex gap-1">
-   <select value={value.y} onChange={e => onChange({ ...value, y: +e.target.value })} className={cls}>
-    {years.map(y => <option key={y} value={y}>{toFarsiNum(y)}</option>)}
-   </select>
-   <select value={value.m} onChange={e => onChange({ ...value, m: +e.target.value })} className={cls}>
-    {PERSIAN_MONTHS.map((mn, i) => <option key={i} value={i + 1}>{mn}</option>)}
-   </select>
-   <select value={value.d} onChange={e => onChange({ ...value, d: Math.min(+e.target.value, days) })} className={cls}>
-    {Array.from({ length: days }, (_, i) => i + 1).map(d => <option key={d} value={d}>{toFarsiNum(d)}</option>)}
-   </select>
-  </div>
+  <JalaliDateWheel value={str} onChange={v => {
+   const [y, m, d] = v.split('/').map(n => parseInt(n, 10))
+   onChange({ y, m, d })
+  }} yearsBack={4} yearsForward={0} />
  )
 }
 
@@ -684,13 +677,18 @@ export function PsychologyAdmin() {
  const [dragOverSectionIdx, setDragOverSectionIdx] = useState<number | null>(null)
 
  // ── Package / Session forms ────────────────────────────────────
- const [newPkg, setNewPkg] = useState({
-  month: '1', year: '1404',
-  primary_sessions: 8, secondary_sessions: 2,
-  primary_session_type: 'offline', secondary_session_type: 'offline', notes: ''
+ // پیش‌فرضِ سال/ماه باید همیشه «همین الان» باشد، نه یک تاریخِ ثابتِ کدشده که با
+ // گذشتِ زمان قدیمی می‌ماند (باگِ قبلی: 1404/فروردین برای همیشه، حتی در 1405 و بعدش)
+ const [newPkg, setNewPkg] = useState(() => {
+  const t = getCurrentJalali()
+  return {
+   month: String(t.month + 1), year: String(t.year),
+   primary_sessions: 8, secondary_sessions: 2,
+   primary_session_type: 'offline', secondary_session_type: 'offline', notes: '',
+  }
  })
  const [newSess, setNewSess] = useState({
-  title: 'ارزیابی', customTitle: '', session_type: 'offline', attendee: 'primary', paid: true
+  title: 'ارزیابی', customTitle: '', session_type: 'offline', attendee: 'primary'
  })
  const [sessForm, setSessForm] = useState({
   session_goals: '', session_summary: '',
@@ -985,7 +983,10 @@ export function PsychologyAdmin() {
    case_number: selectedPatient.case_number,
    title, session_date: '', session_time: '',
    session_type: newSess.session_type, attendee: newSess.attendee,
-   package_id: null, paid: newSess.paid,
+   // همیشه پرداخت‌نشده ثبت می‌شود — طبیعی است که هر جلسه‌ای که دکتر باز می‌کند،
+   // مراجع باید هزینه‌اش را بپردازد؛ دیگر گزینه‌ای برای علامت‌زدنِ «از قبل
+   // پرداخت‌شده» در همین لحظه‌ی ساخت وجود ندارد.
+   package_id: null, paid: false,
   }
   await fetch(api('/sessions'), {
    method: 'POST',
@@ -993,7 +994,7 @@ export function PsychologyAdmin() {
    body: JSON.stringify(payload),
   })
   setShowNewSession(false)
-  setNewSess({ title: 'ارزیابی', customTitle: '', session_type: 'offline', attendee: 'primary', paid: true })
+  setNewSess({ title: 'ارزیابی', customTitle: '', session_type: 'offline', attendee: 'primary' })
   await loadPatientData(selectedPatient.case_number)
   loadAllSessions()
  }
@@ -1844,14 +1845,14 @@ export function PsychologyAdmin() {
  }
 
  // با کلیک روی هر روز، ساعت‌های ذخیره‌شده‌اش را بارگذاری کن تا ویرایش درست باشد
- async function selectSchedDay(d: number) {
+ async function selectSchedDay(d: number, month = schedMonth, year = schedYear) {
   setSelectedDay(d)
   setSelectedTimes([])
   setSlotTypes({})
   setSlotLocs({})
   setIsOff(false)
   setCustomTime('')
-  const date = `${schedYear}/${schedMonth + 1}/${d}`
+  const date = `${year}/${month + 1}/${d}`
   try {
    const res = await fetch(api(`/schedule?date=${date}${scheduleResourceQS()}`), { cache: 'no-store' })
    const data = await res.json()
@@ -2239,7 +2240,13 @@ export function PsychologyAdmin() {
         <div className="bg-white rounded-2xl border border-sand p-5">
          <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-display font-semibold text-ink">برنامه‌ی امروز</h2>
-          <button onClick={() => setMainTab('schedule')} className="text-xs text-soot hover:text-ink">مشاهده‌ی همه ←</button>
+          <button onClick={() => {
+            const t = getCurrentJalali()
+            setMainTab('schedule')
+            setSchedMonth(t.month); setSchedYear(t.year)
+            loadMonthSchedules(t.month, t.year)
+            selectSchedDay(t.day, t.month, t.year)
+           }} className="text-xs text-soot hover:text-ink">مشاهده‌ی همه ←</button>
          </div>
          {todayAppts.length === 0 ? (
           <p className="text-xs text-soot text-center py-6">امروز نوبتی ثبت نشده.</p>
@@ -4246,19 +4253,10 @@ export function PsychologyAdmin() {
      <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-xl" dir="rtl">
       <h2 className="font-display font-semibold text-ink mb-4">تعریف پروتکل درمانی جدید</h2>
       <div className="space-y-3">
-       <div className="grid grid-cols-2 gap-3">
-        <div>
-         <label className="text-xs text-soot mb-1 block">ماه</label>
-         <select value={newPkg.month} onChange={e => setNewPkg({...newPkg, month: e.target.value})}
-          className="w-full text-sm px-3 py-2 border border-sand rounded-lg bg-white">
-          {PERSIAN_MONTHS.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
-         </select>
-        </div>
-        <div>
-         <label className="text-xs text-soot mb-1 block">سال</label>
-         <input value={newPkg.year} onChange={e => setNewPkg({...newPkg, year: e.target.value})}
-          className="w-full text-sm px-3 py-2 border border-sand rounded-lg" placeholder="1404" />
-        </div>
+       <div>
+        <label className="text-xs text-soot mb-1.5 block text-center">ماه/سالِ شروعِ پروتکل</label>
+        <MonthYearWheel month={parseInt(newPkg.month)} year={parseInt(newPkg.year)}
+         onChange={(m, y) => setNewPkg({ ...newPkg, month: String(m), year: String(y) })} />
        </div>
        <div className="grid grid-cols-2 gap-3">
         <div>
@@ -4333,8 +4331,8 @@ export function PsychologyAdmin() {
        <div className="grid grid-cols-2 gap-3">
         <div>
          <label className="text-xs text-soot mb-1 block">تاریخ تولد</label>
-         <input value={newPatientForm.birth_date} onChange={e => setNewPatientForm({ ...newPatientForm, birth_date: e.target.value })}
-          placeholder="1395/03/12" className="w-full text-sm px-3 py-2 border border-sand rounded-lg" />
+         <JalaliDateWheel value={newPatientForm.birth_date} onChange={v => setNewPatientForm({ ...newPatientForm, birth_date: v })}
+          label="تاریخِ تولد" />
         </div>
         <div>
          <label className="text-xs text-soot mb-1 block">پایه‌ی تحصیلی (اختیاری)</label>
@@ -4424,16 +4422,11 @@ export function PsychologyAdmin() {
          <select value={newSess.attendee} onChange={e => setNewSess({...newSess, attendee: e.target.value})}
           className="w-full text-sm px-3 py-2 border border-sand rounded-lg bg-white">
           <option value="primary">🧑 مراجع</option>
-          {profile.companion_label && <option value="secondary">👥 {profile.companion_label}</option>}
+          <option value="secondary">👥 {profile.companion_label || 'همراه'}</option>
          </select>
          <p className="text-[11px] text-soot mt-1">مشخص می‌کند این جلسه‌ی خاص را چه کسی حضور می‌یابد — فقط برای نمایش در برنامه و پرونده؛ روی قیمت اثر ندارد.</p>
         </div>
        </div>
-       <label className="flex items-center gap-2 text-sm text-ink cursor-pointer">
-        <input type="checkbox" checked={newSess.paid} onChange={e => setNewSess({ ...newSess, paid: e.target.checked })}
-         className="w-4 h-4 accent-ink" />
-        این جلسه پرداخت‌شده است (اگر تیک نزنی، مراجع باید در پنل پرداخت کند)
-       </label>
       </div>
       <div className="flex gap-2 mt-4">
        <button onClick={() => setShowNewSession(false)}
