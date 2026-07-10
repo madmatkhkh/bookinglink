@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useState, useCallback } from 'react'
-import { useRouter, useParams, useSearchParams } from 'next/navigation'
+import { useParams } from 'next/navigation'
 import { PERSIAN_MONTHS, toLatinNum, getCurrentJalali, getDaysInJalaliMonth, jalaliDateTimeToTimestamp } from '@/lib/calendar'
 import { STAGE_TYPE_LABEL, STAGE_STATUS_LABEL } from '@/lib/flow'
 import { PRICING, PLATFORM_NAME } from '@/lib/config'
@@ -444,9 +444,7 @@ function Section({ title, icon, children }: { title: string; icon?: string; chil
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export function PsychologyAdmin() {
- const router = useRouter()
  const { slug } = useParams<{ slug: string }>()
- const searchParams = useSearchParams()
  const api = (path: string) => `/api/t/${slug}/panel/psy${path}`
  const panelApi = (path: string) => `/api/t/${slug}/panel${path}`
 
@@ -455,79 +453,37 @@ export function PsychologyAdmin() {
  // مرورگر هیچ تاریخچه‌ای برای این ناوبری نداشت. نتیجه: دکمه‌ی برگشت گوشی یا
  // مرورگر بلافاصله از کل برنامه بیرون می‌رفت، و در دسکتاپ اصلا گزینه‌ی برگشتی
  // برای داخل پنل وجود نداشت. الان هر ناوبری مهم یک ورودی در تاریخچه push
- // می‌کند (searchParams آدرس) — برگشت با دکمه‌ی back واقعا بین تب‌ها/پرونده‌ها
- // جابه‌جا می‌شود، نه اینکه از برنامه خارج شود.
+ // ناوبری تب‌ها — قبلا اینجا با router.push/searchParams هماهنگ میشد تا دکمه‌ی
+ // برگشت مرورگر کار کنه، ولی همین باعث یک باگ جدی شد: چون router.push
+ // ناهمزمانه و state مستقیم (setMainTab) همزمان تغییر میکرد، یک effect که
+ // searchParams رو میخوند گاهی مقدار قدیمی/جا‌مانده رو میدید و mainTab رو
+ // خودکار برمیگردوند - یعنی کلیک روی تب دیگه گاهی اصلا اثر نمیکرد. کامل به
+ // state ساده برگشت داده شد تا ناوبری صددرصد قابل‌اعتماد بمونه.
  type MainTab = 'dashboard' | 'patients' | 'bookings' | 'schedule' | 'settings_hub' | 'finance' | 'growth'
  type SettingsSub = 'profile' | 'payments' | 'pricing' | 'locations' | 'form' | 'patient_panel' | 'staff' | 'account' | 'tickets'
- const VALID_TABS: MainTab[] = ['dashboard', 'patients', 'bookings', 'schedule', 'settings_hub', 'finance', 'growth']
- const VALID_SUBS: SettingsSub[] = ['profile', 'payments', 'pricing', 'locations', 'form', 'patient_panel', 'staff', 'account', 'tickets']
 
- const initialTab = (searchParams.get('tab') as MainTab) || 'dashboard'
- const [mainTab, setMainTab] = useState<MainTab>(VALID_TABS.includes(initialTab) ? initialTab : 'dashboard')
- const initialSub = (searchParams.get('sub') as SettingsSub) || 'profile'
- const [settingsSubTab, setSettingsSubTab] = useState<SettingsSub>(VALID_SUBS.includes(initialSub) ? initialSub : 'profile')
+ const [mainTab, setMainTab] = useState<MainTab>('dashboard')
+ const [settingsSubTab, setSettingsSubTab] = useState<SettingsSub>('profile')
  const [sidebarOpen, setSidebarOpen] = useState(false)
 
- function buildNavUrl(updates: Record<string, string | null>) {
-  const params = new URLSearchParams(searchParams.toString())
-  for (const [k, v] of Object.entries(updates)) {
-   if (v === null) params.delete(k)
-   else params.set(k, v)
-  }
-  const qs = params.toString()
-  return qs ? `?${qs}` : (typeof window !== 'undefined' ? window.location.pathname : '')
- }
-
- // رفتن به یک تب اصلی — اگر مقصد تنظیمات نیست، sub/patient پاک می‌شوند؛ اگر
- // مقصد خود تنظیمات است (از نویگیشن اصلی، نه از داخل زیرتب‌ها)، همیشه به
- // زیرتب پیش‌فرض («پروفایل») برمی‌گردد — دقیقا همان چیزی که گزارش شد: قبلا
- // آخرین زیرتب بازدیدشده را «به‌جای برگشتن به حالت اول» نگه می‌داشت.
+ // رفتن به یک تب اصلی — وقتی مقصد خود تنظیمات است (از نویگیشن اصلی، نه از
+ // داخل زیرتب‌ها)، همیشه به زیرتب پیش‌فرض («پروفایل») برمی‌گردد، نه آخرین
+ // زیرتبی که قبلا باز بود.
  function navigateTab(tab: MainTab) {
   setMainTab(tab)
   if (tab === 'settings_hub') setSettingsSubTab('profile')
-  router.push(buildNavUrl({ tab, sub: tab === 'settings_hub' ? 'profile' : null, patient: null }))
  }
 
  function navigateSettingsSub(sub: SettingsSub) {
   setMainTab('settings_hub')
   setSettingsSubTab(sub)
-  router.push(buildNavUrl({ tab: 'settings_hub', sub }))
  }
-
- // وقتی کاربر با دکمه‌ی برگشت مرورگر/گوشی برمی‌گردد، آدرس عوض می‌شود ولی
- // state دستی sync نمی‌شود مگر این‌جا گوش بدهیم — Next.js با تغییر
- // searchParams (چه با popstate چه با push) این effect را دوباره اجرا می‌کند.
- useEffect(() => {
-  const urlTab = searchParams.get('tab') as MainTab | null
-  const urlSub = searchParams.get('sub') as SettingsSub | null
-  if (urlTab && VALID_TABS.includes(urlTab) && urlTab !== mainTab) setMainTab(urlTab)
-  if (urlSub && VALID_SUBS.includes(urlSub) && urlSub !== settingsSubTab) setSettingsSubTab(urlSub)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
- }, [searchParams])
 
  // ── Patients state ─────────────────────────────────────────────
  const [patients, setPatients] = useState<Patient[]>([])
  const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null)
  const [patientView, setPatientView] = useState<'list' | 'detail' | 'edit'>('list')
  const [patientTab, setPatientTab] = useState<'info' | 'payment' | 'packages' | 'sessions' | 'clinical'>('info')
-
- // بازگرداندن جزئیات پرونده از روی آدرس — وقتی با دکمه‌ی برگشت/جلو یا لینک
- // ذخیره‌شده به اینجا می‌رسیم و لیست پرونده‌ها همین الان لود شده. اگر پارامتر
- // patient در آدرس نباشد ولی همچنان در نمای «جزئیات» بودیم، یعنی با برگشت
- // باید به لیست برگردیم.
- useEffect(() => {
-  const urlPatient = searchParams.get('patient')
-  if (searchParams.get('tab') !== 'patients') return
-  if (urlPatient) {
-   if (selectedPatient?.case_number !== urlPatient) {
-    const found = patients.find(p => p.case_number === urlPatient)
-    if (found) openPatient(found, false)
-   }
-  } else if (patientView === 'detail') {
-   setPatientView('list')
-  }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
- }, [searchParams, patients])
  const [packages, setPackages] = useState<Package[]>([])
  const [sessions, setSessions] = useState<Session[]>([])
  const [stages, setStages] = useState<CaseStage[]>([])
@@ -839,7 +795,7 @@ export function PsychologyAdmin() {
   loadMe()
   setLoading(false)
   setInitialLoadDone(true)
- }, [router, viewingResourceId])
+ }, [viewingResourceId])
 
  // پرداخت‌های منتظر تأیید (پروتکل‌های درمان و جلسه‌های جایگزین) در همه‌ی پرونده‌ها
  async function loadPendingPayments() {
@@ -894,18 +850,16 @@ export function PsychologyAdmin() {
   setStages(stageData.stages || [])
  }
 
- async function openPatient(p: Patient, pushUrl = true) {
+ async function openPatient(p: Patient) {
   setSelectedPatient(p)
   setPatientView('detail')
   setPatientTab('info')
   setInfoOpenSection(null)
-  if (pushUrl) router.push(buildNavUrl({ tab: 'patients', patient: p.case_number }))
   await Promise.all([loadPatientData(p.case_number), loadPatientIntakeForm((p as any).resource_id), loadClinicalNotes(p.case_number)])
  }
 
  function closePatientDetail() {
   setPatientView('list')
-  router.push(buildNavUrl({ tab: 'patients', patient: null }))
  }
 
  async function loadClinicalNotes(case_number: string) {
@@ -993,7 +947,7 @@ export function PsychologyAdmin() {
    body: JSON.stringify({ id: p.id }),
   })
   if (!res.ok) { uiAlert('حذف ناموفق بود'); return }
-  if (selectedPatient?.id === p.id) { setSelectedPatient(null); setPatientView('list'); router.push(buildNavUrl({ tab: 'patients', patient: null })) }
+  if (selectedPatient?.id === p.id) { setSelectedPatient(null); setPatientView('list') }
   fetchAll()
  }
 
