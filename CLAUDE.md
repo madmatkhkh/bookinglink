@@ -285,6 +285,11 @@
   ```
   همچنین باگ دوم همون اسکرین‌شات: MonthYearWheel اسم ماه‌ها را نشان نمی‌داد، فقط عدد (چون آرایه‌ی items عدد بود نه اسم) - فیکس شد تا PERSIAN_MONTHS (اسم) مستقیم به WheelColumn برود و برگشتش با indexOf به عدد تبدیل شود (دقیقا همون الگویی که JalaliDateWheel از قبل برای ماه داشت).
 
+- 🔴 **فیکس مهم: ناوبری با تاریخچه مرورگر (هم پنل دکتر هم پنل مراجع).** قبلا تعویض تب (dashboard/settings/patients/...) فقط state بود، هیچ آدرسی عوض نمی‌شد - یعنی مرورگر هیچ تاریخچه‌ای برای این ناوبری نداشت. نتیجه: دکمه برگشت گوشی یا مرورگر بلافاصله از کل برنامه بیرون می‌رفت (نه فقط تب قبلی)، و در دسکتاپ اصلا گزینه برگشت نداشت. مثال کاربر: dashboard -> settings -> dashboard -> settings دوباره میره تو همون sub-tab قبلی نه پیش‌فرض.
+  فیکس در PsychologyAdmin.tsx: `navigateTab(tab)` و `navigateSettingsSub(sub)` (نزدیک بالای کامپوننت) هر دو state رو ست میکنن و `router.push` با searchParams (`?tab=X&sub=Y&patient=Z`) میزنن - یعنی هر کلیک ناوبری یک history entry واقعی push میکنه. یک useEffect با dependency روی searchParams، تغییرات URL (چه popstate چه push) رو به state sync میکنه. navigateTab('settings_hub') همیشه sub رو به 'profile' ریست میکنه (نه sub قبلی) - دقیقا رفع همون مثال کاربر. openPatient/closePatientDetail هم case_number رو تو URL (`?patient=X`) نگه میدارن، با یک effect جدا (چون به patients array نیاز داره که دیرتر لود میشه) که با pushUrl=false صدا میزنه تا history رو duplicate نکنه.
+  همین دقیقا برای my/page.tsx (پنل مراجع) هم با `navigateSection(tab)` برای activeTab (packages/sessions/info) پیاده شد.
+  محدودیت شناخته‌شده: دکمه دستی «بازگشت» در جزئیات پرونده یک history entry تازه push میکنه (نه router.back())، یعنی یک بار برگشت اضافه لازمه تا کامل از اون بخش خارج بشه - عمدا این‌جوری تا اگر کاربر مستقیم/از لینک به جزئیات پرونده رسیده باشه، router.back() اونو از کل برنامه بیرون نندازه.
+
 1. **verify دامنه‌ی اختصاصی** — ستون آماده، منطق تایید مالکیت پیاده نشده.
 2. اگر جایی ۴۰۴ یا خطای «endpoint نیست» دیدی، احتمالا یک روت کوچک حاشیه‌ای از psych-booking جا مانده — بگو تا اضافه شود.
 3. (یادداشت کوچک، غیرفوری) تو `/interview/page.tsx` یک استپ ۲ (تقویم پیش‌نمایش) و fetch برنامه‌ی مربوطه از قبل در کد هست ولی هیچ دکمه‌ای بهش نمی‌رسد — کد مرده از یک بازطراحی قدیمی، بی‌خطر ولی قابل حذف در یک پاکسازی بعدی.

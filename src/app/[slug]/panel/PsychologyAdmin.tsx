@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useState, useCallback } from 'react'
-import { useRouter, useParams } from 'next/navigation'
+import { useRouter, useParams, useSearchParams } from 'next/navigation'
 import { PERSIAN_MONTHS, toLatinNum, getCurrentJalali, getDaysInJalaliMonth, jalaliDateTimeToTimestamp } from '@/lib/calendar'
 import { STAGE_TYPE_LABEL, STAGE_STATUS_LABEL } from '@/lib/flow'
 import { PRICING, PLATFORM_NAME } from '@/lib/config'
@@ -445,17 +445,88 @@ function Section({ title, icon, children }: { title: string; icon?: string; chil
 export function PsychologyAdmin() {
  const router = useRouter()
  const { slug } = useParams<{ slug: string }>()
+ const searchParams = useSearchParams()
  const api = (path: string) => `/api/t/${slug}/panel/psy${path}`
  const panelApi = (path: string) => `/api/t/${slug}/panel${path}`
- const [mainTab, setMainTab] = useState<'dashboard' | 'patients' | 'bookings' | 'schedule' | 'settings_hub' | 'finance' | 'growth'>('dashboard')
- const [settingsSubTab, setSettingsSubTab] = useState<'profile' | 'payments' | 'pricing' | 'locations' | 'form' | 'patient_panel' | 'staff' | 'account' | 'tickets'>('profile')
+
+ // ── ناوبری واقعی با تاریخچه‌ی مرورگر ──────────────────────────────────────
+ // قبلا تعویض تب/تب‌فرعی/پرونده فقط state بود، هیچ آدرسی عوض نمی‌شد — یعنی
+ // مرورگر هیچ تاریخچه‌ای برای این ناوبری نداشت. نتیجه: دکمه‌ی برگشت گوشی یا
+ // مرورگر بلافاصله از کل برنامه بیرون می‌رفت، و در دسکتاپ اصلا گزینه‌ی برگشتی
+ // برای داخل پنل وجود نداشت. الان هر ناوبری مهم یک ورودی در تاریخچه push
+ // می‌کند (searchParams آدرس) — برگشت با دکمه‌ی back واقعا بین تب‌ها/پرونده‌ها
+ // جابه‌جا می‌شود، نه اینکه از برنامه خارج شود.
+ type MainTab = 'dashboard' | 'patients' | 'bookings' | 'schedule' | 'settings_hub' | 'finance' | 'growth'
+ type SettingsSub = 'profile' | 'payments' | 'pricing' | 'locations' | 'form' | 'patient_panel' | 'staff' | 'account' | 'tickets'
+ const VALID_TABS: MainTab[] = ['dashboard', 'patients', 'bookings', 'schedule', 'settings_hub', 'finance', 'growth']
+ const VALID_SUBS: SettingsSub[] = ['profile', 'payments', 'pricing', 'locations', 'form', 'patient_panel', 'staff', 'account', 'tickets']
+
+ const initialTab = (searchParams.get('tab') as MainTab) || 'dashboard'
+ const [mainTab, setMainTab] = useState<MainTab>(VALID_TABS.includes(initialTab) ? initialTab : 'dashboard')
+ const initialSub = (searchParams.get('sub') as SettingsSub) || 'profile'
+ const [settingsSubTab, setSettingsSubTab] = useState<SettingsSub>(VALID_SUBS.includes(initialSub) ? initialSub : 'profile')
  const [sidebarOpen, setSidebarOpen] = useState(false)
+
+ function buildNavUrl(updates: Record<string, string | null>) {
+  const params = new URLSearchParams(searchParams.toString())
+  for (const [k, v] of Object.entries(updates)) {
+   if (v === null) params.delete(k)
+   else params.set(k, v)
+  }
+  const qs = params.toString()
+  return qs ? `?${qs}` : (typeof window !== 'undefined' ? window.location.pathname : '')
+ }
+
+ // رفتن به یک تب اصلی — اگر مقصد تنظیمات نیست، sub/patient پاک می‌شوند؛ اگر
+ // مقصد خود تنظیمات است (از نویگیشن اصلی، نه از داخل زیرتب‌ها)، همیشه به
+ // زیرتب پیش‌فرض («پروفایل») برمی‌گردد — دقیقا همان چیزی که گزارش شد: قبلا
+ // آخرین زیرتب بازدیدشده را «به‌جای برگشتن به حالت اول» نگه می‌داشت.
+ function navigateTab(tab: MainTab) {
+  setMainTab(tab)
+  if (tab === 'settings_hub') setSettingsSubTab('profile')
+  router.push(buildNavUrl({ tab, sub: tab === 'settings_hub' ? 'profile' : null, patient: null }))
+ }
+
+ function navigateSettingsSub(sub: SettingsSub) {
+  setMainTab('settings_hub')
+  setSettingsSubTab(sub)
+  router.push(buildNavUrl({ tab: 'settings_hub', sub }))
+ }
+
+ // وقتی کاربر با دکمه‌ی برگشت مرورگر/گوشی برمی‌گردد، آدرس عوض می‌شود ولی
+ // state دستی sync نمی‌شود مگر این‌جا گوش بدهیم — Next.js با تغییر
+ // searchParams (چه با popstate چه با push) این effect را دوباره اجرا می‌کند.
+ useEffect(() => {
+  const urlTab = searchParams.get('tab') as MainTab | null
+  const urlSub = searchParams.get('sub') as SettingsSub | null
+  if (urlTab && VALID_TABS.includes(urlTab) && urlTab !== mainTab) setMainTab(urlTab)
+  if (urlSub && VALID_SUBS.includes(urlSub) && urlSub !== settingsSubTab) setSettingsSubTab(urlSub)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+ }, [searchParams])
 
  // ── Patients state ─────────────────────────────────────────────
  const [patients, setPatients] = useState<Patient[]>([])
  const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null)
  const [patientView, setPatientView] = useState<'list' | 'detail' | 'edit'>('list')
  const [patientTab, setPatientTab] = useState<'info' | 'payment' | 'packages' | 'sessions' | 'clinical'>('info')
+
+ // بازگرداندن جزئیات پرونده از روی آدرس — وقتی با دکمه‌ی برگشت/جلو یا لینک
+ // ذخیره‌شده به اینجا می‌رسیم و لیست پرونده‌ها همین الان لود شده. اگر پارامتر
+ // patient در آدرس نباشد ولی همچنان در نمای «جزئیات» بودیم، یعنی با برگشت
+ // باید به لیست برگردیم.
+ useEffect(() => {
+  const urlPatient = searchParams.get('patient')
+  if (searchParams.get('tab') !== 'patients') return
+  if (urlPatient) {
+   if (selectedPatient?.case_number !== urlPatient) {
+    const found = patients.find(p => p.case_number === urlPatient)
+    if (found) openPatient(found, false)
+   }
+  } else if (patientView === 'detail') {
+   setPatientView('list')
+  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+ }, [searchParams, patients])
  const [packages, setPackages] = useState<Package[]>([])
  const [sessions, setSessions] = useState<Session[]>([])
  const [stages, setStages] = useState<CaseStage[]>([])
@@ -822,12 +893,18 @@ export function PsychologyAdmin() {
   setStages(stageData.stages || [])
  }
 
- async function openPatient(p: Patient) {
+ async function openPatient(p: Patient, pushUrl = true) {
   setSelectedPatient(p)
   setPatientView('detail')
   setPatientTab('info')
   setInfoOpenSection(null)
+  if (pushUrl) router.push(buildNavUrl({ tab: 'patients', patient: p.case_number }))
   await Promise.all([loadPatientData(p.case_number), loadPatientIntakeForm((p as any).resource_id), loadClinicalNotes(p.case_number)])
+ }
+
+ function closePatientDetail() {
+  setPatientView('list')
+  router.push(buildNavUrl({ tab: 'patients', patient: null }))
  }
 
  async function loadClinicalNotes(case_number: string) {
@@ -915,7 +992,7 @@ export function PsychologyAdmin() {
    body: JSON.stringify({ id: p.id }),
   })
   if (!res.ok) { uiAlert('حذف ناموفق بود'); return }
-  if (selectedPatient?.id === p.id) { setSelectedPatient(null); setPatientView('list') }
+  if (selectedPatient?.id === p.id) { setSelectedPatient(null); setPatientView('list'); router.push(buildNavUrl({ tab: 'patients', patient: null })) }
   fetchAll()
  }
 
@@ -1953,7 +2030,7 @@ export function PsychologyAdmin() {
   return (
    <nav className="flex-1 p-2 space-y-0.5 overflow-y-auto">
     {navItems.map(item => (
-     <button key={item.key} onClick={() => { setMainTab(item.key); onNavigate?.() }}
+     <button key={item.key} onClick={() => { navigateTab(item.key); onNavigate?.() }}
       className={`w-full text-right px-3 py-2.5 rounded-lg text-sm flex items-center justify-between gap-2 transition-colors ${
        mainTab === item.key ? 'bg-sand text-ink font-medium' : 'text-soot hover:bg-gray-50'}`}>
       <span className="flex items-center gap-2"><Glyph icon={item.icon} /> {item.label}</span>
@@ -1988,7 +2065,7 @@ export function PsychologyAdmin() {
        {isOpen && (
         <div className="space-y-0.5 mb-1">
          {group.items.map(item => (
-          <button key={item.key} onClick={() => { setSettingsSubTab(item.key); onNavigate?.() }}
+          <button key={item.key} onClick={() => { navigateSettingsSub(item.key); onNavigate?.() }}
            className={`w-full text-right px-3 py-2.5 rounded-lg text-sm flex items-center gap-2 transition-colors ${
             settingsSubTab === item.key ? 'bg-sand text-ink font-medium' : 'text-soot hover:bg-gray-50'}`}>
            <Glyph icon={item.icon} /> {item.label}
@@ -2008,7 +2085,7 @@ export function PsychologyAdmin() {
   return (
    <div className="p-4 border-b border-sand">
     {mainTab === 'settings_hub' ? (
-     <button onClick={() => setMainTab('patients')} className="text-xs text-soot hover:text-ink flex items-center gap-1 mb-2">
+     <button onClick={() => navigateTab('patients')} className="text-xs text-soot hover:text-ink flex items-center gap-1 mb-2">
       ← بازگشت به پنل
      </button>
     ) : null}
@@ -2035,7 +2112,7 @@ export function PsychologyAdmin() {
       سایت من
      </a>
      {mainTab !== 'settings_hub' && (
-      <button onClick={() => setMainTab('settings_hub')} className="w-full text-right text-xs px-3 py-2 rounded-lg text-soot hover:bg-gray-50 flex items-center gap-2">
+      <button onClick={() => navigateTab('settings_hub')} className="w-full text-right text-xs px-3 py-2 rounded-lg text-soot hover:bg-gray-50 flex items-center gap-2">
        ⚙️ تنظیمات
       </button>
      )}
@@ -2065,7 +2142,7 @@ export function PsychologyAdmin() {
         سایت من
        </a>
        {mainTab !== 'settings_hub' && (
-        <button onClick={() => { setMainTab('settings_hub'); setSidebarOpen(false) }} className="w-full text-right text-xs px-3 py-2 rounded-lg text-soot hover:bg-gray-50 flex items-center gap-2">
+        <button onClick={() => { navigateTab('settings_hub'); setSidebarOpen(false) }} className="w-full text-right text-xs px-3 py-2 rounded-lg text-soot hover:bg-gray-50 flex items-center gap-2">
          ⚙️ تنظیمات
         </button>
        )}
@@ -2113,27 +2190,27 @@ export function PsychologyAdmin() {
           {
            key: 'profile', label: 'تکمیل پروفایل عمومی (نام و عنوان)',
            done: !!(profile.name?.trim() && profile.title?.trim()),
-           go: () => { setMainTab('settings_hub'); setSettingsSubTab('profile') },
+           go: () => navigateSettingsSub('profile'),
           },
           {
            key: 'schedule', label: 'تعریف حداقل یک روز کاری',
            done: hasWorkingDays === true,
-           go: () => setMainTab('schedule'),
+           go: () => navigateTab('schedule'),
           },
           {
            key: 'payment', label: 'تنظیم روش دریافت پرداخت',
            done: (profile.payment_methods.card_to_card && profile.cards.length > 0) || (profile.payment_methods.online && !!profile.settlement_sheba),
-           go: () => { setMainTab('settings_hub'); setSettingsSubTab('payments') },
+           go: () => navigateSettingsSub('payments'),
           },
           ...(profile.session_modes !== 'offline' ? [{
            key: 'meet', label: 'گذاشتن لینک جلسه‌ی آنلاین (گوگل‌میت)',
            done: !!profile.meet_link,
-           go: () => { setMainTab('settings_hub'); setSettingsSubTab('profile') },
+           go: () => navigateSettingsSub('profile'),
           }] : []),
           ...(profile.session_modes !== 'online' ? [{
            key: 'location', label: 'ثبت مکان حضوری',
            done: settings.office_locations.length > 0,
-           go: () => { setMainTab('settings_hub'); setSettingsSubTab('locations') },
+           go: () => navigateSettingsSub('locations'),
           }] : []),
          ]
          const doneCount = checklist.filter(c => c.done).length
@@ -2169,7 +2246,7 @@ export function PsychologyAdmin() {
 
         {/* هشدارها — فقط وقتی واقعا اقدامی لازم است */}
         {pendingActionCount > 0 && (
-         <button onClick={() => setMainTab('bookings')}
+         <button onClick={() => navigateTab('bookings')}
           className="w-full flex items-center justify-between bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 text-right hover:bg-amber-100 transition-colors">
           <span className="text-sm text-amber-800">
            <strong className="tnum">{toFarsiNum(pendingActionCount)}</strong> مورد منتظر تأیید پرداخت شماست
@@ -2178,7 +2255,7 @@ export function PsychologyAdmin() {
          </button>
         )}
         {missingSheba && (
-         <button onClick={() => { setMainTab('settings_hub'); setSettingsSubTab('payments'); setOpenGroup('صفحه‌ی عمومی') }}
+         <button onClick={() => { navigateSettingsSub('payments'); setOpenGroup('صفحه‌ی عمومی') }}
           className="w-full flex items-center justify-between bg-sky-50 border border-sky-200 rounded-2xl px-4 py-3 text-right hover:bg-sky-100 transition-colors">
           <span className="text-sm text-sky-800">برای دریافت خودکار سهمتان از پرداخت آنلاین، شماره‌شبا ثبت نکرده‌اید</span>
           <span className="text-sky-700 text-xs">تنظیم ←</span>
@@ -2187,7 +2264,7 @@ export function PsychologyAdmin() {
 
         {/* کارت‌های KPI */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-         <button onClick={() => setMainTab('patients')} className="bg-white rounded-2xl border border-sand p-4 text-right hover:border-ink transition-colors">
+         <button onClick={() => navigateTab('patients')} className="bg-white rounded-2xl border border-sand p-4 text-right hover:border-ink transition-colors">
           <div className="text-2xl">📁</div>
           <div className="text-xl font-bold text-ink mt-1 tnum">{toFarsiNum(activeCases)}</div>
           <div className="text-[11px] text-soot">پرونده‌ی فعال</div>
@@ -2197,12 +2274,12 @@ export function PsychologyAdmin() {
           <div className="text-xl font-bold text-ink mt-1 tnum">{toFarsiNum(todayAppts.length)}</div>
           <div className="text-[11px] text-soot">نوبت امروز</div>
          </div>
-         <button onClick={() => setMainTab('bookings')} className="bg-white rounded-2xl border border-sand p-4 text-right hover:border-ink transition-colors">
+         <button onClick={() => navigateTab('bookings')} className="bg-white rounded-2xl border border-sand p-4 text-right hover:border-ink transition-colors">
           <div className="text-2xl">💳</div>
           <div className={`text-xl font-bold mt-1 tnum ${pendingActionCount > 0 ? 'text-amber-700' : 'text-ink'}`}>{toFarsiNum(pendingActionCount)}</div>
           <div className="text-[11px] text-soot">منتظر تأیید</div>
          </button>
-         <button onClick={() => setMainTab('finance')} className="bg-white rounded-2xl border border-sand p-4 text-right hover:border-ink transition-colors">
+         <button onClick={() => navigateTab('finance')} className="bg-white rounded-2xl border border-sand p-4 text-right hover:border-ink transition-colors">
           <div className="text-2xl">📊</div>
           <div className="text-xl font-bold text-ink mt-1 tnum">{money(monthAmount)}</div>
           <div className="text-[11px] text-soot">درآمد این ماه (تومان)</div>
@@ -2242,7 +2319,7 @@ export function PsychologyAdmin() {
           <h2 className="text-sm font-display font-semibold text-ink">برنامه‌ی امروز</h2>
           <button onClick={() => {
             const t = getCurrentJalali()
-            setMainTab('schedule')
+            navigateTab('schedule')
             setSchedMonth(t.month); setSchedYear(t.year)
             loadMonthSchedules(t.month, t.year)
             selectSchedDay(t.day, t.month, t.year)
@@ -2349,7 +2426,7 @@ export function PsychologyAdmin() {
        <div>
         {/* Back + edit bar */}
         <div className="flex items-center justify-between mb-4">
-         <button onClick={() => setPatientView('list')}
+         <button onClick={closePatientDetail}
           className="flex items-center gap-1 text-sm text-soot hover:text-ink">
           ← بازگشت
          </button>

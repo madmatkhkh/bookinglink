@@ -67,7 +67,10 @@ export default function PatientPanel() {
  const [packages, setPackages] = useState<Package[]>([])
  const [sessions, setSessions] = useState<Session[]>([])
  const [stages, setStages] = useState<CaseStage[]>([])
- const [activeTab, setActiveTab] = useState<'packages' | 'sessions' | 'info'>('packages')
+ type ClientTab = 'packages' | 'sessions' | 'info'
+ const VALID_CLIENT_TABS: ClientTab[] = ['packages', 'sessions', 'info']
+ const initialSection = (searchParams.get('section') as ClientTab) || 'packages'
+ const [activeTab, setActiveTab] = useState<ClientTab>(VALID_CLIENT_TABS.includes(initialSection) ? initialSection : 'packages')
  const [selectedPkg, setSelectedPkg] = useState<Package | null>(null)
  const [scheduleView, setScheduleView] = useState(false)
  const [showSlotPicker, setShowSlotPicker] = useState(false)
@@ -144,6 +147,22 @@ export default function PatientPanel() {
   loadData(booking.case_number)
   router.replace(`/${slug}/my`)
  }, [step, booking, searchParams, slug])
+
+ // همون فیکس پنل دکتر: تعویض تب فقط state بود، هیچ آدرسی عوض نمی‌شد — یعنی
+ // دکمه‌ی برگشت گوشی/مرورگر بلافاصله از کل برنامه بیرون می‌رفت. الان هر
+ // تعویض تب یک ورودی در تاریخچه push می‌کند.
+ function navigateSection(tab: ClientTab) {
+  setActiveTab(tab)
+  const params = new URLSearchParams(searchParams.toString())
+  params.set('section', tab)
+  router.push(`?${params.toString()}`)
+ }
+
+ useEffect(() => {
+  const urlSection = searchParams.get('section') as ClientTab | null
+  if (urlSection && VALID_CLIENT_TABS.includes(urlSection) && urlSection !== activeTab) setActiveTab(urlSection)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+ }, [searchParams])
 
  function logout() {
   try { localStorage.removeItem('pb_phone'); localStorage.removeItem('pb_case') } catch {}
@@ -409,7 +428,7 @@ export default function PatientPanel() {
    <div className="max-w-lg mx-auto p-4">
     <div className="flex bg-white rounded-xl border border-sand p-1 mb-4">
      {(['packages', 'sessions', 'info'] as const).map(t => (
-      <button key={t} onClick={() => setActiveTab(t)}
+      <button key={t} onClick={() => navigateSection(t)}
        className={`flex-1 text-xs py-2 rounded-lg font-medium transition-all ${activeTab === t ? 'bg-ink text-white' : 'text-soot'}`}>
        {t === 'packages' ? 'پروتکل‌های درمان' : t === 'sessions' ? 'جلسات' : 'اطلاعات'}
       </button>
