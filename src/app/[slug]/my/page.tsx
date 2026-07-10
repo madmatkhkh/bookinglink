@@ -362,7 +362,8 @@ export default function PatientPanel() {
        date={currentStage.session_date} time={currentStage.session_time}
        label={`وقت ${STAGE_TYPE_LABEL[currentStage.stage_type] || ''}`}
        delayMinutes={currentStage.delay_minutes}
-       meetLink={booking.session_type === 'online' ? (currentStage.meet_link || settings.doctors.find(d => d.id === booking.resource_id)?.meet_link) : undefined} />
+       isOnline={booking.session_type === 'online'}
+       meetLink={currentStage.meet_link || settings.doctors.find(d => d.id === booking.resource_id)?.meet_link} />
      )}
 
      <button onClick={() => loadData(booking.case_number)}
@@ -689,11 +690,17 @@ function SessionCard({ session: s, num, phone, caseNumber, onUpdate }: {
        ⏱ این جلسه با {s.delay_minutes} دقیقه تاخیر برگزار می‌شود.
       </div>
      )}
-     {s.session_type === 'online' && !isAwaiting && s.status !== 'forfeited' && s.status !== 'replaced' && s.session_date && (s.meet_link || doctorForSession?.meet_link) && (
-      <a href={s.meet_link || doctorForSession?.meet_link} target="_blank" rel="noopener noreferrer"
-       className="text-xs text-white bg-ink rounded-lg px-3 py-1.5 mt-1.5 inline-block font-medium hover:opacity-90">
+     {s.session_type === 'online' && !isAwaiting && s.status !== 'forfeited' && s.status !== 'replaced' && s.session_date && (
+      (s.meet_link || doctorForSession?.meet_link) ? (
+       <a href={s.meet_link || doctorForSession?.meet_link} target="_blank" rel="noopener noreferrer"
+        className="text-xs text-white bg-ink rounded-lg px-3 py-1.5 mt-1.5 inline-block font-medium hover:opacity-90">
        ورود به جلسه‌ی گوگل‌میت ↗
-      </a>
+       </a>
+      ) : (
+       <p className="text-xs text-soot bg-gray-50 border border-sand rounded-lg px-2.5 py-1.5 mt-1.5">
+        لینک جلسه هنوز از طرف دکتر ثبت نشده — نزدیک زمان جلسه دوباره سر بزنید.
+       </p>
+      )
      )}
     </div>
     {canCancel && (
@@ -1352,7 +1359,7 @@ function StageWaiting({ title, desc }: { title: string; desc: string }) {
  )
 }
 
-function StageInfo({ icon, title, desc, date, time, label, delayMinutes, meetLink }: { icon: string; title: string; desc: string; date?: string; time?: string; label: string; delayMinutes?: number | null; meetLink?: string }) {
+function StageInfo({ icon, title, desc, date, time, label, delayMinutes, meetLink, isOnline }: { icon: string; title: string; desc: string; date?: string; time?: string; label: string; delayMinutes?: number | null; meetLink?: string; isOnline?: boolean }) {
  return (
   <>
    <StageHero icon={icon} title={title} desc={desc} />
@@ -1366,11 +1373,17 @@ function StageInfo({ icon, title, desc, date, time, label, delayMinutes, meetLin
      ⏱ این جلسه با {delayMinutes} دقیقه تاخیر برگزار می‌شود.
     </div>
    )}
-   {meetLink && (
-    <a href={meetLink} target="_blank" rel="noopener noreferrer"
-     className="text-sm text-white bg-ink rounded-xl px-4 py-2.5 mt-2 inline-block font-medium hover:opacity-90">
-     ورود به جلسه‌ی گوگل‌میت ↗
-    </a>
+   {isOnline && (
+    meetLink ? (
+     <a href={meetLink} target="_blank" rel="noopener noreferrer"
+      className="text-sm text-white bg-ink rounded-xl px-4 py-2.5 mt-2 inline-block font-medium hover:opacity-90">
+      ورود به جلسه‌ی گوگل‌میت ↗
+     </a>
+    ) : (
+     <p className="text-xs text-soot bg-gray-50 border border-sand rounded-xl px-3 py-2 mt-2">
+      لینک جلسه هنوز از طرف دکتر ثبت نشده — نزدیک زمان جلسه دوباره سر بزنید.
+     </p>
+    )
    )}
   </>
  )
