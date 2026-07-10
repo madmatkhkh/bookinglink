@@ -1522,19 +1522,6 @@ export function PsychologyAdmin() {
  const isIntakeDirty = intakeLoaded && JSON.stringify(intakeForm) !== intakeSnapshot
  const isSettingsTabDirty = isSettingsDirty || isProfileDirty || isIntakeDirty
 
- // دکمه‌ی برگشت وقتی تغییر ذخیره‌نشده هست: قبلا این حالت اصلا با تاریخچه
- // هماهنگ نبود، پس اولین برگشت مستقیم می‌رفت تب قبلی و نوار «ذخیره‌ی
- // تغییرات» را با خودش (روی صفحه‌ی جدید) می‌کشید یا تغییرات بی‌سروصدا گم
- // می‌شدند. الان مثل یک مودال رفتار می‌کند: اولین برگشت فقط تغییرات
- // ذخیره‌نشده را دور می‌ریزد (از روی همان snapshot آخرین ذخیره‌شده) و
- // همین‌جا می‌ماند؛ برگشت بعدی واقعا به تب قبلی می‌رود.
- function discardSettingsEdits() {
-  if (settingsSnapshot) setSettings(JSON.parse(settingsSnapshot))
-  if (profileSnapshot) setProfile(JSON.parse(profileSnapshot))
-  if (intakeSnapshot) setIntakeForm(JSON.parse(intakeSnapshot))
- }
- useModalBackClose(isSettingsTabDirty, discardSettingsEdits)
-
  async function loadSettings() {
   try {
    const res = await fetch(api('/settings'), { cache: 'no-store' })
@@ -2078,9 +2065,9 @@ export function PsychologyAdmin() {
      return (
       <div key={group.title}>
        <button onClick={() => setOpenGroup(isOpen ? '' : group.title)}
-        className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold text-ink/70 hover:text-ink">
+        className="w-full flex items-center justify-between px-3 py-2 text-sm font-semibold text-ink/70 hover:text-ink">
         <span>{group.title}</span>
-        <svg viewBox="0 0 24 24" className={`w-3 h-3 shrink-0 transition-transform ${isOpen ? '-rotate-90' : ''}`}
+        <svg viewBox="0 0 24 24" className={`w-3.5 h-3.5 shrink-0 transition-transform ${isOpen ? '-rotate-90' : ''}`}
          fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
          <path d="M15 6l-6 6 6 6" />
         </svg>
