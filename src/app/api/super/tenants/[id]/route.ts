@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { sb } from '@/lib/supabase'
 import { isSuperAuthed, normalizePhone, signImpersonateToken } from '@/lib/auth'
 import { getNiche, isPsychologyNiche } from '@/lib/niche'
-import { MULTI_THERAPIST_FEATURE_KEY } from '@/lib/psy'
+import { MULTI_THERAPIST_FEATURE_KEY, CARD_TO_CARD_FEATURE_KEY } from '@/lib/psy'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -63,18 +63,20 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   let features: { feature_key: string; label: string; enabled: boolean }[] = []
   let multiTherapist = false
   let multiTherapistRequested = false
+  let cardToCard = false
   if (isPsychologyNiche(tenant.niche_key)) {
     const { data: rows } = await sb().from('tenant_features').select('feature_key, enabled, config')
-      .eq('tenant_id', id).in('feature_key', [...PSY_FEATURE_KEYS, MULTI_THERAPIST_FEATURE_KEY])
+      .eq('tenant_id', id).in('feature_key', [...PSY_FEATURE_KEYS, MULTI_THERAPIST_FEATURE_KEY, CARD_TO_CARD_FEATURE_KEY])
     features = PSY_FEATURE_KEYS.map(key => ({
       feature_key: key,
       label: PSY_FEATURE_LABELS[key],
       enabled: rows?.find(r => r.feature_key === key)?.enabled ?? true, // پیش‌فرض: روشن
     }))
-    // «حالت کلینیک» برخلاف بقیه‌ی ماژول‌های بالا پیش‌فرضش خاموش است (تک‌درمانگر)
+    // «حالت کلینیک» و «کارت‌به‌کارت» برخلاف بقیه‌ی ماژول‌های بالا پیش‌فرضشان خاموش است
     const mtRow = rows?.find(r => r.feature_key === MULTI_THERAPIST_FEATURE_KEY)
     multiTherapist = mtRow?.enabled ?? false
     multiTherapistRequested = !multiTherapist && !!(mtRow?.config as any)?.requested
+    cardToCard = rows?.find(r => r.feature_key === CARD_TO_CARD_FEATURE_KEY)?.enabled ?? false
   }
 
   return NextResponse.json({
@@ -94,6 +96,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     features,
     multi_therapist: multiTherapist,
     multi_therapist_requested: multiTherapistRequested,
+    card_to_card: cardToCard,
     // توکن کوتاه‌عمر impersonate — فقط از همین پاسخ احرازشده قابل‌دریافت است (ضد CSRF)
     impersonate_token: signImpersonateToken(tenant.id),
   })
@@ -139,28 +142,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     }
   }
 
-  // برگشت به پلن رایگان: کارت‌به‌کارت برای همه‌ی درمانگرهای این مجموعه خاموش و
-  // آنلاین اجبارا روشن می‌شود (سیاست کسب‌وکاری: کارمزد پلتفرم فقط از تراکنش
-  // آنلاین قابل‌دریافت است). این فقط برای پاکیزگی دیتاست — دفاع واقعی در
-  // effectivePaymentMethods (lib/psy.ts) است که در لحظه‌ی مصرف همیشه این را اعمال می‌کند.
-  let forcedCardDisabledCount = 0
-  if (tenantPatch.plan === 'free' && isPsychologyNiche(existing.niche_key)) {
-    const { data: resources } = await sb().from('resources').select('id').eq('tenant_id', id)
-    const ids = (resources || []).map(r => r.id)
-    if (ids.length) {
-      const { data: profiles } = await sb().from('psy_resource_profiles')
-        .select('resource_id, payment_methods').in('resource_id', ids)
-      const needsFixIds = (profiles || [])
-        .filter(p => (p.payment_methods as any)?.card_to_card || !(p.payment_methods as any)?.online)
-        .map(p => p.resource_id)
-      if (needsFixIds.length) {
-        await sb().from('psy_resource_profiles')
-          .update({ payment_methods: { card_to_card: false, online: true }, updated_at: new Date().toISOString() })
-          .in('resource_id', needsFixIds)
-        forcedCardDisabledCount = needsFixIds.length
-      }
-    }
-  }
+  // نکته: کارت‌به‌کارت دیگر به پلن گره نخورده — با فلگ tenant_features به کلید
+  // card_to_card کنترل می‌شود (روت features). پاک‌سازی دیتای ذخیره‌شده هنگام
+  // خاموش‌شدن آن فلگ هم همان‌جا انجام می‌شود، نه این‌جا.
 
   if (b.display_name !== undefined) {
     const displayName = String(b.display_name || '').trim().slice(0, 60)
@@ -171,7 +155,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     }
   }
 
-  return NextResponse.json({ success: true, forced_card_disabled_count: forcedCardDisabledCount })
+  return NextResponse.json({ success: true })
 }
 
 // حذف کامل tenant (بازگشت‌ناپذیر — همه‌ی جدول‌های وابسته با on delete cascade پاک می‌شوند)

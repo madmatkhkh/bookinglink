@@ -27,7 +27,7 @@ export async function generateMetadata({ params }: { params: { slug: string } })
  const tenant = await loadTenant(params.slug)
  if (!tenant) return { title: 'یافت نشد' }
  if (isPsychologyNiche(tenant.niche_key)) {
-  const [doctors] = await Promise.all([listPublicDoctors(tenant.id, tenant.plan)])
+  const [doctors] = await Promise.all([listPublicDoctors(tenant.id)])
   const primary = doctors[0]
   const title = `${primary?.name || 'رزرو نوبت'} — نوبت‌دهی`
   const description = primary?.title || ''
@@ -52,7 +52,7 @@ export default async function PublicProfile({ params }: { params: { slug: string
 
  // ── نیچ روانشناسی: تجربه‌ی مصاحبه/پنل مراجع ──
  if (isPsychologyNiche(tenant.niche_key)) {
-  const [clinic, doctors] = await Promise.all([getClinicSettings(tenant.id), listPublicDoctors(tenant.id, tenant.plan)])
+  const [clinic, doctors] = await Promise.all([getClinicSettings(tenant.id), listPublicDoctors(tenant.id)])
   const primary = doctors[0]
   const c = {
    office_locations: clinic.office_locations,

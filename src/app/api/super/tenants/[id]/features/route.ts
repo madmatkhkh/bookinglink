@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { sb } from '@/lib/supabase'
 import { isSuperAuthed } from '@/lib/auth'
-import { MULTI_THERAPIST_FEATURE_KEY } from '@/lib/psy'
+import { MULTI_THERAPIST_FEATURE_KEY, CARD_TO_CARD_FEATURE_KEY } from '@/lib/psy'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -36,5 +36,25 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     console.error('super/tenants/[id]/features PATCH error:', error)
     return NextResponse.json({ error: 'ذخیره‌ی تغییرات ناموفق بود' }, { status: 500 })
   }
+
+  // خاموش‌شدن کارت‌به‌کارت: دیتای ذخیره‌شده‌ی درمانگرها هم به فقط-آنلاین برگردانده
+  // می‌شود (پاکیزگی) — دفاع واقعی همچنان effectivePaymentMethods در لحظه‌ی مصرف است.
+  if (feature_key === CARD_TO_CARD_FEATURE_KEY && !enabled) {
+    const { data: resources } = await sb().from('resources').select('id').eq('tenant_id', id)
+    const ids = (resources || []).map(r => r.id)
+    if (ids.length) {
+      const { data: profiles } = await sb().from('psy_resource_profiles')
+        .select('resource_id, payment_methods').in('resource_id', ids)
+      const needsFixIds = (profiles || [])
+        .filter(p => (p.payment_methods as any)?.card_to_card || !(p.payment_methods as any)?.online)
+        .map(p => p.resource_id)
+      if (needsFixIds.length) {
+        await sb().from('psy_resource_profiles')
+          .update({ payment_methods: { card_to_card: false, online: true }, updated_at: new Date().toISOString() })
+          .in('resource_id', needsFixIds)
+      }
+    }
+  }
+
   return NextResponse.json({ success: true })
 }

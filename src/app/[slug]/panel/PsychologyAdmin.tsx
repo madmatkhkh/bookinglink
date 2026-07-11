@@ -700,6 +700,8 @@ export function PsychologyAdmin() {
  const [profileSaving, setProfileSaving] = useState(false)
  const [profileSaved, setProfileSaved] = useState(false)
  const [tenantPlan, setTenantPlan] = useState<string>('free')
+ // کارت‌به‌کارت فقط وقتی سوپرادمین برای این tenant روشنش کرده باشد در UI دیده می‌شود
+ const [cardToCardAllowed, setCardToCardAllowed] = useState(false)
  // فرم رزرو per-resource (بخش‌ها/سوال‌ها/نوع/اجباری‌بودن — کاملا دیتایی)
  const [intakeForm, setIntakeForm] = useState<IntakeForm>(DEFAULT_INTAKE_FORM)
  const [intakeLoaded, setIntakeLoaded] = useState(false)
@@ -1542,6 +1544,7 @@ export function PsychologyAdmin() {
    setProfile(next)
    setProfileSnapshot(JSON.stringify(next))
    if (data.plan) setTenantPlan(data.plan)
+   setCardToCardAllowed(!!data.card_to_card_allowed)
   } catch {}
   setProfileLoaded(true)
  }
@@ -2166,7 +2169,7 @@ export function PsychologyAdmin() {
       const activeCases = bookings.length
       const trend = dashboardFinance?.monthly.slice(-6) || []
       const maxTrend = Math.max(1, ...trend.map(m => m.amount))
-      const needsSheba = tenantPlan !== 'pro' || profile.payment_methods.online
+      const needsSheba = !cardToCardAllowed || profile.payment_methods.online
       const missingSheba = needsSheba && !profile.settlement_sheba
 
       return (
@@ -3818,43 +3821,55 @@ export function PsychologyAdmin() {
        </section>
        )}
 
-       {/* روش‌های پرداخت — per-resource؛ حداقل یکی باید روشن بماند */}
+       {/* روش‌های پرداخت — per-resource؛ کارت‌به‌کارت فقط وقتی سوپرادمین برای
+          این tenant فعالش کرده باشد اصلا دیده می‌شود؛ وگرنه فقط آنلاین. */}
        {settingsSubTab === 'payments' && (
        <section className="bg-white rounded-2xl border border-sand p-5">
         <h2 className="text-sm font-display font-semibold text-ink mb-1">روش‌های پرداخت</h2>
-        <p className="text-xs text-soot mb-4">
-         آنلاین یعنی مراجع بلافاصله بعد پرداخت می‌تواند ادامه دهد (بدون نیاز به تایید شما).
-         کارت‌به‌کارت مثل قبل: مراجع فیشش را می‌فرستد و شما تایید می‌کنید.
-        </p>
-        <div className="space-y-2">
-         <label className={'flex items-center justify-between p-3 rounded-xl border border-sand ' + (tenantPlan === 'pro' ? 'cursor-pointer' : 'opacity-60')}>
-          <div>
-           <span className="text-sm text-ink block">کارت‌به‌کارت</span>
-           <span className="text-[11px] text-soot">
-            {tenantPlan === 'pro' ? 'نیاز به تایید دستی شما دارد' : 'در پلن رایگان در دسترس نیست — نیاز پلن حرفه‌ای دارد'}
-           </span>
+        {!cardToCardAllowed ? (
+         <>
+          <p className="text-xs text-soot mb-4">
+           پرداخت مراجعان به‌صورت آنلاین (درگاه زیبال) انجام می‌شود — تایید خودکار، بدون نیاز به بررسی دستی شما.
+          </p>
+          <div className="flex items-center justify-between p-3 rounded-xl border border-sand">
+           <div>
+            <span className="text-sm text-ink block">پرداخت آنلاین (زیبال)</span>
+            <span className="text-[11px] text-soot">فعال — مراجع بلافاصله بعد از پرداخت می‌تواند ادامه دهد</span>
+           </div>
+           <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-full">فعال</span>
           </div>
-          <input type="checkbox" checked={profile.payment_methods.card_to_card}
-           disabled={tenantPlan !== 'pro'}
-           onChange={e => patchProfile({ payment_methods: { ...profile.payment_methods, card_to_card: e.target.checked } })}
-           className="w-5 h-5 accent-ink disabled:opacity-50" />
-         </label>
-         <label className={'flex items-center justify-between p-3 rounded-xl border border-sand ' + (tenantPlan === 'pro' ? 'cursor-pointer' : 'opacity-60')}>
-          <div>
-           <span className="text-sm text-ink block">پرداخت آنلاین (زیبال)</span>
-           <span className="text-[11px] text-soot">
-            {tenantPlan === 'pro' ? 'تایید خودکار — مراجع بلافاصله می‌تواند نوبت بگیرد' : 'در پلن رایگان همیشه روشن است'}
-           </span>
+         </>
+        ) : (
+         <>
+          <p className="text-xs text-soot mb-4">
+           آنلاین یعنی مراجع بلافاصله بعد پرداخت می‌تواند ادامه دهد (بدون نیاز به تایید شما).
+           کارت‌به‌کارت مثل قبل: مراجع فیشش را می‌فرستد و شما تایید می‌کنید.
+          </p>
+          <div className="space-y-2">
+           <label className="flex items-center justify-between p-3 rounded-xl border border-sand cursor-pointer">
+            <div>
+             <span className="text-sm text-ink block">کارت‌به‌کارت</span>
+             <span className="text-[11px] text-soot">نیاز به تایید دستی شما دارد</span>
+            </div>
+            <input type="checkbox" checked={profile.payment_methods.card_to_card}
+             onChange={e => patchProfile({ payment_methods: { ...profile.payment_methods, card_to_card: e.target.checked } })}
+             className="w-5 h-5 accent-ink" />
+           </label>
+           <label className="flex items-center justify-between p-3 rounded-xl border border-sand cursor-pointer">
+            <div>
+             <span className="text-sm text-ink block">پرداخت آنلاین (زیبال)</span>
+             <span className="text-[11px] text-soot">تایید خودکار — مراجع بلافاصله می‌تواند نوبت بگیرد</span>
+            </div>
+            <input type="checkbox" checked={profile.payment_methods.online}
+             onChange={e => patchProfile({ payment_methods: { ...profile.payment_methods, online: e.target.checked } })}
+             className="w-5 h-5 accent-ink" />
+           </label>
+           {!profile.payment_methods.card_to_card && !profile.payment_methods.online && (
+            <p className="text-[11px] text-ink px-1">حداقل یک روش باید فعال بماند.</p>
+           )}
           </div>
-          <input type="checkbox" checked={profile.payment_methods.online}
-           disabled={tenantPlan !== 'pro'}
-           onChange={e => patchProfile({ payment_methods: { ...profile.payment_methods, online: e.target.checked } })}
-           className="w-5 h-5 accent-ink disabled:opacity-50" />
-         </label>
-         {!profile.payment_methods.card_to_card && !profile.payment_methods.online && (
-          <p className="text-[11px] text-ink px-1">حداقل یک روش باید فعال بماند.</p>
-         )}
-        </div>
+         </>
+        )}
        </section>
        )}
 
@@ -3919,8 +3934,9 @@ export function PsychologyAdmin() {
         </section>
        )}
 
-       {/* شماره کارت‌ها — per-resource (کارت دریافت وجه/بازپرداخت خود هر دکتر) */}
-       {settingsSubTab === 'payments' && (
+       {/* شماره کارت‌ها — per-resource (کارت دریافت وجه/بازپرداخت خود هر دکتر)؛
+          فقط وقتی کارت‌به‌کارت برای این tenant فعال است معنا دارد */}
+       {settingsSubTab === 'payments' && cardToCardAllowed && (
        <section className="bg-white rounded-2xl border border-sand p-5">
         <h2 className="text-sm font-display font-semibold text-ink mb-1">شماره کارت‌های واریزی</h2>
         <p className="text-xs text-soot mb-4">این کارت‌ها در صفحه‌ی پرداخت کارت‌به‌کارت به مراجع نمایش داده می‌شوند.</p>
@@ -4937,9 +4953,6 @@ export function PsychologyAdmin() {
         {tenantPlan === 'pro' ? 'حرفه‌ای' : 'رایگان'}
        </span>
       </div>
-      {tenantPlan !== 'pro' && (
-       <p className="text-[11px] text-soot mt-3">در پلن رایگان، پرداخت فقط به‌صورت آنلاین (زیبال) ممکن است.</p>
-      )}
      </section>
 
      <button onClick={doLogout}

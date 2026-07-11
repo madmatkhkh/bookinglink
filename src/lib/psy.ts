@@ -214,24 +214,36 @@ export function mergeCancellationPolicy(raw: Partial<CancellationPolicy> | null 
 
 // ── روش‌های پرداخت فعال — حداقل یکی باید روشن بماند (سمت API هم چک می‌شود) ──
 export type PaymentMethods = { card_to_card: boolean; online: boolean }
-export const DEFAULT_PAYMENT_METHODS: PaymentMethods = { card_to_card: true, online: false }
+// پیش‌فرض: فقط آنلاین — کارت‌به‌کارت به‌کل پشت فلگ سوپرادمینی است (پایین‌تر)
+export const DEFAULT_PAYMENT_METHODS: PaymentMethods = { card_to_card: false, online: true }
 
 export function mergePaymentMethods(raw: Partial<PaymentMethods> | null | undefined): PaymentMethods {
   if (!raw) return DEFAULT_PAYMENT_METHODS
-  const card = raw.card_to_card !== false
-  const online = raw.online === true
-  // هردو خاموش معنی ندارد — کارت‌به‌کارت را روشن نگه می‌داریم
-  return { card_to_card: card || !online, online }
+  const card = raw.card_to_card === true
+  const online = raw.online !== false
+  // هردو خاموش معنی ندارد — آنلاین را روشن نگه می‌داریم
+  return { card_to_card: card, online: online || !card }
 }
 
-// ── محدودیت پلن رایگان: فقط پرداخت آنلاین (تصمیم کسب‌وکاری صریح) ─────────
-// کارمزد پلتفرم فقط از تراکنش آنلاین (که از مرچنت خود پلتفرم رد می‌شود) قابل
-// دریافت است؛ کارت‌به‌کارت مستقیم بین مراجع و دکتر است و ردی برای پلتفرم نمی‌ماند.
-// این محاسبه در لحظه‌ی مصرف انجام می‌شود (نه فقط روی مقدار ذخیره‌شده) تا حتی اگر
-// دکتر تنظیماتش را دوباره ذخیره نکرده باشد یا پلن تازه عوض شده باشد، همیشه درست
-// باشد — دفاع اصلی در نقاطی است که واقعا پول حرکت می‌کند (pay/pay-online).
-export function effectivePaymentMethods(pm: PaymentMethods, plan: string): PaymentMethods {
-  if (plan !== 'pro') return { card_to_card: false, online: true }
+// ── کارت‌به‌کارت: فقط با اجازه‌ی سوپرادمین (به‌ازای هر tenant) ─────────────
+// تصمیم صریح کسب‌وکاری: کارمزد پلتفرم فقط از تراکنش آنلاین (که از مرچنت خود
+// پلتفرم رد می‌شود) قابل دریافت است؛ کارت‌به‌کارت مستقیم بین مراجع و دکتر است
+// و ردی برای پلتفرم نمی‌ماند. پس پیش‌فرض همه فقط-آنلاین است و کارت‌به‌کارت را
+// فقط سوپرادمین (از /super/[id]) برای tenant خاص روشن می‌کند — دیگر به پلن
+// (free/pro) گره نخورده. این محاسبه در لحظه‌ی مصرف انجام می‌شود (نه فقط روی
+// مقدار ذخیره‌شده) تا حتی اگر دکتر تنظیماتش را دوباره ذخیره نکرده باشد یا فلگ
+// تازه عوض شده باشد، همیشه درست باشد — دفاع اصلی در نقاطی است که واقعا پول
+// حرکت می‌کند (pay/pay-online).
+export const CARD_TO_CARD_FEATURE_KEY = 'card_to_card'
+
+export async function isCardToCardAllowed(tenantId: string): Promise<boolean> {
+  const { data } = await sb().from('tenant_features').select('enabled')
+    .eq('tenant_id', tenantId).eq('feature_key', CARD_TO_CARD_FEATURE_KEY).maybeSingle()
+  return !!data?.enabled
+}
+
+export function effectivePaymentMethods(pm: PaymentMethods, cardToCardAllowed: boolean): PaymentMethods {
+  if (!cardToCardAllowed) return { card_to_card: false, online: true }
   return pm
 }
 
@@ -356,12 +368,13 @@ export type PublicDoctor = {
   rating_count: number
 }
 
-export async function listPublicDoctors(tenantId: string, plan: string): Promise<PublicDoctor[]> {
+export async function listPublicDoctors(tenantId: string): Promise<PublicDoctor[]> {
   const { data: resources } = await sb().from('resources').select('id, name, title, avatar_url, sort_order')
     .eq('tenant_id', tenantId).eq('is_active', true).eq('is_selectable', true)
     .order('sort_order').order('created_at')
   const list = resources || []
   if (list.length === 0) return []
+  const cardToCardAllowed = await isCardToCardAllowed(tenantId)
   const [{ data: profiles }, { data: reviews }] = await Promise.all([
     sb().from('psy_resource_profiles').select('*').in('resource_id', list.map(r => r.id)),
     sb().from('psy_reviews').select('resource_id, rating').in('resource_id', list.map(r => r.id)).eq('status', 'approved'),
@@ -381,7 +394,7 @@ export async function listPublicDoctors(tenantId: string, plan: string): Promise
     return {
       id: r.id, name: r.name, title: r.title, avatar_url: r.avatar_url,
       badges: prof.badges, session_modes: prof.session_modes, cards: prof.cards,
-      payment_methods: effectivePaymentMethods(prof.payment_methods, plan), cancellation_policy: prof.cancellation_policy,
+      payment_methods: effectivePaymentMethods(prof.payment_methods, cardToCardAllowed), cancellation_policy: prof.cancellation_policy,
       pricing: prof.pricing, companion_label: prof.companion_label, meet_link: prof.meet_link,
       rating_avg, rating_count,
     }

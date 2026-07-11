@@ -8,7 +8,7 @@ export const PLATFORM_NAME = 'نوبت‌لینک'
 // SUPPORT_PHONE تا وقتی خالی باشد اصلا نمایش داده نمی‌شود (شماره‌ی الکی بدتر است)،
 // ولی داور شاپرک معمولا انتظار شماره تماس دارد، پس پر کردنش جدی است.
 export const SUPPORT_EMAIL = 'support@nobatlink.com'
-export const SUPPORT_PHONE = ''
+export const SUPPORT_PHONE = '09134682153'
 
 // کارمزد پلتفرم (پلن رایگان) — درصدی از هر پرداخت آنلاین موفق که سهم
 // نوبت‌لینک است و در تسویه با متخصص کسر می‌شود. همه‌جای متن‌های عمومی
@@ -18,7 +18,7 @@ export const PLATFORM_COMMISSION_PERCENT = 7
 // اسلاگ یک صفحه‌ی نمونه‌ی واقعی (مثلا tenant تستی خودت) — اگر پر شود، روی
 // لندینگ لینک «دیدن نمونه صفحه‌ی رزرو» نشان داده می‌شود تا داور شاپرک بتواند
 // فرایند کامل خرید (انتخاب خدمت → قیمت → پرداخت) را ببیند. خالی = مخفی.
-export const DEMO_SLUG = ''
+export const DEMO_SLUG = 'psysoleimani'
 
 // slugهایی که با مسیرهای سیستمی تداخل دارند و قابل ثبت نیستند
 export const RESERVED_SLUGS = [

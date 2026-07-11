@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { sb } from '@/lib/supabase'
 import { getActiveTenant } from '@/lib/tenant'
-import { getPaymentMethods, effectivePaymentMethods, getResourceProfile, isValidSheba, getResourcePricing, packageAmount, resolvePrice, checkDiscountCode } from '@/lib/psy'
+import { getPaymentMethods, effectivePaymentMethods, isCardToCardAllowed, getResourceProfile, isValidSheba, getResourcePricing, packageAmount, resolvePrice, checkDiscountCode } from '@/lib/psy'
 import { requestZibalPayment, PLATFORM_COMMISSION_PERCENT, MULTIPLEXING_ENABLED } from '@/lib/zibal'
 import { getClientPhone, getPayCase, matchesClientIdentity } from '@/lib/auth'
 
@@ -36,7 +36,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   const phone = c.contact_phone
   if (!c.resource_id) return NextResponse.json({ error: 'منبعی برای این پرونده ثبت نشده' }, { status: 400 })
 
-  const methods = effectivePaymentMethods(await getPaymentMethods(c.resource_id), t.plan)
+  const methods = effectivePaymentMethods(await getPaymentMethods(c.resource_id), await isCardToCardAllowed(t.id))
   if (!methods.online) return NextResponse.json({ error: 'پرداخت آنلاین برای این مجموعه فعال نیست' }, { status: 400 })
 
   let amount = 0

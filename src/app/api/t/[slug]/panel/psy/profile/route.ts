@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { sb } from '@/lib/supabase'
 import { requirePanelAuth, isPanelAuthResponse } from '@/lib/tenant'
-import { mergeResourceProfile, mergeCancellationPolicy, mergePaymentMethods, effectivePaymentMethods, mergePricing, isValidSheba } from '@/lib/psy'
+import { mergeResourceProfile, mergeCancellationPolicy, mergePaymentMethods, effectivePaymentMethods, isCardToCardAllowed, mergePricing, isValidSheba } from '@/lib/psy'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -32,16 +32,18 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
   if (!r) return NextResponse.json({ error: 'یافت نشد' }, { status: 404 })
   const { data: p } = await sb().from('psy_resource_profiles').select('*').eq('resource_id', targetId).maybeSingle()
   const prof = mergeResourceProfile(targetId, p)
+  const cardToCardAllowed = await isCardToCardAllowed(a.tenant.id)
 
   return NextResponse.json({
     profile: { resource_id: r.id, name: r.name, title: r.title, avatar_url: r.avatar_url, phone: r.phone,
       badges: prof.badges, session_modes: prof.session_modes, cards: prof.cards,
       cancellation_policy: prof.cancellation_policy,
-      payment_methods: effectivePaymentMethods(prof.payment_methods, a.tenant.plan),
+      payment_methods: effectivePaymentMethods(prof.payment_methods, cardToCardAllowed),
       quick_times: prof.quick_times,
       settlement_sheba: prof.settlement_sheba, settlement_sheba_holder_name: prof.settlement_sheba_holder_name,
       pricing: prof.pricing, companion_label: prof.companion_label, meet_link: prof.meet_link },
     plan: a.tenant.plan,
+    card_to_card_allowed: cardToCardAllowed,
   }, { headers: NO_STORE })
 }
 
@@ -86,10 +88,11 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   }
   if ('payment_methods' in body) {
     let pm = mergePaymentMethods(body.payment_methods)
-    if (a.tenant.plan !== 'pro') {
-      // پلن رایگان: فقط پرداخت آنلاین مجاز است — هرچه دکتر بفرستد نادیده گرفته و
-      // به مقدار درست force می‌شود (نه خطا، چون این فیلد همیشه همراه کل پروفایل
-      // ارسال می‌شود و نباید ذخیره‌ی بقیه‌ی تنظیمات را خراب کند).
+    if (!(await isCardToCardAllowed(a.tenant.id))) {
+      // کارت‌به‌کارت برای این tenant فعال نشده (فلگ سوپرادمینی): فقط پرداخت آنلاین
+      // مجاز است — هرچه دکتر بفرستد نادیده گرفته و به مقدار درست force می‌شود
+      // (نه خطا، چون این فیلد همیشه همراه کل پروفایل ارسال می‌شود و نباید
+      // ذخیره‌ی بقیه‌ی تنظیمات را خراب کند).
       pm = { card_to_card: false, online: true }
     } else if (!pm.card_to_card && !pm.online) {
       return NextResponse.json({ error: 'حداقل یک روش پرداخت باید فعال بماند' }, { status: 400 })

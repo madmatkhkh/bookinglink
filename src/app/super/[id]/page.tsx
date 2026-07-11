@@ -21,6 +21,7 @@ type Detail = {
   features: { feature_key: string; label: string; enabled: boolean }[]
   multi_therapist?: boolean
   multi_therapist_requested?: boolean
+  card_to_card?: boolean
   impersonate_token?: string
 }
 
@@ -381,6 +382,27 @@ function Inner() {
               type="checkbox"
               checked={!!d.multi_therapist}
               onChange={e => toggleFeature('multi_therapist', e.target.checked)}
+              className="w-5 h-5 accent-ink shrink-0"
+            />
+          </label>
+        </section>
+      )}
+
+      {/* کارت‌به‌کارت — پیش‌فرض خاموش برای همه؛ روشن‌کردنش گزینه‌ی کارت‌به‌کارت را در
+         تنظیمات پرداخت پنل متخصص (و صفحه‌ی پرداخت مراجعانش) ظاهر می‌کند. خاموش‌کردنش
+         دیتای ذخیره‌شده را هم به فقط-آنلاین برمی‌گرداند. */}
+      {(t.niche_key === 'psychology' || t.niche_key === 'psychology_clinic') && (
+        <section className="bg-white border border-sand rounded-2xl p-5 space-y-3">
+          <h2 className="font-bold text-ink text-sm">پرداخت کارت‌به‌کارت</h2>
+          <label className="flex items-center justify-between gap-3 p-2 rounded-xl cursor-pointer">
+            <div>
+             <span className="text-sm text-ink block">اجازه‌ی کارت‌به‌کارت برای این مجموعه</span>
+             <span className="text-xs text-soot">پیش‌فرض خاموش — همه فقط پرداخت آنلاین دارند (کارمزد پلتفرم فقط از تراکنش آنلاین قابل‌دریافت است). فقط اگر خودت لازم دیدی روشنش کن.</span>
+            </div>
+            <input
+              type="checkbox"
+              checked={!!d.card_to_card}
+              onChange={e => toggleFeature('card_to_card', e.target.checked)}
               className="w-5 h-5 accent-ink shrink-0"
             />
           </label>
