@@ -106,22 +106,32 @@ body { @apply bg-paper text-ink; }
    دست‌نخورده می‌ماند (خودش روی تیره درست دیده می‌شود)؛ فقط متن یک پله
    روشن‌تر می‌شود تا کنتراست کافی روی زمینه‌ی مشکی داشته باشد */
 .pb-admin-dark .text-emerald-600, .pb-admin-dark .text-emerald-700, .pb-admin-dark .text-emerald-800 { color: #34d399 !important; }
+.pb-admin-dark .text-green-600, .pb-admin-dark .text-green-700, .pb-admin-dark .text-green-800 { color: #4ade80 !important; }
 .pb-admin-dark .text-amber-600, .pb-admin-dark .text-amber-700, .pb-admin-dark .text-amber-800 { color: #fbbf24 !important; }
 .pb-admin-dark .text-red-600, .pb-admin-dark .text-red-700 { color: #f87171 !important; }
 .pb-admin-dark .text-sky-600, .pb-admin-dark .text-sky-800 { color: #38bdf8 !important; }
+.pb-admin-dark .text-blue-700 { color: #60a5fa !important; }
 .pb-admin-dark .text-violet-600 { color: #a78bfa !important; }
 
-/* 🩹 چند بج (شمارنده‌ی نوبت‌ رزروشده روی تقویم، بج پلن، وضعیت تیکت) به‌جای
-   الگوی opacity-محور بالا از سواچ‌های توپر Tailwind استفاده می‌کردند
+/* 🩹 چند بج (شمارنده‌ی نوبت‌ رزروشده روی تقویم، بج پلن، وضعیت تیکت، و
+   بج‌های وضعیت tenant در سوپرادمین: فعال/معلق/شبا ثبت‌شده/غیرفعال/تازه)
+   به‌جای الگوی opacity-محور بالا از سواچ‌های توپر Tailwind استفاده می‌کردند
    (مثلا bg-amber-100 + text-amber-800) که برایشان override پس‌زمینه‌ای
    تعریف نشده بود — نتیجه: متنشان (طبق قانون بالا) به رنگ روشن معکوس می‌شد
    ولی زمینه‌شان همان زرد/سبز کم‌رنگ حالت روشن می‌ماند، یعنی عدد اصلا خوانا
    نبود (روشن روی روشن). این‌ها را هم به همان الگوی opacity-محور می‌بریم.
    بهتر است در آینده به‌جای این سواچ‌های توپر از bg-{رنگ}-500/10|20 استفاده شود. */
 .pb-admin-dark .bg-amber-100 { background: rgba(251,191,36,.18) !important; }
+.pb-admin-dark .bg-amber-50 { background: rgba(251,191,36,.1) !important; }
 .pb-admin-dark .bg-emerald-100 { background: rgba(52,211,153,.18) !important; }
+.pb-admin-dark .bg-green-100 { background: rgba(74,222,128,.18) !important; }
+.pb-admin-dark .bg-red-100 { background: rgba(248,113,113,.18) !important; }
+.pb-admin-dark .bg-red-50 { background: rgba(248,113,113,.1) !important; }
+.pb-admin-dark .bg-blue-50 { background: rgba(96,165,250,.1) !important; }
 .pb-admin-dark .bg-sky-50 { background: rgba(56,189,248,.1) !important; }
 .pb-admin-dark .hover\:bg-sky-100:hover { background: rgba(56,189,248,.18) !important; }
+.pb-admin-dark .border-green-200 { border-color: rgba(74,222,128,.35) !important; }
+.pb-admin-dark .border-red-200 { border-color: rgba(248,113,113,.35) !important; }
 
 /* فیلدهای فرم */
 .pb-admin-dark input, .pb-admin-dark textarea, .pb-admin-dark select {
