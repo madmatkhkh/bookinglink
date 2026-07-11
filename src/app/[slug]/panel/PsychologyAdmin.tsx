@@ -3898,18 +3898,24 @@ export function PsychologyAdmin() {
         <p className="text-xs text-soot mb-4">دقیقا همین‌طور بالای صفحه‌ی مصاحبه به مراجع نمایش داده می‌شود — روی هرکدام بزنید تا ویرایش کنید.</p>
 
         <div className="bg-gray-50 rounded-2xl p-6 text-center">
-         <div className="relative w-20 h-20 rounded-full bg-sand border border-sand flex items-center justify-center mx-auto mb-3 text-3xl overflow-hidden shrink-0 group">
+         <div className="relative w-24 h-24 rounded-full bg-sand border border-sand flex items-center justify-center mx-auto text-3xl overflow-hidden shrink-0 group cursor-pointer"
+          onClick={() => !avatarUploading && avatarInputRef.current?.click()}>
           <input ref={avatarInputRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden"
            onChange={e => { handleAvatarFile(e.target.files?.[0]); e.target.value = '' }} />
           {profile.avatar_url ? <img src={profile.avatar_url} alt="" className="w-full h-full object-cover" /> : ''}
-          <button type="button" onClick={() => avatarInputRef.current?.click()} disabled={avatarUploading}
-           className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white text-[10px] transition-opacity disabled:opacity-100">
+          <div className={`absolute inset-0 bg-black/40 flex items-center justify-center text-white text-[10px] transition-opacity ${avatarUploading ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
            {avatarUploading ? 'در حال آپلود...' : 'تغییر عکس'}
+          </div>
+         </div>
+         <div className="flex items-center justify-center gap-4 mt-2 mb-3">
+          <button type="button" onClick={() => avatarInputRef.current?.click()} disabled={avatarUploading}
+           className="text-xs text-soot hover:text-ink underline underline-offset-4 disabled:opacity-50">
+           {profile.avatar_url ? 'تغییر عکس' : 'افزودن عکس'}
           </button>
-          {profile.avatar_url && !avatarUploading && (
-           <button type="button" onClick={() => patchProfile({ avatar_url: '' })}
-            className="absolute -top-1 -left-1 w-5 h-5 rounded-full bg-white border border-sand text-soot text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 hover:text-red-600 transition-opacity">
-            ✕
+          {profile.avatar_url && (
+           <button type="button" onClick={() => patchProfile({ avatar_url: '' })} disabled={avatarUploading}
+            className="text-xs text-red-600 hover:text-red-700 underline underline-offset-4 disabled:opacity-50">
+            حذف عکس
            </button>
           )}
          </div>

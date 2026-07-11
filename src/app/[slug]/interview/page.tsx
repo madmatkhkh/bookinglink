@@ -185,7 +185,7 @@ export default function InterviewPage() {
    <DialogHost />
    <div className="max-w-lg mx-auto">
     <div className="text-center mb-6">
-     <div className="w-16 h-16 rounded-full bg-sand border border-sand flex items-center justify-center mx-auto mb-3 text-2xl overflow-hidden">
+     <div className="w-24 h-24 rounded-full bg-sand border border-sand flex items-center justify-center mx-auto mb-3 text-3xl overflow-hidden">
       {!settings.loaded
        ? <div className="w-full h-full bg-gray-100 animate-pulse" />
        : displayDoctor?.avatar_url
