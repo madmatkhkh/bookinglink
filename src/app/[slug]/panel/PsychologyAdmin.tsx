@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useParams } from 'next/navigation'
 import { PERSIAN_MONTHS, toLatinNum, getCurrentJalali, getDaysInJalaliMonth, jalaliDateTimeToTimestamp } from '@/lib/calendar'
 import { STAGE_TYPE_LABEL, STAGE_STATUS_LABEL } from '@/lib/flow'
@@ -1567,6 +1567,59 @@ export function PsychologyAdmin() {
  }
 
  const patchProfile = (p: Partial<ResourceProfileView>) => setProfile(s => ({ ...s, ...p }))
+
+ // ── آپلود عکس پروفایل — ریسایز سمت مرورگر (حداکثر ضلع ۵۱۲px، JPEG) بعد
+ // لینک آپلود موقت از R2 گرفته و مستقیم PUT می‌شود؛ فایل از سرور خودمان رد
+ // نمی‌شود. avatar_url فقط در state ست می‌شود — مثل بقیه‌ی فیلدهای پروفایل،
+ // ذخیره‌ی واقعی با دکمه‌ی «ذخیره‌ی تغییرات» انجام می‌شود. ──
+ const avatarInputRef = useRef<HTMLInputElement>(null)
+ const [avatarUploading, setAvatarUploading] = useState(false)
+
+ function resizeImageToBlob(file: File, maxSide = 512): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+   const img = new Image()
+   const objectUrl = URL.createObjectURL(file)
+   img.onload = () => {
+    URL.revokeObjectURL(objectUrl)
+    const scale = Math.min(1, maxSide / Math.max(img.width, img.height))
+    const w = Math.round(img.width * scale)
+    const h = Math.round(img.height * scale)
+    const canvas = document.createElement('canvas')
+    canvas.width = w; canvas.height = h
+    const ctx = canvas.getContext('2d')
+    if (!ctx) { reject(new Error('canvas not supported')); return }
+    ctx.drawImage(img, 0, 0, w, h)
+    canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('toBlob failed')), 'image/jpeg', 0.85)
+   }
+   img.onerror = () => { URL.revokeObjectURL(objectUrl); reject(new Error('تصویر خوانده نشد')) }
+   img.src = objectUrl
+  })
+ }
+
+ async function handleAvatarFile(file: File | undefined | null) {
+  if (!file) return
+  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+   uiAlert('فقط عکس JPG، PNG یا WebP قابل قبول است'); return
+  }
+  setAvatarUploading(true)
+  try {
+   const blob = await resizeImageToBlob(file)
+   const body: Record<string, unknown> = { fileType: 'image/jpeg', fileSize: blob.size }
+   if (me?.isOwner && viewingResourceId) body.resource_id = viewingResourceId
+   const res = await fetch(panelApi('/upload-url'), {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+   })
+   const d = await res.json().catch(() => ({}))
+   if (!res.ok) { uiAlert(d.error || 'آماده‌سازی آپلود ناموفق بود'); return }
+   const put = await fetch(d.upload_url, { method: 'PUT', headers: { 'Content-Type': 'image/jpeg' }, body: blob })
+   if (!put.ok) { uiAlert('آپلود عکس ناموفق بود — دوباره امتحان کن'); return }
+   patchProfile({ avatar_url: d.public_url })
+  } catch {
+   uiAlert('آپلود عکس ناموفق بود — اتصال اینترنت را چک کن')
+  } finally {
+   setAvatarUploading(false)
+  }
+ }
 
  // ذخیره‌ی مستقل لیست «ساعت‌های سریع» — بلافاصله پس از افزودن/حذف در تب
  // «روزهای کاری» (نه منتظر دکمه‌ی «ذخیره‌ی تغییرات» تب تنظیمات سایت که
@@ -3753,12 +3806,20 @@ export function PsychologyAdmin() {
         <p className="text-xs text-soot mb-4">دقیقا همین‌طور بالای صفحه‌ی مصاحبه به مراجع نمایش داده می‌شود — روی هرکدام بزنید تا ویرایش کنید.</p>
 
         <div className="bg-gray-50 rounded-2xl p-6 text-center">
-         <div className="relative w-20 h-20 rounded-full bg-sand border border-sand flex items-center justify-center mx-auto mb-3 text-3xl overflow-hidden shrink-0 cursor-pointer group"
-          onClick={async () => { const url = await uiPrompt('لینک عکس پروفایل (خالی برای حذف)', { defaultValue: profile.avatar_url }); if (url !== null) patchProfile({ avatar_url: url }) }}>
-          {profile.avatar_url
-           ? <img src={profile.avatar_url} alt="" className="w-full h-full object-cover" />
-           : ''}
-          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white text-[10px] transition-opacity">تغییر عکس</div>
+         <div className="relative w-20 h-20 rounded-full bg-sand border border-sand flex items-center justify-center mx-auto mb-3 text-3xl overflow-hidden shrink-0 group">
+          <input ref={avatarInputRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden"
+           onChange={e => { handleAvatarFile(e.target.files?.[0]); e.target.value = '' }} />
+          {profile.avatar_url ? <img src={profile.avatar_url} alt="" className="w-full h-full object-cover" /> : ''}
+          <button type="button" onClick={() => avatarInputRef.current?.click()} disabled={avatarUploading}
+           className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white text-[10px] transition-opacity disabled:opacity-100">
+           {avatarUploading ? 'در حال آپلود...' : 'تغییر عکس'}
+          </button>
+          {profile.avatar_url && !avatarUploading && (
+           <button type="button" onClick={() => patchProfile({ avatar_url: '' })}
+            className="absolute -top-1 -left-1 w-5 h-5 rounded-full bg-white border border-sand text-soot text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 hover:text-red-600 transition-opacity">
+            ✕
+           </button>
+          )}
          </div>
          <input value={profile.name} onChange={e => patchProfile({ name: e.target.value })} placeholder="نام"
           className="text-lg font-medium text-ink text-center bg-transparent border-b border-dashed border-gray-300 hover:border-gray-400 focus:outline-none focus:border-ink w-full max-w-[260px] mx-auto block py-0.5" />

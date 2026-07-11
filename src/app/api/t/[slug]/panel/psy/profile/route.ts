@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { sb } from '@/lib/supabase'
 import { requirePanelAuth, isPanelAuthResponse } from '@/lib/tenant'
 import { mergeResourceProfile, mergeCancellationPolicy, mergePaymentMethods, effectivePaymentMethods, isCardToCardAllowed, mergePricing, isValidSheba } from '@/lib/psy'
+import { deleteFromR2, keyFromPublicUrl } from '@/lib/r2'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -60,10 +61,22 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   const resourcePatch: Record<string, unknown> = {}
   for (const k of ['name', 'title', 'avatar_url'] as const) if (k in body) resourcePatch[k] = body[k]
   if (Object.keys(resourcePatch).length) {
+    // اگر avatar_url دارد عوض می‌شود، آدرس قبلی را قبل از overwrite نگه می‌داریم
+    // تا اگر واقعا از R2 خودمان بود (نه لینک دستی قدیمی)، بعد از ذخیره‌ی موفق
+    // نسخه‌ی تازه، فایل یتیم قبلی را از باکت پاک کنیم.
+    let prevAvatarUrl: string | null = null
+    if ('avatar_url' in resourcePatch) {
+      const { data: existing } = await sb().from('resources').select('avatar_url').eq('id', targetId).maybeSingle()
+      prevAvatarUrl = existing?.avatar_url || null
+    }
     const { error } = await sb().from('resources').update(resourcePatch).eq('id', targetId).eq('tenant_id', a.tenant.id)
     if (error) {
       console.error('panel/psy/profile POST (resources) error:', error)
       return NextResponse.json({ error: 'مشکلی در ذخیره‌ی پروفایل پیش آمد.', detail: `${error.code || ''} ${error.message || ''}`.trim() }, { status: 500 })
+    }
+    if (prevAvatarUrl && prevAvatarUrl !== resourcePatch.avatar_url) {
+      const oldKey = keyFromPublicUrl(prevAvatarUrl)
+      if (oldKey) await deleteFromR2(oldKey)
     }
   }
 

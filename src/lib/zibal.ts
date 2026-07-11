@@ -21,13 +21,19 @@
 // کنی. اگر فرمت درخواست را زیبال رد کرد، با پشتیبانی زیبال (تیکت) هماهنگ کن.
 // ─────────────────────────────────────────────────────────────────────────────
 
+import { PLATFORM_COMMISSION_PERCENT as CONFIG_COMMISSION_PERCENT } from '@/lib/config'
+
 const REAL_MERCHANT = process.env.ZIBAL_MERCHANT_ID || ''
 const SANDBOX = process.env.ZIBAL_SANDBOX === 'true'
 const MERCHANT = REAL_MERCHANT || (SANDBOX ? 'zibal' : '')  // 'zibal' = مرچنت تستی رسمی خود زیبال
 
-// کارمزد پلتفرم روی هر تراکنش آنلاین — عدد درصد، از env (بدون نیاز به تغییر
-// کد برای عوض‌کردنش). مقدار پیش‌فرض فقط یک نقطه‌ی شروع موقت است.
-export const PLATFORM_COMMISSION_PERCENT = Number(process.env.PLATFORM_COMMISSION_PERCENT) || 0
+// کارمزد پلتفرم روی هر تراکنش آنلاین — از lib/config.ts می‌آید (همان عددی که
+// روی لندینگ/قوانین به‌صورت عمومی اعلام شده)، نه یک env var جدا.
+// ⚠️ فیکس مهم (جولای ۲۰۲۶): قبلا این‌جا از env var مستقل PLATFORM_COMMISSION_PERCENT
+// خوانده می‌شد که پیش‌فرضش 0 بود — یعنی اگر آن env روی Vercel ست نشده باشد،
+// تمام تراکنش‌ها با کارمزد صفر ثبت می‌شدند، درحالی‌که سایت عمومی می‌گفت 7%.
+// حالا هردو از یک ثابت واحد می‌خوانند تا این دو هرگز از هم جدا نیفتند.
+export const PLATFORM_COMMISSION_PERCENT = CONFIG_COMMISSION_PERCENT
 
 // آیا تلاش برای تسهیم خودکار (واریز مستقیم سهم دکتر به شبای خودش) فعال است؟
 export const MULTIPLEXING_ENABLED = process.env.ZIBAL_MULTIPLEXING_ENABLED === 'true'
