@@ -5,7 +5,7 @@
 // کارت‌های نیچ همچنان داینامیک از /api/niches گرفته می‌شوند.
 // ─────────────────────────────────────────────────────────────────────────────
 import { useEffect, useState } from 'react'
-import { PLATFORM_NAME, SUPPORT_EMAIL, SUPPORT_PHONE, DEMO_SLUG } from '@/lib/config'
+import { PLATFORM_NAME, SUPPORT_EMAIL, SUPPORT_PHONE, DEMO_SLUG, PLATFORM_COMMISSION_PERCENT } from '@/lib/config'
 
 type NicheCard = {
   key: string; display_name: string; tagline: string
@@ -52,7 +52,7 @@ const FEATURES = [
 ]
 
 const FAQS = [
-  { q: 'قیمت استفاده از نوبت‌لینک چقدر است؟', a: 'ثبت‌نام و استفاده از پلن رایگان، کاملا رایگان است (0 تومان) — جزئیات در بخش «تعرفه‌ها» همین صفحه. بهای خدمات هر متخصص را خودش تعیین می‌کند و پیش از پرداخت روی صفحه‌ی رزروش نمایش داده می‌شود.' },
+  { q: 'قیمت استفاده از نوبت‌لینک چقدر است؟', a: `اشتراک ماهانه‌ی پلن رایگان 0 تومان است؛ فقط ${PLATFORM_COMMISSION_PERCENT}% از هر پرداخت آنلاین موفق سهم نوبت‌لینک است که هنگام تسویه کسر می‌شود — جزئیات در بخش «تعرفه‌ها» همین صفحه. بهای خدمات هر متخصص را خودش تعیین می‌کند و پیش از پرداخت روی صفحه‌ی رزروش نمایش داده می‌شود.` },
   { q: 'چه تفاوتی با نوبت‌دهی دستی و دفترچه دارد؟', a: 'در نوبت‌دهی دستی باید پاسخ تماس‌ها و پیام‌ها را بدهی. با نوبت‌لینک مراجع خودش زمان خالی را می‌بیند و رزرو می‌کند، یادآوری پیامکی خودکار ارسال می‌شود و آمار نوبت‌ها همیشه در دسترس است.' },
   { q: 'اطلاعات من و مراجعینم امن است؟', a: 'داده‌ها به‌صورت رمزنگاری‌شده نگهداری می‌شوند و دسترسی به اطلاعات هر متخصص فقط برای خودش امکان‌پذیر است. شماره و اطلاعات مراجعین هرگز در اختیار شخص دیگری قرار نمی‌گیرد.' },
   { q: 'الان از چه حوزه‌هایی پشتیبانی می‌کنید؟', a: 'در حال حاضر روی روانشناسی/مشاوره و سالن زیبایی تمرکز کرده‌ایم و این بخش‌ها فعال‌اند. حوزه‌های بیشتر به‌زودی اضافه می‌شوند.' },
@@ -284,8 +284,9 @@ export default function Landing() {
             <div className="font-display font-bold text-lg">پلن رایگان</div>
             <div className="mt-2 flex items-baseline gap-1.5">
               <span className="font-display font-extrabold text-4xl tnum">0</span>
-              <span className="text-sm text-soot">تومان</span>
+              <span className="text-sm text-soot">تومان — اشتراک ماهانه</span>
             </div>
+            <p className="mt-1 text-xs text-soot tnum">+ {PLATFORM_COMMISSION_PERCENT}% از هر پرداخت آنلاین موفق، سهم {PLATFORM_NAME}</p>
             <ul className="mt-5 space-y-2.5 text-sm text-soot leading-relaxed flex-1">
               <li>✓ صفحه‌ی رزرو اختصاصی با آدرس شخصی</li>
               <li>✓ رزرو و مدیریت نوبت‌ها بدون محدودیت</li>
@@ -311,7 +312,7 @@ export default function Landing() {
         <div className="max-w-3xl mx-auto mt-5 text-[13px] text-soot leading-relaxed bg-white border border-sand rounded-2xl p-5">
           <p>
             <strong className="text-ink">قیمت خدمات هر متخصص چطور تعیین می‌شود؟</strong> بهای هر خدمت (مثلا جلسه‌ی مشاوره) را خود همان متخصص تعیین می‌کند و
-            پیش از پرداخت، به‌صورت شفاف روی صفحه‌ی رزرو او نمایش داده می‌شود. پرداخت آنلاین از طریق درگاه دارای مجوز زیبال انجام و وجه به حساب ارائه‌دهنده‌ی خدمت تسویه می‌شود.
+            پیش از پرداخت، به‌صورت شفاف روی صفحه‌ی رزرو او نمایش داده می‌شود. پرداخت آنلاین از طریق درگاه دارای مجوز زیبال انجام می‌شود؛ سهم {PLATFORM_NAME} <span className="tnum">{PLATFORM_COMMISSION_PERCENT}%</span> از مبلغ هر پرداخت آنلاین موفق است که هنگام تسویه کسر می‌شود؛ مابقی در بازه‌های تسویه‌ای که خود متخصص انتخاب می‌کند به حسابش واریز می‌گردد. مراجع همان قیمت اعلام‌شده را می‌پردازد و هیچ مبلغ اضافه‌ای از او گرفته نمی‌شود.
             {DEMO_SLUG && <> برای دیدن فرایند کامل رزرو و پرداخت، <a href={`/${DEMO_SLUG}`} target="_blank" className="text-ink underline underline-offset-4">یک نمونه صفحه‌ی رزرو</a> را ببینید.</>}
           </p>
         </div>
