@@ -11,6 +11,8 @@ type Ticket = {
   subject: string; message: string; status: string; admin_reply: string | null; created_at: string
 }
 
+type ContactMessage = { id: string; email: string; message: string; is_read: boolean; created_at: string }
+
 const STATUS_LABEL: Record<string, string> = { open: 'ثبت‌شده', in_progress: 'در حال بررسی', resolved: 'حل‌شده', closed: 'بسته‌شده' }
 const CATEGORY_LABEL: Record<string, string> = { bug: '🐞 مشکل/باگ', feature: '💡 قابلیت تازه', billing: '💳 مالی/پلن', other: '❓ سایر' }
 
@@ -23,6 +25,7 @@ function TicketsInner() {
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({})
   const [busyId, setBusyId] = useState<string | null>(null)
+  const [contactMsgs, setContactMsgs] = useState<ContactMessage[]>([])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -33,7 +36,20 @@ function TicketsInner() {
     setTickets(d.tickets || [])
     setAuthed(true)
     setLoading(false)
+    // پیام‌های فرم «تماس با ما» لندینگ — جدا از تیکت‌های کاربران پنل
+    const cm = await fetch('/api/super/contact-messages', { cache: 'no-store' }).then(r => r.ok ? r.json() : { messages: [] }).catch(() => ({ messages: [] }))
+    setContactMsgs(cm.messages || [])
   }, [statusFilter])
+
+  async function toggleContactRead(id: string, isRead: boolean) {
+    setBusyId(id)
+    await fetch('/api/super/contact-messages', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, is_read: isRead }),
+    })
+    setBusyId(null)
+    setContactMsgs(list => list.map(m => m.id === id ? { ...m, is_read: isRead } : m))
+  }
 
   useEffect(() => { load() }, [load])
   useEffect(() => { if (authed === false) router.replace('/super') }, [authed, router])
@@ -136,6 +152,34 @@ function TicketsInner() {
                   {STATUS_LABEL[s]}
                 </button>
               ))}
+            </div>
+          </div>
+        ))}
+      </section>
+
+      {/* ── پیام‌های فرم «تماس با ما» لندینگ — بازدیدکننده‌های بدون حساب ── */}
+      <section className="space-y-3 pt-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-base font-bold text-ink">پیام‌های سایت (فرم تماس با ما)</h2>
+          <span className="text-sm text-soot tnum">{contactMsgs.filter(m => !m.is_read).length} خوانده‌نشده</span>
+        </div>
+        {contactMsgs.length === 0 && <p className="text-sm text-soot">هنوز پیامی از فرم تماس سایت نرسیده.</p>}
+        {contactMsgs.map(m => (
+          <div key={m.id} className={`bg-white border rounded-2xl p-4 space-y-2 ${m.is_read ? 'border-sand' : 'border-amber-500/40'}`}>
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <div className="flex items-center gap-2 flex-wrap">
+                <a href={`mailto:${m.email}`} dir="ltr" className="font-bold text-ink text-sm underline underline-offset-4">{m.email}</a>
+                {!m.is_read && <span className="text-[11px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-semibold">جدید</span>}
+              </div>
+              <span className="text-[11px] text-soot tnum">{new Date(m.created_at).toLocaleDateString('fa-IR')}</span>
+            </div>
+            <p className="text-sm text-ink leading-relaxed whitespace-pre-wrap">{m.message}</p>
+            <div className="flex gap-2 pt-1">
+              <a href={`mailto:${m.email}`} className="text-xs bg-ink text-white rounded-xl px-4 py-2">پاسخ با ایمیل</a>
+              <button onClick={() => toggleContactRead(m.id, !m.is_read)} disabled={busyId === m.id}
+                className="text-xs border border-sand text-soot rounded-xl px-4 py-2 disabled:opacity-40">
+                {m.is_read ? 'علامت‌گذاری خوانده‌نشده' : 'خوانده شد'}
+              </button>
             </div>
           </div>
         ))}

@@ -21,6 +21,17 @@ function Icon({ path, className = 'w-5 h-5' }: { path: string; className?: strin
   )
 }
 
+// سال جلالی جاری برای کپی‌رایت فوتر — با اعداد لاتین (قانون پروژه). قبلا
+// هاردکد «1404» بود و کهنه شده بود؛ حالا هر سال خودکار درست است.
+function jalaliYear(): string {
+  try {
+    return new Intl.DateTimeFormat('en-US-u-ca-persian', { year: 'numeric' })
+      .format(new Date()).replace(/[^0-9]/g, '')
+  } catch {
+    return '1405'
+  }
+}
+
 const STEPS = [
   { n: '01', t: 'ثبت‌نام و انتخاب حوزه‌ی کاری', d: 'حساب رایگانت را بساز و حوزه‌ی تخصصت را انتخاب کن. صفحه‌ات بلافاصله آماده می‌شود.' },
   { n: '02', t: 'تنظیم برنامه‌ی هفتگی', d: 'روزها و ساعت‌های در دسترس، مدت هر جلسه و فاصله‌ی بین نوبت‌ها را مشخص کن.' },
@@ -60,6 +71,33 @@ export default function Landing() {
   const [slot, setSlot] = useState(3)
   const [faq, setFaq] = useState<number>(0)
 
+  // فرم «تماس با ما» — ارسال به /api/contact (پیام‌ها در پنل سوپرادمین دیده می‌شوند)
+  const [contactEmail, setContactEmail] = useState('')
+  const [contactMsg, setContactMsg] = useState('')
+  const [contactBusy, setContactBusy] = useState(false)
+  const [contactSent, setContactSent] = useState(false)
+  const [contactErr, setContactErr] = useState('')
+
+  async function sendContact() {
+    setContactErr('')
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(contactEmail.trim())) { setContactErr('ایمیل معتبر وارد کن'); return }
+    if (contactMsg.trim().length < 10) { setContactErr('متن پیام خیلی کوتاه است'); return }
+    setContactBusy(true)
+    try {
+      const res = await fetch('/api/contact', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: contactEmail.trim(), message: contactMsg.trim() }),
+      })
+      const d = await res.json().catch(() => ({}))
+      if (!res.ok) { setContactErr(d.error || 'ارسال ناموفق بود — دوباره امتحان کن'); return }
+      setContactSent(true)
+    } catch {
+      setContactErr('ارسال ناموفق بود — اتصال اینترنت را چک کن')
+    } finally {
+      setContactBusy(false)
+    }
+  }
+
   useEffect(() => {
     fetch('/api/niches').then(r => r.json()).then(d => {
       setNiches(d.niches || []); setLoading(false)
@@ -71,10 +109,9 @@ export default function Landing() {
       {/* ── هدر ─────────────────────────────────────────────────────────── */}
       <header className="sticky top-0 z-50 bg-paper/80 backdrop-blur border-b border-sand">
         <div className="max-w-5xl mx-auto px-6 h-16 flex items-center justify-between gap-6">
-          <div className="flex items-center gap-2">
-            <span className="w-7 h-7 rounded-lg bg-ink flex items-center justify-center">
-              <Icon path='<rect x="4" y="5" width="16" height="16" rx="2"/><path d="M16 3v4M8 3v4M4 11h16"/>' className="w-3.5 h-3.5 text-white" />
-            </span>
+          <div className="flex items-center gap-2.5">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logo.svg" alt={`لوگوی ${PLATFORM_NAME}`} className="w-9 h-9" />
             <span className="font-display font-extrabold text-lg tracking-tightest">{PLATFORM_NAME}</span>
           </div>
           <nav className="hidden sm:flex items-center gap-7 text-sm text-soot">
@@ -318,12 +355,34 @@ export default function Landing() {
 
       {/* ── تماس با ما — لازم برای احراز شاپرک/اینماد ───────────────────── */}
       <section id="contact" className="max-w-5xl mx-auto px-6 pt-6 pb-16">
-        <div className="rounded-2xl border border-sand bg-white p-8 text-center">
-          <h2 className="font-display font-extrabold text-2xl tracking-tightest">تماس با ما</h2>
-          <p className="mt-2 text-sm text-soot max-w-md mx-auto leading-relaxed">
-            برای هر سوال درباره‌ی سرویس، تعرفه‌ها یا همکاری، از راه‌های زیر در دسترسیم. کاربران {PLATFORM_NAME} از داخل پنل خودشان هم می‌توانند تیکت پشتیبانی ثبت کنند.
+        <div className="rounded-2xl border border-sand bg-white p-8 max-w-2xl mx-auto">
+          <h2 className="font-display font-extrabold text-2xl tracking-tightest text-center">تماس با ما</h2>
+          <p className="mt-2 text-sm text-soot max-w-md mx-auto leading-relaxed text-center">
+            سوالت را همین‌جا بنویس؛ پاسخ به ایمیلی که وارد می‌کنی ارسال می‌شود. کاربران {PLATFORM_NAME} از داخل پنل خودشان هم می‌توانند تیکت پشتیبانی ثبت کنند.
           </p>
-          <div className="mt-6 flex items-center justify-center gap-6 flex-wrap text-sm">
+
+          {contactSent ? (
+            <div className="mt-6 text-center bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-5">
+              <div className="font-display font-bold text-emerald-700">پیامت رسید ✓</div>
+              <p className="mt-1 text-sm text-soot">در اولین فرصت از طریق ایمیل پاسخ می‌دهیم.</p>
+            </div>
+          ) : (
+            <div className="mt-6 space-y-3">
+              <input type="email" value={contactEmail} onChange={e => setContactEmail(e.target.value)}
+                placeholder="ایمیل شما (پاسخ به همین آدرس می‌آید)" dir="ltr"
+                className="w-full text-sm px-4 py-3 border border-sand rounded-xl focus:outline-none focus:border-ink placeholder:text-right" />
+              <textarea value={contactMsg} onChange={e => setContactMsg(e.target.value)} rows={4}
+                placeholder="سوال یا پیامت را بنویس…"
+                className="w-full text-sm px-4 py-3 border border-sand rounded-xl resize-none focus:outline-none focus:border-ink" />
+              {contactErr && <p className="text-xs text-red-600">{contactErr}</p>}
+              <button onClick={sendContact} disabled={contactBusy}
+                className="w-full font-display font-bold text-white bg-ink px-6 py-3 rounded-xl hover:opacity-90 transition disabled:opacity-50">
+                {contactBusy ? 'در حال ارسال…' : 'ارسال پیام'}
+              </button>
+            </div>
+          )}
+
+          <div className="mt-6 pt-5 border-t border-sand flex items-center justify-center gap-6 flex-wrap text-sm">
             <a href={`mailto:${SUPPORT_EMAIL}`} dir="ltr" className="flex items-center gap-2 text-ink font-medium hover:underline underline-offset-4">
               <Icon path='<rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 6L2 7"/>' className="w-4 h-4" />
               {SUPPORT_EMAIL}
@@ -339,24 +398,58 @@ export default function Landing() {
       </section>
 
       {/* ── فوتر ────────────────────────────────────────────────────────── */}
-      <footer className="border-t border-sand">
-        <div className="max-w-5xl mx-auto px-6 py-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-soot">
-          <span className="font-display font-bold">{PLATFORM_NAME}</span>
-          <nav className="flex items-center gap-5">
-            <a href="#pricing" className="hover:text-ink">تعرفه‌ها</a>
-            <a href="/privacy" className="hover:text-ink">حریم خصوصی</a>
-            <a href="/terms" className="hover:text-ink">قوانین</a>
-            <a href={`mailto:${SUPPORT_EMAIL}`} dir="ltr" className="hover:text-ink">{SUPPORT_EMAIL}</a>
-          </nav>
-          {/* نماد اعتماد الکترونیکی (اینماد) — بدون rel="noopener noreferrer" طبق دستور اینماد */}
-          <a referrerPolicy="origin" target="_blank"
-            href="https://trustseal.enamad.ir/?id=753950&Code=AcwMyu4tgps3IUpdr2taP5QYaQkTCSyp">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img referrerPolicy="origin"
-              src="https://trustseal.enamad.ir/logo.aspx?id=753950&Code=AcwMyu4tgps3IUpdr2taP5QYaQkTCSyp"
-              alt="نماد اعتماد الکترونیکی" style={{ cursor: 'pointer' }} data-code="AcwMyu4tgps3IUpdr2taP5QYaQkTCSyp" />
-          </a>
-          <span>© 1404</span>
+      <footer className="border-t border-sand bg-white">
+        <div className="max-w-5xl mx-auto px-6 py-12 grid gap-10 sm:grid-cols-3">
+          {/* برند */}
+          <div>
+            <div className="flex items-center gap-2.5">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/logo.svg" alt={`لوگوی ${PLATFORM_NAME}`} className="w-8 h-8" />
+              <span className="font-display font-extrabold text-lg tracking-tightest">{PLATFORM_NAME}</span>
+            </div>
+            <p className="mt-3 text-xs text-soot leading-relaxed max-w-[220px]">
+              پلتفرم نوبت‌دهی آنلاین برای متخصص‌ها و کسب‌وکارهای خدماتی — صفحه‌ی رزرو اختصاصی، پرداخت آنلاین و یادآوری خودکار.
+            </p>
+          </div>
+
+          {/* لینک‌ها */}
+          <div>
+            <div className="font-display font-bold text-sm mb-3">دسترسی سریع</div>
+            <nav className="flex flex-col gap-2.5 text-xs text-soot">
+              <a href="#how" className="hover:text-ink w-fit">چطور کار می‌کند</a>
+              <a href="#pricing" className="hover:text-ink w-fit">تعرفه‌ها</a>
+              <a href="#faq" className="hover:text-ink w-fit">سوالات پرتکرار</a>
+              <a href="/terms" className="hover:text-ink w-fit">قوانین و شرایط استفاده</a>
+              <a href="/privacy" className="hover:text-ink w-fit">حریم خصوصی</a>
+            </nav>
+          </div>
+
+          {/* ارتباط + اینماد */}
+          <div>
+            <div className="font-display font-bold text-sm mb-3">ارتباط با ما</div>
+            <div className="flex flex-col gap-2.5 text-xs text-soot">
+              <a href={`mailto:${SUPPORT_EMAIL}`} dir="ltr" className="hover:text-ink w-fit">{SUPPORT_EMAIL}</a>
+              {SUPPORT_PHONE && <a href={`tel:${SUPPORT_PHONE}`} dir="ltr" className="hover:text-ink w-fit tnum">{SUPPORT_PHONE}</a>}
+              <a href="#contact" className="hover:text-ink w-fit">فرم تماس با ما</a>
+            </div>
+            {/* نماد اعتماد الکترونیکی (اینماد) — بدون rel="noopener noreferrer" طبق دستور اینماد */}
+            <a referrerPolicy="origin" target="_blank" className="inline-block mt-4"
+              href="https://trustseal.enamad.ir/?id=753950&Code=AcwMyu4tgps3IUpdr2taP5QYaQkTCSyp">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img referrerPolicy="origin"
+                src="https://trustseal.enamad.ir/logo.aspx?id=753950&Code=AcwMyu4tgps3IUpdr2taP5QYaQkTCSyp"
+                alt="نماد اعتماد الکترونیکی" style={{ cursor: 'pointer' }} data-code="AcwMyu4tgps3IUpdr2taP5QYaQkTCSyp"
+                className="h-16 w-auto" />
+            </a>
+          </div>
+        </div>
+
+        {/* نوار پایینی — سال جلالی داینامیک (اعداد لاتین طبق قانون پروژه) */}
+        <div className="border-t border-sand">
+          <div className="max-w-5xl mx-auto px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-2 text-[11px] text-soot">
+            <span className="tnum">© {jalaliYear()} {PLATFORM_NAME} — همه‌ی حقوق محفوظ است.</span>
+            <span>ساخته‌شده برای متخصص‌های ایرانی</span>
+          </div>
         </div>
       </footer>
     </main>
