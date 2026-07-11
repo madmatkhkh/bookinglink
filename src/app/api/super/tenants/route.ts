@@ -124,7 +124,7 @@ export async function POST(req: NextRequest) {
       })
     }
     // انتخاب صریح تمپلیت «کلینیک» توسط سوپرادمین یعنی حالت کلینیک را همین
-    // الان لازم دارد — نیازی به فلوی درخواست/تایید جدا نیست (خودِ سوپرادمین
+    // الان لازم دارد — نیازی به فلوی درخواست/تایید جدا نیست (خود سوپرادمین
     // دارد این tenant را می‌سازد).
     if (nicheKey === 'psychology_clinic') {
       await sb().from('tenant_features').insert({ tenant_id: tenant.id, feature_key: MULTI_THERAPIST_FEATURE_KEY, enabled: true })

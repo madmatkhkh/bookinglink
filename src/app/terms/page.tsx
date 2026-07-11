@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { SUPPORT_EMAIL } from '@/lib/config'
 
 export const metadata = { title: 'قوانین و شرایط استفاده — نوبت‌لینک' }
 
@@ -37,14 +38,24 @@ export default function TermsPage() {
             </p>
           </section>
           <section>
-            <h2 className="font-display font-bold text-base mb-2">۴. استفاده‌ی منصفانه</h2>
+            <h2 className="font-display font-bold text-base mb-2">۴. کنسلی و بازپرداخت</h2>
+            <p>
+              مراجع می‌تواند مطابق مهلت کنسلی اعلام‌شده توسط هر مجموعه، نوبت خود را از پنل شخصی‌اش لغو
+              کند. در صورت لغو در مهلت مجاز یا لغو نوبت توسط خود مجموعه، وجه پرداختی طبق قواعد همان
+              مجموعه بازگردانده می‌شود؛ بازپرداخت تراکنش‌های درگاه به همان کارت/حساب مبدا انجام می‌گیرد.
+              اگر پرداختی انجام شود اما نوبت به هر دلیل ثبت نشود، مبلغ به‌صورت خودکار از سمت درگاه به
+              پرداخت‌کننده برگشت داده می‌شود.
+            </p>
+          </section>
+          <section>
+            <h2 className="font-display font-bold text-base mb-2">۵. استفاده‌ی منصفانه</h2>
             <p>
               ثبت نوبت یا پرونده با هویت غیرواقعی، تلاش برای اختلال در سرویس، و هر استفاده‌ی خلاف قوانین
               جاری کشور ممنوع است و می‌تواند به تعلیق دسترسی منجر شود.
             </p>
           </section>
           <section>
-            <h2 className="font-display font-bold text-base mb-2">۵. حدود مسئولیت</h2>
+            <h2 className="font-display font-bold text-base mb-2">۶. حدود مسئولیت</h2>
             <p>
               نوبت‌لینک بستر نرم‌افزاری نوبت‌دهی است و طرف ارائه‌ی خدمات تخصصی (درمانی، مشاوره‌ای و…)
               نیست؛ کیفیت و نتیجه‌ی خدمات بر عهده‌ی ارائه‌دهنده‌ی آن است. تلاش ما دسترس‌پذیری پایدار
@@ -52,8 +63,15 @@ export default function TermsPage() {
             </p>
           </section>
           <section>
-            <h2 className="font-display font-bold text-base mb-2">۶. تغییرات</h2>
+            <h2 className="font-display font-bold text-base mb-2">۷. تغییرات</h2>
             <p>هر تغییر مهم در همین صفحه منتشر و تاریخ به‌روزرسانی اصلاح می‌شود.</p>
+          </section>
+          <section>
+            <h2 className="font-display font-bold text-base mb-2">۸. تماس</h2>
+            <p>
+              برای هر سوال درباره‌ی این شرایط یا سرویس، از طریق ایمیل <a href={`mailto:${SUPPORT_EMAIL}`} dir="ltr" className="underline underline-offset-4">{SUPPORT_EMAIL}</a> یا
+              بخش «تماس با ما» در صفحه‌ی اصلی با ما در ارتباط باشید. کاربران نوبت‌لینک از داخل پنل خود نیز می‌توانند تیکت پشتیبانی ثبت کنند.
+            </p>
           </section>
         </div>
       </div>

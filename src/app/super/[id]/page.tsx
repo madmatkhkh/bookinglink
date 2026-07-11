@@ -375,7 +375,7 @@ function Inner() {
           <label className="flex items-center justify-between gap-3 p-2 rounded-xl cursor-pointer">
             <div>
              <span className="text-sm text-ink block">چند درمانگر (تب «درمانگرها» در پنل نمایش داده شود)</span>
-             <span className="text-xs text-soot">پیش‌فرض خاموش است — فقط از همین‌جا فعال می‌شود؛ خودِ متخصص فقط می‌تواند درخواست بدهد.</span>
+             <span className="text-xs text-soot">پیش‌فرض خاموش است — فقط از همین‌جا فعال می‌شود؛ خود متخصص فقط می‌تواند درخواست بدهد.</span>
             </div>
             <input
               type="checkbox"

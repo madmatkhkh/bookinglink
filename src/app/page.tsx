@@ -5,7 +5,7 @@
 // کارت‌های نیچ همچنان داینامیک از /api/niches گرفته می‌شوند.
 // ─────────────────────────────────────────────────────────────────────────────
 import { useEffect, useState } from 'react'
-import { PLATFORM_NAME } from '@/lib/config'
+import { PLATFORM_NAME, SUPPORT_EMAIL, SUPPORT_PHONE, DEMO_SLUG } from '@/lib/config'
 
 type NicheCard = {
   key: string; display_name: string; tagline: string
@@ -41,7 +41,7 @@ const FEATURES = [
 ]
 
 const FAQS = [
-  { q: 'قیمت استفاده از نوبت‌لینک چقدر است؟', a: 'ثبت‌نام و راه‌اندازی کاملا رایگان است و بدون نیاز به درگاه بانکی شروع می‌شود. پلن رایگان برای شروع کافی است و پلن‌های حرفه‌ای با امکانات بیشتر بعدا در دسترس خواهد بود.' },
+  { q: 'قیمت استفاده از نوبت‌لینک چقدر است؟', a: 'ثبت‌نام و استفاده از پلن رایگان، کاملا رایگان است (0 تومان) — جزئیات در بخش «تعرفه‌ها» همین صفحه. بهای خدمات هر متخصص را خودش تعیین می‌کند و پیش از پرداخت روی صفحه‌ی رزروش نمایش داده می‌شود.' },
   { q: 'چه تفاوتی با نوبت‌دهی دستی و دفترچه دارد؟', a: 'در نوبت‌دهی دستی باید پاسخ تماس‌ها و پیام‌ها را بدهی. با نوبت‌لینک مراجع خودش زمان خالی را می‌بیند و رزرو می‌کند، یادآوری پیامکی خودکار ارسال می‌شود و آمار نوبت‌ها همیشه در دسترس است.' },
   { q: 'اطلاعات من و مراجعینم امن است؟', a: 'داده‌ها به‌صورت رمزنگاری‌شده نگهداری می‌شوند و دسترسی به اطلاعات هر متخصص فقط برای خودش امکان‌پذیر است. شماره و اطلاعات مراجعین هرگز در اختیار شخص دیگری قرار نمی‌گیرد.' },
   { q: 'الان از چه حوزه‌هایی پشتیبانی می‌کنید؟', a: 'در حال حاضر روی روانشناسی/مشاوره و سالن زیبایی تمرکز کرده‌ایم و این بخش‌ها فعال‌اند. حوزه‌های بیشتر به‌زودی اضافه می‌شوند.' },
@@ -81,7 +81,9 @@ export default function Landing() {
             <a href="#how" className="hover:text-ink">چطور کار می‌کند</a>
             <a href="#features" className="hover:text-ink">امکانات</a>
             <a href="#niches" className="hover:text-ink">کسب‌وکارها</a>
+            <a href="#pricing" className="hover:text-ink">تعرفه‌ها</a>
             <a href="#faq" className="hover:text-ink">سوالات</a>
+            <a href="#contact" className="hover:text-ink">تماس</a>
           </nav>
           <div className="flex items-center gap-3">
             <a href="/login" className="text-sm text-soot hover:text-ink">ورود</a>
@@ -107,6 +109,9 @@ export default function Landing() {
             <div className="mt-8 flex items-center gap-4 flex-wrap">
               <a href="/signup" className="font-display font-bold text-white bg-ink px-7 py-3.5 rounded-xl shadow-sm hover:-translate-y-0.5 hover:shadow-lg transition">ثبت‌نام رایگان</a>
               <a href="#how" className="text-sm font-medium text-ink">ببین چطور کار می‌کند ←</a>
+              {DEMO_SLUG && (
+                <a href={`/${DEMO_SLUG}`} target="_blank" className="text-sm font-medium text-soot underline underline-offset-4 hover:text-ink">دیدن یک نمونه صفحه‌ی رزرو</a>
+              )}
             </div>
             <p className="mt-4 text-[13px] text-soot/80">بدون نیاز به درگاه بانکی · راه‌اندازی در کمتر از 5 دقیقه</p>
           </div>
@@ -231,6 +236,50 @@ export default function Landing() {
         )}
       </section>
 
+      {/* ── تعرفه‌ها — الزام شاپرک: قیمت خدمات باید روی سایت قابل احراز باشد ── */}
+      <section id="pricing" className="max-w-5xl mx-auto px-6 pt-16 pb-10">
+        <div className="text-center mb-10">
+          <div className="text-sm font-semibold text-soot mb-3">تعرفه‌ها</div>
+          <h2 className="font-display font-extrabold text-3xl sm:text-4xl tracking-tightest">قیمت‌ها شفاف، بدون هزینه‌ی پنهان</h2>
+        </div>
+        <div className="grid sm:grid-cols-2 gap-4 max-w-3xl mx-auto">
+          <div className="rounded-2xl border border-ink bg-white p-7 flex flex-col">
+            <div className="font-display font-bold text-lg">پلن رایگان</div>
+            <div className="mt-2 flex items-baseline gap-1.5">
+              <span className="font-display font-extrabold text-4xl tnum">0</span>
+              <span className="text-sm text-soot">تومان</span>
+            </div>
+            <ul className="mt-5 space-y-2.5 text-sm text-soot leading-relaxed flex-1">
+              <li>✓ صفحه‌ی رزرو اختصاصی با آدرس شخصی</li>
+              <li>✓ رزرو و مدیریت نوبت‌ها بدون محدودیت</li>
+              <li>✓ پرداخت آنلاین از درگاه دارای مجوز (زیبال)</li>
+              <li>✓ یادآوری پیامکی خودکار برای مراجع</li>
+              <li>✓ پنل مدیریت، پرونده‌ها و گزارش مالی</li>
+            </ul>
+            <a href="/signup" className="mt-6 text-center font-display font-bold text-white bg-ink px-6 py-3 rounded-xl hover:opacity-90 transition">شروع رایگان</a>
+          </div>
+          <div className="rounded-2xl border border-sand bg-white p-7 flex flex-col opacity-80">
+            <div className="flex items-center gap-2">
+              <div className="font-display font-bold text-lg">پلن حرفه‌ای</div>
+              <span className="text-[11px] font-semibold text-soot bg-sand px-2 py-0.5 rounded-full">به‌زودی</span>
+            </div>
+            <p className="mt-2 text-sm text-soot leading-relaxed">امکانات پیشرفته‌تر (ابزار بازاریابی، آمار حرفه‌ای و…) — هنوز عرضه نشده و تعرفه‌اش پیش از عرضه همین‌جا اعلام می‌شود.</p>
+            <ul className="mt-5 space-y-2.5 text-sm text-soot leading-relaxed flex-1">
+              <li>· همه‌ی امکانات پلن رایگان</li>
+              <li>· ابزارهای رشد و کمپین پیامکی</li>
+              <li>· آمار و تحلیل پیشرفته‌ی کسب‌وکار</li>
+            </ul>
+          </div>
+        </div>
+        <div className="max-w-3xl mx-auto mt-5 text-[13px] text-soot leading-relaxed bg-white border border-sand rounded-2xl p-5">
+          <p>
+            <strong className="text-ink">قیمت خدمات هر متخصص چطور تعیین می‌شود؟</strong> بهای هر خدمت (مثلا جلسه‌ی مشاوره) را خود همان متخصص تعیین می‌کند و
+            پیش از پرداخت، به‌صورت شفاف روی صفحه‌ی رزرو او نمایش داده می‌شود. پرداخت آنلاین از طریق درگاه دارای مجوز زیبال انجام و وجه به حساب ارائه‌دهنده‌ی خدمت تسویه می‌شود.
+            {DEMO_SLUG && <> برای دیدن فرایند کامل رزرو و پرداخت، <a href={`/${DEMO_SLUG}`} target="_blank" className="text-ink underline underline-offset-4">یک نمونه صفحه‌ی رزرو</a> را ببینید.</>}
+          </p>
+        </div>
+      </section>
+
       {/* ── FAQ ─────────────────────────────────────────────────────────── */}
       <section id="faq" className="max-w-2xl mx-auto px-6 pt-16 pb-10">
         <div className="text-center mb-10">
@@ -267,13 +316,37 @@ export default function Landing() {
         </div>
       </section>
 
+      {/* ── تماس با ما — لازم برای احراز شاپرک/اینماد ───────────────────── */}
+      <section id="contact" className="max-w-5xl mx-auto px-6 pt-6 pb-16">
+        <div className="rounded-2xl border border-sand bg-white p-8 text-center">
+          <h2 className="font-display font-extrabold text-2xl tracking-tightest">تماس با ما</h2>
+          <p className="mt-2 text-sm text-soot max-w-md mx-auto leading-relaxed">
+            برای هر سوال درباره‌ی سرویس، تعرفه‌ها یا همکاری، از راه‌های زیر در دسترسیم. کاربران {PLATFORM_NAME} از داخل پنل خودشان هم می‌توانند تیکت پشتیبانی ثبت کنند.
+          </p>
+          <div className="mt-6 flex items-center justify-center gap-6 flex-wrap text-sm">
+            <a href={`mailto:${SUPPORT_EMAIL}`} dir="ltr" className="flex items-center gap-2 text-ink font-medium hover:underline underline-offset-4">
+              <Icon path='<rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 6L2 7"/>' className="w-4 h-4" />
+              {SUPPORT_EMAIL}
+            </a>
+            {SUPPORT_PHONE && (
+              <a href={`tel:${SUPPORT_PHONE}`} dir="ltr" className="flex items-center gap-2 text-ink font-medium hover:underline underline-offset-4 tnum">
+                <Icon path='<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/>' className="w-4 h-4" />
+                {SUPPORT_PHONE}
+              </a>
+            )}
+          </div>
+        </div>
+      </section>
+
       {/* ── فوتر ────────────────────────────────────────────────────────── */}
       <footer className="border-t border-sand">
         <div className="max-w-5xl mx-auto px-6 py-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-soot">
           <span className="font-display font-bold">{PLATFORM_NAME}</span>
           <nav className="flex items-center gap-5">
+            <a href="#pricing" className="hover:text-ink">تعرفه‌ها</a>
             <a href="/privacy" className="hover:text-ink">حریم خصوصی</a>
             <a href="/terms" className="hover:text-ink">قوانین</a>
+            <a href={`mailto:${SUPPORT_EMAIL}`} dir="ltr" className="hover:text-ink">{SUPPORT_EMAIL}</a>
           </nav>
           {/* نماد اعتماد الکترونیکی (اینماد) — بدون rel="noopener noreferrer" طبق دستور اینماد */}
           <a referrerPolicy="origin" target="_blank"
