@@ -1,19 +1,23 @@
 import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3'
-import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 
 // ─── Cloudflare R2 (S3-compatible) — برای آپلود عکس پروفایل متخصص‌ها ───────
 // R2 دقیقا همان API استاندارد S3 را پیاده می‌کند، پس هیچ SDK مخصوصی لازم
 // نیست — فقط endpoint را به آدرس اکانت R2 اشاره می‌کنیم.
 //
-// این چهار متغیر محیطی باید از Cloudflare Dashboard → R2 → Manage API tokens
-// (یا با wrangler) گرفته و در .env.local / تنظیمات Vercel ست شوند:
-//   R2_ACCOUNT_ID          — شناسه‌ی اکانت کلادفلر (در آدرس داشبورد هم هست)
+// آپلود از سرور خودمان انجام می‌شود (نه مستقیم از مرورگر با presigned URL) —
+// چون: (۱) آپلود مستقیم مرورگر نیازمند تنظیم CORS policy روی خود bucket است
+// (پیچیدگی راه‌اندازی اضافه که در عمل اولین چیزی بود که خطا داد)، و (۲) عکس‌ها
+// قبل از ارسال سمت مرورگر crop/فشرده می‌شوند (معمولا زیر ~100KB)، پس رد شدن
+// از سرور هیچ هزینه‌ی قابل‌توجهی ندارد و خطاهایش هم قابل‌کنترل‌تر است.
+//
+// این متغیرهای محیطی باید از Cloudflare Dashboard → R2 → Manage API tokens
+// گرفته و در .env.local / تنظیمات Vercel ست شوند:
+//   R2_ACCOUNT_ID          — شناسه‌ی اکانت کلادفلر (در صفحه‌ی Overview R2 هست)
 //   R2_ACCESS_KEY_ID        — از API token ساخته‌شده برای R2
-//   R2_SECRET_ACCESS_KEY    — همراه همان token
-//   R2_BUCKET_NAME          — اسم باکتی که ساختی (مثلا nobatlink-uploads)
+//   R2_SECRET_ACCESS_KEY    — همراه همان token (فقط یک‌بار نمایش داده می‌شود)
+//   R2_BUCKET_NAME          — اسم باکت
 //   R2_PUBLIC_URL           — دامنه‌ی عمومی سرو فایل‌ها، بدون اسلش آخر
-//                             (همان ساب‌دامین سفارشی‌ای که وصل کردی:
-//                             https://images.nobatlink.com)
+//                             (https://images.nobatlink.com)
 function r2Client() {
   return new S3Client({
     region: 'auto',
@@ -27,17 +31,22 @@ function r2Client() {
 
 const BUCKET = () => process.env.R2_BUCKET_NAME!
 
+export function r2Configured(): boolean {
+  return !!(process.env.R2_ACCOUNT_ID && process.env.R2_ACCESS_KEY_ID && process.env.R2_SECRET_ACCESS_KEY && process.env.R2_BUCKET_NAME && process.env.R2_PUBLIC_URL)
+}
+
 // آدرس عمومی نهایی فایل — همان که در avatar_url ذخیره و به مراجع نشان داده می‌شود
 export function r2PublicUrl(key: string): string {
   const base = (process.env.R2_PUBLIC_URL || '').replace(/\/$/, '')
   return `${base}/${key}`
 }
 
-// URL موقت (۵ دقیقه) که مرورگر مستقیم با PUT به آن آپلود می‌کند — بدون این‌که
-// بایت‌های فایل از سرور خودمان رد شوند (سریع‌تر و برای این کار درست‌تر است).
-export async function createUploadUrl(key: string, contentType: string): Promise<string> {
-  const cmd = new PutObjectCommand({ Bucket: BUCKET(), Key: key, ContentType: contentType })
-  return getSignedUrl(r2Client(), cmd, { expiresIn: 300 })
+// آپلود بایت‌ها از سمت سرور
+export async function uploadToR2(key: string, body: Buffer, contentType: string): Promise<void> {
+  await r2Client().send(new PutObjectCommand({
+    Bucket: BUCKET(), Key: key, Body: body, ContentType: contentType,
+    CacheControl: 'public, max-age=31536000, immutable', // کلید هر آپلود یکتاست (timestamp دارد)، پس کش بلندمدت امن است
+  }))
 }
 
 // حذف عکس قبلی وقتی متخصص عکس تازه آپلود می‌کند یا عکس را برمی‌دارد — تمیز

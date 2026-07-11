@@ -1568,54 +1568,89 @@ export function PsychologyAdmin() {
 
  const patchProfile = (p: Partial<ResourceProfileView>) => setProfile(s => ({ ...s, ...p }))
 
- // ── آپلود عکس پروفایل — ریسایز سمت مرورگر (حداکثر ضلع ۵۱۲px، JPEG) بعد
- // لینک آپلود موقت از R2 گرفته و مستقیم PUT می‌شود؛ فایل از سرور خودمان رد
- // نمی‌شود. avatar_url فقط در state ست می‌شود — مثل بقیه‌ی فیلدهای پروفایل،
- // ذخیره‌ی واقعی با دکمه‌ی «ذخیره‌ی تغییرات» انجام می‌شود. ──
+ // ── آپلود عکس پروفایل با ویرایشگر برش ──────────────────────────────
+ // انتخاب فایل → مودال برش (جابه‌جایی با درگ + زوم با اسلایدر، تا صورت وسط
+ // دایره بیفتد) → خروجی مربع 512px با canvas (JPEG فشرده، معمولا <100KB) →
+ // آپلود به روت خودمان (upload-avatar) که سمت سرور به R2 می‌فرستد — عمدا نه
+ // آپلود مستقیم مرورگر به R2، چون آن مسیر CORS policy روی bucket می‌خواهد.
+ // avatar_url فقط در state ست می‌شود — ذخیره‌ی واقعی با «ذخیره‌ی تغییرات».
  const avatarInputRef = useRef<HTMLInputElement>(null)
  const [avatarUploading, setAvatarUploading] = useState(false)
+ const CROP_VIEW = 260 // ضلع پنجره‌ی برش (px)
+ const [cropSrc, setCropSrc] = useState<string | null>(null)
+ const cropImgRef = useRef<HTMLImageElement | null>(null)
+ const [cropDims, setCropDims] = useState<{ w: number; h: number } | null>(null)
+ const [cropZoom, setCropZoom] = useState(1)
+ const [cropOff, setCropOff] = useState({ x: 0, y: 0 })
+ const cropDragRef = useRef<{ px: number; py: number; ox: number; oy: number } | null>(null)
+ useModalBackClose(!!cropSrc, () => closeCropper())
 
- function resizeImageToBlob(file: File, maxSide = 512): Promise<Blob> {
-  return new Promise((resolve, reject) => {
-   const img = new Image()
-   const objectUrl = URL.createObjectURL(file)
-   img.onload = () => {
-    URL.revokeObjectURL(objectUrl)
-    const scale = Math.min(1, maxSide / Math.max(img.width, img.height))
-    const w = Math.round(img.width * scale)
-    const h = Math.round(img.height * scale)
-    const canvas = document.createElement('canvas')
-    canvas.width = w; canvas.height = h
-    const ctx = canvas.getContext('2d')
-    if (!ctx) { reject(new Error('canvas not supported')); return }
-    ctx.drawImage(img, 0, 0, w, h)
-    canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('toBlob failed')), 'image/jpeg', 0.85)
-   }
-   img.onerror = () => { URL.revokeObjectURL(objectUrl); reject(new Error('تصویر خوانده نشد')) }
-   img.src = objectUrl
-  })
+ function closeCropper() {
+  if (cropSrc) URL.revokeObjectURL(cropSrc)
+  setCropSrc(null); setCropDims(null); setCropZoom(1); setCropOff({ x: 0, y: 0 })
+  cropImgRef.current = null
  }
 
- async function handleAvatarFile(file: File | undefined | null) {
+ function handleAvatarFile(file: File | undefined | null) {
   if (!file) return
   if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
    uiAlert('فقط عکس JPG، PNG یا WebP قابل قبول است'); return
   }
+  const url = URL.createObjectURL(file)
+  const img = new Image()
+  img.onload = () => {
+   cropImgRef.current = img
+   setCropDims({ w: img.width, h: img.height })
+   setCropZoom(1); setCropOff({ x: 0, y: 0 })
+   setCropSrc(url)
+  }
+  img.onerror = () => { URL.revokeObjectURL(url); uiAlert('تصویر خوانده نشد') }
+  img.src = url
+ }
+
+ // مقیاس نمایش: پایه = پوشش کامل پنجره (cover)، ضرب‌در زوم کاربر
+ function cropScale() {
+  if (!cropDims) return 1
+  return (CROP_VIEW / Math.min(cropDims.w, cropDims.h)) * cropZoom
+ }
+ // جابه‌جایی همیشه طوری محدود می‌شود که هیچ لبه‌ی خالی داخل کادر نیفتد
+ function clampCropOff(x: number, y: number, zoom = cropZoom) {
+  if (!cropDims) return { x: 0, y: 0 }
+  const s = (CROP_VIEW / Math.min(cropDims.w, cropDims.h)) * zoom
+  const maxX = Math.max(0, (cropDims.w * s - CROP_VIEW) / 2)
+  const maxY = Math.max(0, (cropDims.h * s - CROP_VIEW) / 2)
+  return { x: Math.max(-maxX, Math.min(maxX, x)), y: Math.max(-maxY, Math.min(maxY, y)) }
+ }
+
+ async function confirmCrop() {
+  const img = cropImgRef.current
+  if (!img || !cropDims) return
   setAvatarUploading(true)
   try {
-   const blob = await resizeImageToBlob(file)
-   const body: Record<string, unknown> = { fileType: 'image/jpeg', fileSize: blob.size }
-   if (me?.isOwner && viewingResourceId) body.resource_id = viewingResourceId
-   const res = await fetch(panelApi('/upload-url'), {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
-   })
+   // ناحیه‌ی دیده‌شده در کادر را به مختصات عکس اصلی برمی‌گردانیم
+   const s = cropScale()
+   const W = cropDims.w * s, H = cropDims.h * s
+   const sx = ((W - CROP_VIEW) / 2 - cropOff.x) / s
+   const sy = ((H - CROP_VIEW) / 2 - cropOff.y) / s
+   const sside = CROP_VIEW / s
+   const canvas = document.createElement('canvas')
+   canvas.width = 512; canvas.height = 512
+   const ctx = canvas.getContext('2d')
+   if (!ctx) throw new Error('canvas')
+   ctx.drawImage(img, sx, sy, sside, sside, 0, 0, 512, 512)
+   const blob: Blob = await new Promise((res, rej) =>
+    canvas.toBlob(b => b ? res(b) : rej(new Error('toBlob')), 'image/jpeg', 0.85))
+
+   const fd = new FormData()
+   fd.append('file', blob, 'avatar.jpg')
+   if (me?.isOwner && viewingResourceId) fd.append('resource_id', viewingResourceId)
+   const res = await fetch(panelApi('/upload-avatar'), { method: 'POST', body: fd })
    const d = await res.json().catch(() => ({}))
-   if (!res.ok) { uiAlert(d.error || 'آماده‌سازی آپلود ناموفق بود'); return }
-   const put = await fetch(d.upload_url, { method: 'PUT', headers: { 'Content-Type': 'image/jpeg' }, body: blob })
-   if (!put.ok) { uiAlert('آپلود عکس ناموفق بود — دوباره امتحان کن'); return }
+   if (!res.ok) { uiAlert(d.error || 'آپلود عکس ناموفق بود — دوباره امتحان کن'); return }
    patchProfile({ avatar_url: d.public_url })
+   closeCropper()
   } catch {
-   uiAlert('آپلود عکس ناموفق بود — اتصال اینترنت را چک کن')
+   uiAlert('آپلود عکس ناموفق بود — دوباره امتحان کن')
   } finally {
    setAvatarUploading(false)
   }
@@ -2173,6 +2208,63 @@ export function PsychologyAdmin() {
  return (
   <div className={`min-h-screen bg-gray-50 sm:pr-56 ${darkMode ? 'pb-admin-dark' : ''}`} dir="rtl">
    <DialogHost />
+
+   {/* ── مودال برش عکس پروفایل — درگ برای جابه‌جایی، اسلایدر برای زوم ── */}
+   {cropSrc && cropDims && (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => !avatarUploading && closeCropper()}>
+     <div className="bg-white rounded-2xl p-5 w-full max-w-sm" onClick={e => e.stopPropagation()}>
+      <h2 className="font-display font-semibold text-ink mb-1">تنظیم عکس پروفایل</h2>
+      <p className="text-xs text-soot mb-4">عکس را بکشید تا جابه‌جا شود؛ با نوار زیر بزرگ‌نمایی کنید. ناحیه‌ی داخل دایره همان چیزی است که مراجع می‌بیند.</p>
+
+      <div className="mx-auto relative overflow-hidden rounded-xl bg-gray-200 touch-none select-none cursor-move"
+       style={{ width: CROP_VIEW, height: CROP_VIEW }}
+       onPointerDown={e => {
+        (e.target as HTMLElement).setPointerCapture(e.pointerId)
+        cropDragRef.current = { px: e.clientX, py: e.clientY, ox: cropOff.x, oy: cropOff.y }
+       }}
+       onPointerMove={e => {
+        const d = cropDragRef.current
+        if (!d) return
+        setCropOff(clampCropOff(d.ox + (e.clientX - d.px), d.oy + (e.clientY - d.py)))
+       }}
+       onPointerUp={() => { cropDragRef.current = null }}
+       onPointerCancel={() => { cropDragRef.current = null }}>
+       {/* eslint-disable-next-line @next/next/no-img-element */}
+       <img src={cropSrc} alt="" draggable={false} className="absolute max-w-none pointer-events-none"
+        style={{
+         width: cropDims.w * cropScale(),
+         height: cropDims.h * cropScale(),
+         left: CROP_VIEW / 2 - (cropDims.w * cropScale()) / 2 + cropOff.x,
+         top: CROP_VIEW / 2 - (cropDims.h * cropScale()) / 2 + cropOff.y,
+        }} />
+       {/* ماسک دایره‌ای — بیرون دایره تیره می‌شود تا نتیجه‌ی نهایی معلوم باشد */}
+       <div className="absolute inset-0 pointer-events-none"
+        style={{ boxShadow: `inset 0 0 0 ${CROP_VIEW}px rgba(0,0,0,0.45)`, borderRadius: '50%' }} />
+      </div>
+
+      <div className="flex items-center gap-3 mt-4" dir="ltr">
+       <span className="text-xs text-soot">-</span>
+       <input type="range" min={1} max={3} step={0.01} value={cropZoom}
+        onChange={e => {
+         const z = Number(e.target.value)
+         setCropZoom(z)
+         setCropOff(o => clampCropOff(o.x, o.y, z))
+        }}
+        className="flex-1 accent-ink" />
+       <span className="text-xs text-soot">+</span>
+      </div>
+
+      <div className="flex gap-2 mt-4">
+       <button onClick={closeCropper} disabled={avatarUploading}
+        className="flex-1 py-2.5 border border-sand rounded-xl text-sm text-soot disabled:opacity-50">انصراف</button>
+       <button onClick={confirmCrop} disabled={avatarUploading}
+        className="flex-1 py-2.5 bg-ink text-white rounded-xl text-sm font-medium disabled:opacity-50">
+        {avatarUploading ? 'در حال آپلود...' : 'ثبت عکس'}
+       </button>
+      </div>
+     </div>
+    </div>
+   )}
 
    {/* ── سایدبار (دسکتاپ) ───────────────────────────────────────────── */}
    <aside className="hidden sm:flex sm:flex-col fixed top-0 right-0 h-full w-56 bg-white border-l border-sand z-20">
