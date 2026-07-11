@@ -7,7 +7,7 @@ export const PLATFORM_NAME = 'نوبت‌لینک'
 // ⚠️ قبل از اعلام آمادگی به زیبال این دو مقدار را با اطلاعات واقعی پر کن —
 // SUPPORT_PHONE تا وقتی خالی باشد اصلا نمایش داده نمی‌شود (شماره‌ی الکی بدتر است)،
 // ولی داور شاپرک معمولا انتظار شماره تماس دارد، پس پر کردنش جدی است.
-export const SUPPORT_EMAIL = 'support@nobatlink.com'
+export const SUPPORT_EMAIL = 'info@nobatlink.com'
 export const SUPPORT_PHONE = '09134682153'
 
 // کارمزد پلتفرم (پلن رایگان) — درصدی از هر پرداخت آنلاین موفق که سهم
