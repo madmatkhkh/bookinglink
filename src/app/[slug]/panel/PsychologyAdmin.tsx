@@ -294,6 +294,51 @@ const STATUS_COLOR: Record<string, string> = {
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
+// ── سربرگ یکدست هر تب — عنوان + یک خط توضیح؛ قبلا فقط داشبورد سربرگ داشت و
+// بقیه‌ی تب‌ها مستقیم با محتوا شروع می‌شدند (بی‌جهت‌نما و ناتمام به‌نظر می‌رسید) ──
+function PageHeader({ title, desc, action }: { title: string; desc?: string; action?: React.ReactNode }) {
+ return (
+  <div className="flex items-start justify-between gap-3 flex-wrap mb-4">
+   <div>
+    <h1 className="text-lg font-display font-bold text-ink">{title}</h1>
+    {desc && <p className="text-xs text-soot mt-0.5">{desc}</p>}
+   </div>
+   {action}
+  </div>
+ )
+}
+
+// ── حالت خالی استاندارد — آیکون + عنوان + توضیح + اقدام (به‌جای یک خط متن خشک) ──
+function EmptyState({ icon, title, desc, action }: { icon: string; title: string; desc?: string; action?: React.ReactNode }) {
+ return (
+  <div className="text-center py-14 px-4 bg-white rounded-2xl border border-sand">
+   <div className="w-12 h-12 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto mb-3">
+    <Glyph icon={icon} className="w-6 h-6 text-soot" />
+   </div>
+   <div className="text-sm font-display font-semibold text-ink">{title}</div>
+   {desc && <p className="text-xs text-soot mt-1.5 max-w-xs mx-auto leading-relaxed">{desc}</p>}
+   {action && <div className="mt-4">{action}</div>}
+  </div>
+ )
+}
+
+// ── اسکلتون بارگذاری لیست‌ها — به‌جای متن «در حال بارگذاری…» ──
+function SkeletonRows({ count = 4, height = 'h-[72px]' }: { count?: number; height?: string }) {
+ return (
+  <div className="space-y-2" aria-hidden="true">
+   {Array.from({ length: count }).map((_, i) => (
+    <div key={i} className={`${height} bg-white rounded-xl border border-sand p-4 flex items-center gap-3`}>
+     <div className="w-10 h-10 rounded-full bg-gray-100 animate-pulse shrink-0" />
+     <div className="flex-1 space-y-2">
+      <div className="h-3 bg-gray-100 rounded animate-pulse w-1/3" />
+      <div className="h-2.5 bg-gray-100 rounded animate-pulse w-1/2" />
+     </div>
+    </div>
+   ))}
+  </div>
+ )
+}
+
 // کارت جلسه‌ی مصاحبه/ارزیابی در پرونده — یادداشت + تأیید برگزاری
 function StageSessionCard({ stage, index, onSave }: {
  stage: CaseStage; index?: number
@@ -2107,8 +2152,9 @@ export function PsychologyAdmin() {
  function NavItemButton({ item, onNavigate }: { item: { key: MainTab; icon: string; label: string; badge: number }; onNavigate?: () => void }) {
   return (
    <button onClick={() => { navigateTab(item.key); onNavigate?.() }}
-    className={`w-full text-right px-3 py-2.5 rounded-lg text-sm flex items-center justify-between gap-2 transition-colors ${
+    className={`relative w-full text-right px-3 py-2.5 rounded-lg text-sm flex items-center justify-between gap-2 transition-colors ${
      mainTab === item.key ? 'bg-gray-200 text-ink font-semibold' : 'text-soot hover:bg-gray-100'}`}>
+    {mainTab === item.key && <span className="absolute right-0 top-1/2 -translate-y-1/2 h-5 w-[3px] rounded-full bg-ink" aria-hidden="true" />}
     <span className="flex items-center gap-2"><Glyph icon={item.icon} /> {item.label}</span>
     {item.badge > 0 && (
      <span className="w-5 h-5 shrink-0 bg-amber-100 text-amber-800 text-[11px] rounded-full flex items-center justify-center font-bold leading-none">
@@ -2161,24 +2207,35 @@ export function PsychologyAdmin() {
      )}
     </div>
 
-    {bottomNavItems.map(item => <NavItemButton key={item.key} item={item} onNavigate={onNavigate} />)}
+    <div className="pt-3 mt-2 border-t border-sand">
+     <div className="px-3 pb-1 text-[10px] font-bold text-soot/70 tracking-wide">مجموعه</div>
+     <div className="space-y-0.5">
+      {bottomNavItems.map(item => <NavItemButton key={item.key} item={item} onNavigate={onNavigate} />)}
+     </div>
+    </div>
    </nav>
   )
  }
 
  // هدر سایدبار — نام دکتر/کلینیک (دیگر صفحه‌ی دومی نیست که بخواهد از این‌جا برگردد)
  function SidebarHeader() {
+  const displayName = profile.name || me?.resourceName || 'دکتر'
   return (
    <div className="p-4 border-b border-sand">
     <div className="flex items-center justify-between gap-2">
-     <div className="min-w-0">
-      <div className="text-sm font-display font-semibold text-ink">پنل مدیریت</div>
-      <div className="text-xs text-soot truncate mt-0.5">
-       {profile.name || me?.resourceName || 'دکتر'}{profile.title ? ` — ${profile.title}` : ''}
-       {me && !me.isOwner && <span className="text-soot"> (درمانگر)</span>}
+     <div className="flex items-center gap-2.5 min-w-0">
+      <div className="w-9 h-9 rounded-full bg-sand overflow-hidden flex items-center justify-center shrink-0 font-display font-bold text-sm text-ink">
+       {profile.avatar_url
+        // eslint-disable-next-line @next/next/no-img-element
+        ? <img src={profile.avatar_url} alt="" className="w-full h-full object-cover" />
+        : (displayName.charAt(0) || '؟')}
+      </div>
+      <div className="min-w-0">
+       <div className="text-[10px] text-soot">پنل مدیریت{me && !me.isOwner ? ' · درمانگر' : ''}</div>
+       <div className="text-sm font-display font-semibold text-ink truncate mt-0.5">{displayName}</div>
       </div>
      </div>
-     <a href={`/${slug}`} target="_blank" rel="noopener noreferrer"
+     <a href={`/${slug}`} target="_blank" rel="noopener noreferrer" title="مشاهده‌ی صفحه‌ی عمومی شما"
       className="shrink-0 text-[11px] text-soot hover:text-ink border border-sand rounded-lg px-2 py-1.5 flex items-center gap-1 transition-colors">
       سایت من
       <svg viewBox="0 0 24 24" className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -2196,7 +2253,10 @@ export function PsychologyAdmin() {
  function DarkModeSwitch() {
   return (
    <div className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs text-soot">
-    <span className="flex items-center gap-2">🌙 حالت تیره</span>
+    <span className="flex items-center gap-2">
+     <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M20.5 14.5A8.5 8.5 0 0 1 9.5 3.5a8.5 8.5 0 1 0 11 11z" /></svg>
+     حالت تیره
+    </span>
     <button type="button" role="switch" aria-checked={darkMode} onClick={() => toggleDark(!darkMode)} dir="ltr"
      className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${darkMode ? 'bg-ink' : 'bg-gray-300'}`}>
      <span className={`absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white transition-transform ${darkMode ? 'translate-x-4' : 'translate-x-0'}`} />
@@ -2275,10 +2335,14 @@ export function PsychologyAdmin() {
     </div>
    </aside>
 
-   {/* ── نوار بالا (موبایل) ────────────────────────────────────────── */}
+   {/* ── نوار بالا (موبایل) — عنوان تب جاری، نه یک عنوان ثابت ─────── */}
    <div className="sm:hidden bg-white border-b border-sand sticky top-0 z-20 px-3 py-3 flex items-center justify-between">
-    <button onClick={() => setSidebarOpen(true)} className="text-xl text-soot w-8 h-8 flex items-center justify-center">☰</button>
-    <div className="text-sm font-display font-semibold text-ink">پنل مدیریت</div>
+    <button onClick={() => setSidebarOpen(true)} aria-label="بازکردن منو" className="text-soot w-8 h-8 flex items-center justify-center">
+     <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
+    </button>
+    <div className="text-sm font-display font-semibold text-ink">
+     {[...navItems, ...bottomNavItems].find(i => i.key === mainTab)?.label || (mainTab === 'settings' ? 'تنظیمات' : 'پنل مدیریت')}
+    </div>
     <div className="w-8" />
    </div>
 
@@ -2323,7 +2387,7 @@ export function PsychologyAdmin() {
         <div className="flex items-center justify-between flex-wrap gap-2">
          <div>
           <h1 className="text-lg font-display font-bold text-ink">
-           سلام{profile.name ? `، ${profile.name}` : ''} 👋
+           سلام{profile.name ? `، ${profile.name}` : ''}
           </h1>
           <p className="text-xs text-soot mt-0.5">
            {toFarsiNum(todayJ.day)} {PERSIAN_MONTHS[todayJ.month]}، {toFarsiNum(todayJ.year)}
@@ -2369,7 +2433,7 @@ export function PsychologyAdmin() {
             <h2 className="text-sm font-display font-semibold text-ink">راه‌اندازی اولیه</h2>
             <span className="text-xs text-soot tnum">{toFarsiNum(doneCount)} از {toFarsiNum(checklist.length)}</span>
            </div>
-           <p className="text-xs text-soot mb-4">این چندتا کار رو انجام بده تا صفحه‌ات کاملا برای مراجع آماده باشه.</p>
+           <p className="text-xs text-soot mb-4">با تکمیل این موارد، صفحه‌ی شما به‌طور کامل برای مراجعان آماده می‌شود.</p>
            <div className="bg-gray-100 rounded-full h-1.5 mb-4 overflow-hidden">
             <div className="bg-emerald-500 h-1.5 rounded-full transition-all" style={{ width: `${(doneCount / checklist.length) * 100}%` }} />
            </div>
@@ -2412,24 +2476,24 @@ export function PsychologyAdmin() {
 
         {/* کارت‌های KPI */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-         <button onClick={() => navigateTab('patients')} className="bg-white rounded-2xl border border-sand p-4 text-right hover:border-ink transition-colors">
-          <div className="text-2xl">📁</div>
-          <div className="text-xl font-bold text-ink mt-1 tnum">{toFarsiNum(activeCases)}</div>
+         <button onClick={() => navigateTab('patients')} className="bg-white rounded-2xl border border-sand p-4 text-right hover:border-ink transition-colors group">
+          <div className="w-9 h-9 rounded-xl bg-gray-100 flex items-center justify-center group-hover:bg-gray-200 transition-colors"><Glyph icon="📁" className="w-[18px] h-[18px] text-ink" /></div>
+          <div className="text-xl font-bold text-ink mt-2.5 tnum">{toFarsiNum(activeCases)}</div>
           <div className="text-[11px] text-soot">پرونده‌ی فعال</div>
          </button>
          <div className="bg-white rounded-2xl border border-sand p-4">
-          <div className="text-2xl">🗓</div>
-          <div className="text-xl font-bold text-ink mt-1 tnum">{toFarsiNum(todayAppts.length)}</div>
+          <div className="w-9 h-9 rounded-xl bg-gray-100 flex items-center justify-center"><Glyph icon="🗓" className="w-[18px] h-[18px] text-ink" /></div>
+          <div className="text-xl font-bold text-ink mt-2.5 tnum">{toFarsiNum(todayAppts.length)}</div>
           <div className="text-[11px] text-soot">نوبت امروز</div>
          </div>
-         <button onClick={() => navigateTab('bookings')} className="bg-white rounded-2xl border border-sand p-4 text-right hover:border-ink transition-colors">
-          <div className="text-2xl">💳</div>
-          <div className={`text-xl font-bold mt-1 tnum ${pendingActionCount > 0 ? 'text-amber-700' : 'text-ink'}`}>{toFarsiNum(pendingActionCount)}</div>
+         <button onClick={() => navigateTab('bookings')} className="bg-white rounded-2xl border border-sand p-4 text-right hover:border-ink transition-colors group">
+          <div className={`w-9 h-9 rounded-xl flex items-center justify-center transition-colors ${pendingActionCount > 0 ? 'bg-amber-500/15' : 'bg-gray-100 group-hover:bg-gray-200'}`}><Glyph icon="💳" className={`w-[18px] h-[18px] ${pendingActionCount > 0 ? 'text-amber-700' : 'text-ink'}`} /></div>
+          <div className={`text-xl font-bold mt-2.5 tnum ${pendingActionCount > 0 ? 'text-amber-700' : 'text-ink'}`}>{toFarsiNum(pendingActionCount)}</div>
           <div className="text-[11px] text-soot">منتظر تأیید</div>
          </button>
-         <button onClick={() => navigateTab('finance')} className="bg-white rounded-2xl border border-sand p-4 text-right hover:border-ink transition-colors">
-          <div className="text-2xl">📊</div>
-          <div className="text-xl font-bold text-ink mt-1 tnum">{money(monthAmount)}</div>
+         <button onClick={() => navigateTab('finance')} className="bg-white rounded-2xl border border-sand p-4 text-right hover:border-ink transition-colors group">
+          <div className="w-9 h-9 rounded-xl bg-gray-100 flex items-center justify-center group-hover:bg-gray-200 transition-colors"><Glyph icon="📊" className="w-[18px] h-[18px] text-ink" /></div>
+          <div className="text-xl font-bold text-ink mt-2.5 tnum">{money(monthAmount)}</div>
           <div className="text-[11px] text-soot">درآمد این ماه (تومان)</div>
          </button>
         </div>
@@ -2474,7 +2538,10 @@ export function PsychologyAdmin() {
            }} className="text-xs text-soot hover:text-ink">مشاهده‌ی همه ←</button>
          </div>
          {todayAppts.length === 0 ? (
-          <p className="text-xs text-soot text-center py-6">امروز نوبتی ثبت نشده.</p>
+          <div className="text-center py-6">
+           <div className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center mx-auto mb-2"><Glyph icon="📅" className="w-5 h-5 text-soot" /></div>
+           <p className="text-xs text-soot">برای امروز نوبتی ثبت نشده است.</p>
+          </div>
          ) : (
           <div className="space-y-2">
            {todayAppts.map(a => (
@@ -2499,6 +2566,7 @@ export function PsychologyAdmin() {
       {/* ── Patient List ─────────────────────────────────────────── */}
       {patientView === 'list' && (
        <div>
+        <PageHeader title="پرونده‌ها" desc="پرونده‌ی مراجعان، روند درمان و جلسات هرکدام از همین‌جا مدیریت می‌شود." />
         {/* سوییچر کارمند — فقط owner و فقط وقتی بیش از یک نفر پرسنل هست */}
         {me?.isOwner && staffList.filter(r => r.is_active).length > 1 && (
          <div className="mb-3">
@@ -2516,7 +2584,9 @@ export function PsychologyAdmin() {
           <input value={patientSearch} onChange={e => setPatientSearch(e.target.value)}
            placeholder="جستجو بر اساس نام، شماره پرونده یا تلفن..."
            className="w-full text-sm px-4 py-2.5 border border-sand rounded-xl bg-white pr-9 focus:outline-none focus:border-ink" />
-          <span className="absolute right-3 top-2.5 text-soot"></span>
+          <svg viewBox="0 0 24 24" className="absolute right-3 top-3 w-4 h-4 text-soot pointer-events-none" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+           <circle cx="11" cy="11" r="7" /><path d="m21 21-4-4" />
+          </svg>
          </div>
          <button onClick={() => setShowAddPatient(true)}
           className="text-sm px-4 py-2.5 bg-ink text-white rounded-xl hover:bg-ink/90 whitespace-nowrap shrink-0">
@@ -2524,9 +2594,19 @@ export function PsychologyAdmin() {
          </button>
         </div>
         {loading ? (
-         <div className="text-center py-16 text-soot">در حال بارگذاری...</div>
+         <SkeletonRows count={5} />
         ) : filteredPatients.length === 0 ? (
-         <div className="text-center py-16 text-soot">پرونده‌ای یافت نشد</div>
+         patientSearch.trim() ? (
+          <EmptyState icon="📁" title="نتیجه‌ای یافت نشد"
+           desc={`برای «${patientSearch.trim()}» پرونده‌ای پیدا نشد — عبارت دیگری را امتحان کنید.`} />
+         ) : (
+          <EmptyState icon="📁" title="هنوز پرونده‌ای ثبت نشده"
+           desc="نخستین پرونده‌ی مراجع خود را بسازید؛ رزروهای آنلاین مراجعان نیز به‌صورت خودکار همین‌جا پرونده می‌سازند."
+           action={
+            <button onClick={() => setShowAddPatient(true)}
+             className="text-sm px-5 py-2.5 bg-ink text-white rounded-xl hover:bg-ink/90">افزودن پرونده</button>
+           } />
+         )
         ) : (
          <div className="space-y-2">
           {filteredPatients.map(p => (
@@ -3035,6 +3115,7 @@ export function PsychologyAdmin() {
     ════════════════════════════════════════════════════════════════ */}
     {mainTab === 'bookings' && (
      <div>
+      <PageHeader title="تأیید پرداخت‌ها" desc="پرداخت‌های کارت‌به‌کارت اعلام‌شده توسط مراجعان، منتظر بررسی و تایید شما هستند." />
       {/* صندوق تأیید پرداخت‌ها — سه بخش */}
       {(() => {
        const childOf = (cn: string) => bookings.find(b => b.case_number === cn)?.client_name || cn
@@ -3139,6 +3220,7 @@ export function PsychologyAdmin() {
     ════════════════════════════════════════════════════════════════ */}
     {mainTab === 'schedule' && (
      <div className="max-w-2xl mx-auto">
+      <PageHeader title="روزهای کاری" desc="روزها و ساعت‌های در دسترس را تنظیم کنید و برنامه‌ی نوبت‌ها را ببینید." />
       {/* زیرتب‌ها */}
       <div className="flex bg-white rounded-xl border border-sand p-1 mb-4">
        {([['edit', 'تنظیم روزها'], ['agenda', 'برنامه‌ی نوبت‌ها']] as const).map(([k, label]) => (
@@ -3435,8 +3517,9 @@ export function PsychologyAdmin() {
     ════════════════════════════════════════════════════════════════ */}
     {mainTab === 'finance' && (
      <div className="space-y-4">
+      <PageHeader title="گزارشات مالی" desc="درآمد، پرداخت‌ها و روند مالی مجموعه‌ی شما به تفکیک نوع خدمت." />
       {!financeLoaded ? (
-       <div className="text-center py-16 text-soot">در حال محاسبه‌ی گزارش...</div>
+       <SkeletonRows count={3} height="h-24" />
       ) : !finance ? (
        <div className="text-center py-16 text-soot">داده‌ای برای نمایش نیست</div>
       ) : (() => {
@@ -3684,6 +3767,7 @@ export function PsychologyAdmin() {
     ════════════════════════════════════════════════════════════════ */}
     {mainTab === 'growth' && (
      <div className="max-w-3xl mx-auto">
+      <PageHeader title="رشد و مراجعان" desc="لیست انتظار، نظرات مراجعان، آمار کسب‌وکار و ارسال پیام گروهی." />
       <div className="flex bg-white rounded-xl border border-sand p-1 mb-4 overflow-x-auto">
        {([['waitlist', 'لیست انتظار'], ['reviews', 'نظرات مراجعان'], ['analytics', 'آمار کسب‌وکار'], ['campaigns', 'پیام گروهی']] as const).map(([k, label]) => (
         <button key={k} onClick={() => setGrowthSubTab(k)}
@@ -3698,9 +3782,8 @@ export function PsychologyAdmin() {
        <div className="space-y-2">
         <p className="text-xs text-soot mb-2">وقتی ساعت آزادی برای کسی که این‌جا منتظر است پیدا کردید، «اطلاع بده» را بزنید تا پیامک/ایمیل برایش برود.</p>
         {waitlist.length === 0 ? (
-         <div className="text-center py-12 bg-white rounded-xl border border-sand text-soot">
-          <p className="text-sm">لیست انتظار خالی است.</p>
-         </div>
+         <EmptyState icon="👥" title="لیست انتظار خالی است"
+          desc="وقتی همه‌ی ساعت‌های شما پر باشد، مراجعان می‌توانند در لیست انتظار ثبت‌نام کنند و همین‌جا نمایش داده می‌شوند." />
         ) : waitlist.map(w => (
          <div key={w.id} className="bg-white rounded-xl border border-sand p-4">
           <div className="flex items-center justify-between mb-1">
@@ -3726,9 +3809,8 @@ export function PsychologyAdmin() {
       {growthSubTab === 'reviews' && (
        <div className="space-y-2">
         {reviews.length === 0 ? (
-         <div className="text-center py-12 bg-white rounded-xl border border-sand text-soot">
-          <p className="text-sm">هنوز نظری ثبت نشده.</p>
-         </div>
+         <EmptyState icon="📝" title="هنوز نظری ثبت نشده است"
+          desc="پس از برگزاری جلسات، مراجعان می‌توانند از پنل خود نظر و امتیاز ثبت کنند؛ نظرات پیش از انتشار به تایید شما می‌رسند." />
         ) : reviews.map(r => (
          <div key={r.id} className="bg-white rounded-xl border border-sand p-4">
           <div className="flex items-center justify-between mb-1">
@@ -3873,8 +3955,9 @@ export function PsychologyAdmin() {
     ════════════════════════════════════════════════════════════════ */}
     {mainTab === 'settings' && (
      <div className="space-y-4 pb-24">
+      <PageHeader title="تنظیمات" desc="صفحه‌ی عمومی، روش‌های پرداخت، قیمت‌گذاری و فرم رزرو خود را از این‌جا مدیریت کنید." />
       {!settingsLoaded || !profileLoaded ? (
-       <div className="text-center py-16 text-soot">در حال بارگذاری تنظیمات...</div>
+       <SkeletonRows count={3} height="h-28" />
       ) : (
       <>
        {/* سوییچر دکتر — فقط وقتی owner است و بیش از یک نفر پرسنل دارد */}
@@ -4778,15 +4861,7 @@ export function PsychologyAdmin() {
    ════════════════════════════════════════════════════════════════ */}
    {mainTab === 'staff' && me?.isOwner && me?.multiTherapist && (
     <div className="max-w-lg mx-auto pb-24">
-     <div className="bg-white rounded-2xl border border-sand p-5 mb-4">
-      <h2 className="text-sm font-display font-bold text-ink mb-1">درمانگرها</h2>
-      <p className="text-xs text-soot leading-relaxed">
-       هر نفر یک «منبع» است: پرونده‌ها/برنامه‌ی کاری/پروفایل خودش را دارد.
-       اگر شماره‌ی موبایل بدهید، آن نفر می‌تواند مستقل با شماره‌ی خودش وارد این پنل شود
-       (بدون نیاز به شماره‌ی صاحب مجموعه).
-      </p>
-     </div>
-
+     <PageHeader title="درمانگرها" desc="هر درمانگر پرونده‌ها، برنامه‌ی کاری و پروفایل خودش را دارد و در صورت ثبت شماره‌ی موبایل، مستقل وارد پنل می‌شود." />
      {!staffLoaded ? (
       <div className="text-center py-16 text-soot">در حال بارگذاری...</div>
      ) : (
@@ -4987,6 +5062,7 @@ export function PsychologyAdmin() {
    ════════════════════════════════════════════════════════════════ */}
    {mainTab === 'account' && (
     <div className="max-w-lg mx-auto space-y-4 pb-24">
+     <PageHeader title="حساب" desc="مشخصات حساب، پلن مجموعه و تنظیمات سطح دسترسی." />
      <section className="bg-white rounded-2xl border border-sand p-5">
       <h2 className="text-sm font-display font-bold text-ink mb-1">مشخصات حساب</h2>
       <p className="text-xs text-soot mb-4">
@@ -5126,9 +5202,10 @@ export function PsychologyAdmin() {
    ════════════════════════════════════════════════════════════════ */}
    {mainTab === 'tickets' && (
     <div className="max-w-lg mx-auto space-y-4 pb-24">
+     <PageHeader title="پشتیبانی" desc="تیکت‌های شما مستقیم به تیم پشتیبانی می‌رسد و پاسخ همین‌جا نمایش داده می‌شود." />
      <section className="bg-white rounded-2xl border border-sand p-5">
       <h2 className="text-sm font-display font-bold text-ink mb-1">ثبت تیکت تازه</h2>
-      <p className="text-xs text-soot mb-4">اگه مشکلی داشتی یا قابلیتی می‌خواستی اضافه بشه، همین‌جا بنویس — مستقیم به تیم {PLATFORM_NAME} می‌رسد.</p>
+      <p className="text-xs text-soot mb-4">در صورت بروز مشکل یا نیاز به قابلیت تازه، همین‌جا مطرح کنید — مستقیم به تیم {PLATFORM_NAME} می‌رسد.</p>
       <div className="space-y-3">
        <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
         {([
@@ -5158,7 +5235,10 @@ export function PsychologyAdmin() {
       {!ticketsLoaded ? (
        <p className="text-sm text-soot text-center py-6">در حال بارگذاری…</p>
       ) : tickets.length === 0 ? (
-       <p className="text-sm text-soot text-center py-6">هنوز تیکتی ثبت نکرده‌اید.</p>
+       <div className="text-center py-6">
+        <div className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center mx-auto mb-2"><Glyph icon="🎫" className="w-5 h-5 text-soot" /></div>
+        <p className="text-xs text-soot">هنوز تیکتی ثبت نکرده‌اید.</p>
+       </div>
       ) : (
        <div className="space-y-2">
         {tickets.map(tk => (
