@@ -1,10 +1,16 @@
 'use client'
 // ─────────────────────────────────────────────────────────────────────────────
-// لندینگ پلتفرم — طراحی مونوکروم (سفید/مشکی/خاکستری) به سبک Cal.com
-// تیترها: Estedad · بدنه: Vazirmatn · اعداد: لاتین · RTL
-// کارت‌های نیچ همچنان داینامیک از /api/niches گرفته می‌شوند.
+// لندینگ پلتفرم — بازطراحی (جولای ۲۰۲۶)
+// هویت برند: مونوکروم (سفید/مشکی/خاکستری) + تایپوگرافی Estedad/Vazirmatn.
+// رنگ، عمدا فقط از «تخصص‌ها» می‌آید (~10% صفحه): موکاپ چرخشی hero و کارت نیچ‌ها.
+// امضای صفحه: موکاپ زنده‌ی hero — یک صفحه‌ی رزرو که هر چرخه، تخصص/رنگش عوض
+// می‌شود و سه مرحله (صفحه → انتخاب زمان → پرداخت و تایید) را نمایش می‌دهد؛
+// هم «چطور کار می‌کند» را بی‌کلام می‌رساند هم «برای هر تخصصی است» را.
+// لحن همه‌ی متن‌ها: رسمی-روان (شمای جمع، بدون محاوره). اعداد لاتین (قانون پروژه).
+// موشن: اسکرول‌ریویل ملایم (کلاس nl-reveal در globals.css) + چرخه‌ی hero —
+// هر دو تابع prefers-reduced-motion.
 // ─────────────────────────────────────────────────────────────────────────────
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { PLATFORM_NAME, SUPPORT_EMAIL, SUPPORT_PHONE, DEMO_SLUG, PLATFORM_COMMISSION_PERCENT } from '@/lib/config'
 
 type NicheCard = {
@@ -12,7 +18,6 @@ type NicheCard = {
   icon: string; default_theme: string; setup_price: number; is_active: boolean
 }
 
-// آیکون‌های خطی مونوکروم (بدون ایموجی)
 function Icon({ path, className = 'w-5 h-5' }: { path: string; className?: string }) {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7}
@@ -21,8 +26,7 @@ function Icon({ path, className = 'w-5 h-5' }: { path: string; className?: strin
   )
 }
 
-// سال جلالی جاری برای کپی‌رایت فوتر — با اعداد لاتین (قانون پروژه). قبلا
-// هاردکد «1404» بود و کهنه شده بود؛ حالا هر سال خودکار درست است.
+// سال جلالی جاری برای کپی‌رایت فوتر — با اعداد لاتین (قانون پروژه)
 function jalaliYear(): string {
   try {
     return new Intl.DateTimeFormat('en-US-u-ca-persian', { year: 'numeric' })
@@ -32,45 +36,177 @@ function jalaliYear(): string {
   }
 }
 
+// آیکون کارت هر نیچ — بر اساس فیلد icon خود نیچ در دیتابیس
+const NICHE_ICONS: Record<string, string> = {
+  brain: '<path d="M12 4a3 3 0 0 0-3 3v10a3 3 0 0 0 6 0V7a3 3 0 0 0-3-3z"/><path d="M9 8H7a3 3 0 0 0 0 6h2"/><path d="M15 8h2a3 3 0 0 1 0 6h-2"/>',
+  sparkles: '<path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M18 15l.9 2.1L21 18l-2.1.9L18 21l-.9-2.1L15 18l2.1-.9z"/>',
+  default: '<rect x="4" y="5" width="16" height="16" rx="2"/><path d="M16 3v4M8 3v4M4 11h16"/>',
+}
+
+// ── دیتای موکاپ چرخشی hero — سه تخصص، هرکدام با رنگ خودش ──────────────────
+const SHOWCASE = [
+  { color: '#7C3AED', label: 'روانشناسی', slug: 'dr-mohammadi', initial: 'س',
+    name: 'دکتر سارا محمدی', title: 'روان‌شناس بالینی',
+    service: 'جلسه‌ی مشاوره‌ی فردی', dur: '60 دقیقه', price: '800,000' },
+  { color: '#EC4899', label: 'سالن زیبایی', slug: 'rose-beauty', initial: 'ر',
+    name: 'سالن زیبایی رز', title: 'مراقبت مو و پوست',
+    service: 'رنگ و مش', dur: '120 دقیقه', price: '1,200,000' },
+  { color: '#0891B2', label: 'کلینیک', slug: 'dr-rezaei', initial: 'ا',
+    name: 'دکتر امیر رضایی', title: 'متخصص تغذیه',
+    service: 'ویزیت و برنامه‌ی غذایی', dur: '30 دقیقه', price: '500,000' },
+]
+const SHOWCASE_DAYS = [
+  { d: 'شنبه', n: '15' }, { d: 'یک', n: '16' }, { d: 'دو', n: '17', active: true },
+  { d: 'سه', n: '18' }, { d: 'چهار', n: '19' },
+]
+const SHOWCASE_SLOTS = ['09:30', '11:00', '16:30', '18:00']
+const SHOWCASE_STEPS = ['صفحه‌ی اختصاصی شما', 'انتخاب زمان توسط مراجع', 'پرداخت و تایید خودکار']
+
+// موکاپ زنده — هر تیک یک مرحله جلو می‌رود؛ هر ۳ مرحله، تخصص (و رنگ) عوض می‌شود
+function HeroShowcase() {
+  const [tick, setTick] = useState(0)
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    const id = setInterval(() => setTick(t => t + 1), 2100)
+    return () => clearInterval(id)
+  }, [])
+  const step = tick % 3
+  const niche = SHOWCASE[Math.floor(tick / 3) % SHOWCASE.length]
+  const c = niche.color
+
+  return (
+    <div>
+      <div className="rounded-2xl border border-sand bg-white shadow-[0_20px_55px_-25px_rgba(0,0,0,0.28)] overflow-hidden">
+        {/* نوار مرورگر */}
+        <div className="flex items-center gap-2 px-4 py-3 border-b border-sand">
+          <span className="w-2.5 h-2.5 rounded-full bg-sand" />
+          <span className="w-2.5 h-2.5 rounded-full bg-sand" />
+          <span className="w-2.5 h-2.5 rounded-full bg-sand" />
+          <span className="mr-2 text-xs text-soot" dir="ltr">nobatlink.com/{niche.slug}</span>
+        </div>
+
+        <div className="p-5">
+          {/* هویت متخصص — با هر چرخه، رنگ و محتوا عوض می‌شود */}
+          <div className="flex items-center gap-3 mb-4">
+            <span className="w-11 h-11 rounded-full text-white flex items-center justify-center font-display font-bold text-lg transition-colors duration-700"
+              style={{ background: c }}>{niche.initial}</span>
+            <div className="min-w-0 flex-1">
+              <div className="font-display font-bold text-[15px] truncate">{niche.name}</div>
+              <div className="text-xs text-soot">{niche.title}</div>
+            </div>
+            <span className="text-[11px] font-semibold rounded-full px-2.5 py-1 transition-colors duration-700"
+              style={{ background: `${c}1a`, color: c }}>{niche.label}</span>
+          </div>
+
+          {/* صحنه‌ی مراحل — ارتفاع ثابت تا صفحه نپرد */}
+          <div className="relative h-[218px]">
+            {/* مرحله‌ی ۱: صفحه و خدمت */}
+            <div className={`absolute inset-0 transition-all duration-500 ${step === 0 ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2 pointer-events-none'}`}>
+              <div className="border border-sand rounded-xl p-4 mb-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="font-display font-bold text-sm">{niche.service}</div>
+                    <div className="text-xs text-soot mt-1">{niche.dur} · حضوری یا آنلاین</div>
+                  </div>
+                  <div className="text-left shrink-0">
+                    <div className="font-display font-extrabold tnum">{niche.price}</div>
+                    <div className="text-[10px] text-soot">تومان</div>
+                  </div>
+                </div>
+              </div>
+              <button className="w-full py-3 rounded-xl text-white font-display font-bold text-sm transition-colors duration-700" style={{ background: c }}>
+                رزرو نوبت
+              </button>
+              <p className="text-[11px] text-soot text-center mt-3">صفحه‌ی عمومی شما — با نشانی و رنگ اختصاصی</p>
+            </div>
+
+            {/* مرحله‌ی ۲: انتخاب روز و ساعت */}
+            <div className={`absolute inset-0 transition-all duration-500 ${step === 1 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2 pointer-events-none'}`}>
+              <div className="flex gap-1.5 mb-3">
+                {SHOWCASE_DAYS.map(day => (
+                  <div key={day.n} className="flex-1 text-center py-2 rounded-lg border transition-colors duration-700"
+                    style={day.active ? { background: c, borderColor: c, color: '#fff' } : { borderColor: '#ECECEC', color: '#737373' }}>
+                    <div className="text-[10px] opacity-80">{day.d}</div>
+                    <div className="font-display font-bold text-sm tnum">{day.n}</div>
+                  </div>
+                ))}
+              </div>
+              <div className="text-xs text-soot mb-2">زمان‌های خالی</div>
+              <div className="grid grid-cols-2 gap-2">
+                {SHOWCASE_SLOTS.map((s, i) => (
+                  <div key={s} className="py-2.5 rounded-lg border text-sm font-semibold text-center tnum transition-colors duration-700"
+                    style={i === 2 ? { background: c, borderColor: c, color: '#fff' } : { borderColor: '#ECECEC' }}>
+                    {s}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* مرحله‌ی ۳: پرداخت و تایید */}
+            <div className={`absolute inset-0 transition-all duration-500 ${step === 2 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2 pointer-events-none'}`}>
+              <div className="h-full flex flex-col items-center justify-center text-center">
+                <span className="w-14 h-14 rounded-full text-white flex items-center justify-center text-2xl mb-3 transition-colors duration-700" style={{ background: c }}>✓</span>
+                <div className="font-display font-extrabold text-lg">نوبت قطعی شد</div>
+                <div className="text-xs text-soot mt-1.5">پرداخت آنلاین انجام و پیامک تایید ارسال شد</div>
+                <div className="mt-4 flex items-center gap-2 text-[11px] text-soot border border-sand rounded-lg px-3 py-2">
+                  <span className="tnum">{niche.price} تومان</span>
+                  <span className="w-px h-3 bg-sand" />
+                  <span>درگاه امن زیبال</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* راهنمای مراحل — با انیمیشن هم‌گام است؛ خودش «چطور کار می‌کند» فوری است */}
+      <div className="mt-5 grid grid-cols-3 gap-2">
+        {SHOWCASE_STEPS.map((label, i) => (
+          <div key={label} className="text-center">
+            <div className="h-1 rounded-full mb-2 transition-colors duration-500"
+              style={{ background: i === step ? c : '#ECECEC' }} />
+            <div className={`text-[11px] leading-tight transition-colors ${i === step ? 'text-ink font-semibold' : 'text-soot'}`}>{label}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 const STEPS = [
-  { n: '01', t: 'ثبت‌نام و انتخاب حوزه‌ی کاری', d: 'حساب رایگانت را بساز و حوزه‌ی تخصصت را انتخاب کن. صفحه‌ات بلافاصله آماده می‌شود.' },
-  { n: '02', t: 'تنظیم برنامه‌ی هفتگی', d: 'روزها و ساعت‌های در دسترس، مدت هر جلسه و فاصله‌ی بین نوبت‌ها را مشخص کن.' },
-  { n: '03', t: 'لینک اختصاصی را به اشتراک بگذار', d: 'لینک برندشده‌ات را برای مراجعین بفرست؛ خودشان زمان خالی را انتخاب و رزرو می‌کنند.' },
+  { n: '01', t: 'ثبت‌نام و انتخاب حوزه‌ی کاری', d: 'حساب رایگان خود را بسازید و حوزه‌ی تخصصتان را انتخاب کنید؛ صفحه‌ی شما بلافاصله آماده می‌شود.' },
+  { n: '02', t: 'تنظیم برنامه‌ی هفتگی', d: 'روزها و ساعت‌های در دسترس، مدت هر نوبت و فاصله‌ی میان نوبت‌ها را مشخص کنید.' },
+  { n: '03', t: 'اشتراک‌گذاری نشانی اختصاصی', d: 'نشانی برندشده‌ی خود را در اختیار مراجعان بگذارید؛ انتخاب زمان، رزرو و پرداخت را خودشان انجام می‌دهند.' },
 ]
 
 const FEATURES = [
   { icon: '<path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/>',
-    t: 'لینک اختصاصی برای هر متخصص', d: 'هر متخصص یک نشانی برندشده‌ی خودش را دارد که به‌راحتی قابل اشتراک است.',
-    tag: 'nobatlink.com/اسم-تو' },
+    t: 'نشانی اختصاصی برای هر متخصص', d: 'هر متخصص نشانی برندشده‌ی خود را دارد که به‌سادگی قابل اشتراک‌گذاری است.',
+    tag: 'nobatlink.com/برند-شما' },
   { icon: '<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/>',
-    t: 'یادآوری خودکار پیامکی', d: 'قبل از هر نوبت، پیامک یادآوری برای مراجع ارسال می‌شود تا نرخ عدم‌حضور کم شود.',
-    tag: 'کاهش no-show تا ۴۰٪'.replace('۴۰', '40') },
+    t: 'یادآوری خودکار پیامکی', d: 'پیش از هر نوبت، پیامک یادآوری برای مراجع ارسال می‌شود تا نرخ عدم‌حضور به حداقل برسد.',
+    tag: 'کاهش عدم‌حضور تا 40%' },
   { icon: '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>',
-    t: 'تقویم و مدیریت چند پرسنل', d: 'برنامه‌ی چند متخصص را هم‌زمان مدیریت کن؛ همه‌ی نوبت‌ها در یک تقویم واحد.' },
+    t: 'تقویم واحد برای چند پرسنل', d: 'برنامه‌ی چند متخصص را هم‌زمان مدیریت کنید؛ همه‌ی نوبت‌ها در یک تقویم یکپارچه.' },
   { icon: '<rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/>',
-    t: 'پرداخت آنلاین امن', d: 'هزینه‌ی جلسه هنگام رزرو از درگاه دارای مجوز زیبال دریافت و نوبت خودکار قطعی می‌شود.' },
+    t: 'پرداخت آنلاین امن', d: 'بهای خدمت هنگام رزرو از درگاه دارای مجوز زیبال دریافت و نوبت به‌صورت خودکار قطعی می‌شود.' },
   { icon: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
-    t: 'لیست انتظار هوشمند', d: 'وقتی همه‌ی ساعت‌ها پر است مراجع در لیست انتظار می‌ماند؛ به‌محض خالی‌شدن ساعتی، با یک کلیک به او خبر بده.' },
+    t: 'لیست انتظار هوشمند', d: 'وقتی همه‌ی ساعت‌ها پر است، مراجع در لیست انتظار می‌ماند و به‌محض خالی‌شدن زمانی، با یک کلیک به او اطلاع می‌دهید.' },
+  { icon: '<path d="M3 3v18h18"/><path d="M7 13l3-3 4 4 5-6"/>',
+    t: 'گزارش مالی و آمار کسب‌وکار', d: 'درآمد، تعداد نوبت‌ها و روند رشد را در گزارش‌های شفاف و قابل‌فیلتر دنبال کنید.' },
 ]
 
 const FAQS = [
-  { q: 'قیمت استفاده از نوبت‌لینک چقدر است؟', a: `اشتراک ماهانه‌ی پلن رایگان 0 تومان است؛ فقط ${PLATFORM_COMMISSION_PERCENT}% از هر پرداخت آنلاین موفق سهم نوبت‌لینک است که هنگام تسویه کسر می‌شود — جزئیات در بخش «تعرفه‌ها» همین صفحه. بهای خدمات هر متخصص را خودش تعیین می‌کند و پیش از پرداخت روی صفحه‌ی رزروش نمایش داده می‌شود.` },
-  { q: 'چه تفاوتی با نوبت‌دهی دستی و دفترچه دارد؟', a: 'در نوبت‌دهی دستی باید پاسخ تماس‌ها و پیام‌ها را بدهی. با نوبت‌لینک مراجع خودش زمان خالی را می‌بیند و رزرو می‌کند، یادآوری پیامکی خودکار ارسال می‌شود و آمار نوبت‌ها همیشه در دسترس است.' },
-  { q: 'اطلاعات من و مراجعینم امن است؟', a: 'داده‌ها به‌صورت رمزنگاری‌شده نگهداری می‌شوند و دسترسی به اطلاعات هر متخصص فقط برای خودش امکان‌پذیر است. شماره و اطلاعات مراجعین هرگز در اختیار شخص دیگری قرار نمی‌گیرد.' },
-  { q: 'الان از چه حوزه‌هایی پشتیبانی می‌کنید؟', a: 'در حال حاضر روی روانشناسی/مشاوره و سالن زیبایی تمرکز کرده‌ایم و این بخش‌ها فعال‌اند. حوزه‌های بیشتر به‌زودی اضافه می‌شوند.' },
-  { q: 'راه‌اندازی چقدر طول می‌کشد؟', a: 'کمتر از پنج دقیقه. ثبت‌نام کن، حوزه‌ات را انتخاب کن و برنامه‌ی هفتگی‌ات را تنظیم کن؛ بلافاصله لینک اختصاصی‌ات آماده‌ی اشتراک‌گذاری است.' },
+  { q: 'هزینه‌ی استفاده از نوبت‌لینک چقدر است؟', a: `اشتراک ماهانه‌ی پلن رایگان 0 تومان است؛ تنها ${PLATFORM_COMMISSION_PERCENT}% از هر پرداخت آنلاین موفق، سهم نوبت‌لینک است که هنگام تسویه کسر می‌شود — جزئیات در بخش «تعرفه‌ها» همین صفحه. بهای خدمات را خود متخصص تعیین می‌کند و پیش از پرداخت، روی صفحه‌ی رزرو نمایش داده می‌شود.` },
+  { q: 'چه تفاوتی با نوبت‌دهی تلفنی و دفترچه‌ای دارد؟', a: 'در روش دستی، پاسخ‌گویی به تماس‌ها و پیام‌ها بر عهده‌ی شماست. در نوبت‌لینک، مراجع خودش زمان خالی را می‌بیند و رزرو می‌کند، یادآوری پیامکی به‌صورت خودکار ارسال می‌شود و آمار نوبت‌ها همیشه در دسترس شماست.' },
+  { q: 'اطلاعات من و مراجعانم محفوظ است؟', a: 'داده‌ها به‌صورت رمزنگاری‌شده نگهداری می‌شوند و دسترسی به اطلاعات هر متخصص تنها برای خود او امکان‌پذیر است. شماره و اطلاعات مراجعان در اختیار هیچ شخص دیگری قرار نمی‌گیرد.' },
+  { q: 'در حال حاضر از چه حوزه‌هایی پشتیبانی می‌کنید؟', a: 'تمرکز فعلی بر حوزه‌ی روانشناسی و مشاوره است که به‌طور کامل فعال است. سالن زیبایی و حوزه‌های دیگر در مرحله‌ی آماده‌سازی نهایی‌اند و به‌زودی در دسترس قرار می‌گیرند.' },
+  { q: 'راه‌اندازی چقدر زمان می‌برد؟', a: 'کمتر از پنج دقیقه. ثبت‌نام کنید، حوزه‌ی کاری را انتخاب و برنامه‌ی هفتگی را تنظیم کنید؛ نشانی اختصاصی شما بلافاصله آماده‌ی اشتراک‌گذاری است.' },
 ]
-
-const DAYS = [
-  { d: 'شنبه', n: '15' }, { d: 'یک‌شنبه', n: '16', active: true }, { d: 'دوشنبه', n: '17' },
-  { d: 'سه‌شنبه', n: '18' }, { d: 'چهارشنبه', n: '19' },
-]
-const SLOTS = ['09:30', '10:00', '10:30', '11:00', '11:30', '12:00']
 
 export default function Landing() {
   const [niches, setNiches] = useState<NicheCard[]>([])
   const [loading, setLoading] = useState(true)
-  const [slot, setSlot] = useState(3)
   const [faq, setFaq] = useState<number>(0)
 
   // فرم «تماس با ما» — ارسال به /api/contact (پیام‌ها در پنل سوپرادمین دیده می‌شوند)
@@ -82,8 +218,8 @@ export default function Landing() {
 
   async function sendContact() {
     setContactErr('')
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(contactEmail.trim())) { setContactErr('ایمیل معتبر وارد کن'); return }
-    if (contactMsg.trim().length < 10) { setContactErr('متن پیام خیلی کوتاه است'); return }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(contactEmail.trim())) { setContactErr('نشانی ایمیل معتبر وارد کنید'); return }
+    if (contactMsg.trim().length < 10) { setContactErr('متن پیام کوتاه‌تر از حد لازم است'); return }
     setContactBusy(true)
     try {
       const res = await fetch('/api/contact', {
@@ -91,10 +227,10 @@ export default function Landing() {
         body: JSON.stringify({ email: contactEmail.trim(), message: contactMsg.trim() }),
       })
       const d = await res.json().catch(() => ({}))
-      if (!res.ok) { setContactErr(d.error || 'ارسال ناموفق بود — دوباره امتحان کن'); return }
+      if (!res.ok) { setContactErr(d.error || 'ارسال پیام ناموفق بود — لطفا دوباره تلاش کنید'); return }
       setContactSent(true)
     } catch {
-      setContactErr('ارسال ناموفق بود — اتصال اینترنت را چک کن')
+      setContactErr('ارسال پیام ناموفق بود — اتصال اینترنت را بررسی کنید')
     } finally {
       setContactBusy(false)
     }
@@ -105,6 +241,17 @@ export default function Landing() {
       setNiches(d.niches || []); setLoading(false)
     }).catch(() => setLoading(false))
   }, [])
+
+  // اسکرول‌ریویل — همه‌ی .nl-reveal ها موقع ورود به دید، کلاس nl-in می‌گیرند
+  // (CSS و fallback حرکت‌کاهیده در globals.css)
+  useEffect(() => {
+    const els = document.querySelectorAll('.nl-reveal')
+    const obs = new IntersectionObserver(entries => {
+      entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('nl-in'); obs.unobserve(e.target) } })
+    }, { threshold: 0.12 })
+    els.forEach(el => obs.observe(el))
+    return () => obs.disconnect()
+  }, [loading])
 
   return (
     <main className="min-h-screen bg-paper text-ink">
@@ -117,117 +264,80 @@ export default function Landing() {
             <span className="font-display font-extrabold text-lg tracking-tightest">{PLATFORM_NAME}</span>
           </div>
           <nav className="hidden sm:flex items-center gap-7 text-sm text-soot">
-            <a href="#how" className="hover:text-ink">چطور کار می‌کند</a>
+            <a href="#how" className="hover:text-ink">نحوه‌ی کار</a>
             <a href="#features" className="hover:text-ink">امکانات</a>
-            <a href="#niches" className="hover:text-ink">کسب‌وکارها</a>
+            <a href="#niches" className="hover:text-ink">تخصص‌ها</a>
             <a href="#pricing" className="hover:text-ink">تعرفه‌ها</a>
-            <a href="#faq" className="hover:text-ink">سوالات</a>
+            <a href="#faq" className="hover:text-ink">پرسش‌های پرتکرار</a>
             <a href="#contact" className="hover:text-ink">تماس</a>
           </nav>
           <div className="flex items-center gap-3">
             <a href="/login" className="text-sm text-soot hover:text-ink">ورود</a>
-            <a href="/signup" className="text-sm font-semibold text-white bg-ink px-4 py-2 rounded-lg hover:opacity-90">ثبت‌نام رایگان</a>
+            <a href="/signup" className="text-sm font-semibold text-white bg-ink px-4 py-2 rounded-lg hover:opacity-90">شروع رایگان</a>
           </div>
         </div>
       </header>
 
       {/* ── HERO ────────────────────────────────────────────────────────── */}
-      <section className="max-w-5xl mx-auto px-6 pt-16 pb-10">
+      <section className="max-w-5xl mx-auto px-6 pt-16 pb-12">
         <div className="grid md:grid-cols-2 gap-14 items-center">
           <div className="animate-nl-up">
             <div className="inline-flex items-center gap-2 text-xs text-soot border border-sand rounded-full px-3 py-1.5 mb-6">
               <span className="w-1.5 h-1.5 rounded-full bg-ink" style={{ animation: 'nlPulse 2s infinite' }} />
-              پلتفرم نوبت‌دهی آنلاین
+              پلتفرم نوبت‌دهی آنلاین برای متخصصان
             </div>
             <h1 className="font-display font-extrabold text-4xl sm:text-5xl leading-[1.12] tracking-tightest">
-              روش بهتری برای<br />نوبت‌دهی کسب‌وکارت
+              نوبت‌دهی را به<br />صفحه‌ی اختصاصی‌تان بسپارید
             </h1>
             <p className="mt-5 text-base sm:text-lg text-soot leading-relaxed max-w-md">
-              یک صفحه‌ی رزرو اختصاصی و برندشده بساز؛ مراجعینت خودشان زمان خالی را انتخاب و رزرو می‌کنند — بدون تماس، بدون هماهنگی دستی.
+              برای هر تخصص — از مشاوره تا سالن زیبایی — یک صفحه‌ی رزرو برندشده با رنگ و هویت خودتان.
+              مراجعان زمان خالی را می‌بینند، رزرو و پرداخت می‌کنند؛ بدون تماس و هماهنگی دستی.
             </p>
             <div className="mt-8 flex items-center gap-4 flex-wrap">
-              <a href="/signup" className="font-display font-bold text-white bg-ink px-7 py-3.5 rounded-xl shadow-sm hover:-translate-y-0.5 hover:shadow-lg transition">ثبت‌نام رایگان</a>
-              <a href="#how" className="text-sm font-medium text-ink">ببین چطور کار می‌کند ←</a>
+              <a href="/signup" className="font-display font-bold text-white bg-ink px-7 py-3.5 rounded-xl shadow-sm hover:-translate-y-0.5 hover:shadow-lg transition">شروع رایگان</a>
+              <a href="#how" className="text-sm font-medium text-ink">مشاهده‌ی نحوه‌ی کار ←</a>
               {DEMO_SLUG && (
-                <a href={`/${DEMO_SLUG}`} target="_blank" className="text-sm font-medium text-soot underline underline-offset-4 hover:text-ink">دیدن یک نمونه صفحه‌ی رزرو</a>
+                <a href={`/${DEMO_SLUG}`} target="_blank" className="text-sm font-medium text-soot underline underline-offset-4 hover:text-ink">مشاهده‌ی صفحه‌ی نمونه</a>
               )}
             </div>
-            <p className="mt-4 text-[13px] text-soot/80">بدون نیاز به درگاه بانکی · راه‌اندازی در کمتر از 5 دقیقه</p>
+            <p className="mt-5 text-[13px] text-soot/80">پرداخت امن از درگاه دارای مجوز زیبال · دارای نماد اعتماد الکترونیکی · راه‌اندازی در کمتر از 5 دقیقه</p>
           </div>
 
-          {/* پیش‌نمایش تقویم رزرو */}
-          <div className="animate-nl-up relative">
-            <div className="rounded-2xl border border-sand bg-white shadow-[0_20px_55px_-25px_rgba(0,0,0,0.28)] overflow-hidden">
-              <div className="flex items-center gap-2 px-4 py-3 border-b border-sand">
-                <span className="w-2.5 h-2.5 rounded-full bg-sand" />
-                <span className="w-2.5 h-2.5 rounded-full bg-sand" />
-                <span className="w-2.5 h-2.5 rounded-full bg-sand" />
-                <span className="mr-2 text-xs text-soot" dir="ltr">nobatlink.com/dr-parsa</span>
-              </div>
-              <div className="p-5">
-                <div className="flex items-center gap-3 mb-5">
-                  <span className="w-11 h-11 rounded-full bg-ink text-white flex items-center justify-center font-display font-bold">پ.ر</span>
-                  <div>
-                    <div className="font-display font-bold text-[15px]">دکتر پریسا رستمی</div>
-                    <div className="text-xs text-soot">جلسه‌ی مشاوره · 45 دقیقه</div>
-                  </div>
-                </div>
-                <div className="flex gap-1.5 mb-4">
-                  {DAYS.map(day => (
-                    <div key={day.n} className={`flex-1 text-center py-2 rounded-lg border ${day.active ? 'bg-ink text-white border-ink' : 'border-sand text-soot'}`}>
-                      <div className="text-[11px] opacity-70">{day.d}</div>
-                      <div className="font-display font-bold">{day.n}</div>
-                    </div>
-                  ))}
-                </div>
-                <div className="text-xs text-soot mb-2.5">زمان‌های خالی — یک‌شنبه 16</div>
-                <div className="grid grid-cols-2 gap-2">
-                  {SLOTS.map((s, i) => (
-                    <button key={s} onClick={() => setSlot(i)}
-                      className={`py-2.5 rounded-lg border text-sm font-semibold transition ${i === slot ? 'bg-ink text-white border-ink' : 'border-sand text-ink hover:border-ink hover:bg-paper'}`}>
-                      {s}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-            <div className="absolute -bottom-5 -right-4 bg-white border border-sand rounded-xl px-4 py-3 shadow-lg flex items-center gap-2.5" style={{ animation: 'nlFloat 4.5s ease-in-out infinite' }}>
-              <span className="w-7 h-7 rounded-full bg-ink text-white flex items-center justify-center text-sm">✓</span>
-              <div>
-                <div className="font-display font-bold text-[13px]">رزرو تأیید شد</div>
-                <div className="text-[11px] text-soot">همین الان توسط سارا م.</div>
-              </div>
-            </div>
+          {/* موکاپ زنده‌ی چندتخصصی — امضای صفحه */}
+          <div className="animate-nl-up">
+            <HeroShowcase />
           </div>
         </div>
       </section>
 
-      {/* ── چطور کار می‌کند ─────────────────────────────────────────────── */}
-      <section id="how" className="max-w-5xl mx-auto px-6 pt-16 pb-10">
-        <div className="text-center max-w-xl mx-auto mb-12">
-          <div className="text-sm font-semibold text-soot mb-3">چطور کار می‌کند</div>
-          <h2 className="font-display font-extrabold text-3xl sm:text-4xl tracking-tightest">از ثبت‌نام تا اولین رزرو، سه قدم</h2>
-        </div>
-        <div className="grid sm:grid-cols-3 gap-5">
-          {STEPS.map(s => (
-            <div key={s.n} className="rounded-2xl border border-sand bg-white p-6">
-              <div className="font-display font-extrabold text-sm text-soot/60 tracking-widest mb-5">{s.n}</div>
-              <h3 className="font-display font-bold text-lg mb-2">{s.t}</h3>
-              <p className="text-sm text-soot leading-relaxed">{s.d}</p>
-            </div>
-          ))}
+      {/* ── نحوه‌ی کار ──────────────────────────────────────────────────── */}
+      <section id="how" className="border-y border-sand bg-white">
+        <div className="max-w-5xl mx-auto px-6 py-16">
+          <div className="text-center max-w-xl mx-auto mb-12 nl-reveal">
+            <div className="text-sm font-semibold text-soot mb-3">نحوه‌ی کار</div>
+            <h2 className="font-display font-extrabold text-3xl sm:text-4xl tracking-tightest">از ثبت‌نام تا نخستین رزرو، سه گام</h2>
+          </div>
+          <div className="grid sm:grid-cols-3 gap-5">
+            {STEPS.map((s, i) => (
+              <div key={s.n} className="rounded-2xl border border-sand bg-paper p-6 nl-reveal" style={{ transitionDelay: `${i * 90}ms` }}>
+                <div className="font-display font-extrabold text-sm text-soot/60 tracking-widest mb-5 tnum">{s.n}</div>
+                <h3 className="font-display font-bold text-lg mb-2">{s.t}</h3>
+                <p className="text-sm text-soot leading-relaxed">{s.d}</p>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
       {/* ── امکانات ─────────────────────────────────────────────────────── */}
       <section id="features" className="max-w-5xl mx-auto px-6 pt-16 pb-10">
-        <div className="text-center max-w-xl mx-auto mb-12">
+        <div className="text-center max-w-xl mx-auto mb-12 nl-reveal">
           <div className="text-sm font-semibold text-soot mb-3">امکانات</div>
-          <h2 className="font-display font-extrabold text-3xl sm:text-4xl tracking-tightest">هرچه برای مدیریت نوبت‌ها لازم داری</h2>
+          <h2 className="font-display font-extrabold text-3xl sm:text-4xl tracking-tightest">هرچه برای مدیریت نوبت‌ها لازم دارید</h2>
         </div>
         <div className="grid sm:grid-cols-2 gap-5">
-          {FEATURES.map(f => (
-            <div key={f.t} className="rounded-2xl border border-sand bg-white p-7 transition hover:-translate-y-1.5 hover:shadow-[0_22px_44px_-20px_rgba(0,0,0,0.32)]">
+          {FEATURES.map((f, i) => (
+            <div key={f.t} className="rounded-2xl border border-sand bg-white p-7 transition hover:-translate-y-1.5 hover:shadow-[0_22px_44px_-20px_rgba(0,0,0,0.32)] nl-reveal" style={{ transitionDelay: `${(i % 2) * 90}ms` }}>
               <div className="w-11 h-11 rounded-xl bg-ink text-white flex items-center justify-center mb-5">
                 <Icon path={f.icon} />
               </div>
@@ -241,48 +351,52 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* ── مناسب چه کسب‌وکارهایی (داینامیک) ───────────────────────────── */}
-      <section id="niches" className="max-w-5xl mx-auto px-6 pt-16 pb-10">
-        <div className="text-center max-w-xl mx-auto mb-12">
-          <div className="text-sm font-semibold text-soot mb-3">مناسب چه کسب‌وکارهایی</div>
-          <h2 className="font-display font-extrabold text-3xl sm:text-4xl tracking-tightest">برای هر حوزه‌ی خدماتی</h2>
-          <p className="mt-3 text-sm text-soot">تمپلیت‌های تازه مدام اضافه می‌شوند.</p>
-        </div>
-        {loading ? (
-          <div className="grid sm:grid-cols-3 gap-4">
-            {[0, 1, 2].map(i => <div key={i} className="h-36 rounded-2xl bg-sand animate-pulse" />)}
+      {/* ── تخصص‌ها — رنگ هر نیچ فقط همین‌جا و در موکاپ hero ظاهر می‌شود ── */}
+      <section id="niches" className="border-y border-sand bg-white">
+        <div className="max-w-5xl mx-auto px-6 py-16">
+          <div className="text-center max-w-xl mx-auto mb-12 nl-reveal">
+            <div className="text-sm font-semibold text-soot mb-3">تخصص‌ها</div>
+            <h2 className="font-display font-extrabold text-3xl sm:text-4xl tracking-tightest">برای هر تخصص، با رنگ و هویت خودش</h2>
+            <p className="mt-4 text-sm text-soot leading-relaxed">صفحه‌ی هر متخصص با رنگ حوزه‌ی خودش شخصی‌سازی می‌شود؛ حوزه‌های تازه به‌تدریج اضافه خواهند شد.</p>
           </div>
-        ) : (
-          <div className="grid sm:grid-cols-3 gap-4">
-            {niches.map(n => (
-              <div key={n.key}
-                className={`relative rounded-2xl border p-6 transition ${n.is_active ? 'border-ink bg-white hover:-translate-y-1 hover:shadow-lg' : 'border-sand bg-gray-50/50 opacity-70'}`}>
-                {!n.is_active && (
-                  <span className="absolute top-4 left-4 text-[11px] font-semibold text-soot bg-sand px-2 py-0.5 rounded-full">به‌زودی</span>
-                )}
-                <div className="w-10 h-10 rounded-xl border border-ink flex items-center justify-center mb-4">
-                  <Icon path='<path d="M12 2a7 7 0 0 0-7 7c0 3 2 4 2 7h10c0-3 2-4 2-7a7 7 0 0 0-7-7z"/><path d="M9 22h6"/>' />
-                </div>
-                <h3 className="font-display font-bold">{n.display_name}</h3>
-                <p className="mt-2 text-xs text-soot leading-relaxed min-h-[32px]">{n.tagline}</p>
-              </div>
-            ))}
-            <div className="rounded-2xl border-2 border-dashed border-sand p-6 flex flex-col justify-center items-center text-center">
-              <h3 className="font-display font-bold text-sm">حرفه‌ی شما اینجا نیست؟</h3>
-              <p className="mt-2 text-xs text-soot leading-relaxed">بگویید چه کاری می‌کنید تا برایتان تمپلیت بسازیم.</p>
+          {loading ? (
+            <div className="grid sm:grid-cols-3 gap-4">
+              {[0, 1, 2].map(i => <div key={i} className="h-44 rounded-2xl border border-sand bg-paper animate-pulse" />)}
             </div>
-          </div>
-        )}
+          ) : (
+            <div className="grid sm:grid-cols-3 gap-4">
+              {niches.map((n, i) => {
+                const c = `rgb(${n.default_theme})`
+                return (
+                  <div key={n.key}
+                    className={`relative rounded-2xl border p-6 transition nl-reveal ${n.is_active ? 'border-sand bg-paper hover:-translate-y-1 hover:shadow-lg' : 'border-sand bg-paper opacity-60'}`}
+                    style={{ transitionDelay: `${i * 90}ms` }}>
+                    {!n.is_active && (
+                      <span className="absolute top-4 left-4 text-[11px] font-semibold text-soot bg-sand px-2 py-0.5 rounded-full">به‌زودی</span>
+                    )}
+                    <div className="w-11 h-11 rounded-xl flex items-center justify-center mb-4"
+                      style={{ background: `rgba(${n.default_theme.split(' ').join(',')},0.12)`, color: c }}>
+                      <Icon path={NICHE_ICONS[n.icon] || NICHE_ICONS.default} />
+                    </div>
+                    <h3 className="font-display font-bold">{n.display_name}</h3>
+                    <p className="mt-2 text-xs text-soot leading-relaxed min-h-[32px]">{n.tagline}</p>
+                    <div className="mt-4 h-1 w-9 rounded-full" style={{ background: c, opacity: n.is_active ? 1 : 0.35 }} />
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
       </section>
 
       {/* ── تعرفه‌ها — الزام شاپرک: قیمت خدمات باید روی سایت قابل احراز باشد ── */}
       <section id="pricing" className="max-w-5xl mx-auto px-6 pt-16 pb-10">
-        <div className="text-center mb-10">
+        <div className="text-center mb-10 nl-reveal">
           <div className="text-sm font-semibold text-soot mb-3">تعرفه‌ها</div>
-          <h2 className="font-display font-extrabold text-3xl sm:text-4xl tracking-tightest">قیمت‌ها شفاف، بدون هزینه‌ی پنهان</h2>
+          <h2 className="font-display font-extrabold text-3xl sm:text-4xl tracking-tightest">قیمت‌گذاری شفاف، بدون هزینه‌ی پنهان</h2>
         </div>
         <div className="grid sm:grid-cols-2 gap-4 max-w-3xl mx-auto">
-          <div className="rounded-2xl border border-ink bg-white p-7 flex flex-col">
+          <div className="rounded-2xl border-2 border-ink bg-white p-7 flex flex-col nl-reveal">
             <div className="font-display font-bold text-lg">پلن رایگان</div>
             <div className="mt-2 flex items-baseline gap-1.5">
               <span className="font-display font-extrabold text-4xl tnum">0</span>
@@ -290,20 +404,20 @@ export default function Landing() {
             </div>
             <p className="mt-1 text-xs text-soot tnum">+ {PLATFORM_COMMISSION_PERCENT}% از هر پرداخت آنلاین موفق، سهم {PLATFORM_NAME}</p>
             <ul className="mt-5 space-y-2.5 text-sm text-soot leading-relaxed flex-1">
-              <li>✓ صفحه‌ی رزرو اختصاصی با آدرس شخصی</li>
+              <li>✓ صفحه‌ی رزرو اختصاصی با نشانی برندشده</li>
               <li>✓ رزرو و مدیریت نوبت‌ها بدون محدودیت</li>
               <li>✓ پرداخت آنلاین از درگاه دارای مجوز (زیبال)</li>
-              <li>✓ یادآوری پیامکی خودکار برای مراجع</li>
+              <li>✓ یادآوری پیامکی خودکار برای مراجعان</li>
               <li>✓ پنل مدیریت، پرونده‌ها و گزارش مالی</li>
             </ul>
             <a href="/signup" className="mt-6 text-center font-display font-bold text-white bg-ink px-6 py-3 rounded-xl hover:opacity-90 transition">شروع رایگان</a>
           </div>
-          <div className="rounded-2xl border border-sand bg-white p-7 flex flex-col opacity-80">
+          <div className="rounded-2xl border border-sand bg-white p-7 flex flex-col opacity-80 nl-reveal" style={{ transitionDelay: '90ms' }}>
             <div className="flex items-center gap-2">
               <div className="font-display font-bold text-lg">پلن حرفه‌ای</div>
               <span className="text-[11px] font-semibold text-soot bg-sand px-2 py-0.5 rounded-full">به‌زودی</span>
             </div>
-            <p className="mt-2 text-sm text-soot leading-relaxed">امکانات پیشرفته‌تر (ابزار بازاریابی، آمار حرفه‌ای و…) — هنوز عرضه نشده و تعرفه‌اش پیش از عرضه همین‌جا اعلام می‌شود.</p>
+            <p className="mt-2 text-sm text-soot leading-relaxed">امکانات پیشرفته‌تر برای مجموعه‌های بزرگ‌تر؛ تعرفه‌ی آن پیش از عرضه در همین صفحه اعلام خواهد شد.</p>
             <ul className="mt-5 space-y-2.5 text-sm text-soot leading-relaxed flex-1">
               <li>· همه‌ی امکانات پلن رایگان</li>
               <li>· ابزارهای رشد و کمپین پیامکی</li>
@@ -311,71 +425,66 @@ export default function Landing() {
             </ul>
           </div>
         </div>
-        <div className="max-w-3xl mx-auto mt-5 text-[13px] text-soot leading-relaxed bg-white border border-sand rounded-2xl p-5">
+        <div className="max-w-3xl mx-auto mt-5 text-[13px] text-soot leading-relaxed bg-white border border-sand rounded-2xl p-5 nl-reveal">
           <p>
-            <strong className="text-ink">قیمت خدمات هر متخصص چطور تعیین می‌شود؟</strong> بهای هر خدمت (مثلا جلسه‌ی مشاوره) را خود همان متخصص تعیین می‌کند و
-            پیش از پرداخت، به‌صورت شفاف روی صفحه‌ی رزرو او نمایش داده می‌شود. پرداخت آنلاین از طریق درگاه دارای مجوز زیبال انجام می‌شود؛ سهم {PLATFORM_NAME} <span className="tnum">{PLATFORM_COMMISSION_PERCENT}%</span> از مبلغ هر پرداخت آنلاین موفق است که هنگام تسویه کسر می‌شود؛ مابقی به‌صورت دوره‌ای با متخصص تسویه و به حسابش واریز می‌گردد. مراجع همان قیمت اعلام‌شده را می‌پردازد و هیچ مبلغ اضافه‌ای از او گرفته نمی‌شود.
-            {DEMO_SLUG && <> برای دیدن فرایند کامل رزرو و پرداخت، <a href={`/${DEMO_SLUG}`} target="_blank" className="text-ink underline underline-offset-4">یک نمونه صفحه‌ی رزرو</a> را ببینید.</>}
+            <strong className="text-ink">بهای خدمات هر متخصص چگونه تعیین می‌شود؟</strong> بهای هر خدمت (برای نمونه، جلسه‌ی مشاوره) را خود متخصص تعیین می‌کند و
+            پیش از پرداخت، به‌صورت شفاف روی صفحه‌ی رزرو او نمایش داده می‌شود. پرداخت آنلاین از طریق درگاه دارای مجوز زیبال انجام می‌شود؛ سهم {PLATFORM_NAME} <span className="tnum">{PLATFORM_COMMISSION_PERCENT}%</span> از مبلغ هر پرداخت آنلاین موفق است که هنگام تسویه کسر می‌شود؛ مابقی به‌صورت دوره‌ای با متخصص تسویه و به حساب او واریز می‌گردد. مراجع همان قیمت اعلام‌شده را می‌پردازد و هیچ مبلغ اضافه‌ای از او دریافت نمی‌شود.
+            {DEMO_SLUG && <> برای مشاهده‌ی فرایند کامل رزرو و پرداخت، <a href={`/${DEMO_SLUG}`} target="_blank" className="text-ink underline underline-offset-4">صفحه‌ی نمونه</a> را ببینید.</>}
           </p>
         </div>
       </section>
 
       {/* ── FAQ ─────────────────────────────────────────────────────────── */}
-      <section id="faq" className="max-w-2xl mx-auto px-6 pt-16 pb-10">
-        <div className="text-center mb-10">
-          <div className="text-sm font-semibold text-soot mb-3">سوالات پرتکرار</div>
-          <h2 className="font-display font-extrabold text-3xl sm:text-4xl tracking-tightest">پاسخ سوال‌هایت اینجاست</h2>
-        </div>
-        <div className="flex flex-col gap-3">
-          {FAQS.map((f, i) => {
-            const open = i === faq
-            return (
-              <div key={i} className="rounded-xl border border-sand bg-white overflow-hidden">
-                <button onClick={() => setFaq(open ? -1 : i)}
-                  className="w-full flex items-center justify-between gap-4 px-5 py-4 text-right font-display font-bold text-[16px]">
-                  <span>{f.q}</span>
-                  <span className={`shrink-0 text-2xl text-soot transition-transform ${open ? 'rotate-45' : ''}`}>+</span>
+      <section id="faq" className="border-y border-sand bg-white">
+        <div className="max-w-2xl mx-auto px-6 py-16">
+          <div className="text-center mb-10 nl-reveal">
+            <div className="text-sm font-semibold text-soot mb-3">پرسش‌های پرتکرار</div>
+            <h2 className="font-display font-extrabold text-3xl sm:text-4xl tracking-tightest">پاسخ پرسش‌های شما</h2>
+          </div>
+          <div className="space-y-2.5 nl-reveal">
+            {FAQS.map((f, i) => (
+              <div key={f.q} className="rounded-xl border border-sand bg-paper overflow-hidden">
+                <button onClick={() => setFaq(faq === i ? -1 : i)}
+                  className="w-full text-right px-5 py-4 flex items-center justify-between gap-4">
+                  <span className="font-display font-bold text-[15px]">{f.q}</span>
+                  <span className={`text-soot transition-transform ${faq === i ? 'rotate-45' : ''}`}>+</span>
                 </button>
-                <div className="overflow-hidden transition-all duration-300" style={{ maxHeight: open ? 260 : 0 }}>
-                  <p className="px-5 pb-5 text-sm text-soot leading-loose">{f.a}</p>
-                </div>
+                {faq === i && <p className="px-5 pb-4 text-sm text-soot leading-relaxed">{f.a}</p>}
               </div>
-            )
-          })}
+            ))}
+          </div>
         </div>
       </section>
 
-      {/* ── CTA نهایی ───────────────────────────────────────────────────── */}
-      <section className="max-w-5xl mx-auto px-6 pt-10 pb-16">
-        <div className="rounded-3xl bg-ink text-white px-10 py-16 text-center relative overflow-hidden">
-          <div className="absolute inset-0 pointer-events-none" style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(255,255,255,.06) 1px, transparent 0)', backgroundSize: '26px 26px' }} />
-          <h2 className="relative font-display font-extrabold text-4xl sm:text-[46px] tracking-tightest">نوبت‌دهی هوشمندتر، ساده‌تر</h2>
-          <p className="relative mt-4 text-white/70 max-w-md mx-auto leading-relaxed">همین امروز صفحه‌ی رزرو اختصاصی‌ات را بساز و اولین نوبت را دریافت کن.</p>
-          <a href="/signup" className="relative inline-block mt-8 font-display font-bold text-ink bg-white px-8 py-3.5 rounded-xl hover:-translate-y-0.5 transition">شروع رایگان</a>
-          <p className="relative mt-4 text-xs text-white/50">بدون نیاز به درگاه بانکی</p>
+      {/* ── CTA پایانی ──────────────────────────────────────────────────── */}
+      <section className="max-w-5xl mx-auto px-6 pt-16 pb-6">
+        <div className="rounded-3xl bg-ink text-white p-10 sm:p-14 text-center nl-reveal">
+          <h2 className="font-display font-extrabold text-3xl sm:text-4xl tracking-tightest">صفحه‌ی نوبت‌دهی شما، امروز آماده می‌شود</h2>
+          <p className="mt-4 text-white/70 max-w-md mx-auto leading-relaxed">ثبت‌نام رایگان است و راه‌اندازی کمتر از پنج دقیقه زمان می‌برد.</p>
+          <a href="/signup" className="inline-block mt-8 font-display font-bold text-ink bg-white px-8 py-3.5 rounded-xl hover:-translate-y-0.5 hover:shadow-xl transition">شروع رایگان</a>
         </div>
       </section>
 
       {/* ── تماس با ما — لازم برای احراز شاپرک/اینماد ───────────────────── */}
-      <section id="contact" className="max-w-5xl mx-auto px-6 pt-6 pb-16">
-        <div className="rounded-2xl border border-sand bg-white p-8 max-w-2xl mx-auto">
+      <section id="contact" className="max-w-5xl mx-auto px-6 pt-10 pb-16">
+        <div className="rounded-2xl border border-sand bg-white p-8 max-w-2xl mx-auto nl-reveal">
           <h2 className="font-display font-extrabold text-2xl tracking-tightest text-center">تماس با ما</h2>
           <p className="mt-2 text-sm text-soot max-w-md mx-auto leading-relaxed text-center">
-            سوالت را همین‌جا بنویس؛ پاسخ به ایمیلی که وارد می‌کنی ارسال می‌شود. کاربران {PLATFORM_NAME} از داخل پنل خودشان هم می‌توانند تیکت پشتیبانی ثبت کنند.
+            پرسش خود را همین‌جا مطرح کنید؛ پاسخ به نشانی ایمیل شما ارسال می‌شود. کاربران {PLATFORM_NAME} از داخل پنل خود نیز می‌توانند تیکت پشتیبانی ثبت کنند.
           </p>
 
           {contactSent ? (
             <div className="mt-6 text-center bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-5">
-              <div className="font-display font-bold text-emerald-700">پیامت رسید ✓</div>
-              <p className="mt-1 text-sm text-soot">در اولین فرصت از طریق ایمیل پاسخ می‌دهیم.</p>
+              <div className="font-display font-bold text-emerald-700">پیام شما دریافت شد ✓</div>
+              <p className="mt-1 text-sm text-soot">در نخستین فرصت از طریق ایمیل پاسخ خواهیم داد.</p>
             </div>
           ) : (
             <div className="mt-6 space-y-3">
               <input type="email" value={contactEmail} onChange={e => setContactEmail(e.target.value)}
-                placeholder="ایمیل شما (پاسخ به همین آدرس می‌آید)" dir="ltr"
+                placeholder="نشانی ایمیل شما (پاسخ به همین نشانی ارسال می‌شود)" dir="ltr"
                 className="w-full text-sm px-4 py-3 border border-sand rounded-xl focus:outline-none focus:border-ink placeholder:text-right" />
               <textarea value={contactMsg} onChange={e => setContactMsg(e.target.value)} rows={4}
-                placeholder="سوال یا پیامت را بنویس…"
+                placeholder="متن پیام یا پرسش خود را بنویسید…"
                 className="w-full text-sm px-4 py-3 border border-sand rounded-xl resize-none focus:outline-none focus:border-ink" />
               {contactErr && <p className="text-xs text-red-600">{contactErr}</p>}
               <button onClick={sendContact} disabled={contactBusy}
@@ -403,7 +512,6 @@ export default function Landing() {
       {/* ── فوتر ────────────────────────────────────────────────────────── */}
       <footer className="border-t border-sand bg-white">
         <div className="max-w-5xl mx-auto px-6 py-12 grid gap-10 sm:grid-cols-3">
-          {/* برند */}
           <div>
             <div className="flex items-center gap-2.5">
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -411,23 +519,21 @@ export default function Landing() {
               <span className="font-display font-extrabold text-lg tracking-tightest">{PLATFORM_NAME}</span>
             </div>
             <p className="mt-3 text-xs text-soot leading-relaxed max-w-[220px]">
-              پلتفرم نوبت‌دهی آنلاین برای متخصص‌ها و کسب‌وکارهای خدماتی — صفحه‌ی رزرو اختصاصی، پرداخت آنلاین و یادآوری خودکار.
+              پلتفرم نوبت‌دهی آنلاین برای متخصصان و کسب‌وکارهای خدماتی — صفحه‌ی رزرو اختصاصی، پرداخت آنلاین و یادآوری خودکار.
             </p>
           </div>
 
-          {/* لینک‌ها */}
           <div>
             <div className="font-display font-bold text-sm mb-3">دسترسی سریع</div>
             <nav className="flex flex-col gap-2.5 text-xs text-soot">
-              <a href="#how" className="hover:text-ink w-fit">چطور کار می‌کند</a>
+              <a href="#how" className="hover:text-ink w-fit">نحوه‌ی کار</a>
               <a href="#pricing" className="hover:text-ink w-fit">تعرفه‌ها</a>
-              <a href="#faq" className="hover:text-ink w-fit">سوالات پرتکرار</a>
+              <a href="#faq" className="hover:text-ink w-fit">پرسش‌های پرتکرار</a>
               <a href="/terms" className="hover:text-ink w-fit">قوانین و شرایط استفاده</a>
               <a href="/privacy" className="hover:text-ink w-fit">حریم خصوصی</a>
             </nav>
           </div>
 
-          {/* ارتباط + اینماد */}
           <div>
             <div className="font-display font-bold text-sm mb-3">ارتباط با ما</div>
             <div className="flex flex-col gap-2.5 text-xs text-soot">
@@ -447,11 +553,10 @@ export default function Landing() {
           </div>
         </div>
 
-        {/* نوار پایینی — سال جلالی داینامیک (اعداد لاتین طبق قانون پروژه) */}
         <div className="border-t border-sand">
           <div className="max-w-5xl mx-auto px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-2 text-[11px] text-soot">
             <span className="tnum">© {jalaliYear()} {PLATFORM_NAME} — همه‌ی حقوق محفوظ است.</span>
-            <span>ساخته‌شده برای متخصص‌های ایرانی</span>
+            <span>ساخته‌شده برای متخصصان ایرانی</span>
           </div>
         </div>
       </footer>

@@ -22,6 +22,18 @@
 @keyframes nlFloat { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
 .animate-nl-up { animation: nlUp .5s cubic-bezier(.16,1,.3,1) both; }
 
+/* اسکرول‌ریویل لندینگ — IntersectionObserver در page.tsx کلاس nl-in را اضافه
+   می‌کند؛ transitionDelay پله‌ای به‌صورت inline روی خود المان‌ها ست می‌شود */
+.nl-reveal { opacity: 0; transform: translateY(16px); transition: opacity .6s cubic-bezier(.16,1,.3,1), transform .6s cubic-bezier(.16,1,.3,1); }
+.nl-reveal.nl-in { opacity: 1; transform: none; }
+
+/* حرکت‌کاهیده: همه‌چیز بی‌انیمیشن و فورا دیده شود (چرخه‌ی hero هم در JS با
+   همین media query غیرفعال می‌شود) */
+@media (prefers-reduced-motion: reduce) {
+  .nl-reveal, .nl-reveal.nl-in { opacity: 1; transform: none; transition: none; }
+  .animate-nl-up { animation: none; }
+}
+
 :root { --brand: 10 10 10; } /* تریپلت RGB — پیش‌فرض مونوکروم؛ از tenant_profiles.theme_color بازنویسی می‌شود */
 
 html { font-family: Vazirmatn, sans-serif; }
