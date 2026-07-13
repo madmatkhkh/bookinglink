@@ -10,7 +10,7 @@ import { useResendCooldown } from '@/lib/useResendCooldown'
 import { useModalBackClose } from '@/lib/useModalBackClose'
 import { MeetChannel, usableMeetChannels, mergeMeetChannels } from '@/lib/meet'
 import { useTenantThemeColor } from '@/lib/useTenantThemeColor'
-import SlotPicker from '@/components/SlotPicker'
+import SlotPicker, { SlotConfirmResult } from '@/components/SlotPicker'
 
 type CaseStage = {
  id: string; case_number: string
@@ -1290,7 +1290,7 @@ function StagePayment({ icon, title, desc, amount, onPaid, onDone, resourceId, c
  // می‌شود و روی intent می‌نشیند؛ بعد از تایید پرداخت، کال‌بک همان وقت را ثبت
  // می‌کند. اگر همین حالا ساعت پر شده باشد، همین‌جا (قبل از رفتن به درگاه) خطا
  // می‌گیریم و اصلا پولی رد و بدل نمی‌شود.
- async function payOnlineWithSlot(date: string, time: string): Promise<{ ok: boolean; error?: string }> {
+ async function payOnlineWithSlot(date: string, time: string): Promise<SlotConfirmResult> {
   try {
    const res = await fetch(`/api/t/${slug}/psy/pay-online`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -1299,7 +1299,8 @@ function StagePayment({ icon, title, desc, amount, onPaid, onDone, resourceId, c
    const data = await res.json().catch(() => ({}))
    if (!res.ok || !data.url) return { ok: false, error: data.error || 'خطا در اتصال به درگاه' }
    window.location.href = data.url
-   return { ok: true } // مرورگر دارد به درگاه می‌رود؛ این فقط برای بستن حالت لودینگ است
+   // redirecting = «مودال را نبند» — بستنش history.back() می‌زند و همین ناوبری را لغو می‌کند
+   return { ok: true, redirecting: true }
   } catch {
    return { ok: false, error: 'خطا در ارتباط با سرور' }
   }
@@ -1359,7 +1360,7 @@ function StagePayment({ icon, title, desc, amount, onPaid, onDone, resourceId, c
 
    {showSlotPicker && (
     <SlotPicker phone={phone} caseNumber={caseNumber}
-     title={`انتخاب وقت ${stageLabel}`} resourceId={resourceId}
+     title={`انتخاب وقت ${stageLabel}`} confirmLabel="ادامه و پرداخت" resourceId={resourceId}
      sessionType={sessionType} officeLocation={officeLocation}
      onClose={() => setShowSlotPicker(false)}
      onDone={() => setShowSlotPicker(false)}

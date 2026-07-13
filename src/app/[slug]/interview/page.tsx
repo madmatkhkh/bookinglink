@@ -9,7 +9,7 @@ import type { PaymentCardInfo, IntakeForm, FormField, PaymentMethods } from '@/l
 import { DialogHost, uiAlert, uiConfirm, uiPrompt } from '@/components/ui/Dialog'
 import { JalaliDateWheel } from '@/components/WheelPicker'
 import { useTenantThemeColor } from '@/lib/useTenantThemeColor'
-import SlotPicker from '@/components/SlotPicker'
+import SlotPicker, { SlotConfirmResult } from '@/components/SlotPicker'
 
 type Step = 1 | 3 | 'pay' | 'done'
 
@@ -517,7 +517,7 @@ function InterviewPayScreen({ amount, cards, loaded, loading, onPay, paymentMeth
  // پرداخت آنلاین = «اول وقت، بعد پرداخت». وقت انتخابی همراه درخواست می‌رود،
  // سرور اعتبارسنجی‌اش می‌کند و روی intent می‌نشاند؛ بعد از تایید پرداخت، کال‌بک
  // همان وقت را ثبت می‌کند. کارت‌به‌کارت این مسیر را نمی‌رود.
- async function payOnlineWithSlot(date: string, time: string): Promise<{ ok: boolean; error?: string }> {
+ async function payOnlineWithSlot(date: string, time: string): Promise<SlotConfirmResult> {
   setOnlineError('')
   try {
    const res = await fetch(`/api/t/${slug}/psy/pay-online`, {
@@ -531,7 +531,8 @@ function InterviewPayScreen({ amount, cards, loaded, loading, onPay, paymentMeth
    const data = await res.json().catch(() => ({}))
    if (!res.ok || !data.url) return { ok: false, error: data.error || 'خطا در اتصال به درگاه' }
    window.location.href = data.url
-   return { ok: true } // مرورگر دارد به درگاه می‌رود
+   // redirecting = «مودال را نبند» — بستنش history.back() می‌زند و همین ناوبری را لغو می‌کند
+   return { ok: true, redirecting: true }
   } catch {
    return { ok: false, error: 'خطا در ارتباط با سرور' }
   }
@@ -619,7 +620,7 @@ function InterviewPayScreen({ amount, cards, loaded, loading, onPay, paymentMeth
 
     {showSlotPicker && (
      <SlotPicker phone={phone} caseNumber={caseNumber}
-      title="انتخاب وقت مصاحبه" resourceId={resourceId}
+      title="انتخاب وقت مصاحبه" confirmLabel="ادامه و پرداخت" resourceId={resourceId}
       sessionType={sessionType} officeLocation={officeLocation}
       onClose={() => setShowSlotPicker(false)}
       onDone={() => setShowSlotPicker(false)}

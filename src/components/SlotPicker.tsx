@@ -14,6 +14,15 @@ import { useModalBackClose } from '@/lib/useModalBackClose'
 //                    بعد با همان زمان به درگاه برویم، و ثبت نهایی در کال‌بک انجام
 //                    شود. اگر onConfirm خطا برگرداند، اسلات انتخابی پاک و برنامه
 //                    دوباره خوانده می‌شود تا مراجع وقت تازه‌ای ببیند.
+//
+// ⚠️ redirecting: وقتی onConfirm دارد مرورگر را به جای دیگری (درگاه) می‌فرستد،
+// باید `{ ok: true, redirecting: true }` برگرداند و این کامپوننت هیچ کاری نکند
+// — نه onDone، نه بسته‌شدن. دلیلش useModalBackClose است: موقع بسته‌شدن مودال یک
+// history.back() می‌زند تا ورودی‌ای که خودش به تاریخچه اضافه کرده مصرف شود، و
+// همان history.back() ناوبری در حال انجام به درگاه را **لغو می‌کند** — بدون هیچ
+// خطایی. علامتش این است که مراجع وقت را انتخاب می‌کند، هیچ اتفاقی نمی‌افتد و به
+// همین صفحه برمی‌گردد. پس در حالت redirecting مودال عمدا باز و در حالت لودینگ
+// می‌ماند تا خود مرورگر صفحه را ترک کند.
 
 // حداقل چیزی که این کامپوننت از یک جلسه لازم دارد (نه کل تایپ Session صفحه‌ها)
 export type SlotPickerSession = {
@@ -21,10 +30,12 @@ export type SlotPickerSession = {
   session_type?: string
 }
 
+export type SlotConfirmResult = { ok: boolean; error?: string; redirecting?: boolean }
+
 // ==================== SLOT PICKER (تک‌جلسه‌ای) ====================
-export default function SlotPicker({ session, phone, caseNumber, onClose, onDone, title = 'انتخاب زمان جلسه', onConfirm, resourceId, sessionType, officeLocation }: {
+export default function SlotPicker({ session, phone, caseNumber, onClose, onDone, title = 'انتخاب زمان جلسه', confirmLabel = 'ثبت زمان جلسه', onConfirm, resourceId, sessionType, officeLocation }: {
  session?: SlotPickerSession; phone: string; caseNumber: string; onClose: () => void; onDone: () => void
- title?: string; onConfirm?: (date: string, time: string) => Promise<{ ok: boolean; error?: string }>
+ title?: string; confirmLabel?: string; onConfirm?: (date: string, time: string) => Promise<SlotConfirmResult>
  resourceId?: string | null
  // نوع جلسه (آنلاین/حضوری) وقتی `session` در دست نیست (مثلا مراحل پیش‌ازدرمان) —
  // هم برای فیلترکردن اسلات‌ها هم برای نمایش واضح به مراجع که این وقت مال کدام نوع است
@@ -88,6 +99,10 @@ export default function SlotPicker({ session, phone, caseNumber, onClose, onDone
   const date = `${curYear}/${curMonth + 1}/${selectedDay}`
   if (onConfirm) {
    const r = await onConfirm(date, selectedSlot)
+   // مرورگر دارد به درگاه می‌رود — دست به هیچ‌چیز نزن. بستن مودال این‌جا یعنی
+   // history.back() هوک، که ناوبری در حال انجام را بی‌صدا لغو می‌کند. عمدا در
+   // حالت saving می‌مانیم تا مراجع لودینگ ببیند و صفحه ترک شود.
+   if (r.ok && r.redirecting) return
    setSaving(false)
    if (!r.ok) { uiAlert(r.error || 'ثبت نشد'); setSelectedSlot(''); loadSchedule(curMonth, curYear); return }
    onDone()
@@ -195,7 +210,7 @@ export default function SlotPicker({ session, phone, caseNumber, onClose, onDone
      )}
      <button onClick={confirm} disabled={!selectedDay || !selectedSlot || saving}
       className="w-full py-3 bg-accent text-white rounded-xl text-sm font-medium disabled:opacity-40">
-      {saving ? 'در حال ثبت...' : 'ثبت زمان جلسه'}
+      {saving ? (onConfirm ? 'در حال اتصال...' : 'در حال ثبت...') : confirmLabel}
      </button>
     </div>
    </div>
