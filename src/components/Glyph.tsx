@@ -28,6 +28,7 @@ const PATHS: Record<string, React.ReactNode> = {
   '🧩': <><path d="M9 4h6v3.2a2 2 0 1 0 0 3.6V14h-3.2a2 2 0 1 1-3.6 0H5v-3.2a2 2 0 1 1 0-3.6V4z" transform="translate(2 3)" /></>,
   '📦': <><path d="M3.5 8 12 3.5 20.5 8v8L12 20.5 3.5 16z" /><path d="M3.5 8 12 12.5 20.5 8M12 12.5v8" /></>,
   '📝': <><path d="M5 4.5h9L18.5 9v10.5h-13.5z" /><path d="M14 4.5V9h4.5" /><path d="M8 13h7M8 16.5h5" /></>,
+  '🎨': <><path d="M12 3.5a8.5 8.5 0 0 0 0 17c1.4 0 2-.9 2-1.8 0-.5-.2-.9-.5-1.2-.3-.3-.5-.7-.5-1.2 0-.9.8-1.6 1.7-1.6h1.6a4.2 4.2 0 0 0 4.2-4.2c0-3.9-3.8-7-8.5-7z" /><circle cx="7.5" cy="11" r="1.1" /><circle cx="10.5" cy="7.5" r="1.1" /><circle cx="15" cy="8" r="1.1" /></>,
 }
 
 export function Glyph({ icon, className }: { icon?: string; className?: string }) {

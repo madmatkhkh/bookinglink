@@ -4309,7 +4309,7 @@ export function PsychologyAdmin() {
           رنگ اصلی صفحه‌ی عمومی و پنل مراجع خودتان را انتخاب کنید — یا از رنگ‌های آماده، یا با آپلود لوگو تا سیستم خودش رنگ برند شما را استخراج کند. برای خوانایی، رنگ نهایی همیشه کنتراست کافی روی زمینه‌ی سفید خواهد داشت.
          </p>
          {!themeLoaded ? (
-          <SkeletonRows count={1} height="h-40" />
+          <SkeletonRows count={1} height="h-56" />
          ) : (
           <>
            <ThemeModePicker slug={slug} themeMode={themeProfile?.theme_mode || 'preset'} themeColor={themeProfile?.theme_color || DEFAULT_SAFE_THEME}

@@ -19,13 +19,15 @@ export const MIN_CONTRAST_RATIO = 4.5
 // رنگ ایمن نهایی — وقتی هیچ‌کدام از منطق‌های بالا جواب ندهند (حالت‌های لبه‌ای)
 export const DEFAULT_SAFE_THEME = '26 26 26'
 
-// ── ۶ رنگ پیش‌فرض — همه از قبل روی کنتراست ≥ 4.5 در برابر سفید تست شده‌اند ──
+// ── 8 رنگ پیش‌فرض — همه از قبل روی کنتراست >= 4.5 در برابر سفید تست شده‌اند ──
 export const THEME_PRESETS: { id: string; label: string; rgb: RGB }[] = [
   { id: 'ink', label: 'مشکی', rgb: [26, 26, 26] },
   { id: 'navy', label: 'سرمه‌ای', rgb: [21, 49, 89] },
+  { id: 'indigo', label: 'نیلی', rgb: [55, 48, 163] },
   { id: 'teal', label: 'سبزآبی', rgb: [13, 94, 94] },
   { id: 'forest', label: 'سبز', rgb: [22, 84, 58] },
   { id: 'burgundy', label: 'زرشکی', rgb: [122, 29, 55] },
+  { id: 'terracotta', label: 'سفالی', rgb: [148, 60, 32] },
   { id: 'plum', label: 'بنفش', rgb: [88, 42, 102] },
 ]
 
