@@ -65,7 +65,7 @@ function GenericPanel() {
 
   return (
     <main className="min-h-screen bg-paper pb-24" dir="rtl">
-      <div className="bg-accent" style={{ ['--brand' as any]: ov.profile?.theme_color || '212 83 126' }}>
+      <div className="bg-accent" style={{ ['--brand' as any]: ov.profile?.theme_color || DEFAULT_SAFE_THEME }}>
         <div className="max-w-3xl mx-auto px-5 py-4 flex items-center justify-between text-white">
           <div>
             <div className="font-bold">{ov.profile?.display_name || 'پنل مدیریت'}</div>
@@ -74,7 +74,7 @@ function GenericPanel() {
         </div>
       </div>
 
-      <div className="max-w-3xl mx-auto px-5 pt-5" style={{ ['--brand' as any]: ov.profile?.theme_color || '212 83 126' }}>
+      <div className="max-w-3xl mx-auto px-5 pt-5" style={{ ['--brand' as any]: ov.profile?.theme_color || DEFAULT_SAFE_THEME }}>
         {tab === 'bookings' && <BookingsTab ov={ov} L={L} slug={slug} reload={load} uiAlert={uiAlert} uiConfirm={uiConfirm} />}
         {tab === 'services' && <ServicesTab ov={ov} slug={slug} reload={load} uiAlert={uiAlert} uiConfirm={uiConfirm} />}
         {tab === 'schedule' && <ScheduleTab ov={ov} slug={slug} reload={load} uiAlert={uiAlert} uiConfirm={uiConfirm} L={L} />}

@@ -499,8 +499,15 @@ function InterviewPayScreen({ amount, cards, loaded, loading, onPay, paymentMeth
 }) {
  const [ref, setRef] = useState('')
  const online = !!paymentMethods?.online
- const cardToCard = paymentMethods ? paymentMethods.card_to_card : true
- const [method, setMethod] = useState<'online' | 'card'>(online ? 'online' : 'card')
+ const cardToCard = paymentMethods ? paymentMethods.card_to_card : false
+
+ // همان باگی که در StagePayment پنل مراجع بود: مقدار اولیه‌ی useState فقط در
+ // اولین رندر ارزیابی می‌شود، و اگر paymentMethods هنوز نرسیده باشد، روش برای
+ // همیشه روی 'card' قفل می‌شد — حتی وقتی کارت‌به‌کارت اصلا فعال نبود. انتخاب
+ // کاربر از مقدار پیش‌فرض جدا شد تا با رسیدن دیتا خودش درست شود.
+ const [picked, setPicked] = useState<'online' | 'card' | null>(null)
+ const method: 'online' | 'card' = picked ?? (online ? 'online' : 'card')
+ const noMethod = !!paymentMethods && !online && !cardToCard
  const [onlineError, setOnlineError] = useState('')
  const [showSlotPicker, setShowSlotPicker] = useState(false)
 
@@ -587,20 +594,26 @@ function InterviewPayScreen({ amount, cards, loaded, loading, onPay, paymentMeth
      </div>
     )}
 
+    {noMethod && (
+     <div className="text-xs text-amber-700 bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 mb-3 text-center leading-5">
+      هنوز هیچ روش پرداختی برای این متخصص فعال نشده است. لطفا با ایشان تماس بگیرید.
+     </div>
+    )}
+
     {online && cardToCard && (
      <div className="grid grid-cols-2 gap-2 mb-3 p-1 bg-gray-100 rounded-xl">
-      <button onClick={() => setMethod('online')}
+      <button onClick={() => setPicked('online')}
        className={`py-2 rounded-lg text-xs font-medium transition-colors ${method === 'online' ? 'bg-white shadow-sm text-ink' : 'text-soot'}`}>
        پرداخت آنلاین
       </button>
-      <button onClick={() => setMethod('card')}
+      <button onClick={() => setPicked('card')}
        className={`py-2 rounded-lg text-xs font-medium transition-colors ${method === 'card' ? 'bg-white shadow-sm text-ink' : 'text-soot'}`}>
        کارت‌به‌کارت
       </button>
      </div>
     )}
 
-    {method === 'online' && online ? (
+    {noMethod ? null : method === 'online' && online ? (
      <>
       <p className="text-xs text-soot mb-3 text-center">اول وقت مصاحبه را انتخاب کنید، سپس پرداخت می‌کنید. به‌محض تایید پرداخت، همان وقت برایتان ثبت می‌شود.</p>
       {onlineError && <div className="text-xs text-red-600 bg-red-500/10 border border-red-500/20 rounded-lg p-2.5 mb-3 text-center">{onlineError}</div>}

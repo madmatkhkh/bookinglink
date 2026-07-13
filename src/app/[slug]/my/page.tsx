@@ -783,7 +783,12 @@ function SessionCard({ session: s, num, phone, caseNumber, onUpdate }: {
    {needsPayment && !s.payment_submitted && (() => {
     const pm = settings.doctors.find(d => d.id === s.resource_id)?.payment_methods
     const onlineOn = !!pm?.online
-    const cardOn = pm ? pm.card_to_card : true
+    // fallback عمدا false است، نه true: «هنوز نمی‌دانیم» نباید به «کارت‌به‌کارت را
+    // نشان بده» ترجمه شود — این‌جا برخلاف StagePayment قفل نمی‌شد (چون state نیست
+    // و با رسیدن دیتا دوباره محاسبه می‌شود)، ولی تا آن لحظه دکمه‌ی اشتباهی نشان
+    // می‌داد. تا لود نشدن، هیچ دکمه‌ای نشان نمی‌دهیم.
+    const cardOn = pm ? pm.card_to_card : false
+    if (!settings.loaded) return <div className="mt-3 h-11 rounded-xl bg-gray-100 animate-pulse" />
     return !payOpen ? (
      <div className="mt-3 flex gap-2">
       {onlineOn && (
@@ -876,7 +881,7 @@ function PayButton({ pkg, phone, onSuccess, total }: { pkg: Package; phone: stri
  const settings = usePublicClinic(slug)
  const pm = settings.doctors.find(d => d.id === pkg.resource_id)?.payment_methods
  const onlineOn = !!pm?.online
- const cardOn = pm ? pm.card_to_card : true
+ const cardOn = pm ? pm.card_to_card : false  // همان دلیل بالا: «نمی‌دانیم» != «کارت‌به‌کارت»
 
  async function pay() {
   setPaying(true)
@@ -902,6 +907,9 @@ function PayButton({ pkg, phone, onSuccess, total }: { pkg: Package; phone: stri
    else { uiAlert(data.error || 'خطا در اتصال به درگاه'); setOnlineLoading(false) }
   } catch { uiAlert('خطا در ارتباط با سرور'); setOnlineLoading(false) }
  }
+
+ // تا نرسیدن روش‌های پرداخت، هیچ دکمه‌ای نشان نمی‌دهیم — نه دکمه‌ی اشتباه، نه هیچ‌کدام
+ if (!settings.loaded) return <div className="h-11 rounded-xl bg-gray-100 animate-pulse" />
 
  if (!open) return (
   <div className="flex gap-2">
@@ -1275,8 +1283,24 @@ function StagePayment({ icon, title, desc, amount, onPaid, onDone, resourceId, c
  const settings = usePublicClinic(slug)
  const pm = settings.doctors.find(d => d.id === resourceId)?.payment_methods
  const onlineOn = !!pm?.online
- const cardOn = pm ? pm.card_to_card : true
- const [method, setMethod] = useState<'online' | 'card'>(onlineOn ? 'online' : 'card')
+ const cardOn = pm ? pm.card_to_card : false
+
+ // ⚠️ اینجا قبلا `useState(onlineOn ? 'online' : 'card')` بود و باگ بدی داشت:
+ // مقدار اولیه‌ی useState فقط در **اولین رندر** ارزیابی می‌شود، و در آن لحظه
+ // usePublicClinic هنوز چیزی fetch نکرده (doctors خالی است) — پس onlineOn برابر
+ // false می‌شد و method برای همیشه روی 'card' قفل می‌شد، حتی بعد از رسیدن دیتا.
+ // اگر کارت‌به‌کارت هم برای آن متخصص خاموش بود، سوییچ دو حالته اصلا رندر نمی‌شد
+ // و مراجع در فرم کارت‌به‌کارتی گیر می‌کرد که هیچ شماره‌کارتی هم نداشت.
+ //
+ // راه‌حل: انتخاب کاربر و مقدار پیش‌فرض از هم جدا شدند. تا وقتی کاربر خودش چیزی
+ // انتخاب نکرده، روش از روی دیتای واقعی محاسبه می‌شود — پس با رسیدن دیتا خودش
+ // درست می‌شود، نه اینکه در حالت اشتباه یخ بزند.
+ const [picked, setPicked] = useState<'online' | 'card' | null>(null)
+ const method: 'online' | 'card' = picked ?? (onlineOn ? 'online' : 'card')
+
+ // cardOn وقتی pm تعریف‌نشده است حالا false است، نه true. قبلا true بود، یعنی
+ // «متخصص را پیدا نکردیم» بی‌سروصدا به «کارت‌به‌کارت را نشان بده» ترجمه می‌شد.
+ const noMethod = settings.loaded && !onlineOn && !cardOn
 
  async function submit() {
   setSubmitting(true)
@@ -1321,40 +1345,53 @@ function StagePayment({ icon, title, desc, amount, onPaid, onDone, resourceId, c
     </div>
    </div>
 
-   {onlineOn && cardOn && (
-    <div className="grid grid-cols-2 gap-2 mb-3 p-1 bg-gray-100 rounded-xl">
-     <button onClick={() => setMethod('online')}
-      className={`py-2 rounded-lg text-xs font-medium transition-colors ${method === 'online' ? 'bg-white shadow-sm text-ink' : 'text-soot'}`}>
-      پرداخت آنلاین
-     </button>
-     <button onClick={() => setMethod('card')}
-      className={`py-2 rounded-lg text-xs font-medium transition-colors ${method === 'card' ? 'bg-white shadow-sm text-ink' : 'text-soot'}`}>
-      کارت‌به‌کارت
-     </button>
+   {/* تا وقتی روش‌های پرداخت این متخصص نرسیده، هیچ روشی نشان نمی‌دهیم — نشان‌دادن
+      یکی از آن‌ها در این لحظه یعنی حدس‌زدن، و حدس قبلی (کارت‌به‌کارت) دقیقا همان
+      باگی بود که مراجع را در فرم اشتباه گیر می‌انداخت. */}
+   {!settings.loaded ? (
+    <div className="h-32 rounded-xl bg-gray-100 animate-pulse" />
+   ) : noMethod ? (
+    <div className="text-xs text-amber-700 bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 text-center leading-5">
+     هنوز هیچ روش پرداختی برای این متخصص فعال نشده است. لطفا با ایشان تماس بگیرید.
     </div>
-   )}
-
-   {method === 'online' && onlineOn ? (
-    <>
-     <p className="text-xs text-soot mb-3 text-center">اول وقت خود را انتخاب کنید، سپس پرداخت می‌کنید. به‌محض تایید پرداخت، همان وقت برایتان ثبت می‌شود.</p>
-     <button onClick={() => setShowSlotPicker(true)}
-      className="w-full py-3 bg-accent text-white rounded-xl text-sm font-medium">
-      انتخاب وقت و پرداخت
-     </button>
-    </>
    ) : (
     <>
-     <div className="bg-sand border border-sand rounded-xl p-3 mb-3">
-      <CardChooser cards={settings.cards} loaded={settings.loaded} />
-     </div>
-     <label className="text-xs text-soot mb-1 block">متن فیش واریزی <span className="text-red-500">*</span></label>
-     <textarea value={ref} onChange={e => setRef(e.target.value)} rows={3} placeholder="اطلاعات فیش واریزی را وارد کنید (کد پیگیری، شماره کارت مبدأ، تاریخ و ساعت واریز...)"
-      className="w-full text-sm px-3 py-2.5 border border-sand rounded-xl focus:outline-none focus:border-ink mb-3 resize-none" />
-     <button onClick={submit} disabled={submitting || !ref.trim()}
-      className="w-full py-3 bg-accent text-white rounded-xl text-sm font-medium disabled:opacity-40">
-      {submitting ? 'در حال ثبت...' : 'پرداخت کردم'}
-     </button>
-     <p className="text-[11px] text-soot mt-2 text-center">پس از واریز، متن فیش را وارد و «پرداخت کردم» را بزنید تا بررسی و تایید شود. پس از تایید، وقت می‌گیرید.</p>
+     {onlineOn && cardOn && (
+      <div className="grid grid-cols-2 gap-2 mb-3 p-1 bg-gray-100 rounded-xl">
+       <button onClick={() => setPicked('online')}
+        className={`py-2 rounded-lg text-xs font-medium transition-colors ${method === 'online' ? 'bg-white shadow-sm text-ink' : 'text-soot'}`}>
+        پرداخت آنلاین
+       </button>
+       <button onClick={() => setPicked('card')}
+        className={`py-2 rounded-lg text-xs font-medium transition-colors ${method === 'card' ? 'bg-white shadow-sm text-ink' : 'text-soot'}`}>
+        کارت‌به‌کارت
+       </button>
+      </div>
+     )}
+
+     {method === 'online' && onlineOn ? (
+      <>
+       <p className="text-xs text-soot mb-3 text-center">اول وقت خود را انتخاب کنید، سپس پرداخت می‌کنید. به‌محض تایید پرداخت، همان وقت برایتان ثبت می‌شود.</p>
+       <button onClick={() => setShowSlotPicker(true)}
+        className="w-full py-3 bg-accent text-white rounded-xl text-sm font-medium">
+        انتخاب وقت و پرداخت
+       </button>
+      </>
+     ) : (
+      <>
+       <div className="bg-sand border border-sand rounded-xl p-3 mb-3">
+        <CardChooser cards={settings.cards} loaded={settings.loaded} />
+       </div>
+       <label className="text-xs text-soot mb-1 block">متن فیش واریزی <span className="text-red-500">*</span></label>
+       <textarea value={ref} onChange={e => setRef(e.target.value)} rows={3} placeholder="اطلاعات فیش واریزی را وارد کنید (کد پیگیری، شماره کارت مبدأ، تاریخ و ساعت واریز...)"
+        className="w-full text-sm px-3 py-2.5 border border-sand rounded-xl focus:outline-none focus:border-ink mb-3 resize-none" />
+       <button onClick={submit} disabled={submitting || !ref.trim()}
+        className="w-full py-3 bg-accent text-white rounded-xl text-sm font-medium disabled:opacity-40">
+        {submitting ? 'در حال ثبت...' : 'پرداخت کردم'}
+       </button>
+       <p className="text-[11px] text-soot mt-2 text-center">پس از واریز، متن فیش را وارد و «پرداخت کردم» را بزنید تا بررسی و تایید شود. پس از تایید، وقت می‌گیرید.</p>
+      </>
+     )}
     </>
    )}
 
