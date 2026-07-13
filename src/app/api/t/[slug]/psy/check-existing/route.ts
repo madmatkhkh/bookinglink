@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { sb } from '@/lib/supabase'
 import { getActiveTenant } from '@/lib/tenant'
 import { checkThrottle, requestIp, normalizePhone, isValidEmail } from '@/lib/auth'
+import { isDraftCase } from '@/lib/flow'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -35,9 +36,16 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   if (!name || (!ph && !em)) return NextResponse.json({ exists: false })
 
   const db = sb()
+  const sel = '*, current_stage:psy_stages!current_stage_id(*)'
   const [{ data: byPhone }, { data: byEmail }] = await Promise.all([
-    ph ? db.from('psy_cases').select('id').eq('tenant_id', t.id).eq('client_name', name).eq('contact_phone', ph).maybeSingle() : Promise.resolve({ data: null }),
-    em ? db.from('psy_cases').select('id').eq('tenant_id', t.id).eq('client_name', name).eq('contact_email', em).maybeSingle() : Promise.resolve({ data: null }),
+    ph ? db.from('psy_cases').select(sel).eq('tenant_id', t.id).eq('client_name', name).eq('contact_phone', ph).maybeSingle() : Promise.resolve({ data: null }),
+    em ? db.from('psy_cases').select(sel).eq('tenant_id', t.id).eq('client_name', name).eq('contact_email', em).maybeSingle() : Promise.resolve({ data: null }),
   ])
-  return NextResponse.json({ exists: !!(byPhone || byEmail) })
+
+  // پیش‌نویس رهاشده «پرونده‌ی موجود» حساب نمی‌شود — وگرنه کسی که بار قبل وسط
+  // پرداخت بی‌خیال شده، همین‌جا متوقف می‌شود و راه ادامه‌ای هم ندارد. /psy/book
+  // هم دقیقا همین منطق را دارد و پیش‌نویس قبلی را جایگزین می‌کند، پس این دو
+  // با هم می‌خوانند.
+  const found = byPhone || byEmail
+  return NextResponse.json({ exists: !!found && !isDraftCase(found) })
 }

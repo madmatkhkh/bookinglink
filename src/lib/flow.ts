@@ -49,3 +49,30 @@ export function stageLabel(stage: { stage_type: string; title?: string | null; s
   const s = STAGE_STATUS_LABEL[stage.status] || stage.status
   return `${stageTitle(stage)}: ${s}`
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// «پرونده‌ی پیش‌نویس رهاشده»
+//
+// فرم مصاحبه پرونده و اولین مرحله را قبل از پرداخت می‌سازد — و باید هم بسازد:
+// کارت‌به‌کارت بدون پرونده اصلا کار نمی‌کند (مراجع فیش می‌دهد، دکتر بعدا تاییدش
+// می‌کند)، و اگر مراجع وسط کار برود، با همان پرونده می‌تواند بعدا از پنل خودش
+// ادامه بدهد بدون پرکردن دوباره‌ی کل فرم.
+//
+// ولی کسی که فرم را پر کرده و حتی **ادعای پرداخت هم نکرده**، هنوز مراجع نیست.
+// چنین پرونده‌ای نباید:
+//   • در لیست پرونده‌های دکتر و شمارنده‌ها بیاید (شلوغی بی‌فایده)
+//   • جلوی ثبت‌نام دوباره‌ی خود همان شخص را بگیرد (چک تکراری)
+//
+// مرز دقیق: به‌محض اینکه مراجع فیش بفرستد (payment_submitted / payment_ref) یا
+// پرداخت آنلاینش تایید شود (paid)، پرونده واقعی می‌شود — یعنی دقیقا همان لحظه‌ای
+// که دکتر باید کاری انجام دهد.
+export function isDraftCase(c: {
+  status?: string | null
+  current_stage?: { status?: string; paid?: boolean | null; payment_submitted?: boolean | null; payment_ref?: string | null } | null
+}): boolean {
+  if (c.status !== 'pending') return false      // یک‌بار تایید شده = پرونده‌ی واقعی
+  const s = c.current_stage
+  if (!s) return false                          // مرحله‌ی بازی ندارد — قضاوت نمی‌کنیم
+  if (s.paid || s.payment_submitted || s.payment_ref) return false  // پول یا ادعای پول در کار است
+  return s.status === STAGE_STATUS.AWAITING_PAYMENT
+}

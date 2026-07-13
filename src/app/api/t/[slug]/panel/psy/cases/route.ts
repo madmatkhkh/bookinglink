@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { sb } from '@/lib/supabase'
 import { requirePanelAuth, isPanelAuthResponse } from '@/lib/tenant'
+import { isDraftCase } from '@/lib/flow'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -22,7 +23,13 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
   }
   const { data, error } = await q.order('created_at', { ascending: false })
   if (error) { console.error('psy/cases GET error:', error); return NextResponse.json({ error: 'خطا در خواندن پرونده‌ها' }, { status: 500 }) }
-  return NextResponse.json({ bookings: data })
+
+  // پرونده‌های پیش‌نویس رهاشده (فرم پر شده، ولی مراجع حتی ادعای پرداخت هم نکرده)
+  // مراجع واقعی نیستند و نباید لیست و شمارنده‌های دکتر را شلوغ کنند. فیلتر این‌جا
+  // (سمت سرور) انجام می‌شود نه در UI، تا همه‌ی مصرف‌کننده‌های این روت — لیست،
+  // داشبورد، شمارنده‌ها — یکجا و یکسان درست شوند.
+  const bookings = (data || []).filter(c => !isDraftCase(c))
+  return NextResponse.json({ bookings })
 }
 
 // افزودن پرونده‌ی دستی توسط دکتر — به‌کدام «منبع» تعلق بگیرد؟

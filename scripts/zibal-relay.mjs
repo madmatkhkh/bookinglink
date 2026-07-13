@@ -30,8 +30,25 @@ import crypto from 'node:crypto'
 
 const PORT = parseInt(process.env.PORT || '8080', 10)
 const RELAY_KEY = process.env.RELAY_KEY || ''
-const ZIBAL = 'https://gateway.zibal.ir/v1'
-const ALLOWED = new Set(['/v1/request', '/v1/verify', '/v1/inquiry'])
+
+// نگاشت مسیر → مقصد. هر مسیری که این‌جا نباشد رد می‌شود؛ یعنی رله فقط همین
+// چند endpoint مشخص را می‌شناسد و به پروکسی باز تبدیل نمی‌شود.
+//
+// sms.ir هم اضافه شد: api.sms.ir هم سرویس ایرانی است و اگر از Vercel در دسترس
+// نبود (همان مشکل زیبال)، کافی است SMS_IR_API_BASE در Vercel به همین رله اشاره
+// کند. اگر sms.ir از Vercel مستقیم کار می‌کند، این مسیرها بی‌استفاده می‌مانند و
+// ضرری ندارند.
+const ROUTES = {
+  '/v1/request': 'https://gateway.zibal.ir/v1/request',
+  '/v1/verify':  'https://gateway.zibal.ir/v1/verify',
+  '/v1/inquiry': 'https://gateway.zibal.ir/v1/inquiry',
+  '/sms/v1/send/verify': 'https://api.sms.ir/v1/send/verify',
+  '/sms/v1/send/bulk':   'https://api.sms.ir/v1/send/bulk',
+}
+
+// هدرهایی که باید به مقصد پاس شوند. x-api-key برای sms.ir لازم است (زیبال کلیدش
+// را داخل بدنه می‌فرستد). x-relay-key عمدا پاس داده نمی‌شود — آن مال خود رله است.
+const PASS_HEADERS = ['x-api-key', 'accept']
 
 if (!RELAY_KEY) {
   console.error('RELAY_KEY تنظیم نشده — رله بدون آن بالا نمی‌آید (وگرنه پروکسی باز می‌شد).')
@@ -57,7 +74,8 @@ http.createServer((req, res) => {
   if (req.method !== 'POST') return send(405, { error: 'method not allowed' })
 
   const path = (req.url || '').split('?')[0]
-  if (!ALLOWED.has(path)) return send(404, { error: 'not found' })
+  const target = ROUTES[path]
+  if (!target) return send(404, { error: 'not found' })
   if (!keyOk(req.headers['x-relay-key'])) return send(401, { error: 'unauthorized' })
 
   let body = ''
@@ -67,11 +85,11 @@ http.createServer((req, res) => {
   })
   req.on('end', async () => {
     try {
-      const upstream = await fetch(`${ZIBAL}${path.slice(3)}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body,
-      })
+      const headers = { 'Content-Type': 'application/json' }
+      for (const h of PASS_HEADERS) {
+        if (req.headers[h]) headers[h] = req.headers[h]
+      }
+      const upstream = await fetch(target, { method: 'POST', headers, body })
       const text = await upstream.text()
       res.writeHead(upstream.status, { 'Content-Type': 'application/json' })
       res.end(text)

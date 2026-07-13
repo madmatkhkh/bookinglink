@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { sb } from '@/lib/supabase'
 import { getActiveTenant } from '@/lib/tenant'
 import { getDefaultResourceId, getIntakeForm, missingIntakeFields, INTAKE_KNOWN_COLUMNS, getResourcePricing, resolvePrice } from '@/lib/psy'
+import { isDraftCase } from '@/lib/flow'
 import { setPayCookie, normalizePhone, isValidEmail } from '@/lib/auth'
 import { randomInt } from 'crypto'
 
@@ -45,11 +46,26 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   // یک پرونده با همین نام + همین شماره/ایمیل قبلا ثبت نشده باشد (تغییر نام یا
   // شماره آزاد است — فقط ترکیب عین یکسان مسدود می‌شود)
   const db = sb()
+  const dupSelect = '*, current_stage:psy_stages!current_stage_id(*)'
   const [{ data: dupByPhone }, { data: dupByEmail }] = await Promise.all([
-    phone ? db.from('psy_cases').select('id').eq('tenant_id', t.id).eq('client_name', clientName).eq('contact_phone', phone).maybeSingle() : Promise.resolve({ data: null }),
-    email ? db.from('psy_cases').select('id').eq('tenant_id', t.id).eq('client_name', clientName).eq('contact_email', email).maybeSingle() : Promise.resolve({ data: null }),
+    phone ? db.from('psy_cases').select(dupSelect).eq('tenant_id', t.id).eq('client_name', clientName).eq('contact_phone', phone).maybeSingle() : Promise.resolve({ data: null }),
+    email ? db.from('psy_cases').select(dupSelect).eq('tenant_id', t.id).eq('client_name', clientName).eq('contact_email', email).maybeSingle() : Promise.resolve({ data: null }),
   ])
-  if (dupByPhone || dupByEmail) return NextResponse.json({ error: 'پرونده‌ای با همین نام و شماره‌تماس/ایمیل قبلا ثبت شده است.' }, { status: 409 })
+  const dup = dupByPhone || dupByEmail
+
+  if (dup) {
+    // اگر پرونده‌ی قبلی یک پیش‌نویس رهاشده است (فرم پر شده ولی مراجع حتی ادعای
+    // پرداخت هم نکرده)، همان شخص دارد دوباره تلاش می‌کند — نه اینکه واقعا پرونده‌ی
+    // تکراری بسازد. قبلا این‌جا 409 می‌خورد و راه‌حلی نداشت جز اینکه دکتر دستی
+    // پرونده را پاک کند (این دقیقا اتفاقی بود که افتاد). حالا پیش‌نویس قبلی پاک
+    // می‌شود و ثبت‌نام تازه ادامه پیدا می‌کند.
+    if (isDraftCase(dup)) {
+      await db.from('psy_stages').delete().eq('tenant_id', t.id).eq('case_number', dup.case_number)
+      await db.from('psy_cases').delete().eq('id', dup.id)
+    } else {
+      return NextResponse.json({ error: 'پرونده‌ای با همین نام و شماره‌تماس/ایمیل قبلا ثبت شده است.' }, { status: 409 })
+    }
+  }
 
   // فعلا صفحه‌ی عمومی دکتری را انتخاب نمی‌گیرد مگر بیش از یک دکتر باشد
   let finalResourceId: string | null = null
