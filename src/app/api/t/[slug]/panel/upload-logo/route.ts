@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requirePanel, isTenantResponse } from '@/lib/tenant'
-import { uploadToR2, r2PublicUrl, r2Configured } from '@/lib/r2'
+import { uploadToR2, r2PublicUrl, r2Configured, deleteFromR2, keyFromPublicUrl } from '@/lib/r2'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -40,4 +40,24 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
     console.error('upload-logo R2 error:', e)
     return NextResponse.json({ error: 'آپلود به فضای ذخیره‌سازی ناموفق بود — دوباره امتحان کن' }, { status: 500 })
   }
+}
+
+// DELETE (json: { url }) → حذف فوری یک لوگوی رهاشده — مثلا وقتی متخصص لوگو آپلود
+// می‌کند، خوشش نمی‌آید و قبل از ذخیره‌ی نهایی به یکی از رنگ‌های پیش‌فرض برمی‌گردد.
+// چک تعلق فایل به همین tenant با پیشوند کلید (logos/{tenant.id}-...) انجام می‌شود
+// تا کسی نتواند با این روت فایل دلخواه دیگری را پاک کند.
+export async function DELETE(req: NextRequest, { params }: { params: { slug: string } }) {
+  const t = await requirePanel(req, params.slug)
+  if (isTenantResponse(t)) return t
+
+  const b = await req.json().catch(() => ({}))
+  const key = keyFromPublicUrl(String(b.url || ''))
+  if (!key || !key.startsWith(`logos/${t.id}-`)) return NextResponse.json({ success: true })
+
+  try {
+    await deleteFromR2(key)
+  } catch (e) {
+    console.error('upload-logo DELETE error:', e)
+  }
+  return NextResponse.json({ success: true })
 }
