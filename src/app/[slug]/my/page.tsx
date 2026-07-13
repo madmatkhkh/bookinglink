@@ -209,7 +209,7 @@ export default function PatientPanel() {
  const pkgSessions = (pkgId: string) => sessions.filter(s => s.package_id === pkgId)
 
  if (restoring) return (
-  <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4" dir="rtl">
+  <div className="min-h-screen bg-canvas flex items-center justify-center p-4" dir="rtl">
    <DialogHost />
    <div className="text-center">
     <div className="w-12 h-12 rounded-full bg-sand flex items-center justify-center mx-auto mb-3 text-2xl animate-pulse"></div>
@@ -219,7 +219,7 @@ export default function PatientPanel() {
  )
 
  if (step === 'login') return (
-  <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4" dir="rtl">
+  <div className="min-h-screen bg-canvas flex items-center justify-center p-4" dir="rtl">
    <DialogHost />
    <div className="bg-white rounded-2xl border border-sand p-8 w-full max-w-sm shadow-sm">
     <div className="text-center mb-6">
@@ -265,7 +265,7 @@ export default function PatientPanel() {
  )
 
  if (step === 'otp') return (
-  <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4" dir="rtl">
+  <div className="min-h-screen bg-canvas flex items-center justify-center p-4" dir="rtl">
    <DialogHost />
    <div className="bg-white rounded-2xl border border-sand p-8 w-full max-w-sm shadow-sm">
     <div className="text-center mb-6">
@@ -311,7 +311,7 @@ export default function PatientPanel() {
  const inTreatment = !currentStage && packages.length > 0
 
  if (!inTreatment) return (
-  <div className="min-h-screen bg-gray-50" dir="rtl">
+  <div className="min-h-screen bg-canvas" dir="rtl">
    <DialogHost />
    <div className="bg-white border-b border-sand px-4 py-3 sticky top-0 z-10">
     <div className="max-w-lg mx-auto flex items-center justify-between">
@@ -423,7 +423,7 @@ export default function PatientPanel() {
  )
 
  return (
-  <div className="min-h-screen bg-gray-50" dir="rtl">
+  <div className="min-h-screen bg-canvas" dir="rtl">
    <DialogHost />
    <div className="bg-white border-b border-sand px-4 py-3 sticky top-0 z-10">
     <div className="max-w-lg mx-auto flex items-center justify-between">

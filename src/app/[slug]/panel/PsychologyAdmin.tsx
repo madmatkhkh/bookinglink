@@ -300,12 +300,18 @@ const STATUS_COLOR: Record<string, string> = {
 
 // ── سربرگ یکدست هر تب — عنوان + یک خط توضیح؛ قبلا فقط داشبورد سربرگ داشت و
 // بقیه‌ی تب‌ها مستقیم با محتوا شروع می‌شدند (بی‌جهت‌نما و ناتمام به‌نظر می‌رسید) ──
+// سرصفحه‌ی هر تب — فقط توضیح و دکمه‌ی کنش.
+//
+// عنوان عمدا sr-only است: نوار ثابت بالا (TopBar) از قبل عنوان تب جاری را نشان
+// می‌دهد، و نوشتن دوباره‌اش این‌جا یعنی همان کلمه دو بار پشت‌سرهم روی صفحه
+// (سایدبار، نوار بالا، سرصفحه). عنوان در DOM می‌ماند تا ساختار heading برای
+// screen readerها نشکند، ولی دیده نمی‌شود.
 function PageHeader({ title, desc, action }: { title: string; desc?: string; action?: React.ReactNode }) {
  return (
   <div className="flex items-start justify-between gap-3 flex-wrap mb-4">
    <div>
-    <h1 className="text-lg font-display font-bold text-ink">{title}</h1>
-    {desc && <p className="text-xs text-soot mt-0.5">{desc}</p>}
+    <h1 className="sr-only">{title}</h1>
+    {desc && <p className="text-xs text-soot">{desc}</p>}
    </div>
    {action}
   </div>
@@ -2165,7 +2171,7 @@ export function PsychologyAdmin() {
  if (needsLogin) return <PanelLogin slug={slug} onSuccess={() => { setNeedsLogin(false); fetchAll() }} />
 
  if (!initialLoadDone) return (
-  <div className="min-h-screen bg-gray-50 flex items-center justify-center" dir="rtl">
+  <div className="min-h-screen bg-canvas flex items-center justify-center" dir="rtl">
    <div className="text-center">
     <div className="w-8 h-8 border-2 border-ink/20 border-t-ink rounded-full animate-spin mx-auto mb-3" />
     <p className="text-sm text-soot">در حال بارگذاری پنل...</p>
@@ -2304,7 +2310,7 @@ export function PsychologyAdmin() {
      className="sm:hidden text-soot w-8 h-8 flex items-center justify-center shrink-0">
      <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
     </button>
-    <div className="flex-1 min-w-0 text-sm font-display font-semibold text-ink truncate">{currentTabLabel}</div>
+    <div className="flex-1 min-w-0 text-base font-display font-bold text-ink truncate">{currentTabLabel}</div>
     <a href={`/${slug}`} target="_blank" rel="noopener noreferrer" title="مشاهده‌ی صفحه‌ی عمومی شما"
      className="shrink-0 text-[11px] text-soot hover:text-ink border border-sand rounded-lg px-2.5 py-1.5 flex items-center gap-1 transition-colors">
      سایت من
@@ -2335,7 +2341,7 @@ export function PsychologyAdmin() {
  }
 
  return (
-  <div className={`min-h-screen bg-gray-50 sm:pr-56 ${darkMode ? 'pb-admin-dark' : ''}`} dir="rtl">
+  <div className={`min-h-screen bg-canvas sm:pr-56 ${darkMode ? 'pb-admin-dark' : ''}`} dir="rtl">
    <DialogHost />
 
    {/* ── مودال برش عکس پروفایل — درگ برای جابه‌جایی، اسلایدر برای زوم ── */}
@@ -5629,7 +5635,7 @@ function PanelLogin({ slug, onSuccess }: { slug: string; onSuccess: () => void }
  }
 
  return (
-  <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6" dir="rtl">
+  <div className="min-h-screen bg-canvas flex items-center justify-center p-6" dir="rtl">
    <div className="w-full max-w-sm">
     <div className="text-center mb-6">
      <div className="text-4xl mb-3">🔐</div>

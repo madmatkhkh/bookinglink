@@ -64,6 +64,9 @@ body { @apply bg-paper text-ink; }
 .pb-admin-dark .bg-white\/95 { background: rgba(38,38,38,.95) !important; }
 .pb-admin-dark .hover\:bg-white:hover { background: #2e2e2e !important; }
 .pb-admin-dark .bg-gray-50 { background: #1a1a1a !important; }
+/* توکن تازه‌ی bg-canvas (بوم صفحه) — بدون این، پنل در حالت تیره روی یک زمینه‌ی
+   روشن می‌نشست. همان مقداری که bg-gray-50 در حالت تیره می‌گرفت. */
+.pb-admin-dark .bg-canvas { background: #1a1a1a !important; }
 .pb-admin-dark .bg-gray-50\/50 { background: rgba(255,255,255,.03) !important; }
 .pb-admin-dark .hover\:bg-gray-50:hover { background: #242424 !important; }
 .pb-admin-dark .bg-gray-100 { background: #2c2c2c !important; }

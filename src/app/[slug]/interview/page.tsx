@@ -172,7 +172,7 @@ export default function InterviewPage() {
   sessionType={sessionType || undefined} officeLocation={officeLoc} />
 
  if (step === 'done') return (
-  <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+  <div className="min-h-screen bg-canvas flex items-center justify-center p-4">
    <DialogHost />
    <div className="max-w-sm w-full bg-white rounded-2xl border border-sand p-8 text-center">
     <div className="w-16 h-16 rounded-full bg-emerald-500/10 flex items-center justify-center mx-auto mb-4 text-3xl">✅</div>
@@ -193,7 +193,7 @@ export default function InterviewPage() {
  )
 
  return (
-  <div className="min-h-screen bg-gray-50 py-8 px-4">
+  <div className="min-h-screen bg-canvas py-8 px-4">
    <DialogHost />
    <div className="max-w-lg mx-auto">
     <div className="text-center mb-6">
@@ -547,7 +547,7 @@ function InterviewPayScreen({ amount, cards, loaded, loading, onPay, paymentMeth
  }
 
  return (
-  <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4" dir="rtl">
+  <div className="min-h-screen bg-canvas flex items-center justify-center p-4" dir="rtl">
    <DialogHost />
    <div className="max-w-sm w-full bg-white rounded-2xl border border-sand p-6">
     <div className="text-center mb-4">
