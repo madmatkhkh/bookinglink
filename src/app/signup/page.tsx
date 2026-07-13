@@ -8,7 +8,7 @@
 // OTP + ساخت tenant)، و این صفحه هم همان دو قدم را طی می‌کند.
 // ─────────────────────────────────────────────────────────────────────────────
 import { useEffect, useState } from 'react'
-import { PLATFORM_NAME, RESERVED_SLUGS, SLUG_PATTERN } from '@/lib/config'
+import { PLATFORM_NAME, RESERVED_SLUGS, SLUG_PATTERN, SLUG_RULE_TEXT } from '@/lib/config'
 import { useResendCooldown } from '@/lib/useResendCooldown'
 
 type NicheCard = { key: string; display_name: string; tagline: string; is_active: boolean }
@@ -19,7 +19,7 @@ export default function Signup() {
   const [slug, setSlug] = useState('')
   const [phone, setPhone] = useState('')
   const [email, setEmail] = useState('')
-  // ثبت‌نام با شماره یا ایمیل — صاحب کارگاه خارج از ایران شماره‌ی ایرانی ندارد
+  // ثبت‌نام با شماره یا ایمیل — صاحب کسب‌وکار خارج از ایران شماره‌ی ایرانی ندارد
   const [contactMode, setContactMode] = useState<'phone' | 'email'>('phone')
   const [niche, setNiche] = useState('')
   const [step, setStep] = useState<'details' | 'code'>('details')
@@ -40,12 +40,12 @@ export default function Signup() {
 
   const slugOk = SLUG_PATTERN.test(slug) && !RESERVED_SLUGS.includes(slug)
   const slugMsg = slug && !slugOk
-    ? (RESERVED_SLUGS.includes(slug) ? 'این نشانی رزرو شده است' : 'فقط حروف کوچک انگلیسی، عدد و خط‌تیره (3 تا 40 نویسه)')
+    ? (RESERVED_SLUGS.includes(slug) ? 'این نشانی رزرو شده است' : SLUG_RULE_TEXT)
     : ''
 
   async function requestCode(e: React.FormEvent) {
     e.preventDefault(); setErr('')
-    if (!slugOk) { setErr('نشانی کارگاه معتبر نیست'); return }
+    if (!slugOk) { setErr('نشانی اختصاصی معتبر نیست'); return }
     if (!niche) { setErr('یک حوزه‌ی کاری انتخاب کن'); return }
     setBusy(true)
     try {
@@ -80,8 +80,8 @@ export default function Signup() {
       <div className="min-h-screen bg-paper text-ink flex items-center justify-center p-6">
         <div className="max-w-sm text-center animate-nl-up">
           <div className="w-14 h-14 rounded-2xl bg-ink text-white flex items-center justify-center mx-auto mb-6 text-2xl">✓</div>
-          <h1 className="font-display font-extrabold text-2xl tracking-tightest mb-3">کارگاهت آماده شد!</h1>
-          <p className="text-sm text-soot leading-relaxed mb-7">کارگاه <b className="text-ink" dir="ltr">nobatlink.com/{slug}</b> ساخته شد. حالا می‌توانی وارد پنلش شوی.</p>
+          <h1 className="font-display font-extrabold text-2xl tracking-tightest mb-3">پنلت آماده شد!</h1>
+          <p className="text-sm text-soot leading-relaxed mb-7">کسب‌وکار <b className="text-ink" dir="ltr">nobatlink.com/{slug}</b> ساخته شد. حالا می‌توانی وارد پنلش شوی.</p>
           <a href={`/${slug}/panel`} className="font-display font-bold text-white bg-ink px-7 py-3 rounded-xl inline-block">ورود به پنل ←</a>
         </div>
       </div>
@@ -101,7 +101,7 @@ export default function Signup() {
       </header>
 
       <div className="max-w-md mx-auto px-6 py-10 animate-nl-up">
-        <h1 className="font-display font-extrabold text-3xl tracking-tightest mb-2">ساخت کارگاه رایگان</h1>
+        <h1 className="font-display font-extrabold text-3xl tracking-tightest mb-2">ساخت پنل نوبت‌دهی — رایگان</h1>
         <p className="text-sm text-soot leading-relaxed mb-8">در کمتر از 5 دقیقه صفحه‌ی رزرو اختصاصی‌ات را بساز. بدون نیاز به درگاه بانکی.</p>
 
         {step === 'details' ? (
@@ -109,7 +109,7 @@ export default function Signup() {
             <label className="block text-[13px] font-semibold text-ink/80 mb-1.5">نام و نام خانوادگی</label>
             <input value={name} onChange={e => setName(e.target.value)} placeholder="مثلا دکتر پریسا رستمی" required className={field + ' mb-4'} />
 
-            <label className="block text-[13px] font-semibold text-ink/80 mb-1.5">نشانی کارگاه</label>
+            <label className="block text-[13px] font-semibold text-ink/80 mb-1.5">نشانی اختصاصی</label>
             <div className="flex items-stretch" dir="ltr">
               <span className="inline-flex items-center px-3 text-[13px] text-soot bg-paper border border-sand border-l-0 rounded-l-xl">nobatlink.com/</span>
               <input value={slug} onChange={e => setSlug(e.target.value.toLowerCase())} placeholder="your-name" required
@@ -154,7 +154,7 @@ export default function Signup() {
         ) : (
           <form onSubmit={verifyAndCreate}>
             <p className="text-sm text-soot leading-relaxed mb-5">
-              کد 5 رقمی ارسال‌شده به <b className="text-ink" dir="ltr">{contactMode === 'email' ? email : phone}</b> را وارد کن تا کارگاهت ساخته شود.
+              کد 5 رقمی ارسال‌شده به <b className="text-ink" dir="ltr">{contactMode === 'email' ? email : phone}</b> را وارد کن تا پنلت ساخته شود.
             </p>
             {devCode && (
               <p className="text-[12px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-4">
@@ -165,7 +165,7 @@ export default function Signup() {
               className={field + ' mb-4 text-center tracking-[0.5em] font-display text-lg'} dir="ltr" />
             {err && <p className="text-[13px] text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2 mb-4">{err}</p>}
             <button disabled={busy} className="w-full font-display font-bold text-white bg-ink py-3.5 rounded-xl shadow-sm hover:-translate-y-0.5 transition disabled:opacity-60 mb-3">
-              {busy ? 'در حال ساخت کارگاه…' : 'تایید کد و ساخت کارگاه'}
+              {busy ? 'در حال ساخت پنل…' : 'تایید کد و ساخت پنل'}
             </button>
             <div className="text-center mb-2">
               {resend.canResend ? (

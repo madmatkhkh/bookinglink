@@ -6,7 +6,7 @@
 // بود که کوکی «مراجع» می‌نشاند، نه نشست پنل متخصص؛ یعنی بعد «ورود موفق»
 // دوباره به لاگین برمی‌گشت (باگ). راه درست این نبود که OTP را اینجا هم پیاده
 // کنیم؛ خود `/[slug]/panel` از قبل یک فلو OTP کامل و درست دارد (owner/staff،
-// هر دو کوکی صحیح). این صفحه فقط نشانی کارگاه را می‌گیرد، وجودش را با یک
+// هر دو کوکی صحیح). این صفحه فقط نشانی اختصاصی را می‌گیرد، وجودش را با یک
 // endpoint سبک و عمومی چک می‌کند، و کاربر را به همان پنل واقعی هدایت می‌کند.
 // ─────────────────────────────────────────────────────────────────────────────
 import { useState } from 'react'
@@ -30,7 +30,7 @@ export default function Login() {
     setBusy(true)
     try {
       const r = await fetch(`/api/t/${s}/niche`)
-      if (!r.ok) { setErr('کارگاهی با این نشانی پیدا نشد — نشانی را دوباره چک کن.'); return }
+      if (!r.ok) { setErr('کسب‌وکاری با این نشانی پیدا نشد — نشانی را دوباره چک کن.'); return }
       window.location.href = `/${s}/panel`
     } catch {
       setErr('اتصال برقرار نشد')
@@ -59,11 +59,11 @@ export default function Login() {
           <div className="w-full max-w-sm animate-nl-up">
             <h1 className="font-display font-extrabold text-3xl tracking-tightest mb-2">ورود به پنل</h1>
             <p className="text-sm text-soot leading-relaxed mb-7">
-              نشانی کارگاهت را وارد کن؛ کد ورود (پیامکی) داخل همان پنل ازت پرسیده می‌شود.
+              نشانی اختصاصی‌ات را وارد کن؛ کد ورود (پیامکی) داخل همان پنل ازت پرسیده می‌شود.
             </p>
 
             <form onSubmit={goToPanel}>
-              <label className="block text-[13px] font-semibold text-ink/80 mb-1.5">نشانی کارگاه</label>
+              <label className="block text-[13px] font-semibold text-ink/80 mb-1.5">نشانی اختصاصی</label>
               <div className="flex items-stretch mb-5" dir="ltr">
                 <span className="inline-flex items-center px-3 text-[13px] text-soot bg-paper border border-sand border-l-0 rounded-l-xl">nobatlink.com/</span>
                 <input value={slug} onChange={e => setSlug(e.target.value)} placeholder="your-name" required autoFocus

@@ -22,11 +22,18 @@ export const DEMO_SLUG = 'psysoleimani'
 
 // slugهایی که با مسیرهای سیستمی تداخل دارند و قابل ثبت نیستند
 export const RESERVED_SLUGS = [
-  'api', 'super', 'admin', 'panel', 'book', 'my', 'login',
+  'api', 'super', 'admin', 'panel', 'book', 'my', 'login', 'signup',
   '_next', 'favicon.ico', 'robots.txt', 'sitemap.xml', 'assets',
 ]
 
-export const SLUG_PATTERN = /^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$/
+// نشانی اختصاصی: حروف کوچک لاتین، عدد، و - _ . در میانه.
+// شروع و پایان همیشه حرف یا عدد است تا نشانی‌هایی مثل `.a` یا `x-` نسازیم، و دو
+// جداکننده‌ی پشت‌سرهم (`a..b`, `a-_b`) هم مجاز نیست چون در عمل تایپی هستند و
+// نشانی‌های نزدیک‌به‌هم و گیج‌کننده می‌سازند.
+export const SLUG_PATTERN = /^[a-z0-9](?:[a-z0-9]|[-_.](?=[a-z0-9])){1,38}[a-z0-9]$/
+
+// پیام واحد خطای نشانی — همه‌جا (ثبت‌نام، پنل، API) از همین یکی استفاده شود
+export const SLUG_RULE_TEXT = 'حروف کوچک انگلیسی، عدد و . _ - (3 تا 40 نویسه)'
 
 export const BOOKING_STATUS_LABEL: Record<string, string> = {
   pending_payment: 'در انتظار پرداخت',

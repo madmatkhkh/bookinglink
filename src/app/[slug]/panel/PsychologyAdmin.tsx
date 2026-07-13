@@ -3,7 +3,7 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { useParams } from 'next/navigation'
 import { PERSIAN_MONTHS, toLatinNum, getCurrentJalali, getDaysInJalaliMonth, jalaliDateTimeToTimestamp } from '@/lib/calendar'
 import { STAGE_TYPE_LABEL, STAGE_STATUS_LABEL, stageTitle } from '@/lib/flow'
-import { PRICING, PLATFORM_NAME } from '@/lib/config'
+import { PRICING, PLATFORM_NAME, RESERVED_SLUGS, SLUG_PATTERN, SLUG_RULE_TEXT } from '@/lib/config'
 import { ClinicSettings, DEFAULT_SETTINGS, SessionMode, OfficeLocation, PaymentCardInfo } from '@/lib/settings'
 import { IntakeForm, FormField, FormFieldType, DEFAULT_INTAKE_FORM, LEGACY_DETAIL_LABELS, CancellationPolicy, PaymentMethods, Pricing, DEFAULT_PRICING, INTAKE_KNOWN_COLUMNS, fieldVisible } from '@/lib/psy'
 import { DialogHost, uiAlert, uiConfirm, uiPrompt } from '@/components/ui/Dialog'
@@ -560,6 +560,27 @@ export function PsychologyAdmin() {
  const [patientSearch, setPatientSearch] = useState('')
  const [showNewPackage, setShowNewPackage] = useState(false)
  const [showNewStage, setShowNewStage] = useState(false)
+
+ // ── تغییر نشانی اختصاصی (فقط owner) ──────────────────────────────────────
+ const [slugEditOpen, setSlugEditOpen] = useState(false)
+ const [slugInput, setSlugInput] = useState('')
+ const [slugSaving, setSlugSaving] = useState(false)
+ const slugInputOk = SLUG_PATTERN.test(slugInput) && !RESERVED_SLUGS.includes(slugInput)
+
+ async function saveSlug() {
+  if (!slugInputOk) return
+  if (!await uiConfirm(`نشانی به nobatlink.com/${slugInput} تغییر کند؟\n\nهمه‌ی لینک‌های قبلی از کار می‌افتند و نشانی فعلی آزاد می‌شود.`)) return
+  setSlugSaving(true)
+  const res = await fetch(`/api/t/${slug}/panel/slug`, {
+   method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ slug: slugInput }),
+  })
+  const data = await res.json().catch(() => ({}))
+  setSlugSaving(false)
+  if (!res.ok) { uiAlert(data.error || 'تغییر نشانی ناموفق بود'); return }
+  // آدرس همین صفحه هم عوض شده — کوکی سشن به tenant.id گره خورده (نه slug)، پس
+  // با یک ناوبری کامل به نشانی تازه، پنل بدون نیاز به ورود دوباره بالا می‌آید.
+  window.location.href = `/${slugInput}/panel`
+ }
  const [newStageType, setNewStageType] = useState<'interview' | 'assessment' | 'custom'>('assessment')
  const [newStageTitle, setNewStageTitle] = useState('')
  const [newStageSaving, setNewStageSaving] = useState(false)
@@ -2245,32 +2266,52 @@ export function PsychologyAdmin() {
   )
  }
 
- // هدر سایدبار — نام دکتر/کلینیک (دیگر صفحه‌ی دومی نیست که بخواهد از این‌جا برگردد)
+ // هدر سایدبار — نام دکتر/کلینیک. دکمه‌ی «سایت من» از این‌جا به نوار ثابت بالا
+ // منتقل شد: آن‌جا در هر تب و هم در دسکتاپ هم موبایل همیشه دیده می‌شود، در حالی
+ // که این‌جا روی موبایل فقط داخل دراور بسته پیدا می‌شد.
  function SidebarHeader() {
   const displayName = profile.name || me?.resourceName || 'دکتر'
   return (
    <div className="p-4 border-b border-sand">
-    <div className="flex items-center justify-between gap-2">
-     <div className="flex items-center gap-2.5 min-w-0">
-      <div className="w-9 h-9 rounded-full bg-sand overflow-hidden flex items-center justify-center shrink-0 font-display font-bold text-sm text-ink">
-       {profile.avatar_url
-        // eslint-disable-next-line @next/next/no-img-element
-        ? <img src={profile.avatar_url} alt="" className="w-full h-full object-cover" />
-        : (displayName.charAt(0) || '؟')}
-      </div>
-      <div className="min-w-0">
-       <div className="text-[10px] text-soot">پنل مدیریت{me && !me.isOwner ? ' · درمانگر' : ''}</div>
-       <div className="text-sm font-display font-semibold text-ink truncate mt-0.5">{displayName}</div>
-      </div>
+    <div className="flex items-center gap-2.5 min-w-0">
+     <div className="w-9 h-9 rounded-full bg-sand overflow-hidden flex items-center justify-center shrink-0 font-display font-bold text-sm text-ink">
+      {profile.avatar_url
+       // eslint-disable-next-line @next/next/no-img-element
+       ? <img src={profile.avatar_url} alt="" className="w-full h-full object-cover" />
+       : (displayName.charAt(0) || '؟')}
      </div>
-     <a href={`/${slug}`} target="_blank" rel="noopener noreferrer" title="مشاهده‌ی صفحه‌ی عمومی شما"
-      className="shrink-0 text-[11px] text-soot hover:text-ink border border-sand rounded-lg px-2 py-1.5 flex items-center gap-1 transition-colors">
-      سایت من
-      <svg viewBox="0 0 24 24" className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-       <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><path d="M15 3h6v6" /><path d="M10 14 21 3" />
-      </svg>
-     </a>
+     <div className="min-w-0">
+      <div className="text-[10px] text-soot">پنل مدیریت{me && !me.isOwner ? ' · درمانگر' : ''}</div>
+      <div className="text-sm font-display font-semibold text-ink truncate mt-0.5">{displayName}</div>
+     </div>
     </div>
+   </div>
+  )
+ }
+
+ // عنوان تب جاری — هم در نوار بالا استفاده می‌شود
+ const currentTabLabel = mainTab === 'settings'
+  ? (settingsGroups.flatMap(g => g.items).find(i => i.key === settingsSubTab)?.label || 'تنظیمات')
+  : ([...navItems, ...bottomNavItems].find(i => i.key === mainTab)?.label || 'پنل مدیریت')
+
+ // نوار ثابت بالا — یکی برای دسکتاپ و موبایل. روی دسکتاپ داخل کانتینری است که
+ // sm:pr-56 دارد، پس زیر سایدبار نمی‌رود. sticky (نه fixed) تا عرضش را از همان
+ // کانتینر بگیرد و نیازی به محاسبه‌ی دستی جای سایدبار نباشد.
+ function TopBar() {
+  return (
+   <div className="sticky top-0 z-30 bg-white/95 backdrop-blur border-b border-sand px-3 sm:px-4 py-2.5 flex items-center gap-2">
+    <button onClick={() => setSidebarOpen(true)} aria-label="بازکردن منو"
+     className="sm:hidden text-soot w-8 h-8 flex items-center justify-center shrink-0">
+     <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
+    </button>
+    <div className="flex-1 min-w-0 text-sm font-display font-semibold text-ink truncate">{currentTabLabel}</div>
+    <a href={`/${slug}`} target="_blank" rel="noopener noreferrer" title="مشاهده‌ی صفحه‌ی عمومی شما"
+     className="shrink-0 text-[11px] text-soot hover:text-ink border border-sand rounded-lg px-2.5 py-1.5 flex items-center gap-1 transition-colors">
+     سایت من
+     <svg viewBox="0 0 24 24" className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><path d="M15 3h6v6" /><path d="M10 14 21 3" />
+     </svg>
+    </a>
    </div>
   )
  }
@@ -2363,18 +2404,8 @@ export function PsychologyAdmin() {
     </div>
    </aside>
 
-   {/* ── نوار بالا (موبایل) — عنوان تب جاری، نه یک عنوان ثابت ─────── */}
-   <div className="sm:hidden bg-white border-b border-sand sticky top-0 z-20 px-3 py-3 flex items-center justify-between">
-    <button onClick={() => setSidebarOpen(true)} aria-label="بازکردن منو" className="text-soot w-8 h-8 flex items-center justify-center">
-     <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
-    </button>
-    <div className="text-sm font-display font-semibold text-ink">
-     {mainTab === 'settings'
-      ? (settingsGroups.flatMap(g => g.items).find(i => i.key === settingsSubTab)?.label || 'تنظیمات')
-      : ([...navItems, ...bottomNavItems].find(i => i.key === mainTab)?.label || 'پنل مدیریت')}
-    </div>
-    <div className="w-8" />
-   </div>
+   {/* ── نوار ثابت بالا — دسکتاپ و موبایل ─────────────────────────── */}
+   <TopBar />
 
    {/* ── دراور کشویی (موبایل) ──────────────────────────────────────── */}
    {sidebarOpen && (
@@ -5152,9 +5183,44 @@ export function PsychologyAdmin() {
        ورود به این پنل با پسورد یا یوزرنیم نیست — فقط با کد پیامکی به همین شماره. یوزرنیم/پسوردی برای نگه‌داشتن وجود ندارد.
       </p>
       <div className="space-y-2">
-       <div className="flex items-center justify-between p-3 rounded-xl border border-sand">
-        <span className="text-sm text-ink">نشانی کارگاه</span>
-        <a href={`/${slug}`} target="_blank" dir="ltr" className="text-xs text-soot underline">/{me?.slug || slug}</a>
+       <div className="p-3 rounded-xl border border-sand">
+        <div className="flex items-center justify-between gap-2">
+         <span className="text-sm text-ink">نشانی اختصاصی</span>
+         {me?.isOwner !== false && !slugEditOpen && (
+          <button onClick={() => { setSlugEditOpen(true); setSlugInput(me?.slug || slug) }}
+           className="text-xs text-ink underline shrink-0">تغییر</button>
+         )}
+        </div>
+        {!slugEditOpen ? (
+         <a href={`/${slug}`} target="_blank" dir="ltr" className="block mt-1 text-xs text-soot underline">
+          nobatlink.com/{me?.slug || slug}
+         </a>
+        ) : (
+         <div className="mt-3 space-y-2">
+          {/* هشدار جدی: نشانی همان چیزی است که در بیو اینستاگرام و دست مراجع‌ها است */}
+          <div className="text-[11px] text-amber-700 bg-amber-500/10 border border-amber-500/20 rounded-lg p-2.5 leading-5">
+           با تغییر نشانی، همه‌ی لینک‌های قبلی از کار می‌افتند — لینک بیو اینستاگرام، لینک‌هایی که به مراجع‌ها داده‌اید، و آدرس همین پنل. نشانی قبلی هم آزاد می‌شود و ممکن است کس دیگری آن را بگیرد.
+          </div>
+          <div className="flex items-stretch" dir="ltr">
+           <span className="px-2 flex items-center text-[11px] text-soot bg-gray-100 border border-l-0 border-sand rounded-l-lg shrink-0">nobatlink.com/</span>
+           <input dir="ltr" value={slugInput} onChange={e => setSlugInput(e.target.value.toLowerCase())}
+            placeholder="your-name"
+            className="flex-1 min-w-0 text-sm px-2 py-2 border border-sand rounded-r-lg focus:outline-none focus:border-ink" />
+          </div>
+          <p className={`text-[11px] ${slugInput && !slugInputOk ? 'text-red-500' : 'text-soot'}`}>
+           {slugInput && !slugInputOk
+            ? (RESERVED_SLUGS.includes(slugInput) ? 'این نشانی رزرو سیستم است' : SLUG_RULE_TEXT)
+            : SLUG_RULE_TEXT}
+          </p>
+          <div className="flex gap-2">
+           <button onClick={saveSlug} disabled={slugSaving || !slugInputOk || slugInput === (me?.slug || slug)}
+            className="flex-1 py-2 bg-ink text-white rounded-lg text-sm disabled:opacity-40">
+            {slugSaving ? 'در حال ذخیره…' : 'ثبت نشانی جدید'}
+           </button>
+           <button onClick={() => setSlugEditOpen(false)} className="px-4 py-2 border border-sand rounded-lg text-sm text-soot">انصراف</button>
+          </div>
+         </div>
+        )}
        </div>
        <div className="flex items-center justify-between p-3 rounded-xl border border-sand">
         <span className="text-sm text-ink">شماره‌ی ورود{me && !me.isOwner ? ' (شما، به‌عنوان درمانگر)' : ''}</span>

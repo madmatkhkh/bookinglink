@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { sb } from '@/lib/supabase'
 import { issueOtp, verifyOtp, normalizePhone, isValidEmail, createPanelSession, requestIp, otpEchoEnabled, OTP_THROTTLED_MSG } from '@/lib/auth'
-import { RESERVED_SLUGS, SLUG_PATTERN } from '@/lib/config'
+import { RESERVED_SLUGS, SLUG_PATTERN, SLUG_RULE_TEXT } from '@/lib/config'
 import { getNiche, isPsychologyNiche } from '@/lib/niche'
 
 export const dynamic = 'force-dynamic'
@@ -9,18 +9,18 @@ export const revalidate = 0
 
 // ثبت‌نام سلف‌سرویس — دو قدم، دقیقا مثل بقیه‌ی OTPهای پروژه:
 //   قدم ۱ (بدون code): اعتبارسنجی ورودی‌ها + صدور OTP به شماره یا ایمیل داده‌شده.
-//           هنوز هیچ tenantی ساخته نمی‌شود — تا هویت تایید نشده، هیچ کارگاهی
+//           هنوز هیچ tenantی ساخته نمی‌شود — تا هویت تایید نشده، هیچ کسب‌وکاری
 //           برای آن رزرو/ساخته نمی‌شود.
 //   قدم ۲ (با code): تایید OTP → همان‌جا tenant ساخته می‌شود → نشست پنل هم
 //           صادر می‌شود تا کاربر بی‌درنگ وارد پنل تازه‌ساز خودش شود.
 //
-// شماره یا ایمیل — حداقل یکی لازم است (نه لزوما شماره‌ی ایرانی؛ صاحب‌کارگاه
+// شماره یا ایمیل — حداقل یکی لازم است (نه لزوما شماره‌ی ایرانی؛ صاحب کسب‌وکار
 // خارج از ایران با ایمیل ثبت‌نام می‌کند).
 export async function POST(req: NextRequest) {
   const b = await req.json().catch(() => ({}))
 
   const slug = String(b.slug || '').trim().toLowerCase()
-  if (!SLUG_PATTERN.test(slug)) return NextResponse.json({ error: 'نشانی کارگاه معتبر نیست (لاتین کوچک، عدد، خط‌تیره)' }, { status: 400 })
+  if (!SLUG_PATTERN.test(slug)) return NextResponse.json({ error: `نشانی معتبر نیست — ${SLUG_RULE_TEXT}` }, { status: 400 })
   if (RESERVED_SLUGS.includes(slug)) return NextResponse.json({ error: 'این نشانی رزرو سیستم است' }, { status: 400 })
 
   const viaEmail = !!b.email && !b.phone
