@@ -3,7 +3,7 @@ import { sb } from '@/lib/supabase'
 import { requirePanelAuth, isPanelAuthResponse } from '@/lib/tenant'
 import { mergeResourceProfile, mergeCancellationPolicy, mergePaymentMethods, effectivePaymentMethods, isCardToCardAllowed, mergePricing, isValidSheba } from '@/lib/psy'
 import { deleteFromR2, keyFromPublicUrl } from '@/lib/r2'
-import { isMeetMethod, DEFAULT_MEET_METHOD, validateMeetValue, MeetMethod } from '@/lib/meet'
+import { isMeetMethod, validateMeetValue, mergeMeetChannels, MEET_META, MeetMethod } from '@/lib/meet'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -43,7 +43,7 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
       payment_methods: effectivePaymentMethods(prof.payment_methods, cardToCardAllowed),
       quick_times: prof.quick_times,
       settlement_sheba: prof.settlement_sheba, settlement_sheba_holder_name: prof.settlement_sheba_holder_name,
-      pricing: prof.pricing, companion_label: prof.companion_label, meet_link: prof.meet_link, meet_method: prof.meet_method },
+      pricing: prof.pricing, companion_label: prof.companion_label, meet_channels: prof.meet_channels },
     plan: a.tenant.plan,
     card_to_card_allowed: cardToCardAllowed,
   }, { headers: NO_STORE })
@@ -96,24 +96,24 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   // روش جلسه‌ی آنلاین و مقدارش با هم اعتبارسنجی می‌شوند — چون قاعده‌ی معتبربودن
   // به روش وابسته است (لینک برای گوگل‌میت/زوم، شماره‌ی موبایل برای واتساپ/بله/تلفن).
   // اگر فقط یکی از این دو در بادی آمده باشد، آن یکی دیگر از دیتای فعلی خوانده می‌شود.
-  if ('meet_link' in body || 'meet_method' in body) {
-    // اگر فقط یکی از این دو در بادی آمده، آن یکی دیگر باید از دیتای فعلی خوانده
-    // شود — وگرنه ممکن است روش تازه با مقدار قدیمی (یا برعکس) ناسازگار بماند.
-    const needsCurrent = !('meet_link' in body) || !('meet_method' in body)
-    const current = needsCurrent
-      ? (await sb().from('psy_resource_profiles').select('meet_link, meet_method').eq('resource_id', targetId).maybeSingle()).data
-      : null
-
-    const method: MeetMethod = isMeetMethod(body.meet_method)
-      ? body.meet_method
-      : (isMeetMethod(current?.meet_method) ? current!.meet_method as MeetMethod : DEFAULT_MEET_METHOD)
-    const value = 'meet_link' in body
-      ? String(body.meet_link || '').trim().slice(0, 300)
-      : String(current?.meet_link || '')
-    const err = validateMeetValue(method, value)
-    if (err) return NextResponse.json({ error: err }, { status: 400 })
-    profilePatch.meet_link = value
-    profilePatch.meet_method = method
+  // کانال‌های جلسه‌ی آنلاین — لیستی از {method, value}. هر کانال جدا اعتبارسنجی
+  // می‌شود (قاعده‌ی معتبربودن به روش وابسته است: لینک برای گوگل‌میت/زوم، شماره
+  // برای واتساپ/بله/تلفن). کانال تکراری یا بی‌مقدار رد می‌شود.
+  if ('meet_channels' in body) {
+    const raw: unknown[] = Array.isArray(body.meet_channels) ? body.meet_channels : []
+    const seen = new Set<MeetMethod>()
+    for (const item of raw) {
+      const method = (item as { method?: unknown })?.method
+      const value = (item as { value?: unknown })?.value
+      if (!isMeetMethod(method))
+        return NextResponse.json({ error: 'روش جلسه‌ی آنلاین نامعتبر است' }, { status: 400 })
+      if (seen.has(method))
+        return NextResponse.json({ error: `روش ${MEET_META[method].label} دو بار اضافه شده است` }, { status: 400 })
+      seen.add(method)
+      const err = validateMeetValue(method, String(value ?? ''))
+      if (err) return NextResponse.json({ error: err }, { status: 400 })
+    }
+    profilePatch.meet_channels = mergeMeetChannels(raw)
   }
   if ('payment_methods' in body) {
     let pm = mergePaymentMethods(body.payment_methods)

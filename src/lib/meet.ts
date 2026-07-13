@@ -1,21 +1,24 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// روش برگزاری جلسه‌ی آنلاین — گوگل‌میت، زوم، واتساپ، بله، تماس تلفنی.
+// روش‌های برگزاری جلسه‌ی آنلاین — گوگل‌میت، زوم، واتساپ، بله، تماس تلفنی.
+//
+// متخصص می‌تواند «چند روش» را هم‌زمان فعال کند (مثلا هم واتساپ هم تماس تلفنی)؛
+// مراجع در زمان جلسه هرکدام را که خواست انتخاب می‌کند. پس ساختار داده یک لیست
+// است، نه یک مقدار واحد.
 //
 // چرا ماژول جدا (و نه داخل lib/psy.ts): این‌جا هم سمت سرور (اعتبارسنجی) و هم
-// سمت مرورگر (پنل متخصص و پنل مراجع) لازم است، ولی lib/psy.ts کلاینت
-// supabase با کلید service-role را ایمپورت می‌کند و نباید وارد باندل مرورگر شود.
-// این فایل هیچ وابستگی‌ای ندارد — امن برای هر دو طرف.
+// سمت مرورگر (پنل متخصص و پنل مراجع) لازم است، ولی lib/psy.ts کلاینت supabase
+// با کلید service-role را ایمپورت می‌کند و نباید وارد باندل مرورگر شود.
 //
-// مقدار خام همیشه در همان ستون meet_link ذخیره می‌شود (URL یا شماره)، و
-// meet_method می‌گوید چطور تفسیرش کنیم. href نهایی در لحظه‌ی نمایش ساخته
-// می‌شود (meetHref) — نه ذخیره‌شده، تا تغییر روش بدون مهاجرت دیتا ممکن باشد.
+// href نهایی در لحظه‌ی نمایش ساخته می‌شود (meetHref) — نه ذخیره‌شده — تا تغییر
+// روش یا شماره، بدون مهاجرت دیتا ممکن باشد.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export type MeetMethod = 'google_meet' | 'zoom' | 'whatsapp' | 'bale' | 'phone'
 
 export const MEET_METHODS: MeetMethod[] = ['google_meet', 'zoom', 'whatsapp', 'bale', 'phone']
 
-export const DEFAULT_MEET_METHOD: MeetMethod = 'google_meet'
+// یک کانال فعال‌شده: روش + مقدارش (لینک یا شماره)
+export type MeetChannel = { method: MeetMethod; value: string }
 
 export function isMeetMethod(v: unknown): v is MeetMethod {
   return typeof v === 'string' && (MEET_METHODS as string[]).includes(v)
@@ -46,14 +49,14 @@ export const MEET_META: Record<MeetMethod, MeetMeta> = {
   },
   whatsapp: {
     label: 'واتساپ',
-    action: 'شروع تماس در واتساپ',
-    hint: 'شماره‌ی موبایل واتساپ خود را وارد کنید؛ مراجع با یک کلیک وارد گفت‌وگو با شما می‌شود.',
+    action: 'گفت‌وگو در واتساپ',
+    hint: 'شماره‌ی موبایل واتساپ خود را وارد کنید.',
     placeholder: '09123456789',
     kind: 'phone',
   },
   bale: {
     label: 'بله',
-    action: 'شروع گفت‌وگو در بله',
+    action: 'گفت‌وگو در بله',
     hint: 'شماره‌ی موبایل حساب بله‌ی خود را وارد کنید (یا نشانی کامل پروفایل بله).',
     placeholder: '09123456789',
     kind: 'phone',
@@ -61,7 +64,7 @@ export const MEET_META: Record<MeetMethod, MeetMeta> = {
   phone: {
     label: 'تماس تلفنی',
     action: 'تماس تلفنی',
-    hint: 'شماره‌ای که در زمان جلسه با آن پاسخگو هستید؛ برای مراجع قابل شماره‌گیری خواهد بود.',
+    hint: 'شماره‌ای که در زمان جلسه با آن پاسخگو هستید.',
     placeholder: '09123456789',
     kind: 'phone',
   },
@@ -84,18 +87,17 @@ function normalizeIranPhone(raw: string): string | null {
   return null
 }
 
-// اعتبارسنجی مقدار بر اساس روش — پیام خطای فارسی برمی‌گرداند یا null (یعنی معتبر)
+// اعتبارسنجی مقدار یک کانال — پیام خطای فارسی برمی‌گرداند یا null (یعنی معتبر)
 export function validateMeetValue(method: MeetMethod, rawValue: string): string | null {
   const value = rawValue.trim()
-  if (!value) return null // خالی مجاز است (یعنی هنوز تنظیم نشده)
+  if (!value) return `مقدار ${MEET_META[method].label} را وارد کنید`
   const meta = MEET_META[method]
   if (meta.kind === 'url') {
-    if (!/^https?:\/\//i.test(value)) return 'نشانی جلسه باید با http:// یا https:// شروع شود'
+    if (!/^https?:\/\//i.test(value)) return `نشانی ${meta.label} باید با http:// یا https:// شروع شود`
     return null
   }
-  // phone — بله اجازه‌ی نشانی کامل هم دارد
   if (method === 'bale' && /^https?:\/\//i.test(value)) return null
-  if (!normalizeIranPhone(value)) return 'شماره‌ی موبایل معتبر وارد کنید (مثال: 09123456789)'
+  if (!normalizeIranPhone(value)) return `شماره‌ی موبایل ${meta.label} معتبر نیست (مثال: 09123456789)`
   return null
 }
 
@@ -125,7 +127,41 @@ export function meetHref(method: MeetMethod, rawValue: string | null | undefined
   }
 }
 
-// متن دکمه‌ای که به مراجع نمایش داده می‌شود
 export function meetActionLabel(method: MeetMethod): string {
-  return MEET_META[method]?.action || MEET_META[DEFAULT_MEET_METHOD].action
+  return MEET_META[method]?.action || ''
+}
+
+// ── نرمال‌سازی لیست کانال‌ها ────────────────────────────────────────────────
+// ورودی می‌تواند شکل تازه (آرایه) باشد یا میراث قدیمی (meet_link تنها، که همیشه
+// گوگل‌میت بود). هر روش حداکثر یک بار؛ کانال بی‌مقدار حذف می‌شود.
+export function mergeMeetChannels(raw: unknown, legacyMeetLink?: string | null): MeetChannel[] {
+  const out: MeetChannel[] = []
+  const seen = new Set<MeetMethod>()
+
+  if (Array.isArray(raw)) {
+    for (const item of raw) {
+      const method = (item as any)?.method
+      const value = String((item as any)?.value ?? '').trim().slice(0, 300)
+      if (!isMeetMethod(method) || !value || seen.has(method)) continue
+      seen.add(method)
+      out.push({ method, value })
+    }
+    return out
+  }
+
+  // میراث: قبل از پشتیبانی چندکاناله، فقط یک لینک گوگل‌میت ذخیره می‌شد
+  const legacy = String(legacyMeetLink || '').trim().slice(0, 300)
+  if (legacy) out.push({ method: 'google_meet', value: legacy })
+  return out
+}
+
+// فقط کانال‌هایی که واقعا قابل استفاده‌اند (href می‌سازند) — همان چیزی که به
+// مراجع نشان داده می‌شود
+export function usableMeetChannels(channels: MeetChannel[] | null | undefined): { method: MeetMethod; href: string; action: string }[] {
+  return (channels || [])
+    .map(ch => {
+      const href = meetHref(ch.method, ch.value)
+      return href ? { method: ch.method, href, action: meetActionLabel(ch.method) } : null
+    })
+    .filter((x): x is { method: MeetMethod; href: string; action: string } => x !== null)
 }

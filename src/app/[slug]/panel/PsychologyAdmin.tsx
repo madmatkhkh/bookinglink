@@ -11,7 +11,7 @@ import { useResendCooldown } from '@/lib/useResendCooldown'
 import { Glyph } from '@/components/Glyph'
 import { MonthYearWheel, JalaliDateWheel } from '@/components/WheelPicker'
 import { useModalBackClose } from '@/lib/useModalBackClose'
-import { MEET_METHODS, MEET_META, MeetMethod, DEFAULT_MEET_METHOD, meetHref } from '@/lib/meet'
+import { MEET_METHODS, MEET_META, MeetChannel, meetHref, usableMeetChannels } from '@/lib/meet'
 
 // در پنل ادمین همه‌ی ارقام لاتین نمایش داده می‌شوند (فقط نمایش؛ فرمت ذخیره دست‌نخورده)
 const toFarsiNum = (n: number | string) => toLatinNum(String(n))
@@ -230,8 +230,7 @@ type ResourceProfileView = {
  settlement_sheba_holder_name: string
  pricing: Pricing
  companion_label: string
- meet_link: string
- meet_method: MeetMethod
+ meet_channels: MeetChannel[]
 }
 
 const ALL_TIMES = ['8:00','9:00','10:00','11:00','12:00','13:00','14:00','15:00','16:00','17:00','18:00']
@@ -244,8 +243,7 @@ const DEFAULT_PROFILE: ResourceProfileView = {
  settlement_sheba: '', settlement_sheba_holder_name: '',
  pricing: DEFAULT_PRICING,
  companion_label: '',
- meet_link: '',
- meet_method: DEFAULT_MEET_METHOD,
+ meet_channels: [],
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -296,16 +294,6 @@ const STATUS_COLOR: Record<string, string> = {
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
-
-// یک‌خط توضیح هر بخش تنظیمات — در «نمای کلی تنظیمات» استفاده می‌شود
-const SETTINGS_HINTS: Record<string, string> = {
- profile: 'نام، عنوان، عکس، نوع جلسات و لینک جلسه‌ی آنلاین',
- payments: 'روش دریافت وجه و شماره‌شبای تسویه',
- pricing: 'قیمت هر نوع جلسه و کد تخفیف',
- form: 'سوال‌هایی که مراجع هنگام رزرو پاسخ می‌دهد',
- locations: 'نشانی مطب یا محل‌های حضوری',
- patient_panel: 'اختیارات مراجع در پنل خودش و سیاست کنسلی',
-}
 
 // ── سربرگ یکدست هر تب — عنوان + یک خط توضیح؛ قبلا فقط داشبورد سربرگ داشت و
 // بقیه‌ی تب‌ها مستقیم با محتوا شروع می‌شدند (بی‌جهت‌نما و ناتمام به‌نظر می‌رسید) ──
@@ -535,6 +523,9 @@ export function PsychologyAdmin() {
  // تنظیمات هستی فقط این state را toggle می‌کند (باز/بسته)، و وقتی از تب دیگری
  // می‌آیی هم ناوبری می‌کند هم باز می‌کند.
  const [settingsOpen, setSettingsOpen] = useState(false)
+ // اگر از جای دیگری (چک‌لیست، هشدارها، ...) مستقیم وارد یک زیرتب تنظیمات شدیم،
+ // کرکره باید باز باشد تا کاربر ببیند کجاست.
+ useEffect(() => { if (mainTab === 'settings') setSettingsOpen(true) }, [mainTab])
  useEffect(() => { if (mainTab === 'settings') setSettingsOpen(true) }, [mainTab])
  const [togglingClinicMode, setTogglingClinicMode] = useState(false)
  const [clinicRequestNote, setClinicRequestNote] = useState('')
@@ -544,8 +535,6 @@ export function PsychologyAdmin() {
  // زیرتبی که قبلا باز بود.
  function navigateTab(tab: MainTab) {
   setMainTab(tab)
-  // ورود به تب تنظیمات = فقط بازشدن منو + نمای کلی؛ هیچ زیرتبی خودکار انتخاب نمی‌شود
-  if (tab === 'settings') setSettingsSubTab(null)
  }
 
  function navigateSettingsSub(sub: SettingsSub) {
@@ -2199,20 +2188,21 @@ export function PsychologyAdmin() {
     {navItems.map(item => <NavItemButton key={item.key} item={item} onNavigate={onNavigate} />)}
 
     <div>
-     <button onClick={() => {
-       if (mainTab === 'settings') setSettingsOpen(o => !o)
-       else navigateTab('settings')
-       onNavigate?.()
-      }}
-      className={`w-full text-right px-3 py-2.5 rounded-lg text-sm flex items-center justify-between gap-2 transition-colors ${
+     {/* «تنظیمات» یک تب نیست، یک کرکره است: کلیک روی آن فقط زیرمنو را باز/بسته
+        می‌کند و کاربر را از تبی که در آن است بیرون نمی‌آورد. تنها با انتخاب یک
+        زیرآیتم (مثلا «فرم رزرو») واقعا وارد صفحه‌ی تنظیمات می‌شویم. */}
+     <button onClick={() => setSettingsOpen(o => !o)}
+      aria-expanded={settingsOpen}
+      className={`relative w-full text-right px-3 py-2.5 rounded-lg text-sm flex items-center justify-between gap-2 transition-colors ${
        mainTab === 'settings' ? 'bg-gray-200 text-ink font-semibold' : 'text-soot hover:bg-gray-100'}`}>
+      {mainTab === 'settings' && <span className="absolute right-0 top-1/2 -translate-y-1/2 h-5 w-[3px] rounded-full bg-ink" aria-hidden="true" />}
       <span className="flex items-center gap-2"><Glyph icon="⚙️" /> تنظیمات</span>
       <svg viewBox="0 0 24 24" className={`w-3.5 h-3.5 shrink-0 transition-transform ${settingsOpen ? '-rotate-90' : ''}`}
        fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
        <path d="M15 6l-6 6 6 6" />
       </svg>
      </button>
-     {mainTab === 'settings' && settingsOpen && (
+     {settingsOpen && (
       <div className="mr-2 pr-2 border-r-2 border-sand space-y-2 my-1">
        {settingsGroups.map(group => (
         <div key={group.title}>
@@ -2366,7 +2356,9 @@ export function PsychologyAdmin() {
      <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
     </button>
     <div className="text-sm font-display font-semibold text-ink">
-     {[...navItems, ...bottomNavItems].find(i => i.key === mainTab)?.label || (mainTab === 'settings' ? 'تنظیمات' : 'پنل مدیریت')}
+     {mainTab === 'settings'
+      ? (settingsGroups.flatMap(g => g.items).find(i => i.key === settingsSubTab)?.label || 'تنظیمات')
+      : ([...navItems, ...bottomNavItems].find(i => i.key === mainTab)?.label || 'پنل مدیریت')}
     </div>
     <div className="w-8" />
    </div>
@@ -2440,8 +2432,8 @@ export function PsychologyAdmin() {
            go: () => navigateSettingsSub('payments'),
           },
           ...(profile.session_modes !== 'offline' ? [{
-           key: 'meet', label: 'تنظیم روش جلسه‌ی آنلاین',
-           done: !!profile.meet_link,
+           key: 'meet', label: 'افزودن روش جلسه‌ی آنلاین',
+           done: usableMeetChannels(profile.meet_channels).length > 0,
            go: () => navigateSettingsSub('profile'),
           }] : []),
           ...(profile.session_modes !== 'online' ? [{
@@ -4006,26 +3998,6 @@ export function PsychologyAdmin() {
        <SkeletonRows count={3} height="h-28" />
       ) : (
       <>
-       {/* نمای کلی تنظیمات — وقتی هنوز هیچ زیرتبی انتخاب نشده. قبلا کلیک روی
-          «تنظیمات» خودکار وارد پروفایل می‌شد؛ حالا این فهرست نشان داده می‌شود
-          و کاربر خودش انتخاب می‌کند کجا برود. */}
-       {!settingsSubTab && (
-        <div className="grid sm:grid-cols-2 gap-3">
-         {settingsGroups.flatMap(g => g.items).map(item => (
-          <button key={item.key} onClick={() => navigateSettingsSub(item.key)}
-           className="bg-white rounded-2xl border border-sand p-5 text-right hover:border-ink transition-colors group flex items-start gap-3">
-           <span className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center shrink-0 group-hover:bg-gray-200 transition-colors">
-            <Glyph icon={item.icon} className="w-5 h-5 text-ink" />
-           </span>
-           <span className="min-w-0">
-            <span className="block text-sm font-display font-semibold text-ink">{item.label}</span>
-            <span className="block text-xs text-soot mt-1 leading-relaxed">{SETTINGS_HINTS[item.key]}</span>
-           </span>
-          </button>
-         ))}
-        </div>
-       )}
-
        {/* سوییچر دکتر — فقط وقتی owner است و بیش از یک نفر پرسنل دارد */}
        {!!settingsSubTab && ['profile', 'payments', 'pricing', 'form'].includes(settingsSubTab) && me?.isOwner && staffList.filter(r => r.is_active).length > 1 && (
         <section className="bg-white rounded-2xl border border-sand p-5">
@@ -4115,33 +4087,64 @@ export function PsychologyAdmin() {
        </section>
        )}
 
-       {/* جلسه‌ی آنلاین — روش برگزاری قابل انتخاب است (گوگل‌میت، زوم، واتساپ،
-           بله، تماس تلفنی). هیچ‌کدام نیاز به OAuth ندارند: متخصص فقط لینک ثابت
-           یا شماره‌اش را می‌گذارد و مراجع در زمان جلسه روی دکمه می‌زند. */}
+       {/* جلسه‌ی آنلاین — متخصص می‌تواند «چند روش» را هم‌زمان فعال کند (مثلا هم
+           واتساپ هم تماس تلفنی)؛ مراجع در زمان جلسه هرکدام را خواست می‌زند.
+           هیچ‌کدام نیاز به OAuth ندارند: فقط لینک ثابت یا شماره. */}
        {settingsSubTab === 'profile' && profile.session_modes !== 'offline' && (
        <section className="bg-white rounded-2xl border border-sand p-5">
         <h2 className="text-sm font-display font-semibold text-ink mb-1">جلسه‌ی آنلاین</h2>
         <p className="text-xs text-soot mb-4">
-         روش برگزاری جلسات آنلاین خود را انتخاب کنید؛ همین گزینه به مراجعان شما نمایش داده می‌شود.
+         هر روشی را که می‌خواهید اضافه کنید؛ همه‌ی روش‌های فعال به مراجع نشان داده می‌شوند و او یکی را انتخاب می‌کند.
         </p>
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-4">
-         {MEET_METHODS.map(m => (
-          <button key={m} type="button" onClick={() => patchProfile({ meet_method: m })}
-           className={`py-2.5 px-2 rounded-xl border text-xs font-medium transition-colors ${
-            profile.meet_method === m ? 'border-ink bg-ink text-white' : 'border-sand text-soot hover:border-ink hover:text-ink'}`}>
-           {MEET_META[m].label}
-          </button>
-         ))}
+
+        {/* کانال‌های فعال */}
+        <div className="space-y-2.5 mb-3">
+         {profile.meet_channels.map((ch, i) => {
+          const meta = MEET_META[ch.method]
+          const invalid = !!ch.value.trim() && !meetHref(ch.method, ch.value)
+          return (
+           <div key={ch.method} className="border border-sand rounded-xl p-3">
+            <div className="flex items-center justify-between gap-2 mb-2">
+             <span className="text-sm font-medium text-ink">{meta.label}</span>
+             <button type="button" onClick={() => patchProfile({ meet_channels: profile.meet_channels.filter((_, j) => j !== i) })}
+              className="text-xs text-red-600 hover:text-red-700">حذف</button>
+            </div>
+            <input value={ch.value} dir="ltr" placeholder={meta.placeholder}
+             inputMode={meta.kind === 'phone' ? 'tel' : 'url'}
+             onChange={e => {
+              const next = [...profile.meet_channels]
+              next[i] = { ...ch, value: e.target.value }
+              patchProfile({ meet_channels: next })
+             }}
+             className="w-full text-sm px-3 py-2 border border-sand rounded-lg focus:outline-none focus:border-ink" />
+            <p className={`text-[11px] mt-1.5 ${invalid ? 'text-amber-700' : 'text-soot'}`}>
+             {invalid
+              ? (meta.kind === 'phone' ? 'شماره‌ی موبایل معتبر وارد کنید (مثال: 09123456789)' : 'نشانی کامل با https:// وارد کنید')
+              : meta.hint}
+            </p>
+           </div>
+          )
+         })}
         </div>
-        <p className="text-xs text-soot mb-2">{MEET_META[profile.meet_method].hint}</p>
-        <input value={profile.meet_link} onChange={e => patchProfile({ meet_link: e.target.value })}
-         placeholder={MEET_META[profile.meet_method].placeholder} dir="ltr"
-         inputMode={MEET_META[profile.meet_method].kind === 'phone' ? 'tel' : 'url'}
-         className="w-full text-sm px-3 py-2 border border-sand rounded-lg focus:outline-none focus:border-ink" />
-        {profile.meet_link.trim() && !meetHref(profile.meet_method, profile.meet_link) && (
-         <p className="text-[11px] text-amber-700 mt-2">
-          این مقدار با روش انتخاب‌شده سازگار نیست — {MEET_META[profile.meet_method].kind === 'phone' ? 'یک شماره‌ی موبایل معتبر' : 'یک نشانی کامل با https://'} وارد کنید.
-         </p>
+
+        {/* افزودن روش تازه — فقط روش‌هایی که هنوز اضافه نشده‌اند */}
+        {MEET_METHODS.filter(m => !profile.meet_channels.some(ch => ch.method === m)).length > 0 && (
+         <div>
+          <p className="text-xs text-soot mb-2">افزودن روش:</p>
+          <div className="flex flex-wrap gap-2">
+           {MEET_METHODS.filter(m => !profile.meet_channels.some(ch => ch.method === m)).map(m => (
+            <button key={m} type="button"
+             onClick={() => patchProfile({ meet_channels: [...profile.meet_channels, { method: m, value: '' }] })}
+             className="px-3 py-2 rounded-xl border border-sand text-xs text-soot hover:border-ink hover:text-ink transition-colors">
+             + {MEET_META[m].label}
+            </button>
+           ))}
+          </div>
+         </div>
+        )}
+
+        {profile.meet_channels.length === 0 && (
+         <p className="text-[11px] text-soot mt-3">هنوز هیچ روشی اضافه نشده — تا زمانی که روشی اضافه نکنید، مراجع راهی برای پیوستن به جلسه‌ی آنلاین نخواهد داشت.</p>
         )}
        </section>
        )}
