@@ -493,6 +493,10 @@ create table psy_payment_intents (
   discount_code text,
   discount_amount bigint,
   original_amount bigint,
+  -- وقت انتخابی مراجع، فقط برای پرداخت آنلاین مرحله: بین رفتن به درگاه و برگشتن
+  -- از آن این‌جا نگه داشته می‌شود و کال‌بک بعد از verify موفق آن را روی مرحله ثبت می‌کند
+  booking_date text,
+  booking_time text,
   created_at timestamptz not null default now()
 );
 create index on psy_payment_intents (tenant_id, authority);

@@ -145,7 +145,10 @@ export default function PatientPanel() {
   const result = searchParams.get('payment')
   if (!result) return
   paymentHandled.current = true
-  if (result === 'success') uiAlert('پرداخت با موفقیت انجام شد.')
+  if (result === 'success') uiAlert('پرداخت با موفقیت انجام شد و وقت شما ثبت شد.')
+  // پرداخت موفق بوده ولی همان چند دقیقه‌ای که در صفحه‌ی درگاه بودید، آن ساعت را
+  // شخص دیگری گرفته — پول پرداخت‌شده سرجایش است و فقط باید وقت دیگری انتخاب شود.
+  else if (result === 'success_slot_taken') uiAlert('پرداخت شما با موفقیت انجام شد، ولی آن ساعت در همین فاصله توسط شخص دیگری رزرو شد. پرداخت شما محفوظ است — لطفا وقت دیگری انتخاب کنید.')
   else if (result === 'cancelled') uiAlert('پرداخت لغو شد.')
   else if (result === 'failed') uiAlert('پرداخت تایید نشد. دوباره تلاش کنید یا از کارت‌به‌کارت استفاده کنید.')
   else uiAlert('خطایی در پردازش پرداخت رخ داد.')
@@ -352,9 +355,11 @@ export default function PatientPanel() {
        <StagePayment
         icon={currentStage.stage_type === 'assessment' ? '' : ''}
         title={`هزینه‌ی ${stageTitle(currentStage)}`}
-        desc="برای ادامه، هزینه‌ی این مرحله را پرداخت کنید. پس از تأیید پرداخت، می‌توانید وقت بگیرید."
+        desc="برای ادامه، هزینه‌ی این جلسه را پرداخت کنید."
         amount={currentStage.price || (booking.session_type === 'online' ? PRICING.online : PRICING.offline)}
         resourceId={booking.resource_id} caseNumber={booking.case_number} phone={phone} stageId={currentStage.id}
+        stageLabel={stageTitle(currentStage)}
+        sessionType={booking.session_type} officeLocation={booking.office_location}
         onPaid={async (ref) => {
          const res = await fetch(`/api/t/${slug}/psy/pay`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -1437,14 +1442,15 @@ function StageInfo({ icon, title, desc, date, time, label, delayMinutes, meetCha
 }
 
 // کارت پرداخت کارت‌به‌کارت — شماره کارت + کد رهگیری اختیاری + دکمه‌ی «پرداخت کردم»
-function StagePayment({ icon, title, desc, amount, onPaid, onDone, resourceId, caseNumber, phone, stageId }: {
+function StagePayment({ icon, title, desc, amount, onPaid, onDone, resourceId, caseNumber, phone, stageId, stageLabel, sessionType, officeLocation }: {
  icon: string; title: string; desc: string; amount: number
  onPaid: (ref: string) => Promise<boolean>; onDone: () => void
  resourceId?: string | null; caseNumber: string; phone: string; stageId: string
+ stageLabel: string; sessionType?: 'online' | 'offline'; officeLocation?: string
 }) {
  const [ref, setRef] = useState('')
  const [submitting, setSubmitting] = useState(false)
- const [onlineLoading, setOnlineLoading] = useState(false)
+ const [showSlotPicker, setShowSlotPicker] = useState(false)
  const { slug } = useParams<{ slug: string }>()
  const settings = usePublicClinic(slug)
  const pm = settings.doctors.find(d => d.id === resourceId)?.payment_methods
@@ -1460,17 +1466,23 @@ function StagePayment({ icon, title, desc, amount, onPaid, onDone, resourceId, c
   onDone()
  }
 
- async function payOnline() {
-  setOnlineLoading(true)
+ // پرداخت آنلاین: وقت انتخابی همراه درخواست به سرور می‌رود، آن‌جا اعتبارسنجی
+ // می‌شود و روی intent می‌نشیند؛ بعد از تایید پرداخت، کال‌بک همان وقت را ثبت
+ // می‌کند. اگر همین حالا ساعت پر شده باشد، همین‌جا (قبل از رفتن به درگاه) خطا
+ // می‌گیریم و اصلا پولی رد و بدل نمی‌شود.
+ async function payOnlineWithSlot(date: string, time: string): Promise<{ ok: boolean; error?: string }> {
   try {
    const res = await fetch(`/api/t/${slug}/psy/pay-online`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ case_number: caseNumber, phone, purpose: 'stage', ref_id: stageId }),
+    body: JSON.stringify({ case_number: caseNumber, phone, purpose: 'stage', ref_id: stageId, session_date: date, session_time: time }),
    })
-   const data = await res.json()
-   if (data.url) window.location.href = data.url
-   else { uiAlert(data.error || 'خطا در اتصال به درگاه'); setOnlineLoading(false) }
-  } catch { uiAlert('خطا در ارتباط با سرور'); setOnlineLoading(false) }
+   const data = await res.json().catch(() => ({}))
+   if (!res.ok || !data.url) return { ok: false, error: data.error || 'خطا در اتصال به درگاه' }
+   window.location.href = data.url
+   return { ok: true } // مرورگر دارد به درگاه می‌رود؛ این فقط برای بستن حالت لودینگ است
+  } catch {
+   return { ok: false, error: 'خطا در ارتباط با سرور' }
+  }
  }
 
  return (
@@ -1503,10 +1515,10 @@ function StagePayment({ icon, title, desc, amount, onPaid, onDone, resourceId, c
 
    {method === 'online' && onlineOn ? (
     <>
-     <p className="text-xs text-soot mb-3 text-center">بعد پرداخت بلافاصله می‌توانید ادامه دهید.</p>
-     <button onClick={payOnline} disabled={onlineLoading}
-      className="w-full py-3 bg-accent text-white rounded-xl text-sm font-medium disabled:opacity-40">
-      {onlineLoading ? 'در حال اتصال به درگاه...' : 'پرداخت آنلاین'}
+     <p className="text-xs text-soot mb-3 text-center">اول وقت خود را انتخاب کنید، سپس پرداخت می‌کنید. به‌محض تایید پرداخت، همان وقت برایتان ثبت می‌شود.</p>
+     <button onClick={() => setShowSlotPicker(true)}
+      className="w-full py-3 bg-accent text-white rounded-xl text-sm font-medium">
+      انتخاب وقت و پرداخت
      </button>
     </>
    ) : (
@@ -1521,8 +1533,17 @@ function StagePayment({ icon, title, desc, amount, onPaid, onDone, resourceId, c
       className="w-full py-3 bg-accent text-white rounded-xl text-sm font-medium disabled:opacity-40">
       {submitting ? 'در حال ثبت...' : 'پرداخت کردم'}
      </button>
-     <p className="text-[11px] text-soot mt-2 text-center">پس از واریز، متن فیش را وارد و «پرداخت کردم» را بزنید تا بررسی و تأیید شود.</p>
+     <p className="text-[11px] text-soot mt-2 text-center">پس از واریز، متن فیش را وارد و «پرداخت کردم» را بزنید تا بررسی و تایید شود. پس از تایید، وقت می‌گیرید.</p>
     </>
+   )}
+
+   {showSlotPicker && (
+    <SlotPicker phone={phone} caseNumber={caseNumber}
+     title={`انتخاب وقت ${stageLabel}`} resourceId={resourceId}
+     sessionType={sessionType} officeLocation={officeLocation}
+     onClose={() => setShowSlotPicker(false)}
+     onDone={() => setShowSlotPicker(false)}
+     onConfirm={payOnlineWithSlot} />
    )}
   </div>
  )

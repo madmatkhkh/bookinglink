@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { sb } from '@/lib/supabase'
 import { getActiveTenant } from '@/lib/tenant'
-import { getPaymentMethods, effectivePaymentMethods, isCardToCardAllowed, getResourceProfile, isValidSheba, getResourcePricing, packageAmount, resolvePrice, checkDiscountCode } from '@/lib/psy'
+import { getPaymentMethods, effectivePaymentMethods, isCardToCardAllowed, getResourceProfile, isValidSheba, getResourcePricing, packageAmount, resolvePrice, checkDiscountCode, validateClientSlot, slotTaken } from '@/lib/psy'
+import { stageTitle } from '@/lib/flow'
 import { requestZibalPayment, PLATFORM_COMMISSION_PERCENT, MULTIPLEXING_ENABLED } from '@/lib/zibal'
 import { getClientPhone, getPayCase, matchesClientIdentity } from '@/lib/auth'
 
@@ -17,7 +18,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   const t = await getActiveTenant(params.slug)
   if (!t) return NextResponse.json({ error: 'یافت نشد' }, { status: 404 })
 
-  const { case_number, purpose, ref_id, discount_code } = await req.json() as { case_number: string; purpose: Purpose; ref_id?: string; discount_code?: string }
+  const { case_number, purpose, ref_id, discount_code, session_date, session_time } = await req.json() as { case_number: string; purpose: Purpose; ref_id?: string; discount_code?: string; session_date?: string; session_time?: string }
   // auth با کوکی امضاشده — نه شماره‌ای که کلاینت در body می‌فرستد. دو راه مجاز:
   // 1) کوکی مراجع OTPشده که شماره‌اش روی پرونده باشد (پنل /my)
   // 2) کوکی مجوز پرداخت همین پرونده (فلو مصاحبه‌ی اولیه، درست بعد از ثبت فرم)
@@ -43,11 +44,22 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   let description = ''
   const resourcePricing = await getResourcePricing(c.resource_id)
   if (purpose === 'stage') {
-    if (!ref_id || c.current_stage_id !== ref_id) return NextResponse.json({ error: 'این مرحله در دسترس نیست' }, { status: 400 })
+    if (!ref_id || c.current_stage_id !== ref_id) return NextResponse.json({ error: 'این جلسه در دسترس نیست' }, { status: 400 })
     const { data: stage } = await sb().from('psy_stages').select('*').eq('id', ref_id).eq('tenant_id', t.id).single()
-    if (!stage || stage.status !== 'awaiting_payment') return NextResponse.json({ error: 'این مرحله در حالت پرداخت نیست' }, { status: 400 })
+    if (!stage || stage.status !== 'awaiting_payment') return NextResponse.json({ error: 'این جلسه در حالت پرداخت نیست' }, { status: 400 })
     amount = stage.price || 0
-    description = stage.stage_type === 'assessment' ? 'هزینه‌ی ارزیابی' : 'هزینه‌ی مصاحبه‌ی اولیه'
+    description = `هزینه‌ی ${stageTitle(stage)}`
+
+    // پرداخت آنلاین = «اول وقت، بعد پرداخت» — پس وقت باید همین‌جا بیاید و همین
+    // حالا اعتبارسنجی شود؛ جلوی «پول بده، بعد بفهم آن ساعت اصلا آزاد نبود» را
+    // می‌گیرد. کارت‌به‌کارت این مسیر را نمی‌رود و ترتیب قبلی‌اش (تایید دکتر، بعد
+    // گرفتن وقت) دست‌نخورده است.
+    if (!session_date || !session_time)
+      return NextResponse.json({ error: 'اول وقت جلسه را انتخاب کنید' }, { status: 400 })
+    const slotOk = await validateClientSlot(t.id, c.resource_id, session_date, session_time)
+    if (!slotOk.ok) return NextResponse.json({ error: slotOk.error }, { status: 400 })
+    if (await slotTaken(t.id, c.resource_id, session_date, session_time, ref_id))
+      return NextResponse.json({ error: 'این ساعت قبلا رزرو شده. لطفا زمان دیگری انتخاب کنید.' }, { status: 409 })
   } else if (purpose === 'package') {
     if (!ref_id) return NextResponse.json({ error: 'شناسه‌ی پروتکل لازم است' }, { status: 400 })
     const { data: pkg } = await sb().from('psy_packages').select('*').eq('id', ref_id).eq('tenant_id', t.id).eq('case_number', case_number).single()
@@ -85,6 +97,8 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
     tenant_id: t.id, resource_id: c.resource_id, case_number, phone, purpose, ref_id: ref_id || null, amount,
     commission_percent: commissionPercent, commission_amount: commissionAmount,
     settlement_sheba: shebaOk ? profile.settlement_sheba : null,
+    // فقط برای مرحله معنا دارد — کال‌بک بعد از verify موفق همین را روی مرحله ثبت می‌کند
+    ...(purpose === 'stage' ? { booking_date: session_date, booking_time: session_time } : {}),
     ...(discountCodeCheck?.ok ? {
       discount_code_id: discountCodeCheck.id, discount_code: discountCodeCheck.code,
       discount_amount: discountCodeCheck.discountAmount, original_amount: originalAmount,

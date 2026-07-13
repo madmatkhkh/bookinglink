@@ -38,8 +38,31 @@ export const PLATFORM_COMMISSION_PERCENT = CONFIG_COMMISSION_PERCENT
 // آیا تلاش برای تسهیم خودکار (واریز مستقیم سهم دکتر به شبای خودش) فعال است؟
 export const MULTIPLEXING_ENABLED = process.env.ZIBAL_MULTIPLEXING_ENABLED === 'true'
 
-const API_BASE = 'https://gateway.zibal.ir/v1'
+// ─────────────────────────────────────────────────────────────────────────────
+// آی‌پی ثابت — زیبال برای استفاده از درگاه، آی‌پی ثابت سرور را می‌خواهد.
+//
+// Vercel serverless است: هر بار اجرا ممکن است از آی‌پی دیگری خارج شود، پس
+// هیچ‌وقت نمی‌شود یک آی‌پی را در پنل زیبال whitelist کرد. راه‌حل: فراخوانی‌های
+// سمت سرور به زیبال (request/verify) از یک «رله»ی کوچک روی سروری با آی‌پی ثابت
+// رد می‌شوند و همان آی‌پی در پنل زیبال ثبت می‌شود.
+//
+//   ZIBAL_API_BASE   → آدرس رله (مثلا https://pay-relay.example.com/v1).
+//                      اگر ست نشود، مستقیم به زیبال می‌رود (رفتار قبلی).
+//   ZIBAL_RELAY_KEY  → کلید مشترک؛ رله فقط درخواست‌هایی با این هدر را قبول
+//                      می‌کند تا به یک پروکسی باز تبدیل نشود.
+//
+// مهم: STARTPAY_BASE عمدا همیشه دامنه‌ی خود زیبال می‌ماند و از رله رد نمی‌شود —
+// آن آدرسی است که «مرورگر مراجع» به آن می‌رود، نه سرور ما؛ آی‌پی مرورگر مراجع
+// اصلا موضوع whitelist نیست. کال‌بک هم ورودی است (زیبال به ما وصل می‌شود)، پس
+// آن هم آی‌پی ثابت نمی‌خواهد. فقط این دو فراخوانی خروجی مهم‌اند.
+// ─────────────────────────────────────────────────────────────────────────────
+const API_BASE = process.env.ZIBAL_API_BASE || 'https://gateway.zibal.ir/v1'
+const RELAY_KEY = process.env.ZIBAL_RELAY_KEY || ''
 const STARTPAY_BASE = 'https://gateway.zibal.ir/start'
+
+function apiHeaders(): Record<string, string> {
+  return { 'Content-Type': 'application/json', ...(RELAY_KEY ? { 'x-relay-key': RELAY_KEY } : {}) }
+}
 
 export type ZibalRequestResult = { ok: true; trackId: number; url: string } | { ok: false; error: string }
 // amountRial: مبلغ واقعا پرداخت‌شده طبق خود زیبال (ریال) — callback با آن
@@ -72,7 +95,7 @@ export async function requestZibalPayment(
       ]
     }
     const res = await fetch(`${API_BASE}/request`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      method: 'POST', headers: apiHeaders(),
       body: JSON.stringify(body),
     })
     const data = await res.json()
@@ -89,7 +112,7 @@ export async function verifyZibalPayment(trackId: number | string): Promise<Ziba
   if (!MERCHANT) return { ok: false, error: 'درگاه پرداخت آنلاین هنوز تنظیم نشده' }
   try {
     const res = await fetch(`${API_BASE}/verify`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      method: 'POST', headers: apiHeaders(),
       body: JSON.stringify({ merchant: MERCHANT, trackId }),
     })
     const data = await res.json()

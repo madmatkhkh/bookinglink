@@ -156,6 +156,31 @@ export async function validateClientSlot(
   return { ok: true }
 }
 
+// آیا این ساعت از قبل توسط جلسه یا مرحله‌ی دیگری گرفته شده؟ (excludeStageId برای
+// وقتی است که خود همان مرحله دارد جابه‌جا/دوباره ثبت می‌شود.)
+//
+// نکته: این فقط یک چک «قبل از اقدام» است، نه قفل. ضامن واقعی همزمانی، unique
+// index اسلات (migration 0019) روی هر دو جدول است — دو درخواست هم‌زمان می‌توانند
+// هر دو از این چک رد شوند، ولی فقط یکی می‌تواند insert/update را ببندد. هرجا از
+// این استفاده می‌شود باید خطای 23505 هم مدیریت شده باشد.
+export async function slotTaken(
+  tenantId: string, resourceId: string | null | undefined, dateStr: string, time: string, excludeStageId?: string
+): Promise<boolean> {
+  if (!resourceId) return false
+  const db = sb()
+  let stageQ = db.from('psy_stages').select('id')
+    .eq('tenant_id', tenantId).eq('resource_id', resourceId)
+    .eq('session_date', dateStr).eq('session_time', time)
+  if (excludeStageId) stageQ = stageQ.neq('id', excludeStageId)
+  const [{ data: sess }, { data: stages }] = await Promise.all([
+    db.from('psy_sessions').select('id')
+      .eq('tenant_id', tenantId).eq('resource_id', resourceId)
+      .eq('session_date', dateStr).eq('session_time', time),
+    stageQ,
+  ])
+  return !!((sess && sess.length) || (stages && stages.length))
+}
+
 export type SessionMode = 'both' | 'online' | 'offline'
 export type OfficeLocation = { id: string; title: string; address: string }
 export type PaymentCardInfo = { id: string; number: string; holder: string; bank?: string }

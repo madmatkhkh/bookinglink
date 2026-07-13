@@ -95,8 +95,34 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
   const discountPatch = intent.discount_code_id
     ? { discount_code: intent.discount_code, original_price: intent.original_amount }
     : {}
+  // پرداخت آنلاین مرحله: وقت را خود مراجع قبل از رفتن به درگاه انتخاب کرده و
+  // روی intent نشسته — حالا که پرداخت تایید شد، همان وقت ثبت می‌شود (status =
+  // booked) و مراجع دیگر کار دیگری ندارد.
+  //
+  // اگر در همان چند دقیقه‌ای که مراجع در صفحه‌ی زیبال بود کس دیگری همان ساعت را
+  // گرفته باشد، unique index (migration 0019) update را با 23505 رد می‌کند. در
+  // آن حالت پول پرداخت‌شده می‌ماند و مرحله به awaiting_booking می‌رود تا مراجع
+  // فقط وقت دیگری انتخاب کند — هیچ پولی گم نمی‌شود و هیچ رزرو دوگانه‌ای هم ثبت
+  // نمی‌شود. intentهای قدیمی (قبل از این تغییر) booking_date ندارند و همان
+  // مسیر قدیمی awaiting_booking را می‌روند.
+  let slotTakenFallback = false
   if (intent.purpose === 'stage' && intent.ref_id) {
-    await sb().from('psy_stages').update({ paid: true, status: 'awaiting_booking', price: intent.amount, ...discountPatch }).eq('id', intent.ref_id).eq('tenant_id', t.id)
+    const wantsSlot = !!(intent.booking_date && intent.booking_time)
+    let booked = false
+    if (wantsSlot) {
+      const { error: bookErr } = await sb().from('psy_stages').update({
+        paid: true, status: 'booked', price: intent.amount,
+        session_date: intent.booking_date, session_time: intent.booking_time,
+        cancel_notice: null, ...discountPatch,
+      }).eq('id', intent.ref_id).eq('tenant_id', t.id)
+      if (!bookErr) booked = true
+      else if ((bookErr as any).code === '23505') slotTakenFallback = true
+      else console.error('pay-online callback: stage book failed:', bookErr)
+    }
+    if (!booked) {
+      await sb().from('psy_stages').update({ paid: true, status: 'awaiting_booking', price: intent.amount, ...discountPatch })
+        .eq('id', intent.ref_id).eq('tenant_id', t.id)
+    }
     const { data: stage } = await sb().from('psy_stages').select('case_number').eq('id', intent.ref_id).maybeSingle()
     if (stage) {
       await sb().from('psy_cases').update({ status: 'confirmed' }).eq('tenant_id', t.id).eq('case_number', stage.case_number).eq('status', 'pending')
@@ -108,5 +134,5 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
   }
   if (intent.discount_code_id) await redeemDiscountCode(intent.discount_code_id)
 
-  return NextResponse.redirect(`${redirectBase}?payment=success`)
+  return NextResponse.redirect(`${redirectBase}?payment=${slotTakenFallback ? 'success_slot_taken' : 'success'}`)
 }

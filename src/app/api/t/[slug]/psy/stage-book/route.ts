@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { sb } from '@/lib/supabase'
 import { getActiveTenant } from '@/lib/tenant'
 import { STAGE_STATUS } from '@/lib/flow'
-import { validateClientSlot } from '@/lib/psy'
+import { validateClientSlot, slotTaken } from '@/lib/psy'
 import { getClientPhone, matchesClientIdentity } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
@@ -33,12 +33,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   const slotOk = await validateClientSlot(t.id, booking.resource_id, session_date, session_time)
   if (!slotOk.ok) return NextResponse.json({ error: slotOk.error }, { status: 400 })
 
-  const db = sb()
-  const [{ data: takenS }, { data: takenSt }] = await Promise.all([
-    db.from('psy_sessions').select('id').eq('tenant_id', t.id).eq('resource_id', booking.resource_id).eq('session_date', session_date).eq('session_time', session_time),
-    db.from('psy_stages').select('id').eq('tenant_id', t.id).eq('resource_id', booking.resource_id).eq('session_date', session_date).eq('session_time', session_time).neq('id', stage_id),
-  ])
-  if ((takenS && takenS.length) || (takenSt && takenSt.length))
+  if (await slotTaken(t.id, booking.resource_id, session_date, session_time, stage_id))
     return NextResponse.json({ error: 'این ساعت قبلا رزرو شده. لطفا زمان دیگری انتخاب کنید.' }, { status: 409 })
 
   const { error } = await sb().from('psy_stages')
