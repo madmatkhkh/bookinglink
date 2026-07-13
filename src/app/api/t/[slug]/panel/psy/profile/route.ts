@@ -3,6 +3,7 @@ import { sb } from '@/lib/supabase'
 import { requirePanelAuth, isPanelAuthResponse } from '@/lib/tenant'
 import { mergeResourceProfile, mergeCancellationPolicy, mergePaymentMethods, effectivePaymentMethods, isCardToCardAllowed, mergePricing, isValidSheba } from '@/lib/psy'
 import { deleteFromR2, keyFromPublicUrl } from '@/lib/r2'
+import { isMeetMethod, DEFAULT_MEET_METHOD, validateMeetValue, MeetMethod } from '@/lib/meet'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -42,7 +43,7 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
       payment_methods: effectivePaymentMethods(prof.payment_methods, cardToCardAllowed),
       quick_times: prof.quick_times,
       settlement_sheba: prof.settlement_sheba, settlement_sheba_holder_name: prof.settlement_sheba_holder_name,
-      pricing: prof.pricing, companion_label: prof.companion_label, meet_link: prof.meet_link },
+      pricing: prof.pricing, companion_label: prof.companion_label, meet_link: prof.meet_link, meet_method: prof.meet_method },
     plan: a.tenant.plan,
     card_to_card_allowed: cardToCardAllowed,
   }, { headers: NO_STORE })
@@ -92,12 +93,27 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   if ('settlement_sheba_holder_name' in body) profilePatch.settlement_sheba_holder_name = String(body.settlement_sheba_holder_name || '').trim().slice(0, 80)
   if ('pricing' in body) profilePatch.pricing = mergePricing(body.pricing)
   if ('companion_label' in body) profilePatch.companion_label = String(body.companion_label || '').trim().slice(0, 20)
-  if ('meet_link' in body) {
-    const link = String(body.meet_link || '').trim().slice(0, 300)
-    // اعتبارسنجی سطحی: اگر خالی نیست باید یک URL معتبر باشد (ترجیحا meet.google.com، ولی سایر سرویس‌های ویدیوکال هم رد نمی‌شوند)
-    if (link && !/^https?:\/\//.test(link))
-      return NextResponse.json({ error: 'لینک جلسه باید با http:// یا https:// شروع شود' }, { status: 400 })
-    profilePatch.meet_link = link
+  // روش جلسه‌ی آنلاین و مقدارش با هم اعتبارسنجی می‌شوند — چون قاعده‌ی معتبربودن
+  // به روش وابسته است (لینک برای گوگل‌میت/زوم، شماره‌ی موبایل برای واتساپ/بله/تلفن).
+  // اگر فقط یکی از این دو در بادی آمده باشد، آن یکی دیگر از دیتای فعلی خوانده می‌شود.
+  if ('meet_link' in body || 'meet_method' in body) {
+    // اگر فقط یکی از این دو در بادی آمده، آن یکی دیگر باید از دیتای فعلی خوانده
+    // شود — وگرنه ممکن است روش تازه با مقدار قدیمی (یا برعکس) ناسازگار بماند.
+    const needsCurrent = !('meet_link' in body) || !('meet_method' in body)
+    const current = needsCurrent
+      ? (await sb().from('psy_resource_profiles').select('meet_link, meet_method').eq('resource_id', targetId).maybeSingle()).data
+      : null
+
+    const method: MeetMethod = isMeetMethod(body.meet_method)
+      ? body.meet_method
+      : (isMeetMethod(current?.meet_method) ? current!.meet_method as MeetMethod : DEFAULT_MEET_METHOD)
+    const value = 'meet_link' in body
+      ? String(body.meet_link || '').trim().slice(0, 300)
+      : String(current?.meet_link || '')
+    const err = validateMeetValue(method, value)
+    if (err) return NextResponse.json({ error: err }, { status: 400 })
+    profilePatch.meet_link = value
+    profilePatch.meet_method = method
   }
   if ('payment_methods' in body) {
     let pm = mergePaymentMethods(body.payment_methods)

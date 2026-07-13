@@ -8,6 +8,7 @@ import { STAGE_TYPE_LABEL } from '@/lib/flow'
 import { DialogHost, uiAlert, uiConfirm } from '@/components/ui/Dialog'
 import { useResendCooldown } from '@/lib/useResendCooldown'
 import { useModalBackClose } from '@/lib/useModalBackClose'
+import { MeetMethod, DEFAULT_MEET_METHOD, meetHref, meetActionLabel, isMeetMethod } from '@/lib/meet'
 
 type CaseStage = {
  id: string; case_number: string
@@ -15,7 +16,7 @@ type CaseStage = {
  status: 'awaiting_payment' | 'payment_submitted' | 'awaiting_booking' | 'booked'
  price: number; paid: boolean; payment_submitted?: boolean; payment_ref?: string
  session_date?: string; session_time?: string; held?: boolean
- cancel_notice?: string; payment_reject_reason?: string; meet_link?: string; resource_id?: string | null; created_at: string
+ cancel_notice?: string; payment_reject_reason?: string; meet_link?: string; meet_method?: MeetMethod; resource_id?: string | null; created_at: string
  delay_minutes?: number | null
 }
 
@@ -41,7 +42,7 @@ type Session = {
  session_date: string; session_time: string; session_type: string
  attendee: string; status: string; doctor_note_for_patient: string
  paid: boolean; payment_submitted?: boolean
- price?: number; payment_reject_reason?: string; meet_link?: string
+ price?: number; payment_reject_reason?: string; meet_link?: string; meet_method?: MeetMethod
  refund_percent?: number; refund_status?: string; refund_card?: string
  resource_id?: string | null
  delay_minutes?: number | null
@@ -383,7 +384,8 @@ export default function PatientPanel() {
        label={`وقت ${STAGE_TYPE_LABEL[currentStage.stage_type] || ''}`}
        delayMinutes={currentStage.delay_minutes}
        isOnline={booking.session_type === 'online'}
-       meetLink={currentStage.meet_link || settings.doctors.find(d => d.id === booking.resource_id)?.meet_link} />
+       meetLink={currentStage.meet_link || settings.doctors.find(d => d.id === booking.resource_id)?.meet_link}
+       meetMethod={settings.doctors.find(d => d.id === booking.resource_id)?.meet_method} />
      )}
 
      <button onClick={() => loadData(booking.case_number)}
@@ -710,18 +712,22 @@ function SessionCard({ session: s, num, phone, caseNumber, onUpdate }: {
        ⏱ این جلسه با {s.delay_minutes} دقیقه تاخیر برگزار می‌شود.
       </div>
      )}
-     {s.session_type === 'online' && !isAwaiting && s.status !== 'forfeited' && s.status !== 'replaced' && s.session_date && (
-      (s.meet_link || doctorForSession?.meet_link) ? (
-       <a href={s.meet_link || doctorForSession?.meet_link} target="_blank" rel="noopener noreferrer"
+     {s.session_type === 'online' && !isAwaiting && s.status !== 'forfeited' && s.status !== 'replaced' && s.session_date && (() => {
+      // همان منطق StageInfo: روش جلسه‌ی دکتر تعیین می‌کند دکمه چه متن/مقصدی دارد.
+      // مقدار per-session (s.meet_link) اگر ست شده باشد اولویت دارد.
+      const method: MeetMethod = isMeetMethod(doctorForSession?.meet_method) ? doctorForSession!.meet_method! : DEFAULT_MEET_METHOD
+      const href = meetHref(method, s.meet_link || doctorForSession?.meet_link)
+      return href ? (
+       <a href={href} target="_blank" rel="noopener noreferrer"
         className="text-xs text-white bg-ink rounded-lg px-3 py-1.5 mt-1.5 inline-block font-medium hover:opacity-90">
-       ورود به جلسه‌ی گوگل‌میت ↗
+        {meetActionLabel(method)} ↗
        </a>
       ) : (
        <p className="text-xs text-amber-700 bg-amber-500/10 border border-amber-500/20 rounded-lg px-2.5 py-1.5 mt-1.5">
-        لینک جلسه هنوز از طرف دکتر ثبت نشده — نزدیک زمان جلسه دوباره سر بزنید.
+        اطلاعات جلسه‌ی آنلاین هنوز از طرف دکتر ثبت نشده — نزدیک زمان جلسه دوباره سر بزنید.
        </p>
       )
-     )}
+     })()}
     </div>
     {canCancel && (
      <button onClick={() => setShowConfirm(true)}
@@ -1381,7 +1387,11 @@ function StageWaiting({ title, desc }: { title: string; desc: string }) {
  )
 }
 
-function StageInfo({ icon, title, desc, date, time, label, delayMinutes, meetLink, isOnline }: { icon: string; title: string; desc: string; date?: string; time?: string; label: string; delayMinutes?: number | null; meetLink?: string; isOnline?: boolean }) {
+function StageInfo({ icon, title, desc, date, time, label, delayMinutes, meetLink, meetMethod, isOnline }: { icon: string; title: string; desc: string; date?: string; time?: string; label: string; delayMinutes?: number | null; meetLink?: string; meetMethod?: MeetMethod; isOnline?: boolean }) {
+ // روش جلسه (گوگل‌میت/زوم/واتساپ/بله/تلفن) تعیین می‌کند دکمه چه متنی داشته باشد
+ // و href چطور ساخته شود — مقدار خام ذخیره‌شده ممکن است لینک یا شماره باشد.
+ const method: MeetMethod = isMeetMethod(meetMethod) ? meetMethod : DEFAULT_MEET_METHOD
+ const href = meetHref(method, meetLink)
  return (
   <>
    <StageHero icon={icon} title={title} desc={desc} />
@@ -1396,14 +1406,14 @@ function StageInfo({ icon, title, desc, date, time, label, delayMinutes, meetLin
     </div>
    )}
    {isOnline && (
-    meetLink ? (
-     <a href={meetLink} target="_blank" rel="noopener noreferrer"
+    href ? (
+     <a href={href} target="_blank" rel="noopener noreferrer"
       className="text-sm text-white bg-ink rounded-xl px-4 py-2.5 mt-2 inline-block font-medium hover:opacity-90">
-      ورود به جلسه‌ی گوگل‌میت ↗
+      {meetActionLabel(method)} ↗
      </a>
     ) : (
      <p className="text-xs text-amber-700 bg-amber-500/10 border border-amber-500/20 rounded-xl px-3 py-2 mt-2">
-      لینک جلسه هنوز از طرف دکتر ثبت نشده — نزدیک زمان جلسه دوباره سر بزنید.
+      اطلاعات جلسه‌ی آنلاین هنوز از طرف دکتر ثبت نشده — نزدیک زمان جلسه دوباره سر بزنید.
      </p>
     )
    )}

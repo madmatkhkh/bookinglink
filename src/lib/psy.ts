@@ -3,6 +3,7 @@
 // معادل config.ts + settings.ts در psych-booking، ولی چندمستاجری.
 // ─────────────────────────────────────────────────────────────────────────────
 import { sb } from './supabase'
+import { MeetMethod, DEFAULT_MEET_METHOD, isMeetMethod } from './meet'
 
 // قیمت‌گذاری پیش‌فرض سراسری (تومان) — برای متخصص‌هایی که هنوز قیمت خودشان را
 // تنظیم نکرده‌اند. قیمت واقعی هر متخصص per-resource است (پایین‌تر).
@@ -278,10 +279,12 @@ export type ResourceProfile = {
   // استفاده نمی‌شود (مثلا درمان فردی بزرگسال)؛ پر = نام و مسیر جلسه‌ی دومی
   // با همین برچسب نمایش داده می‌شود (مثلا «والدین»، «همسر»، «همراه»).
   companion_label: string
-  // لینک گوگل‌میت ثابت همین دکتر — بدون نیاز اتصال گوگل‌کلندر/OAuth؛ خود
-  // دکتر از حساب Gmail/Google خودش می‌سازد و این‌جا می‌چسباند. جلسات آنلاین
-  // به‌صورت پیش‌فرض همین را نشان می‌دهند مگر per-session override شده باشد.
+  // «مقدار خام» جلسه‌ی آنلاین همین دکتر — بسته به meet_method یا یک لینک است
+  // (گوگل‌میت/زوم) یا یک شماره‌ی موبایل (واتساپ/بله/تماس تلفنی). href نهایی در
+  // لحظه‌ی نمایش با meetHref() ساخته می‌شود (lib/meet.ts). جلسات آنلاین به‌صورت
+  // پیش‌فرض همین را نشان می‌دهند مگر per-session override شده باشد.
   meet_link: string
+  meet_method: MeetMethod
 }
 
 export const DEFAULT_RESOURCE_PROFILE: Omit<ResourceProfile, 'resource_id'> = {
@@ -296,6 +299,7 @@ export const DEFAULT_RESOURCE_PROFILE: Omit<ResourceProfile, 'resource_id'> = {
   pricing: DEFAULT_PRICING,
   companion_label: '',
   meet_link: '',
+  meet_method: DEFAULT_MEET_METHOD,
 }
 
 export function mergeResourceProfile(resourceId: string, raw: Partial<ResourceProfile> | null | undefined): ResourceProfile {
@@ -314,6 +318,7 @@ export function mergeResourceProfile(resourceId: string, raw: Partial<ResourcePr
     pricing: mergePricing(raw?.pricing),
     companion_label: typeof raw?.companion_label === 'string' ? raw.companion_label.trim().slice(0, 20) : '',
     meet_link: typeof raw?.meet_link === 'string' ? raw.meet_link.trim().slice(0, 300) : '',
+    meet_method: isMeetMethod(raw?.meet_method) ? raw.meet_method : DEFAULT_MEET_METHOD,
   }
 }
 
@@ -362,6 +367,7 @@ export type PublicDoctor = {
   pricing: Pricing
   companion_label: string
   meet_link: string
+  meet_method: MeetMethod
   // امتیاز واقعی محاسبه‌شده از psy_reviews (فقط approved) — نه بج خودنوشت.
   // rating_count صفر یعنی هنوز نظری ثبت نشده؛ در آن صورت هیچ امتیازی نشان داده نمی‌شود.
   rating_avg: number
@@ -395,7 +401,7 @@ export async function listPublicDoctors(tenantId: string): Promise<PublicDoctor[
       id: r.id, name: r.name, title: r.title, avatar_url: r.avatar_url,
       badges: prof.badges, session_modes: prof.session_modes, cards: prof.cards,
       payment_methods: effectivePaymentMethods(prof.payment_methods, cardToCardAllowed), cancellation_policy: prof.cancellation_policy,
-      pricing: prof.pricing, companion_label: prof.companion_label, meet_link: prof.meet_link,
+      pricing: prof.pricing, companion_label: prof.companion_label, meet_link: prof.meet_link, meet_method: prof.meet_method,
       rating_avg, rating_count,
     }
   })

@@ -11,6 +11,7 @@ import { useResendCooldown } from '@/lib/useResendCooldown'
 import { Glyph } from '@/components/Glyph'
 import { MonthYearWheel, JalaliDateWheel } from '@/components/WheelPicker'
 import { useModalBackClose } from '@/lib/useModalBackClose'
+import { MEET_METHODS, MEET_META, MeetMethod, DEFAULT_MEET_METHOD, meetHref } from '@/lib/meet'
 
 // در پنل ادمین همه‌ی ارقام لاتین نمایش داده می‌شوند (فقط نمایش؛ فرمت ذخیره دست‌نخورده)
 const toFarsiNum = (n: number | string) => toLatinNum(String(n))
@@ -230,6 +231,7 @@ type ResourceProfileView = {
  pricing: Pricing
  companion_label: string
  meet_link: string
+ meet_method: MeetMethod
 }
 
 const ALL_TIMES = ['8:00','9:00','10:00','11:00','12:00','13:00','14:00','15:00','16:00','17:00','18:00']
@@ -243,6 +245,7 @@ const DEFAULT_PROFILE: ResourceProfileView = {
  pricing: DEFAULT_PRICING,
  companion_label: '',
  meet_link: '',
+ meet_method: DEFAULT_MEET_METHOD,
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -293,6 +296,16 @@ const STATUS_COLOR: Record<string, string> = {
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
+
+// یک‌خط توضیح هر بخش تنظیمات — در «نمای کلی تنظیمات» استفاده می‌شود
+const SETTINGS_HINTS: Record<string, string> = {
+ profile: 'نام، عنوان، عکس، نوع جلسات و لینک جلسه‌ی آنلاین',
+ payments: 'روش دریافت وجه و شماره‌شبای تسویه',
+ pricing: 'قیمت هر نوع جلسه و کد تخفیف',
+ form: 'سوال‌هایی که مراجع هنگام رزرو پاسخ می‌دهد',
+ locations: 'نشانی مطب یا محل‌های حضوری',
+ patient_panel: 'اختیارات مراجع در پنل خودش و سیاست کنسلی',
+}
 
 // ── سربرگ یکدست هر تب — عنوان + یک خط توضیح؛ قبلا فقط داشبورد سربرگ داشت و
 // بقیه‌ی تب‌ها مستقیم با محتوا شروع می‌شدند (بی‌جهت‌نما و ناتمام به‌نظر می‌رسید) ──
@@ -511,7 +524,9 @@ export function PsychologyAdmin() {
  type SettingsSub = 'profile' | 'payments' | 'pricing' | 'locations' | 'form' | 'patient_panel'
 
  const [mainTab, setMainTab] = useState<MainTab>('dashboard')
- const [settingsSubTab, setSettingsSubTab] = useState<SettingsSub>('profile')
+ // null = هیچ زیرتبی باز نیست → «نمای کلی تنظیمات» نشان داده می‌شود. کلیک روی
+ // خود تب «تنظیمات» فقط منو را باز می‌کند و دیگر خودکار وارد پروفایل نمی‌شود.
+ const [settingsSubTab, setSettingsSubTab] = useState<SettingsSub | null>(null)
  const [sidebarOpen, setSidebarOpen] = useState(false)
  // باز/بسته‌بودن زیرمنوی «تنظیمات» در سایدبار — عمدا جدا از mainTab نگه داشته
  // شده: قبلا کلیک روی «تنظیمات» وقتی از قبل باز بود هیچ اثری نداشت (چون فقط
@@ -529,7 +544,8 @@ export function PsychologyAdmin() {
  // زیرتبی که قبلا باز بود.
  function navigateTab(tab: MainTab) {
   setMainTab(tab)
-  if (tab === 'settings') setSettingsSubTab('profile')
+  // ورود به تب تنظیمات = فقط بازشدن منو + نمای کلی؛ هیچ زیرتبی خودکار انتخاب نمی‌شود
+  if (tab === 'settings') setSettingsSubTab(null)
  }
 
  function navigateSettingsSub(sub: SettingsSub) {
@@ -745,6 +761,15 @@ export function PsychologyAdmin() {
  const [profileSaving, setProfileSaving] = useState(false)
  const [profileSaved, setProfileSaved] = useState(false)
  const [tenantPlan, setTenantPlan] = useState<string>('free')
+ // چک‌لیست راه‌اندازی داشبورد — پیش‌فرض جمع (فقط سربرگ فشرده)، و انتخاب کاربر
+ // بین سشن‌ها حفظ می‌شود تا هر بار مجبور نباشد دوباره ببندد.
+ const [setupOpen, setSetupOpen] = useState(false)
+ useEffect(() => {
+  try { setSetupOpen(localStorage.getItem('pb_setup_open') === '1') } catch {}
+ }, [])
+ useEffect(() => {
+  try { localStorage.setItem('pb_setup_open', setupOpen ? '1' : '0') } catch {}
+ }, [setupOpen])
  // کارت‌به‌کارت فقط وقتی سوپرادمین برای این tenant روشنش کرده باشد در UI دیده می‌شود
  const [cardToCardAllowed, setCardToCardAllowed] = useState(false)
  // فرم رزرو per-resource (بخش‌ها/سوال‌ها/نوع/اجباری‌بودن — کاملا دیتایی)
@@ -2085,7 +2110,7 @@ export function PsychologyAdmin() {
  // («خطای غیرمنتظره» که دقیقا با اضافه‌شدن گیت initialLoadDone افتاد).
  // این دو گروه، حالا زیر خود تب «تنظیمات» در سایدبار اصلی نمایش داده می‌شوند
  // (نه یک صفحه‌ی جدا). تیم/حساب/پشتیبانی از این‌جا جدا و تب مستقل خودشان‌اند.
- type SettingsGroup = { title: string; items: { key: typeof settingsSubTab; icon: string; label: string }[] }
+ type SettingsGroup = { title: string; items: { key: SettingsSub; icon: string; label: string }[] }
  const settingsGroups: SettingsGroup[] = [
   {
    title: 'صفحه‌ی عمومی', items: [
@@ -2415,7 +2440,7 @@ export function PsychologyAdmin() {
            go: () => navigateSettingsSub('payments'),
           },
           ...(profile.session_modes !== 'offline' ? [{
-           key: 'meet', label: 'گذاشتن لینک جلسه‌ی آنلاین (گوگل‌میت)',
+           key: 'meet', label: 'تنظیم روش جلسه‌ی آنلاین',
            done: !!profile.meet_link,
            go: () => navigateSettingsSub('profile'),
           }] : []),
@@ -2427,31 +2452,52 @@ export function PsychologyAdmin() {
          ]
          const doneCount = checklist.filter(c => c.done).length
          if (doneCount === checklist.length) return null
+         const nextItem = checklist.find(c => !c.done)
          return (
-          <div className="bg-white rounded-2xl border border-sand p-5">
-           <div className="flex items-center justify-between mb-1">
-            <h2 className="text-sm font-display font-semibold text-ink">راه‌اندازی اولیه</h2>
-            <span className="text-xs text-soot tnum">{toFarsiNum(doneCount)} از {toFarsiNum(checklist.length)}</span>
-           </div>
-           <p className="text-xs text-soot mb-4">با تکمیل این موارد، صفحه‌ی شما به‌طور کامل برای مراجعان آماده می‌شود.</p>
-           <div className="bg-gray-100 rounded-full h-1.5 mb-4 overflow-hidden">
-            <div className="bg-emerald-500 h-1.5 rounded-full transition-all" style={{ width: `${(doneCount / checklist.length) * 100}%` }} />
-           </div>
-           <div className="space-y-1">
-            {checklist.map(item => (
-             <button key={item.key} onClick={item.done ? undefined : item.go} disabled={item.done}
-              className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-right transition-colors ${item.done ? 'cursor-default' : 'hover:bg-gray-50'}`}>
-              <span className={`w-5 h-5 shrink-0 rounded-full flex items-center justify-center ${item.done ? 'bg-emerald-500' : 'border-2 border-sand'}`}>
-               {item.done && (
-                <svg viewBox="0 0 24 24" className="w-3 h-3 text-white" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                 <path d="M5 13l4 4L19 7" />
-                </svg>
-               )}
-              </span>
-              <span className={`flex-1 text-sm ${item.done ? 'text-soot line-through' : 'text-ink'}`}>{item.label}</span>
-             </button>
-            ))}
-           </div>
+          <div className="bg-white rounded-2xl border border-sand overflow-hidden">
+           {/* سربرگ فشرده — همیشه دیده می‌شود؛ خود فهرست جمع‌شونده است تا
+              داشبورد را اشغال نکند (قبلا همیشه کامل باز و بزرگ بود). */}
+           <button onClick={() => setSetupOpen(o => !o)}
+            className="w-full px-5 py-3.5 flex items-center gap-3 text-right hover:bg-gray-50 transition-colors">
+            <div className="flex-1 min-w-0">
+             <div className="flex items-center gap-2">
+              <h2 className="text-sm font-display font-semibold text-ink">راه‌اندازی اولیه</h2>
+              <span className="text-[11px] text-soot tnum">{toFarsiNum(doneCount)} از {toFarsiNum(checklist.length)}</span>
+             </div>
+             {!setupOpen && nextItem && (
+              <p className="text-xs text-soot mt-1 truncate">مرحله‌ی بعد: {nextItem.label}</p>
+             )}
+             <div className="bg-gray-100 rounded-full h-1.5 mt-2 overflow-hidden">
+              <div className="bg-emerald-500 h-1.5 rounded-full transition-all" style={{ width: `${(doneCount / checklist.length) * 100}%` }} />
+             </div>
+            </div>
+            <svg viewBox="0 0 24 24" className={`w-4 h-4 shrink-0 text-soot transition-transform ${setupOpen ? 'rotate-180' : ''}`}
+             fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+             <path d="m6 9 6 6 6-6" />
+            </svg>
+           </button>
+
+           {setupOpen && (
+            <div className="px-5 pb-5 pt-1">
+             <p className="text-xs text-soot mb-3">با تکمیل این موارد، صفحه‌ی شما به‌طور کامل برای مراجعان آماده می‌شود.</p>
+             <div className="space-y-1">
+              {checklist.map(item => (
+               <button key={item.key} onClick={item.done ? undefined : item.go} disabled={item.done}
+                className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-right transition-colors ${item.done ? 'cursor-default' : 'hover:bg-gray-50'}`}>
+                <span className={`w-5 h-5 shrink-0 rounded-full flex items-center justify-center ${item.done ? 'bg-emerald-500' : 'border-2 border-sand'}`}>
+                 {item.done && (
+                  <svg viewBox="0 0 24 24" className="w-3 h-3 text-white" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                   <path d="M5 13l4 4L19 7" />
+                  </svg>
+                 )}
+                </span>
+                <span className={`flex-1 text-sm ${item.done ? 'text-soot line-through' : 'text-ink'}`}>{item.label}</span>
+                {!item.done && <span className="text-[11px] text-soot shrink-0">تنظیم ←</span>}
+               </button>
+              ))}
+             </div>
+            </div>
+           )}
           </div>
          )
         })()}
@@ -3960,8 +4006,28 @@ export function PsychologyAdmin() {
        <SkeletonRows count={3} height="h-28" />
       ) : (
       <>
+       {/* نمای کلی تنظیمات — وقتی هنوز هیچ زیرتبی انتخاب نشده. قبلا کلیک روی
+          «تنظیمات» خودکار وارد پروفایل می‌شد؛ حالا این فهرست نشان داده می‌شود
+          و کاربر خودش انتخاب می‌کند کجا برود. */}
+       {!settingsSubTab && (
+        <div className="grid sm:grid-cols-2 gap-3">
+         {settingsGroups.flatMap(g => g.items).map(item => (
+          <button key={item.key} onClick={() => navigateSettingsSub(item.key)}
+           className="bg-white rounded-2xl border border-sand p-5 text-right hover:border-ink transition-colors group flex items-start gap-3">
+           <span className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center shrink-0 group-hover:bg-gray-200 transition-colors">
+            <Glyph icon={item.icon} className="w-5 h-5 text-ink" />
+           </span>
+           <span className="min-w-0">
+            <span className="block text-sm font-display font-semibold text-ink">{item.label}</span>
+            <span className="block text-xs text-soot mt-1 leading-relaxed">{SETTINGS_HINTS[item.key]}</span>
+           </span>
+          </button>
+         ))}
+        </div>
+       )}
+
        {/* سوییچر دکتر — فقط وقتی owner است و بیش از یک نفر پرسنل دارد */}
-       {['profile', 'payments', 'pricing', 'form'].includes(settingsSubTab) && me?.isOwner && staffList.filter(r => r.is_active).length > 1 && (
+       {!!settingsSubTab && ['profile', 'payments', 'pricing', 'form'].includes(settingsSubTab) && me?.isOwner && staffList.filter(r => r.is_active).length > 1 && (
         <section className="bg-white rounded-2xl border border-sand p-5">
          <h2 className="text-sm font-display font-semibold text-ink mb-1">پروفایل کدام دکتر؟</h2>
          <p className="text-xs text-soot mb-3">مجموعه‌ی شما چند نفر پرسنل دارد؛ اول انتخاب کنید پروفایل و برنامه‌ی کاری کدام‌شان را ویرایش می‌کنید.</p>
@@ -4049,17 +4115,34 @@ export function PsychologyAdmin() {
        </section>
        )}
 
-       {/* لینک جلسه‌ی آنلاین — بدون نیاز اتصال گوگل‌کلندر/OAuth؛ فقط چسباندن
-           لینک ثابت خود دکتر (از حساب Gmail/Google‌اش ساخته شده) */}
+       {/* جلسه‌ی آنلاین — روش برگزاری قابل انتخاب است (گوگل‌میت، زوم، واتساپ،
+           بله، تماس تلفنی). هیچ‌کدام نیاز به OAuth ندارند: متخصص فقط لینک ثابت
+           یا شماره‌اش را می‌گذارد و مراجع در زمان جلسه روی دکمه می‌زند. */}
        {settingsSubTab === 'profile' && profile.session_modes !== 'offline' && (
        <section className="bg-white rounded-2xl border border-sand p-5">
-        <h2 className="text-sm font-display font-semibold text-ink mb-1">لینک جلسه‌ی آنلاین</h2>
+        <h2 className="text-sm font-display font-semibold text-ink mb-1">جلسه‌ی آنلاین</h2>
         <p className="text-xs text-soot mb-4">
-         لینک ثابت گوگل‌میت خودتان را اینجا بگذارید (از حساب Gmail خودتان در meet.google.com/new بسازید). این لینک برای همه‌ی جلسات آنلاین شما به مراجع نشان داده می‌شود.
+         روش برگزاری جلسات آنلاین خود را انتخاب کنید؛ همین گزینه به مراجعان شما نمایش داده می‌شود.
         </p>
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-4">
+         {MEET_METHODS.map(m => (
+          <button key={m} type="button" onClick={() => patchProfile({ meet_method: m })}
+           className={`py-2.5 px-2 rounded-xl border text-xs font-medium transition-colors ${
+            profile.meet_method === m ? 'border-ink bg-ink text-white' : 'border-sand text-soot hover:border-ink hover:text-ink'}`}>
+           {MEET_META[m].label}
+          </button>
+         ))}
+        </div>
+        <p className="text-xs text-soot mb-2">{MEET_META[profile.meet_method].hint}</p>
         <input value={profile.meet_link} onChange={e => patchProfile({ meet_link: e.target.value })}
-         placeholder="https://meet.google.com/xxx-yyyy-zzz" dir="ltr"
+         placeholder={MEET_META[profile.meet_method].placeholder} dir="ltr"
+         inputMode={MEET_META[profile.meet_method].kind === 'phone' ? 'tel' : 'url'}
          className="w-full text-sm px-3 py-2 border border-sand rounded-lg focus:outline-none focus:border-ink" />
+        {profile.meet_link.trim() && !meetHref(profile.meet_method, profile.meet_link) && (
+         <p className="text-[11px] text-amber-700 mt-2">
+          این مقدار با روش انتخاب‌شده سازگار نیست — {MEET_META[profile.meet_method].kind === 'phone' ? 'یک شماره‌ی موبایل معتبر' : 'یک نشانی کامل با https://'} وارد کنید.
+         </p>
+        )}
        </section>
        )}
 
@@ -4571,7 +4654,7 @@ export function PsychologyAdmin() {
        )}
 
        {/* نوار ذخیره (چسبیده به پایین) — فقط وقتی چیزی واقعا عوض شده باشد، و فقط روی زیرتب‌هایی که این دکمه ذخیره‌شان می‌کند */}
-       {['profile', 'payments', 'pricing', 'locations', 'form'].includes(settingsSubTab) && (isSettingsTabDirty || settingsSaved || profileSaved || intakeSaved) && (
+       {!!settingsSubTab && ['profile', 'payments', 'pricing', 'locations', 'form'].includes(settingsSubTab) && (isSettingsTabDirty || settingsSaved || profileSaved || intakeSaved) && (
         <div className="fixed bottom-0 inset-x-0 z-30 bg-white/95 border-t border-sand backdrop-blur">
          <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-end gap-3">
           {(settingsSaved || profileSaved || intakeSaved) && <span className="text-xs text-emerald-600 font-medium">✓ تنظیمات ذخیره شد</span>}
