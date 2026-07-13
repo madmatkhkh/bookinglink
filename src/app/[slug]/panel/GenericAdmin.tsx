@@ -11,6 +11,8 @@ import { DialogProvider, useDialog } from '@/components/Dialog'
 import { useResendCooldown } from '@/lib/useResendCooldown'
 import { toFarsiNum, toLatinNum, PERSIAN_MONTHS, PERSIAN_WEEKDAYS_FULL, getCurrentJalali } from '@/lib/calendar'
 import { BOOKING_STATUS_LABEL, MODE_LABEL } from '@/lib/config'
+import ThemeModePicker from '@/components/ThemeModePicker'
+import { DEFAULT_SAFE_THEME } from '@/lib/theme'
 
 type Service = {
   id: string; name: string; duration_minutes: number; price: number
@@ -570,21 +572,12 @@ function ClientsTab({ slug, uiAlert, L }: any) {
 // ─────────────────────────────────────────────────────────────────────────────
 // تب تنظیمات — پروفایل کسب‌وکار + مدیریت پرسنل
 // ─────────────────────────────────────────────────────────────────────────────
-function rgbToHex(rgb: string): string {
-  const parts = String(rgb || '').trim().split(/\s+/).map(Number)
-  if (parts.length !== 3 || parts.some(n => !Number.isFinite(n))) return '#d4536e'
-  return '#' + parts.map(n => Math.max(0, Math.min(255, n)).toString(16).padStart(2, '0')).join('')
-}
-function hexToRgb(hex: string): string {
-  const h = hex.replace('#', '')
-  return `${parseInt(h.slice(0, 2), 16) || 0} ${parseInt(h.slice(2, 4), 16) || 0} ${parseInt(h.slice(4, 6), 16) || 0}`
-}
-
 function SettingsTab({ ov, slug, reload, uiAlert, uiConfirm, L }: any) {
   const p = ov.profile || {}
   const [form, setForm] = useState({
     display_name: p.display_name || '', title: p.title || '', bio: p.bio || '',
-    theme_color: p.theme_color || '212 83 126', location_text: p.location_text || '',
+    theme_color: p.theme_color || DEFAULT_SAFE_THEME, theme_mode: p.theme_mode || 'preset', logo_url: p.logo_url || null,
+    location_text: p.location_text || '',
     instagram_handle: p.instagram_handle || '', card_number: p.card_number || '', card_holder_name: p.card_holder_name || '',
   })
   const [savingProfile, setSavingProfile] = useState(false)
@@ -617,18 +610,10 @@ function SettingsTab({ ov, slug, reload, uiAlert, uiConfirm, L }: any) {
           <input value={form.instagram_handle} onChange={e => setForm(s => ({ ...s, instagram_handle: e.target.value }))}
             dir="ltr" placeholder="instagram" className="flex-1 text-sm px-3 py-2 border border-sand rounded-lg" />
         </div>
-        <div className="flex items-end gap-3">
-          <div>
-            <label className="text-[11px] text-soot block mb-1">رنگ برند</label>
-            <input type="color" value={rgbToHex(form.theme_color)}
-              onChange={e => setForm(s => ({ ...s, theme_color: hexToRgb(e.target.value) }))}
-              className="w-12 h-10 border border-sand rounded-lg cursor-pointer" />
-          </div>
-          <div className="flex-1">
-            <label className="text-[11px] text-soot block mb-1">مقدار خام</label>
-            <input dir="ltr" value={form.theme_color} onChange={e => setForm(s => ({ ...s, theme_color: e.target.value }))}
-              className="w-full text-sm px-3 py-2 border border-sand rounded-lg tnum" />
-          </div>
+        <div>
+          <label className="text-[11px] text-soot block mb-1">تم برند</label>
+          <ThemeModePicker slug={slug} themeMode={form.theme_mode} themeColor={form.theme_color} logoUrl={form.logo_url}
+            onChange={patch => setForm(s => ({ ...s, ...patch }))} uiAlert={uiAlert} />
         </div>
         <div className="pt-2 border-t border-sand">
           <p className="text-[11px] text-soot mb-2">شماره‌کارت برای دریافت پرداخت کارت‌به‌کارت</p>

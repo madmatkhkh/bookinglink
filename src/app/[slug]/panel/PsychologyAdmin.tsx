@@ -12,6 +12,8 @@ import { Glyph } from '@/components/Glyph'
 import { MonthYearWheel, JalaliDateWheel } from '@/components/WheelPicker'
 import { useModalBackClose } from '@/lib/useModalBackClose'
 import { MEET_METHODS, MEET_META, MeetChannel, meetHref, usableMeetChannels } from '@/lib/meet'
+import ThemeModePicker from '@/components/ThemeModePicker'
+import { DEFAULT_SAFE_THEME } from '@/lib/theme'
 
 // در پنل ادمین همه‌ی ارقام لاتین نمایش داده می‌شوند (فقط نمایش؛ فرمت ذخیره دست‌نخورده)
 const toFarsiNum = (n: number | string) => toLatinNum(String(n))
@@ -509,7 +511,7 @@ export function PsychologyAdmin() {
  // زیرمجموعه‌هایش (صفحه‌ی عمومی + پنل مراجع) همین‌جا زیرش باز می‌شوند.
  // تیم/حساب/پشتیبانی هم از تنظیمات جدا شدند و تب مستقل خودشان را دارند.
  type MainTab = 'dashboard' | 'patients' | 'bookings' | 'schedule' | 'settings' | 'finance' | 'growth' | 'staff' | 'account' | 'tickets'
- type SettingsSub = 'profile' | 'payments' | 'pricing' | 'locations' | 'form' | 'patient_panel'
+ type SettingsSub = 'profile' | 'payments' | 'pricing' | 'locations' | 'appearance' | 'form' | 'patient_panel'
 
  const [mainTab, setMainTab] = useState<MainTab>('dashboard')
  // null = هیچ زیرتبی باز نیست → «نمای کلی تنظیمات» نشان داده می‌شود. کلیک روی
@@ -1471,6 +1473,7 @@ export function PsychologyAdmin() {
    if (me?.isOwner !== false && !patientFeaturesLoaded) loadPatientFeatures()
    // staffList برای سوییچر «پروفایل کدام دکتر» بالای تب‌های صفحه‌ی عمومی لازم است
    if (me?.isOwner && !staffLoaded) loadStaff()
+   if (me?.isOwner && !themeLoaded) loadThemeProfile()
   }
   if (mainTab === 'staff' && me?.isOwner && !staffLoaded) loadStaff()
   if (mainTab === 'tickets') loadTickets()
@@ -1626,6 +1629,41 @@ export function PsychologyAdmin() {
  }
 
  const patchProfile = (p: Partial<ResourceProfileView>) => setProfile(s => ({ ...s, ...p }))
+
+ // ── تم برند (سطح tenant، نه resource) — رنگ صفحه‌ی عمومی و پنل مراجع.
+ // این‌جا از /panel/profile استفاده می‌کند (نه psy/profile که بالاست و سطح
+ // resource است)؛ چون این روت همه‌ی فیلدهای tenant_profiles را با هم می‌خواند/
+ // می‌نویسد، کل ردیف نگه داشته می‌شود تا ذخیره‌ی جزئی، بقیه‌ی فیلدها (نام،
+ // بیوگرافی، شماره‌کارت و ...) را خالی نکند.
+ const [themeProfile, setThemeProfile] = useState<any>(null)
+ const [themeLoaded, setThemeLoaded] = useState(false)
+ const [themeSaving, setThemeSaving] = useState(false)
+ const [themeSaved, setThemeSaved] = useState(false)
+
+ async function loadThemeProfile() {
+  try {
+   const res = await fetch(`/api/t/${slug}/panel/profile`, { cache: 'no-store' })
+   if (res.ok) { const d = await res.json(); setThemeProfile(d.profile || {}) }
+  } catch {}
+  setThemeLoaded(true)
+ }
+
+ function patchTheme(p: Record<string, unknown>) {
+  setThemeProfile((s: any) => ({ ...(s || {}), ...p }))
+ }
+
+ async function saveTheme() {
+  if (!themeProfile) return
+  setThemeSaving(true); setThemeSaved(false)
+  try {
+   const res = await fetch(`/api/t/${slug}/panel/profile`, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(themeProfile),
+   })
+   if (!res.ok) { const d = await res.json().catch(() => ({})); uiAlert(d.error || 'ذخیره نشد'); setThemeSaving(false); return }
+   setThemeSaved(true); setTimeout(() => setThemeSaved(false), 2500)
+  } catch {}
+  setThemeSaving(false)
+ }
 
  // ── آپلود عکس پروفایل با ویرایشگر برش ──────────────────────────────
  // انتخاب فایل → مودال برش (جابه‌جایی با درگ + زوم با اسلایدر، تا صورت وسط
@@ -2108,6 +2146,7 @@ export function PsychologyAdmin() {
     { key: 'pricing', icon: '💰', label: 'قیمت‌گذاری' },
     { key: 'form', icon: '📝', label: 'فرم رزرو' },
     ...(me?.isOwner !== false ? [{ key: 'locations' as const, icon: '🏢', label: 'مکان‌های حضوری' }] : []),
+    ...(me?.isOwner !== false ? [{ key: 'appearance' as const, icon: '🎨', label: 'ظاهر و برند' }] : []),
    ],
   },
   ...(me?.isOwner !== false ? [{
@@ -4259,6 +4298,28 @@ export function PsychologyAdmin() {
          </div>
          <button onClick={() => patchSettings({ office_locations: [...settings.office_locations, { id: genId('loc'), title: '', address: '' }] })}
           className="mt-3 text-xs px-3 py-1.5 border border-sand text-ink rounded-lg hover:bg-sand">+ افزودن مکان</button>
+        </section>
+       )}
+
+       {/* ظاهر و برند — تم صفحه‌ی عمومی و پنل مراجع؛ سطح tenant، فقط owner */}
+       {settingsSubTab === 'appearance' && me?.isOwner !== false && (
+        <section className="bg-white rounded-2xl border border-sand p-5">
+         <h2 className="text-sm font-display font-semibold text-ink mb-1">ظاهر و برند</h2>
+         <p className="text-xs text-soot mb-4">
+          رنگ اصلی صفحه‌ی عمومی و پنل مراجع خودتان را انتخاب کنید — یا از رنگ‌های آماده، یا با آپلود لوگو تا سیستم خودش رنگ برند شما را استخراج کند. برای خوانایی، رنگ نهایی همیشه کنتراست کافی روی زمینه‌ی سفید خواهد داشت.
+         </p>
+         {!themeLoaded ? (
+          <SkeletonRows count={1} height="h-40" />
+         ) : (
+          <>
+           <ThemeModePicker slug={slug} themeMode={themeProfile?.theme_mode || 'preset'} themeColor={themeProfile?.theme_color || DEFAULT_SAFE_THEME}
+            logoUrl={themeProfile?.logo_url || null} onChange={patchTheme} uiAlert={uiAlert} />
+           <button onClick={saveTheme} disabled={themeSaving}
+            className="w-full mt-4 py-2.5 bg-ink text-white rounded-xl text-sm font-medium disabled:opacity-50 hover:bg-ink/90 transition-colors">
+            {themeSaving ? 'در حال ذخیره...' : themeSaved ? '✓ ذخیره شد' : 'ذخیره‌ی تم'}
+           </button>
+          </>
+         )}
         </section>
        )}
 

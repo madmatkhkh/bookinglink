@@ -54,6 +54,8 @@ create table tenant_profiles (
   bio text not null default '',
   avatar_url text,
   theme_color text not null default '13 148 136',
+  theme_mode text not null default 'preset' check (theme_mode in ('preset', 'logo')),
+  logo_url text,
   location_text text not null default '',
   instagram_handle text,
   card_number text not null default '',

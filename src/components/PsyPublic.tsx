@@ -18,14 +18,15 @@ export type PublicClinicView = {
   badges: string[]
   session_modes: SessionMode
   cards: PaymentCardInfo[]
+  theme_color: string | null
 }
 
 const EMPTY_VIEW: PublicClinicView = {
   office_locations: [], doctor_name: '', doctor_title: '', avatar_url: '',
-  badges: [], session_modes: 'both', cards: [],
+  badges: [], session_modes: 'both', cards: [], theme_color: null,
 }
 
-function buildView(settings: { office_locations?: OfficeLocation[] } | null, doctors: PublicDoctor[]): PublicClinicView {
+function buildView(settings: { office_locations?: OfficeLocation[] } | null, doctors: PublicDoctor[], themeColor: string | null): PublicClinicView {
   const primary = doctors[0]
   return {
     office_locations: Array.isArray(settings?.office_locations) ? settings!.office_locations! : [],
@@ -35,6 +36,7 @@ function buildView(settings: { office_locations?: OfficeLocation[] } | null, doc
     badges: primary?.badges || [],
     session_modes: primary?.session_modes || 'both',
     cards: primary?.cards || [],
+    theme_color: themeColor,
   }
 }
 
@@ -50,7 +52,7 @@ export function usePublicClinic(slug: string): PublicClinicView & { loaded: bool
       .then(d => {
         if (!alive) return
         const doctors: PublicDoctor[] = Array.isArray(d.doctors) ? d.doctors : []
-        setState({ ...buildView(d.settings, doctors), loaded: true, doctors })
+        setState({ ...buildView(d.settings, doctors, d.theme_color || null), loaded: true, doctors })
       })
       .catch(() => { if (alive) setState({ ...EMPTY_VIEW, loaded: true, doctors: [] }) })
     return () => { alive = false }

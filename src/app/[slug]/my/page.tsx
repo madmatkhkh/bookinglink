@@ -9,6 +9,7 @@ import { DialogHost, uiAlert, uiConfirm } from '@/components/ui/Dialog'
 import { useResendCooldown } from '@/lib/useResendCooldown'
 import { useModalBackClose } from '@/lib/useModalBackClose'
 import { MeetChannel, usableMeetChannels, mergeMeetChannels } from '@/lib/meet'
+import { useTenantThemeColor } from '@/lib/useTenantThemeColor'
 
 type CaseStage = {
  id: string; case_number: string
@@ -56,6 +57,7 @@ export default function PatientPanel() {
  const searchParams = useSearchParams()
  const paymentHandled = useRef(false)
  const settings = usePublicClinic(slug)
+ useTenantThemeColor(settings.theme_color)
  const [step, setStep] = useState<Step>('login')
  const [restoring, setRestoring] = useState(true) // تا وقتی localStorage چک شود، به‌جای لاگین اسپلش نشان بده
  const [phone, setPhone] = useState('')
@@ -250,7 +252,7 @@ export default function PatientPanel() {
     </div>
     {error && <p className="text-xs text-red-600 mb-3 text-center">{error}</p>}
     <button onClick={sendOtp} disabled={loading}
-     className="w-full py-3 bg-ink text-white rounded-xl text-sm font-medium disabled:opacity-40">
+     className="w-full py-3 bg-accent text-white rounded-xl text-sm font-medium disabled:opacity-40">
      {loading ? 'در حال ارسال...' : 'دریافت کد تایید'}
     </button>
    </div>
@@ -276,7 +278,7 @@ export default function PatientPanel() {
      className="w-full text-xl px-3 py-3 border border-sand rounded-xl text-center tracking-[0.5em] focus:outline-none focus:border-ink mb-3" />
     {error && <p className="text-xs text-red-600 mb-3 text-center">{error}</p>}
     <button onClick={verifyOtp} disabled={loading || otpCode.length < 5}
-     className="w-full py-3 bg-ink text-white rounded-xl text-sm font-medium disabled:opacity-40">
+     className="w-full py-3 bg-accent text-white rounded-xl text-sm font-medium disabled:opacity-40">
      {loading ? 'در حال بررسی...' : 'ورود به پنل'}
     </button>
     <div className="text-center mt-3">
@@ -373,7 +375,7 @@ export default function PatientPanel() {
        <StageHero icon={currentStage.cancel_notice ? '🗓' : '✅'} title={currentStage.cancel_notice ? 'انتخاب زمان جدید' : 'پرداخت تأیید شد!'}
         desc={`می‌توانید وقت ${STAGE_TYPE_LABEL[currentStage.stage_type] || ''} را انتخاب کنید.`} />
        <button onClick={() => setShowSlotPicker(true)}
-        className="w-full py-3 bg-ink text-white rounded-xl text-sm font-medium hover:bg-ink/90">
+        className="w-full py-3 bg-accent text-white rounded-xl text-sm font-medium hover:bg-accent/90">
         گرفتن وقت
        </button>
       </>
@@ -434,7 +436,7 @@ export default function PatientPanel() {
     <div className="flex bg-white rounded-xl border border-sand p-1 mb-4">
      {(['packages', 'sessions', 'info'] as const).map(t => (
       <button key={t} onClick={() => navigateSection(t)}
-       className={`flex-1 text-xs py-2 rounded-lg font-medium transition-all ${activeTab === t ? 'bg-ink text-white' : 'text-soot'}`}>
+       className={`flex-1 text-xs py-2 rounded-lg font-medium transition-all ${activeTab === t ? 'bg-accent text-white' : 'text-soot'}`}>
        {t === 'packages' ? 'پروتکل‌های درمان' : t === 'sessions' ? 'جلسات' : 'اطلاعات'}
       </button>
      ))}
@@ -486,7 +488,7 @@ export default function PatientPanel() {
          <div className="flex items-center justify-between text-xs text-soot mb-3">
           <span>{booked} از {total_sessions} جلسه انتخاب شده</span>
           <div className="flex-1 mx-3 bg-gray-100 rounded-full h-1.5">
-           <div className="bg-ink h-1.5 rounded-full transition-all" style={{ width: `${Math.min(100, (booked/total_sessions)*100)}%` }} />
+           <div className="bg-accent h-1.5 rounded-full transition-all" style={{ width: `${Math.min(100, (booked/total_sessions)*100)}%` }} />
           </div>
          </div>
 
@@ -726,7 +728,7 @@ function SessionCard({ session: s, num, phone, caseNumber, onUpdate }: {
        <div className="flex flex-wrap gap-1.5 mt-1.5">
         {channels.map(ch => (
          <a key={ch.method} href={ch.href} target="_blank" rel="noopener noreferrer"
-          className="text-xs text-white bg-ink rounded-lg px-3 py-1.5 inline-block font-medium hover:opacity-90">
+          className="text-xs text-white bg-accent rounded-lg px-3 py-1.5 inline-block font-medium hover:opacity-90">
           {ch.action} ↗
          </a>
         ))}
@@ -779,13 +781,13 @@ function SessionCard({ session: s, num, phone, caseNumber, onUpdate }: {
      <div className="mt-3 flex gap-2">
       {onlineOn && (
        <button onClick={paySessionOnline} disabled={onlineLoading}
-        className="flex-1 py-2.5 bg-ink text-white rounded-xl text-sm font-medium disabled:opacity-40">
+        className="flex-1 py-2.5 bg-accent text-white rounded-xl text-sm font-medium disabled:opacity-40">
         {onlineLoading ? 'در حال اتصال...' : `پرداخت آنلاین ${sessionPrice.toLocaleString()}`}
        </button>
       )}
       {cardOn && (
        <button onClick={() => setPayOpen(true)}
-        className={`py-2.5 rounded-xl text-sm font-medium ${onlineOn ? 'flex-1 border border-gray-300 text-soot' : 'w-full bg-ink text-white'}`}>
+        className={`py-2.5 rounded-xl text-sm font-medium ${onlineOn ? 'flex-1 border border-gray-300 text-soot' : 'w-full bg-accent text-white'}`}>
         {onlineOn ? 'کارت‌به‌کارت' : `پرداخت کارت‌به‌کارت ${sessionPrice.toLocaleString()} تومان`}
        </button>
       )}
@@ -799,7 +801,7 @@ function SessionCard({ session: s, num, phone, caseNumber, onUpdate }: {
       <textarea value={payRef} onChange={e => setPayRef(e.target.value)} rows={2} placeholder="اطلاعات فیش واریزی..."
        className="w-full text-sm px-3 py-2 border border-sand rounded-xl focus:outline-none focus:border-ink mb-2 resize-none" />
       <button onClick={paySession} disabled={paying || !payRef.trim()}
-       className="w-full py-2.5 bg-ink text-white rounded-xl text-sm font-medium disabled:opacity-40">
+       className="w-full py-2.5 bg-accent text-white rounded-xl text-sm font-medium disabled:opacity-40">
        {paying ? 'در حال ثبت...' : 'پرداخت کردم'}
       </button>
      </div>
@@ -898,13 +900,13 @@ function PayButton({ pkg, phone, onSuccess, total }: { pkg: Package; phone: stri
   <div className="flex gap-2">
    {onlineOn && (
     <button onClick={payOnline} disabled={onlineLoading}
-     className="flex-1 py-2.5 bg-ink text-white rounded-xl text-sm font-medium disabled:opacity-40">
+     className="flex-1 py-2.5 bg-accent text-white rounded-xl text-sm font-medium disabled:opacity-40">
      {onlineLoading ? 'در حال اتصال...' : `پرداخت آنلاین ${total.toLocaleString()}`}
     </button>
    )}
    {cardOn && (
     <button onClick={() => setOpen(true)}
-     className={`py-2.5 rounded-xl text-sm font-medium ${onlineOn ? 'flex-1 border border-gray-300 text-soot' : 'w-full bg-ink text-white'}`}>
+     className={`py-2.5 rounded-xl text-sm font-medium ${onlineOn ? 'flex-1 border border-gray-300 text-soot' : 'w-full bg-accent text-white'}`}>
      {onlineOn ? 'کارت‌به‌کارت' : `پرداخت کارت‌به‌کارت ${total.toLocaleString()} تومان`}
     </button>
    )}
@@ -920,7 +922,7 @@ function PayButton({ pkg, phone, onSuccess, total }: { pkg: Package; phone: stri
    <textarea value={ref} onChange={e => setRef(e.target.value)} rows={3} placeholder="اطلاعات فیش واریزی را وارد کنید..."
     className="w-full text-sm px-3 py-2 border border-sand rounded-xl focus:outline-none focus:border-ink mb-2 resize-none" />
    <button onClick={pay} disabled={paying || !ref.trim()}
-    className="w-full py-2.5 bg-ink text-white rounded-xl text-sm font-medium disabled:opacity-40">
+    className="w-full py-2.5 bg-accent text-white rounded-xl text-sm font-medium disabled:opacity-40">
     {paying ? 'در حال ثبت...' : 'پرداخت کردم'}
    </button>
    <p className="text-[11px] text-soot mt-1.5 text-center">پس از واریز، متن فیش را وارد و «پرداخت کردم» را بزنید تا بررسی و تأیید شود.</p>
@@ -1101,7 +1103,7 @@ function SlotPicker({ session, phone, caseNumber, onClose, onDone, title = 'ان
       </div>
      )}
      <button onClick={confirm} disabled={!selectedDay || !selectedSlot || saving}
-      className="w-full py-3 bg-ink text-white rounded-xl text-sm font-medium disabled:opacity-40">
+      className="w-full py-3 bg-accent text-white rounded-xl text-sm font-medium disabled:opacity-40">
       {saving ? 'در حال ثبت...' : 'ثبت زمان جلسه'}
      </button>
     </div>
@@ -1334,7 +1336,7 @@ function SchedulePicker({ pkg, existingSessions, phone, caseNumber, onClose, onD
               const canSwitch = selfIsA || (bookedA + otherSelected) < capA
               return (
                <button key={a} disabled={!canSwitch} onClick={() => canSwitch && setAttendeeMap(prev => ({ ...prev, [key]: a }))}
-                className={`flex-1 text-xs py-0.5 rounded border transition-all ${attendee === a ? 'bg-ink text-white border-ink' : canSwitch ? 'border-sand text-soot' : 'border-sand text-gray-300 cursor-not-allowed'}`}>
+                className={`flex-1 text-xs py-0.5 rounded border transition-all ${attendee === a ? 'bg-accent text-white border-accent' : canSwitch ? 'border-sand text-soot' : 'border-sand text-gray-300 cursor-not-allowed'}`}>
                 {a === 'primary' ? 'مراجع' : companionLabel}
                </button>
               )
@@ -1366,7 +1368,7 @@ function SchedulePicker({ pkg, existingSessions, phone, caseNumber, onClose, onD
      )}
 
      <button onClick={confirmSessions} disabled={totalSelected < remaining || saving}
-      className="w-full py-3 bg-ink text-white rounded-xl text-sm font-medium disabled:opacity-40">
+      className="w-full py-3 bg-accent text-white rounded-xl text-sm font-medium disabled:opacity-40">
       {saving ? 'در حال ثبت...' : totalSelected < remaining ? `${remaining - totalSelected} جلسه دیگر انتخاب کنید` : 'ثبت روزهای جلسات'}
      </button>
     </div>
@@ -1418,7 +1420,7 @@ function StageInfo({ icon, title, desc, date, time, label, delayMinutes, meetCha
      <div className="flex flex-wrap gap-2 mt-2">
       {channels.map(ch => (
        <a key={ch.method} href={ch.href} target="_blank" rel="noopener noreferrer"
-        className="text-sm text-white bg-ink rounded-xl px-4 py-2.5 inline-block font-medium hover:opacity-90">
+        className="text-sm text-white bg-accent rounded-xl px-4 py-2.5 inline-block font-medium hover:opacity-90">
         {ch.action} ↗
        </a>
       ))}
@@ -1502,7 +1504,7 @@ function StagePayment({ icon, title, desc, amount, onPaid, onDone, resourceId, c
     <>
      <p className="text-xs text-soot mb-3 text-center">بعد پرداخت بلافاصله می‌توانید ادامه دهید.</p>
      <button onClick={payOnline} disabled={onlineLoading}
-      className="w-full py-3 bg-ink text-white rounded-xl text-sm font-medium disabled:opacity-40">
+      className="w-full py-3 bg-accent text-white rounded-xl text-sm font-medium disabled:opacity-40">
       {onlineLoading ? 'در حال اتصال به درگاه...' : 'پرداخت آنلاین'}
      </button>
     </>
@@ -1515,7 +1517,7 @@ function StagePayment({ icon, title, desc, amount, onPaid, onDone, resourceId, c
      <textarea value={ref} onChange={e => setRef(e.target.value)} rows={3} placeholder="اطلاعات فیش واریزی را وارد کنید (کد پیگیری، شماره کارت مبدأ، تاریخ و ساعت واریز...)"
       className="w-full text-sm px-3 py-2.5 border border-sand rounded-xl focus:outline-none focus:border-ink mb-3 resize-none" />
      <button onClick={submit} disabled={submitting || !ref.trim()}
-      className="w-full py-3 bg-ink text-white rounded-xl text-sm font-medium disabled:opacity-40">
+      className="w-full py-3 bg-accent text-white rounded-xl text-sm font-medium disabled:opacity-40">
       {submitting ? 'در حال ثبت...' : 'پرداخت کردم'}
      </button>
      <p className="text-[11px] text-soot mt-2 text-center">پس از واریز، متن فیش را وارد و «پرداخت کردم» را بزنید تا بررسی و تأیید شود.</p>
@@ -1540,7 +1542,7 @@ function StageProgress({ stages, inTreatment }: { stages: CaseStage[]; inTreatme
     <div key={i} className="flex items-center flex-1 last:flex-none">
      <div className="flex flex-col items-center gap-1 shrink-0">
       <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-medium
-       ${it.done ? 'bg-emerald-500 text-white' : it.current ? 'bg-ink text-white' : 'bg-gray-100 text-soot'}`}>
+       ${it.done ? 'bg-emerald-500 text-white' : it.current ? 'bg-accent text-white' : 'bg-gray-100 text-soot'}`}>
        {it.done ? '✓' : it.icon}
       </div>
       <span className={`text-[11px] whitespace-nowrap ${it.current ? 'text-ink font-medium' : 'text-soot'}`}>{it.label}</span>
@@ -1593,7 +1595,7 @@ function ReviewBox({ resourceId, caseNumber, phone, slug }: { resourceId: string
     className="w-full text-sm px-3 py-2 border border-sand rounded-xl focus:outline-none focus:border-ink resize-none mb-2" />
    {err && <p className="text-xs text-red-600 mb-2 text-center">{err}</p>}
    <button onClick={submit} disabled={submitting}
-    className="w-full py-2.5 bg-ink text-white rounded-xl text-sm font-medium disabled:opacity-40">
+    className="w-full py-2.5 bg-accent text-white rounded-xl text-sm font-medium disabled:opacity-40">
     {submitting ? 'در حال ثبت...' : 'ثبت نظر'}
    </button>
   </div>

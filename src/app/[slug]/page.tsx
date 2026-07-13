@@ -52,7 +52,10 @@ export default async function PublicProfile({ params }: { params: { slug: string
 
  // ── نیچ روانشناسی: تجربه‌ی مصاحبه/پنل مراجع ──
  if (isPsychologyNiche(tenant.niche_key)) {
-  const [clinic, doctors] = await Promise.all([getClinicSettings(tenant.id), listPublicDoctors(tenant.id)])
+  const [clinic, doctors, { data: themeProfile }] = await Promise.all([
+   getClinicSettings(tenant.id), listPublicDoctors(tenant.id),
+   sb().from('tenant_profiles').select('theme_color').eq('tenant_id', tenant.id).maybeSingle(),
+  ])
   const primary = doctors[0]
   const c = {
    office_locations: clinic.office_locations,
@@ -60,7 +63,7 @@ export default async function PublicProfile({ params }: { params: { slug: string
    avatar_url: primary?.avatar_url || '', badges: primary?.badges || [],
    rating_avg: primary?.rating_avg || 0, rating_count: primary?.rating_count || 0,
   }
-  return <PsychologyLanding slug={params.slug} c={c} />
+  return <PsychologyLanding slug={params.slug} c={c} themeColor={themeProfile?.theme_color || null} />
  }
 
  // ── بقیه‌ی نیچ‌ها: لیست سرویس‌ها ──
@@ -74,9 +77,9 @@ export default async function PublicProfile({ params }: { params: { slug: string
 }
 
 // ═══ لندینگ روانشناسی (سبک psych-booking، ریسپانسیو) ═══════════════
-function PsychologyLanding({ slug, c }: { slug: string; c: any }) {
+function PsychologyLanding({ slug, c, themeColor }: { slug: string; c: any; themeColor: string | null }) {
  return (
-  <div className="min-h-screen bg-paper flex items-center justify-center p-4">
+  <div className="min-h-screen bg-paper flex items-center justify-center p-4" style={themeColor ? { ['--brand' as any]: themeColor } : undefined}>
    <div className="max-w-sm w-full">
     <div className="text-center mb-8">
      <div className="w-20 h-20 rounded-full bg-accent/10 border border-accent/20 flex items-center justify-center mx-auto mb-3 text-3xl overflow-hidden">

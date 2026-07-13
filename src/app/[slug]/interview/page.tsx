@@ -8,6 +8,7 @@ import { onlineAvailable, offlineAvailable, fieldVisible, missingIntakeFields } 
 import type { PaymentCardInfo, IntakeForm, FormField, PaymentMethods } from '@/lib/psy'
 import { DialogHost, uiAlert, uiConfirm, uiPrompt } from '@/components/ui/Dialog'
 import { JalaliDateWheel } from '@/components/WheelPicker'
+import { useTenantThemeColor } from '@/lib/useTenantThemeColor'
 
 type Step = 1 | 3 | 'pay' | 'done'
 
@@ -15,6 +16,7 @@ export default function InterviewPage() {
  const { slug } = useParams<{ slug: string }>()
  const today = getCurrentJalali()
  const settings = usePublicClinic(slug)
+ useTenantThemeColor(settings.theme_color)
  const [step, setStep] = useState<Step>(1)
  const [selectedDoctorId, setSelectedDoctorId] = useState('')
  const [sessionType, setSessionType] = useState<'online'|'offline'|''>('')
@@ -175,7 +177,7 @@ export default function InterviewPage() {
     <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 text-sm text-amber-700">
      پرداخت شما در انتظار <b>تأیید</b> است. پس از تأیید، از پنل مراجع می‌توانید <b>وقت مصاحبه</b> را انتخاب کنید.
     </div>
-    <a href={`/${slug}/my`} className="block mt-3 w-full py-3 bg-ink text-white rounded-xl text-sm font-medium hover:bg-ink/90 transition-colors">ورود به پنل مراجع</a>
+    <a href={`/${slug}/my`} className="block mt-3 w-full py-3 bg-accent text-white rounded-xl text-sm font-medium hover:bg-accent/90 transition-colors">ورود به پنل مراجع</a>
    </div>
   </div>
  )
@@ -257,7 +259,7 @@ export default function InterviewPage() {
          })}
         </div>
         <button disabled={!selKey || (needsDoctorPick && !selectedDoctorId)} onClick={() => setStep(3)}
-         className="w-full py-3 bg-ink text-white rounded-xl text-sm font-medium disabled:opacity-40 hover:bg-ink/90 transition-colors">
+         className="w-full py-3 bg-accent text-white rounded-xl text-sm font-medium disabled:opacity-40 hover:bg-accent/90 transition-colors">
          ادامه ←
         </button>
        </>
@@ -344,7 +346,7 @@ export default function InterviewPage() {
            <span className="text-[11px] text-soot">{toFarsiNum(safeIdx + 1)} از {toFarsiNum(totalPages)}</span>
           </div>
           <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-           <div className="h-full bg-ink rounded-full transition-all" style={{ width: `${((safeIdx + 1) / totalPages) * 100}%` }} />
+           <div className="h-full bg-accent rounded-full transition-all" style={{ width: `${((safeIdx + 1) / totalPages) * 100}%` }} />
           </div>
          </div>
 
@@ -371,7 +373,7 @@ export default function InterviewPage() {
        <div className="flex gap-2 pt-6">
         <button onClick={goBack} className="px-4 py-3 border border-sand rounded-xl text-sm text-soot hover:bg-gray-50">برگشت</button>
         <button disabled={loading || !intakeLoaded} onClick={goNext}
-         className="flex-1 py-3 bg-ink text-white rounded-xl text-sm font-medium disabled:opacity-40 hover:bg-ink/90 transition-colors">
+         className="flex-1 py-3 bg-accent text-white rounded-xl text-sm font-medium disabled:opacity-40 hover:bg-accent/90 transition-colors">
          {loading ? 'در حال ثبت...' : safeIdx === totalPages - 1 ? 'ادامه به پرداخت ←' : 'بعدی ←'}
         </button>
        </div>
@@ -433,7 +435,7 @@ function DynamicField({ field, value, onChange, onToggle }: {
    <div className="flex gap-2 flex-wrap">
     {(field.options || []).map(o => (
      <button key={o} type="button" onClick={() => onChange(o)}
-      className={`px-4 py-1.5 text-sm rounded-lg border ${value === o ? 'bg-ink text-white border-ink' : 'border-sand text-soot'}`}>
+      className={`px-4 py-1.5 text-sm rounded-lg border ${value === o ? 'bg-accent text-white border-accent' : 'border-sand text-soot'}`}>
       {o}
      </button>
     ))}
@@ -448,7 +450,7 @@ function DynamicField({ field, value, onChange, onToggle }: {
    <div className="flex flex-wrap gap-2">
     {(field.options || []).map(o => (
      <button key={o} type="button" onClick={() => onToggle(o)}
-      className={`text-xs px-3 py-1.5 rounded-full border transition-all ${selected.includes(o) ? 'bg-ink text-white border-ink' : 'border-sand text-soot hover:border-gray-300'}`}>
+      className={`text-xs px-3 py-1.5 rounded-full border transition-all ${selected.includes(o) ? 'bg-accent text-white border-accent' : 'border-sand text-soot hover:border-gray-300'}`}>
       {o}
      </button>
     ))}
@@ -581,7 +583,7 @@ function InterviewPayScreen({ amount, cards, loaded, loading, onPay, paymentMeth
       <p className="text-xs text-soot mb-3 text-center">بعد پرداخت بلافاصله می‌توانید وقت مصاحبه را بگیرید.</p>
       {onlineError && <div className="text-xs text-red-600 bg-red-500/10 border border-red-500/20 rounded-lg p-2.5 mb-3 text-center">{onlineError}</div>}
       <button onClick={payOnline} disabled={onlineLoading}
-       className="w-full py-3 bg-ink text-white rounded-xl text-sm font-medium disabled:opacity-40">
+       className="w-full py-3 bg-accent text-white rounded-xl text-sm font-medium disabled:opacity-40">
        {onlineLoading ? 'در حال اتصال به درگاه...' : 'پرداخت آنلاین'}
       </button>
      </>
@@ -595,7 +597,7 @@ function InterviewPayScreen({ amount, cards, loaded, loading, onPay, paymentMeth
       <textarea value={ref} onChange={e => setRef(e.target.value)} rows={3} placeholder="اطلاعات فیش واریزی را وارد کنید (کد پیگیری، شماره کارت مبدأ، تاریخ و ساعت واریز...)"
        className="w-full text-sm px-3 py-2.5 border border-sand rounded-xl focus:outline-none focus:border-ink mb-3 resize-none" />
       <button onClick={() => onPay(ref.trim(), discountResult?.ok ? discountCode.trim() : undefined)} disabled={loading || !ref.trim()}
-       className="w-full py-3 bg-ink text-white rounded-xl text-sm font-medium disabled:opacity-40">
+       className="w-full py-3 bg-accent text-white rounded-xl text-sm font-medium disabled:opacity-40">
        {loading ? 'در حال ثبت...' : 'پرداخت کردم'}
       </button>
       <p className="text-[11px] text-soot mt-2 text-center">پس از تأیید پرداخت، از پنل مراجع وقت مصاحبه را می‌گیرید.</p>

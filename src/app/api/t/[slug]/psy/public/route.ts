@@ -11,7 +11,11 @@ export const revalidate = 0
 export async function GET(_req: NextRequest, { params }: { params: { slug: string } }) {
   const t = await getActiveTenant(params.slug)
   if (!t) return NextResponse.json({ error: 'یافت نشد' }, { status: 404 })
-  const [settings, doctors] = await Promise.all([getClinicSettings(t.id), listPublicDoctors(t.id)])
+  const [settings, doctors, { data: profile }] = await Promise.all([
+    getClinicSettings(t.id),
+    listPublicDoctors(t.id),
+    sb().from('tenant_profiles').select('theme_color').eq('tenant_id', t.id).maybeSingle(),
+  ])
 
   const { data } = await sb().from('tenant_features').select('feature_key, enabled')
     .eq('tenant_id', t.id).in('feature_key', PATIENT_FEATURE_KEYS)
@@ -19,5 +23,5 @@ export async function GET(_req: NextRequest, { params }: { params: { slug: strin
   for (const k of PATIENT_FEATURE_KEYS) features[k] = true
   for (const row of data || []) features[row.feature_key] = row.enabled
 
-  return NextResponse.json({ settings, doctors, features })
+  return NextResponse.json({ settings, doctors, features, theme_color: profile?.theme_color || null })
 }
