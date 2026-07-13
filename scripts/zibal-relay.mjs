@@ -80,4 +80,4 @@ http.createServer((req, res) => {
       send(502, { error: 'upstream failed' })
     }
   })
-}).listen(PORT, () => console.log(`zibal relay listening on ${PORT}`))
+}).listen(PORT, '127.0.0.1', () => console.log(`zibal relay listening on 127.0.0.1:${PORT}`))
