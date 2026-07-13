@@ -17,6 +17,24 @@
 --      نداشت. همان‌هایی که کل محافظت در برابر رزرو دوگانه به آن‌ها تکیه دارد.
 --
 -- ⚠️ این فایل همه‌چیز را DROP می‌کند. روی دیتابیسی که داده‌ی واقعی دارد اجرا نکن.
+--
+-- ── دو تله‌ای که هنگام تولید این فایل با pg_dump باید حواست باشد ─────────────
+--
+-- 1) نسخه‌های تازه‌ی pg_dump دو خط `\restrict` و `\unrestrict` اضافه می‌کنند.
+--    آن‌ها دستور psql هستند، نه SQL — در ترمینال psql کار می‌کنند ولی SQL Editor
+--    سوپابیس متن را مستقیم به سرور می‌فرستد و سرور با
+--    `syntax error at or near "\"` ردشان می‌کند. باید حذف شوند.
+--
+-- 2) هیچ اکستنشنی لازم نیست و هیچ‌جا هم به اکستنشن ارجاع نشده. کلیدها با
+--    gen_random_uuid() ساخته می‌شوند که از Postgres 13 داخل خود هسته است.
+--    عمدا از uuid_generate_v4() استفاده نشده: آن از اکستنشن uuid-ossp می‌آید و
+--    سوپابیس اکستنشن‌ها را در اسکیمای `extensions` نصب می‌کند نه `public` — پس
+--    ارجاع qualified که pg_dump تولید می‌کند (`public.uuid_generate_v4()`) آن‌جا
+--    وجود ندارد و با `function does not exist` می‌شکند. اگر روزی این فایل را با
+--    pg_dump بازتولید کردی و دوباره uuid_generate_v4 دیدی، دستی به
+--    gen_random_uuid() برش گردان.
+--
+-- این فایل روی یک دیتابیس بدون هیچ اکستنشنی (فقط plpgsql) تست شده است.
 -- ═════════════════════════════════════════════════════════════════════════════
 
 -- ── پاک‌سازی کامل ────────────────────────────────────────────────────────────
@@ -54,18 +72,10 @@ drop table if exists
   public.weekly_schedules
 cascade;
 
-create extension if not exists "uuid-ossp";
-
-\restrict MLgMYyx14BiXTK8srExCeleAaBDxRxmDBspNaysh5SsNIpCEQtJDuR3Rq6vWk0C
-
--- Name: uuid-ossp; Type: EXTENSION; Schema: -; Owner: -
-
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA public;
-
 -- Name: auth_throttle; Type: TABLE; Schema: public; Owner: -
 
 CREATE TABLE public.auth_throttle (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
     key text NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL
 );
@@ -73,7 +83,7 @@ CREATE TABLE public.auth_throttle (
 -- Name: bookings; Type: TABLE; Schema: public; Owner: -
 
 CREATE TABLE public.bookings (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
     tenant_id uuid NOT NULL,
     resource_id uuid NOT NULL,
     service_id uuid NOT NULL,
@@ -94,7 +104,7 @@ CREATE TABLE public.bookings (
 -- Name: client_records; Type: TABLE; Schema: public; Owner: -
 
 CREATE TABLE public.client_records (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
     tenant_id uuid NOT NULL,
     client_phone text NOT NULL,
     client_name text DEFAULT ''::text NOT NULL,
@@ -116,7 +126,7 @@ CREATE TABLE public.contact_messages (
 -- Name: ledger_entries; Type: TABLE; Schema: public; Owner: -
 
 CREATE TABLE public.ledger_entries (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
     tenant_id uuid NOT NULL,
     resource_id uuid,
     case_number text,
@@ -157,7 +167,7 @@ CREATE TABLE public.niches (
 -- Name: otps; Type: TABLE; Schema: public; Owner: -
 
 CREATE TABLE public.otps (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
     phone text NOT NULL,
     code text NOT NULL,
     expires_at timestamp with time zone NOT NULL,
@@ -168,7 +178,7 @@ CREATE TABLE public.otps (
 -- Name: psy_campaigns; Type: TABLE; Schema: public; Owner: -
 
 CREATE TABLE public.psy_campaigns (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
     tenant_id uuid NOT NULL,
     resource_id uuid,
     channel text NOT NULL,
@@ -182,7 +192,7 @@ CREATE TABLE public.psy_campaigns (
 -- Name: psy_cases; Type: TABLE; Schema: public; Owner: -
 
 CREATE TABLE public.psy_cases (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
     tenant_id uuid NOT NULL,
     case_number text NOT NULL,
     client_name text DEFAULT ''::text NOT NULL,
@@ -218,7 +228,7 @@ CREATE TABLE public.psy_clinic_settings (
 -- Name: psy_clinical_notes; Type: TABLE; Schema: public; Owner: -
 
 CREATE TABLE public.psy_clinical_notes (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
     tenant_id uuid NOT NULL,
     case_number text NOT NULL,
     resource_id uuid,
@@ -233,7 +243,7 @@ CREATE TABLE public.psy_clinical_notes (
 -- Name: psy_discount_codes; Type: TABLE; Schema: public; Owner: -
 
 CREATE TABLE public.psy_discount_codes (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
     tenant_id uuid NOT NULL,
     resource_id uuid NOT NULL,
     code text NOT NULL,
@@ -257,7 +267,7 @@ CREATE TABLE public.psy_intake_forms (
 -- Name: psy_packages; Type: TABLE; Schema: public; Owner: -
 
 CREATE TABLE public.psy_packages (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
     tenant_id uuid NOT NULL,
     case_number text NOT NULL,
     title text DEFAULT ''::text NOT NULL,
@@ -283,7 +293,7 @@ CREATE TABLE public.psy_packages (
 -- Name: psy_payment_intents; Type: TABLE; Schema: public; Owner: -
 
 CREATE TABLE public.psy_payment_intents (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
     tenant_id uuid NOT NULL,
     resource_id uuid,
     case_number text NOT NULL,
@@ -328,7 +338,7 @@ CREATE TABLE public.psy_resource_profiles (
 -- Name: psy_reviews; Type: TABLE; Schema: public; Owner: -
 
 CREATE TABLE public.psy_reviews (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
     tenant_id uuid NOT NULL,
     resource_id uuid,
     case_number text NOT NULL,
@@ -342,7 +352,7 @@ CREATE TABLE public.psy_reviews (
 -- Name: psy_schedules; Type: TABLE; Schema: public; Owner: -
 
 CREATE TABLE public.psy_schedules (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
     tenant_id uuid NOT NULL,
     resource_id uuid NOT NULL,
     date text NOT NULL,
@@ -356,7 +366,7 @@ CREATE TABLE public.psy_schedules (
 -- Name: psy_sessions; Type: TABLE; Schema: public; Owner: -
 
 CREATE TABLE public.psy_sessions (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
     tenant_id uuid NOT NULL,
     case_number text NOT NULL,
     package_id uuid,
@@ -390,7 +400,7 @@ CREATE TABLE public.psy_sessions (
 -- Name: psy_stages; Type: TABLE; Schema: public; Owner: -
 
 CREATE TABLE public.psy_stages (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
     tenant_id uuid NOT NULL,
     case_number text NOT NULL,
     stage_type text NOT NULL,
@@ -418,7 +428,7 @@ CREATE TABLE public.psy_stages (
 -- Name: psy_waitlist; Type: TABLE; Schema: public; Owner: -
 
 CREATE TABLE public.psy_waitlist (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
     tenant_id uuid NOT NULL,
     resource_id uuid,
     case_number text NOT NULL,
@@ -433,7 +443,7 @@ CREATE TABLE public.psy_waitlist (
 -- Name: resources; Type: TABLE; Schema: public; Owner: -
 
 CREATE TABLE public.resources (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
     tenant_id uuid NOT NULL,
     name text NOT NULL,
     title text DEFAULT ''::text NOT NULL,
@@ -449,7 +459,7 @@ CREATE TABLE public.resources (
 -- Name: schedule_overrides; Type: TABLE; Schema: public; Owner: -
 
 CREATE TABLE public.schedule_overrides (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
     tenant_id uuid NOT NULL,
     resource_id uuid NOT NULL,
     date text NOT NULL,
@@ -471,7 +481,7 @@ CREATE TABLE public.service_resources (
 -- Name: services; Type: TABLE; Schema: public; Owner: -
 
 CREATE TABLE public.services (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
     tenant_id uuid NOT NULL,
     name text NOT NULL,
     duration_minutes integer DEFAULT 60 NOT NULL,
@@ -488,7 +498,7 @@ CREATE TABLE public.services (
 -- Name: settlements; Type: TABLE; Schema: public; Owner: -
 
 CREATE TABLE public.settlements (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
     tenant_id uuid NOT NULL,
     resource_id uuid,
     amount bigint NOT NULL,
@@ -504,7 +514,7 @@ CREATE TABLE public.settlements (
 -- Name: support_tickets; Type: TABLE; Schema: public; Owner: -
 
 CREATE TABLE public.support_tickets (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
     tenant_id uuid NOT NULL,
     resource_id uuid,
     submitted_by_name text DEFAULT ''::text NOT NULL,
@@ -547,7 +557,7 @@ CREATE TABLE public.tenant_profiles (
 -- Name: tenants; Type: TABLE; Schema: public; Owner: -
 
 CREATE TABLE public.tenants (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
     slug text NOT NULL,
     custom_domain text,
     domain_verified boolean DEFAULT false NOT NULL,
@@ -566,7 +576,7 @@ CREATE TABLE public.tenants (
 -- Name: weekly_schedules; Type: TABLE; Schema: public; Owner: -
 
 CREATE TABLE public.weekly_schedules (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
     tenant_id uuid NOT NULL,
     resource_id uuid NOT NULL,
     weekday integer NOT NULL,
@@ -1323,8 +1333,6 @@ ALTER TABLE public.tenants ENABLE ROW LEVEL SECURITY;
 -- Name: weekly_schedules; Type: ROW SECURITY; Schema: public; Owner: -
 
 ALTER TABLE public.weekly_schedules ENABLE ROW LEVEL SECURITY;
-
-\unrestrict MLgMYyx14BiXTK8srExCeleAaBDxRxmDBspNaysh5SsNIpCEQtJDuR3Rq6vWk0C
 
 -- ═════════════════════════════════════════════════════════════════════════════
 -- داده‌ی اولیه — نیچ‌ها (تمپلیت هر نوع کسب‌وکار؛ ساختار = کد، محتوا = دیتا)
