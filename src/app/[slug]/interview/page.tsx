@@ -9,6 +9,7 @@ import type { PaymentCardInfo, IntakeForm, FormField, PaymentMethods } from '@/l
 import { DialogHost, uiAlert, uiConfirm, uiPrompt } from '@/components/ui/Dialog'
 import { JalaliDateWheel } from '@/components/WheelPicker'
 import { useTenantThemeColor } from '@/lib/useTenantThemeColor'
+import SlotPicker from '@/components/SlotPicker'
 
 type Step = 1 | 3 | 'pay' | 'done'
 
@@ -159,7 +160,8 @@ export default function InterviewPage() {
  }
 
  if (step === 'pay') return <InterviewPayScreen amount={sessionType === 'online' ? (displayDoctor?.pricing.online ?? PRICING.online) : (displayDoctor?.pricing.offline ?? PRICING.offline)} cards={settings.cards} loaded={settings.loaded} loading={loading}
-  onPay={submitInterviewPayment} paymentMethods={displayDoctor?.payment_methods} slug={slug} caseNumber={caseNumber} phone={contactPhone} stageId={stageId} resourceId={displayDoctor?.id} />
+  onPay={submitInterviewPayment} paymentMethods={displayDoctor?.payment_methods} slug={slug} caseNumber={caseNumber} phone={contactPhone} stageId={stageId} resourceId={displayDoctor?.id}
+  sessionType={sessionType || undefined} officeLocation={officeLoc} />
 
  if (step === 'done') return (
   <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
@@ -482,16 +484,17 @@ function StepBar({ current }: { current: number }) {
  )
 }
 // صفحه‌ی پرداخت کارت‌به‌کارت مصاحبه‌ی اولیه
-function InterviewPayScreen({ amount, cards, loaded, loading, onPay, paymentMethods, slug, caseNumber, phone, stageId, resourceId }: {
+function InterviewPayScreen({ amount, cards, loaded, loading, onPay, paymentMethods, slug, caseNumber, phone, stageId, resourceId, sessionType, officeLocation }: {
  amount: number; cards: PaymentCardInfo[]; loaded: boolean; loading: boolean; onPay: (ref: string, discountCode?: string) => void
  paymentMethods?: PaymentMethods; slug: string; caseNumber: string; phone: string; stageId: string; resourceId?: string
+ sessionType?: 'online' | 'offline'; officeLocation?: string
 }) {
  const [ref, setRef] = useState('')
  const online = !!paymentMethods?.online
  const cardToCard = paymentMethods ? paymentMethods.card_to_card : true
  const [method, setMethod] = useState<'online' | 'card'>(online ? 'online' : 'card')
- const [onlineLoading, setOnlineLoading] = useState(false)
  const [onlineError, setOnlineError] = useState('')
+ const [showSlotPicker, setShowSlotPicker] = useState(false)
 
  // کد تخفیف — اختیاری، فقط اگر دکتر چیزی به مراجع گفته باشد
  const [showDiscount, setShowDiscount] = useState(false)
@@ -511,17 +514,27 @@ function InterviewPayScreen({ amount, cards, loaded, loading, onPay, paymentMeth
   setDiscountChecking(false)
  }
 
- async function payOnline() {
-  setOnlineLoading(true); setOnlineError('')
+ // پرداخت آنلاین = «اول وقت، بعد پرداخت». وقت انتخابی همراه درخواست می‌رود،
+ // سرور اعتبارسنجی‌اش می‌کند و روی intent می‌نشاند؛ بعد از تایید پرداخت، کال‌بک
+ // همان وقت را ثبت می‌کند. کارت‌به‌کارت این مسیر را نمی‌رود.
+ async function payOnlineWithSlot(date: string, time: string): Promise<{ ok: boolean; error?: string }> {
+  setOnlineError('')
   try {
    const res = await fetch(`/api/t/${slug}/psy/pay-online`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ case_number: caseNumber, phone, purpose: 'stage', ref_id: stageId, discount_code: discountResult?.ok ? discountCode.trim() : undefined }),
+    body: JSON.stringify({
+     case_number: caseNumber, phone, purpose: 'stage', ref_id: stageId,
+     session_date: date, session_time: time,
+     discount_code: discountResult?.ok ? discountCode.trim() : undefined,
+    }),
    })
-   const data = await res.json()
-   if (data.url) window.location.href = data.url
-   else { setOnlineError(data.error || 'خطا در اتصال به درگاه'); setOnlineLoading(false) }
-  } catch { setOnlineError('خطا در ارتباط با سرور'); setOnlineLoading(false) }
+   const data = await res.json().catch(() => ({}))
+   if (!res.ok || !data.url) return { ok: false, error: data.error || 'خطا در اتصال به درگاه' }
+   window.location.href = data.url
+   return { ok: true } // مرورگر دارد به درگاه می‌رود
+  } catch {
+   return { ok: false, error: 'خطا در ارتباط با سرور' }
+  }
  }
 
  return (
@@ -580,11 +593,11 @@ function InterviewPayScreen({ amount, cards, loaded, loading, onPay, paymentMeth
 
     {method === 'online' && online ? (
      <>
-      <p className="text-xs text-soot mb-3 text-center">بعد پرداخت بلافاصله می‌توانید وقت مصاحبه را بگیرید.</p>
+      <p className="text-xs text-soot mb-3 text-center">اول وقت مصاحبه را انتخاب کنید، سپس پرداخت می‌کنید. به‌محض تایید پرداخت، همان وقت برایتان ثبت می‌شود.</p>
       {onlineError && <div className="text-xs text-red-600 bg-red-500/10 border border-red-500/20 rounded-lg p-2.5 mb-3 text-center">{onlineError}</div>}
-      <button onClick={payOnline} disabled={onlineLoading}
-       className="w-full py-3 bg-accent text-white rounded-xl text-sm font-medium disabled:opacity-40">
-       {onlineLoading ? 'در حال اتصال به درگاه...' : 'پرداخت آنلاین'}
+      <button onClick={() => setShowSlotPicker(true)}
+       className="w-full py-3 bg-accent text-white rounded-xl text-sm font-medium">
+       انتخاب وقت و پرداخت
       </button>
      </>
     ) : (
@@ -602,6 +615,15 @@ function InterviewPayScreen({ amount, cards, loaded, loading, onPay, paymentMeth
       </button>
       <p className="text-[11px] text-soot mt-2 text-center">پس از تأیید پرداخت، از پنل مراجع وقت مصاحبه را می‌گیرید.</p>
      </>
+    )}
+
+    {showSlotPicker && (
+     <SlotPicker phone={phone} caseNumber={caseNumber}
+      title="انتخاب وقت مصاحبه" resourceId={resourceId}
+      sessionType={sessionType} officeLocation={officeLocation}
+      onClose={() => setShowSlotPicker(false)}
+      onDone={() => setShowSlotPicker(false)}
+      onConfirm={payOnlineWithSlot} />
     )}
    </div>
   </div>
