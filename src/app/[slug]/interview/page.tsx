@@ -41,20 +41,6 @@ export default function InterviewPage() {
  const [pageIdx, setPageIdx] = useState(0)
 
 
- // گزینه‌های نوع جلسه: آنلاین (در صورت فعال‌بودن) + یک کارت به‌ازای هر مکان حضوری
- const sessionOptions = useMemo(() => {
-  const opts: { key: string; type: 'online' | 'offline'; loc: string; icon: string; label: string; desc: string; price: string }[] = []
-  if (onlineAvailable(settings.session_modes)) {
-   opts.push({ key: 'online', type: 'online', loc: '', icon: '', label: 'آنلاین', desc: 'تماس تصویری', price: '850,000' })
-  }
-  if (offlineAvailable(settings.session_modes)) {
-   for (const l of settings.office_locations) {
-    opts.push({ key: `offline:${l.id}`, type: 'offline', loc: l.title, icon: '', label: l.title || 'حضوری', desc: l.address || 'جلسه‌ی حضوری', price: '1,200,000' })
-   }
-  }
-  return opts
- }, [settings.session_modes, settings.office_locations])
-
  // اگر فقط یک دکتر بود، خودکار انتخاب شود (بدون نیاز به انتخابگر)؛ اگر چند دکتر
  // بود، مراجع باید صریح انتخاب کند — پیش‌فرض گذاشتن یکی از چند دکتر گمراه‌کننده است.
  useEffect(() => {
@@ -65,6 +51,28 @@ export default function InterviewPage() {
 
  const displayDoctor = settings.doctors.find(d => d.id === selectedDoctorId) || settings.doctors[0]
  const needsDoctorPick = settings.doctors.length > 1
+
+ // گزینه‌های نوع جلسه: آنلاین (در صورت فعال‌بودن) + یک کارت به‌ازای هر مکان حضوری.
+ //
+ // قیمت‌ها از pricing خود دکتر می‌آیند — قبلا این‌جا دو رشته‌ی هاردکد نشسته بود
+ // ('850,000' و '1,200,000') که هیچ ربطی به قیمت تنظیم‌شده نداشت. نتیجه: مراجع
+ // در صفحه‌ی انتخاب یک عدد می‌دید و سر پرداخت عدد دیگری — بدترین جای ممکن برای
+ // ناهماهنگی قیمت. حالا هر دو از یک منبع می‌خوانند.
+ const sessionOptions = useMemo(() => {
+  const opts: { key: string; type: 'online' | 'offline'; loc: string; icon: string; label: string; desc: string; price: number }[] = []
+  const onlinePrice = displayDoctor?.pricing.online ?? PRICING.online
+  const offlinePrice = displayDoctor?.pricing.offline ?? PRICING.offline
+  if (onlineAvailable(settings.session_modes)) {
+   opts.push({ key: 'online', type: 'online', loc: '', icon: '🎥', label: 'آنلاین', desc: 'تماس تصویری', price: onlinePrice })
+  }
+  if (offlineAvailable(settings.session_modes)) {
+   for (const l of settings.office_locations) {
+    opts.push({ key: `offline:${l.id}`, type: 'offline', loc: l.title, icon: '🏥', label: l.title || 'حضوری', desc: l.address || 'جلسه‌ی حضوری', price: offlinePrice })
+   }
+  }
+  return opts
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+ }, [settings.session_modes, settings.office_locations, displayDoctor?.pricing.online, displayDoctor?.pricing.offline])
 
  // فرم رزرو همان دکتر را بخوان — وقتی دکتر مشخص شد (تک‌دکترها فورا، چنددکترها بعد انتخاب)
  useEffect(() => {
@@ -255,7 +263,7 @@ export default function InterviewPage() {
             <div className="text-2xl mb-2">{o.icon}</div>
             <div className="font-medium text-ink text-sm">{o.label}</div>
             <div className="text-xs text-soot mb-2">{o.desc}</div>
-            <div className={`text-sm font-medium ${sel ? (o.type === 'online' ? 'text-sky-600' : 'text-emerald-600') : 'text-ink'}`}>{o.price} تومان</div>
+            <div className={`text-sm font-medium ${sel ? (o.type === 'online' ? 'text-sky-600' : 'text-emerald-600') : 'text-ink'}`}>{o.price.toLocaleString()} تومان</div>
            </div>
           )
          })}

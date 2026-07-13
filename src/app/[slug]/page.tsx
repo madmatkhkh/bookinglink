@@ -10,6 +10,7 @@ import type { Metadata } from 'next'
 import { sb } from '@/lib/supabase'
 import { toFarsiNum } from '@/lib/calendar'
 import { MODE_LABEL, PLATFORM_NAME } from '@/lib/config'
+import { Glyph } from '@/components/Glyph'
 import { getClinicSettings, listPublicDoctors } from '@/lib/psy'
 import { isPsychologyNiche } from '@/lib/niche'
 
@@ -86,7 +87,7 @@ function PsychologyLanding({ slug, c, themeColor }: { slug: string; c: any; them
       {c.avatar_url
        ? /* eslint-disable-next-line @next/next/no-img-element */
         <img src={c.avatar_url} alt={c.doctor_name} className="w-full h-full object-cover" />
-       : ''}
+       : <Glyph icon="👤" className="w-9 h-9 text-accent" />}
      </div>
      <h1 className="text-xl font-display font-bold text-ink mb-1">{c.doctor_name || 'پنل نوبت‌دهی'}</h1>
      {c.doctor_title && <p className="text-sm text-soot">{c.doctor_title}</p>}
@@ -106,7 +107,9 @@ function PsychologyLanding({ slug, c, themeColor }: { slug: string; c: any; them
      <Link href={`/${slug}/interview`}
       className="block bg-white rounded-2xl border border-sand p-5 hover:border-accent transition-colors">
       <div className="flex items-center gap-4">
-       <div className="w-12 h-12 rounded-xl bg-accent/10 flex items-center justify-center text-2xl shrink-0"></div>
+       <div className="w-12 h-12 rounded-xl bg-accent/10 flex items-center justify-center shrink-0">
+        <Glyph icon="📝" className="w-6 h-6 text-accent" />
+       </div>
        <div className="flex-1">
         <div className="font-medium text-ink text-sm mb-0.5">مصاحبه‌ی اولیه</div>
         <div className="text-xs text-soot">مراجع جدید؟ فرم را پر کنید و وقت مصاحبه بگیرید</div>
@@ -118,7 +121,9 @@ function PsychologyLanding({ slug, c, themeColor }: { slug: string; c: any; them
      <Link href={`/${slug}/my`}
       className="block bg-white rounded-2xl border border-sand p-5 hover:border-accent transition-colors">
       <div className="flex items-center gap-4">
-       <div className="w-12 h-12 rounded-xl bg-accent/10 flex items-center justify-center text-2xl shrink-0"></div>
+       <div className="w-12 h-12 rounded-xl bg-accent/10 flex items-center justify-center shrink-0">
+        <Glyph icon="🪪" className="w-6 h-6 text-accent" />
+       </div>
        <div className="flex-1">
         <div className="font-medium text-ink text-sm mb-0.5">ورود به پنل مراجع</div>
         <div className="text-xs text-soot">قبلا پرونده دارید؟ با شماره‌ی موبایل وارد شوید</div>
@@ -145,7 +150,7 @@ function GenericLanding({ slug, profile, services }: { slug: string; profile: an
      {profile.avatar_url
       ? /* eslint-disable-next-line @next/next/no-img-element */
        <img src={profile.avatar_url} alt={profile.display_name} className="w-full h-full object-cover" />
-      : <span className="text-4xl"></span>}
+      : <Glyph icon="👤" className="w-12 h-12 text-soot" />}
     </div>
 
     <h1 className="mt-4 text-2xl font-display font-extrabold leading-tight">{profile.display_name}</h1>

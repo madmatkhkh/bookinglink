@@ -83,14 +83,14 @@ export function DialogHost() {
   const okLabel = current.okText || (current.kind === 'confirm' ? 'تأیید' : current.kind === 'prompt' ? 'ثبت' : 'باشه')
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50" dir="rtl"
+    <div className="pb-dialog fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50" dir="rtl"
       onClick={e => { if (e.target === e.currentTarget && current.kind !== 'prompt') close(current.kind === 'confirm' ? false : undefined) }}>
       <div className="bg-white rounded-2xl w-full max-w-sm p-5 shadow-xl">
         <p className="text-sm text-gray-800 leading-6 whitespace-pre-wrap mb-4">{current.message}</p>
 
         {current.kind === 'prompt' && (
           <textarea value={val} onChange={e => setVal(e.target.value)} rows={3} autoFocus
-            className="w-full text-sm px-3 py-2 border border-sand rounded-xl focus:outline-none focus:border-ink resize-none mb-4" />
+            className="w-full text-sm px-3 py-2 border border-sand rounded-xl focus:outline-none focus:border-accent resize-none mb-4" />
         )}
 
         <div className="flex gap-2">
@@ -107,7 +107,7 @@ export function DialogHost() {
               else close(undefined)
             }}
             disabled={current.kind === 'prompt' && current.required && !val.trim()}
-            className={`flex-1 py-2.5 rounded-xl text-sm font-medium text-white disabled:opacity-40 ${current.danger ? 'bg-red-600 hover:bg-red-700' : 'bg-ink hover:bg-ink/90'}`}>
+            className={`flex-1 py-2.5 rounded-xl text-sm font-medium text-white disabled:opacity-40 ${current.danger ? 'bg-red-600 hover:bg-red-700' : 'bg-accent hover:bg-accent/90'}`}>
             {okLabel}
           </button>
         </div>

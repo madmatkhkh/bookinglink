@@ -354,7 +354,7 @@ export default function PatientPanel() {
         </div>
        )}
        <StagePayment
-        icon={currentStage.stage_type === 'assessment' ? '' : ''}
+        icon="💳"
         title={`هزینه‌ی ${stageTitle(currentStage)}`}
         desc="برای ادامه، هزینه‌ی این جلسه را پرداخت کنید."
         amount={currentStage.price || (booking.session_type === 'online' ? PRICING.online : PRICING.offline)}
@@ -1373,12 +1373,12 @@ function StagePayment({ icon, title, desc, amount, onPaid, onDone, resourceId, c
 // نوار پیشرفت مراحل — حالا طولش متغیر است (هر تعداد مصاحبه/ارزیابی که واقعا وجود دارد) + درمان در انتها
 function StageProgress({ stages, inTreatment }: { stages: CaseStage[]; inTreatment: boolean }) {
  const items = stages.map(s => ({
-  icon: s.stage_type === 'assessment' ? '' : '',
+  icon: s.stage_type === 'assessment' ? '🧩' : s.stage_type === 'custom' ? '📝' : '🩺',
   label: stageTitle(s),
   done: s.status === 'booked' && !!s.held,
   current: !(s.status === 'booked' && !!s.held),
  }))
- items.push({ icon: '', label: 'درمان', done: inTreatment, current: false })
+ items.push({ icon: '💊', label: 'درمان', done: inTreatment, current: false })
  return (
   <div className="bg-white rounded-2xl border border-sand p-3 flex items-center justify-between overflow-x-auto">
    {items.map((it, i) => (
