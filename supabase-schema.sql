@@ -303,7 +303,8 @@ create table psy_stages (
   id uuid primary key default uuid_generate_v4(),
   tenant_id uuid not null references tenants(id) on delete cascade,
   case_number text not null,
-  stage_type text not null,      -- 'interview' | 'assessment'
+  stage_type text not null,      -- 'interview' | 'assessment' | 'custom'
+  title text,                    -- عنوان دلخواه (فقط وقتی stage_type = 'custom')
   status text not null default 'awaiting_payment', -- awaiting_payment | payment_submitted | awaiting_booking | booked
   price bigint not null default 0,
   paid boolean default false,

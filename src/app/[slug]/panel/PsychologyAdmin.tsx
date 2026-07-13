@@ -2,7 +2,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useParams } from 'next/navigation'
 import { PERSIAN_MONTHS, toLatinNum, getCurrentJalali, getDaysInJalaliMonth, jalaliDateTimeToTimestamp } from '@/lib/calendar'
-import { STAGE_TYPE_LABEL, STAGE_STATUS_LABEL } from '@/lib/flow'
+import { STAGE_TYPE_LABEL, STAGE_STATUS_LABEL, stageTitle } from '@/lib/flow'
 import { PRICING, PLATFORM_NAME } from '@/lib/config'
 import { ClinicSettings, DEFAULT_SETTINGS, SessionMode, OfficeLocation, PaymentCardInfo } from '@/lib/settings'
 import { IntakeForm, FormField, FormFieldType, DEFAULT_INTAKE_FORM, LEGACY_DETAIL_LABELS, CancellationPolicy, PaymentMethods, Pricing, DEFAULT_PRICING, INTAKE_KNOWN_COLUMNS, fieldVisible } from '@/lib/psy'
@@ -105,7 +105,8 @@ type Patient = {
 type CaseStage = {
  id: string
  case_number: string
- stage_type: 'interview' | 'assessment'
+ stage_type: 'interview' | 'assessment' | 'custom'
+ title?: string | null
  status: 'awaiting_payment' | 'payment_submitted' | 'awaiting_booking' | 'booked'
  price: number
  paid: boolean
@@ -273,7 +274,7 @@ function parseCustomTime(raw: string): string | null {
 // برچسب ترکیبی نمایش سریع یک مرحله («مصاحبه: منتظر پرداخت»)
 function stageLabel(s?: CaseStage | null): string {
  if (!s) return '—'
- return `${STAGE_TYPE_LABEL[s.stage_type] || s.stage_type}: ${STAGE_STATUS_LABEL[s.status] || s.status}`
+ return `${stageTitle(s)}: ${STAGE_STATUS_LABEL[s.status] || s.status}`
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -349,8 +350,8 @@ function StageSessionCard({ stage, index, onSave }: {
 }) {
  const [val, setVal] = useState(stage.notes || '')
  const [saving, setSaving] = useState(false)
- const label = (STAGE_TYPE_LABEL[stage.stage_type] || stage.stage_type) + (index && index > 1 ? ` #${index}` : '')
- const icon = stage.stage_type === 'interview' ? '🩺' : '🧩'
+ const label = stageTitle(stage) + (index && index > 1 ? ` #${index}` : '')
+ const icon = stage.stage_type === 'interview' ? '🩺' : stage.stage_type === 'assessment' ? '🧩' : '📝'
  const held = !!stage.held
  const canHold = stage.status === 'booked' && !held
  return (
@@ -558,9 +559,9 @@ export function PsychologyAdmin() {
  const [savingNote, setSavingNote] = useState(false)
  const [patientSearch, setPatientSearch] = useState('')
  const [showNewPackage, setShowNewPackage] = useState(false)
- const [showNewSession, setShowNewSession] = useState(false)
  const [showNewStage, setShowNewStage] = useState(false)
- const [newStageType, setNewStageType] = useState<'interview' | 'assessment'>('assessment')
+ const [newStageType, setNewStageType] = useState<'interview' | 'assessment' | 'custom'>('assessment')
+ const [newStageTitle, setNewStageTitle] = useState('')
  const [newStageSaving, setNewStageSaving] = useState(false)
  const [showAddPatient, setShowAddPatient] = useState(false)
  const [addPatientSaving, setAddPatientSaving] = useState(false)
@@ -790,9 +791,6 @@ export function PsychologyAdmin() {
    primary_sessions: 8, secondary_sessions: 2,
    primary_session_type: 'offline', secondary_session_type: 'offline', notes: '',
   }
- })
- const [newSess, setNewSess] = useState({
-  title: 'ارزیابی', customTitle: '', session_type: 'offline', attendee: 'primary'
  })
  const [sessForm, setSessForm] = useState({
   session_goals: '', session_summary: '',
@@ -1062,49 +1060,25 @@ export function PsychologyAdmin() {
   if (selectedPatient) await loadPatientData(selectedPatient.case_number)
  }
 
- // افزودن مرحله‌ی تازه‌ی پیش‌ازدرمان (مصاحبه/ارزیابی دیگر) — تنها راه واقعی
- // بازکردن current_stage_id برای پرونده؛ با «ثبت جلسه‌ی تکی» اشتباه گرفته
- // نشود: آن یک جلسه‌ی مستقل و بی‌ربط به گیت‌کیپینگ پیش‌ازدرمان می‌سازد (روی
- // psy_sessions)، این‌جا واقعا روی psy_stages می‌نشیند و مراجع را در پنل
- // خودش وارد چرخه‌ی «پرداخت → گرفتن وقت» می‌کند.
+ // افزودن جلسه‌ی تازه به پرونده — تنها مسیر «دادن جلسه به مراجع». روی psy_stages
+ // می‌نشیند و مراجع را در پنل خودش وارد چرخه‌ی «پرداخت → گرفتن وقت» می‌کند.
  async function createStage() {
   if (!selectedPatient) return
+  const title = newStageType === 'custom' ? newStageTitle.trim() : ''
+  if (newStageType === 'custom' && !title) { uiAlert('عنوان جلسه‌ی دلخواه را بنویسید.'); return }
   setNewStageSaving(true)
   const res = await fetch(api('/stages'), {
    method: 'POST', headers: { 'Content-Type': 'application/json' },
-   body: JSON.stringify({ case_number: selectedPatient.case_number, stage_type: newStageType }),
+   body: JSON.stringify({ case_number: selectedPatient.case_number, stage_type: newStageType, title }),
   })
   const data = await res.json().catch(() => ({}))
   setNewStageSaving(false)
-  if (!res.ok) { uiAlert(data.error || 'ثبت مرحله ناموفق بود'); return }
+  if (!res.ok) { uiAlert(data.error || 'ثبت جلسه ناموفق بود'); return }
   setShowNewStage(false)
   setNewStageType('assessment')
+  setNewStageTitle('')
   await loadPatientData(selectedPatient.case_number)
   await fetchAll() // current_stage_id در لیست پرونده‌ها هم به‌روز شود
- }
-
- async function createSession() {
-  if (!selectedPatient) return
-  const title = newSess.title === 'دلخواه' ? newSess.customTitle.trim() : newSess.title
-  if (newSess.title === 'دلخواه' && !title) { uiAlert('عنوان دلخواه را بنویسید.'); return }
-  const payload = {
-   case_number: selectedPatient.case_number,
-   title, session_date: '', session_time: '',
-   session_type: newSess.session_type, attendee: newSess.attendee,
-   // همیشه پرداخت‌نشده ثبت می‌شود — طبیعی است که هر جلسه‌ای که دکتر باز می‌کند،
-   // مراجع باید هزینه‌اش را بپردازد؛ دیگر گزینه‌ای برای علامت‌زدن «از قبل
-   // پرداخت‌شده» در همین لحظه‌ی ساخت وجود ندارد.
-   package_id: null, paid: false,
-  }
-  await fetch(api('/sessions'), {
-   method: 'POST',
-   headers: { 'Content-Type': 'application/json' },
-   body: JSON.stringify(payload),
-  })
-  setShowNewSession(false)
-  setNewSess({ title: 'ارزیابی', customTitle: '', session_type: 'offline', attendee: 'primary' })
-  await loadPatientData(selectedPatient.case_number)
-  loadAllSessions()
  }
 
  // تأیید پرداخت جلسه‌ی جایگزین
@@ -1154,8 +1128,7 @@ export function PsychologyAdmin() {
  }
 
  // تأیید پرداخت یک مرحله (مصاحبه/ارزیابی) → باز شدن گرفتن وقت
- async function confirmStagePayment(stageId: string, stageType: 'interview' | 'assessment') {
-  const label = STAGE_TYPE_LABEL[stageType] || stageType
+ async function confirmStagePayment(stageId: string, label: string) {
   if (!await uiConfirm(`پرداخت ${label} تأیید شود؟ پس از تأیید، مراجع می‌تواند وقت بگیرد.`)) return
   const res = await fetch(api('/stages'), {
    method: 'PATCH', headers: { 'Content-Type': 'application/json' },
@@ -1312,16 +1285,18 @@ export function PsychologyAdmin() {
 
  // همه‌ی نوبت‌های یک تاریخ (مصاحبه + ارزیابی + جلسه) مرتب‌شده بر اساس ساعت
  function apptsForDate(dateStr: string) {
-  const out: { time: string; name: string; type: string; mode?: string; loc?: string; color: string; kind: 'interview' | 'assessment' | 'session'; id: string; caseNumber: string; delayMinutes?: number | null }[] = []
+  const out: { time: string; name: string; type: string; mode?: string; loc?: string; color: string; kind: 'interview' | 'assessment' | 'custom' | 'session'; id: string; caseNumber: string; delayMinutes?: number | null }[] = []
   const bookingByCase = new Map(bookings.map(b => [b.case_number, b]))
   for (const s of allStages) {
    if (s.session_date === dateStr && s.session_time && s.status === 'booked') {
     const b = bookingByCase.get(s.case_number)
     out.push({
      time: s.session_time, name: childNameOf(s.case_number),
-     type: STAGE_TYPE_LABEL[s.stage_type] || s.stage_type,
+     type: stageTitle(s),
      mode: b?.session_type, loc: b?.office_location,
-     color: s.stage_type === 'assessment' ? 'bg-violet-500/10 text-violet-600 border-violet-500/20' : 'bg-sky-500/10 text-sky-600 border-sky-500/20',
+     color: s.stage_type === 'assessment' ? 'bg-violet-500/10 text-violet-600 border-violet-500/20'
+      : s.stage_type === 'custom' ? 'bg-amber-500/10 text-amber-600 border-amber-500/20'
+      : 'bg-sky-500/10 text-sky-600 border-sky-500/20',
      kind: s.stage_type, id: s.id, caseNumber: s.case_number, delayMinutes: s.delay_minutes,
     })
    }
@@ -1334,7 +1309,7 @@ export function PsychologyAdmin() {
  }
 
  // اعلام تاخیر برای یک نوبت رزروشده — مراجع در پنل خودش می‌بیند
- async function announceDelay(appt: { kind: 'interview' | 'assessment' | 'session'; id: string; name: string; delayMinutes?: number | null }) {
+ async function announceDelay(appt: { kind: 'interview' | 'assessment' | 'custom' | 'session'; id: string; name: string; delayMinutes?: number | null }) {
   const r = await uiPrompt(`تاخیر نوبت «${appt.name}» به دقیقه (برای پاک‌کردن تاخیر قبلی، عدد 0 بزن):`,
    { defaultValue: appt.delayMinutes ? String(appt.delayMinutes) : '' })
   if (r === null) return
@@ -1356,7 +1331,7 @@ export function PsychologyAdmin() {
  }
 
  // لغو یک نوبت توسط مطب → کاربر بدون پرداخت اضافه دوباره وقت می‌گیرد
- async function cancelAppointment(appt: { kind: 'interview' | 'assessment' | 'session'; id: string; name: string }) {
+ async function cancelAppointment(appt: { kind: 'interview' | 'assessment' | 'custom' | 'session'; id: string; name: string }) {
   const notice = await uiPrompt(`لغو نوبت «${appt.name}». پیامی برای مراجع بنویسید (اختیاری):`,
    { defaultValue: 'نوبت شما توسط مطب لغو شد. لطفا بدون پرداخت اضافه، زمان جدیدی انتخاب کنید.' })
   if (notice === null) return
@@ -1376,7 +1351,7 @@ export function PsychologyAdmin() {
  }
 
  // لغو همه‌ی نوبت‌های یک روز
- async function cancelDay(dateStr: string, appts: { kind: 'interview' | 'assessment' | 'session'; id: string; name: string }[]) {
+ async function cancelDay(dateStr: string, appts: { kind: 'interview' | 'assessment' | 'custom' | 'session'; id: string; name: string }[]) {
   if (appts.length === 0) return
   if (!await uiConfirm(`همه‌ی ${appts.length} نوبت این روز لغو شود؟ به همه‌ی مراجعان اطلاع داده می‌شود تا دوباره وقت بگیرند.`)) return
   const msg = 'نوبت شما توسط مطب لغو شد. لطفا بدون پرداخت اضافه، زمان جدیدی انتخاب کنید.'
@@ -2160,7 +2135,6 @@ export function PsychologyAdmin() {
  // اول برگشت فقط مودال را می‌بندد، نه صفحه‌ی زیرین را.
  useModalBackClose(sidebarOpen, () => setSidebarOpen(false))
  useModalBackClose(showNewPackage, () => setShowNewPackage(false))
- useModalBackClose(showNewSession, () => setShowNewSession(false))
  useModalBackClose(showNewStage, () => setShowNewStage(false))
  useModalBackClose(showAddPatient, () => setShowAddPatient(false))
  useModalBackClose(!!editSession, () => setEditSession(null))
@@ -2877,7 +2851,7 @@ export function PsychologyAdmin() {
              {stages.map(s => {
               typeCounts[s.stage_type] = (typeCounts[s.stage_type] || 0) + 1
               const n = typeCounts[s.stage_type]
-              const label = (STAGE_TYPE_LABEL[s.stage_type] || s.stage_type) + (n > 1 ? ` #${n}` : '')
+              const label = stageTitle(s) + (n > 1 ? ` #${n}` : '')
               return <InfoRow key={s.id} label={label} value={fmt(s.paid, s.payment_submitted, s.payment_ref)} />
              })}
              {packages.map(p => (
@@ -2968,30 +2942,34 @@ export function PsychologyAdmin() {
            </div>
           )}
 
-          {/* افزودن مرحله‌ی تازه‌ی پیش‌ازدرمان — فقط وقتی پرونده الان مرحله‌ی
-             بازی ندارد (current_stage_id خالی است). این دکمه دقیقا همان چیزی
-             است که پنل مراجع را از «منتظر تعیین مرحله‌ی بعد» بیرون می‌آورد؛
-             با فرم «ثبت جلسه‌ی تکی» زیر همین تب اشتباه گرفته نشود — آن یک
-             جلسه‌ی مستقل می‌سازد که پرونده را وارد چرخه‌ی پرداخت/رزرو مراجع
-             نمی‌کند. رنگ کهربایی و پرکننده‌ی عمدا پررنگ‌تر از دکمه‌ی زیرش است
-             تا این دو با هم اشتباه گرفته نشوند (فیدبک: این اشتباه واقعا رخ داد). */}
-          {!selectedPatient?.current_stage_id && (
+          {/* تنها راه دادن جلسه‌ی تازه به مراجع. قبلا این‌جا دو دکمه بود
+             («افزودن مرحله» و «ثبت جلسه‌ی تکی») که هر دو یک کار را با رفتار
+             متفاوت انجام می‌دادند و مدام با هم اشتباه گرفته می‌شدند؛ حالا یکی
+             است و همیشه روی psy_stages می‌نشیند، یعنی همیشه پنل مراجع را برای
+             پرداخت و گرفتن وقت باز می‌کند. وقتی جلسه‌ی بازی در جریان است دکمه
+             غیرفعال می‌شود (نه ناپدید) تا معلوم باشد چرا نمی‌شود جلسه‌ی تازه داد. */}
+          {!selectedPatient?.current_stage_id ? (
            <button onClick={() => setShowNewStage(true)}
-            className="w-full py-3 bg-amber-500/10 border-2 border-amber-500/40 rounded-xl text-sm text-amber-800 hover:bg-amber-500/15 mb-4 transition-all font-semibold">
-            + افزودن مرحله‌ی مصاحبه/ارزیابی دیگر <span className="font-normal">— این یکی پنل مراجع را برای مراجع باز می‌کند</span>
+            className="w-full py-3 bg-ink text-white rounded-xl text-sm font-medium hover:bg-ink/90 mb-4 transition-colors">
+            + افزودن جلسه‌ی جدید
            </button>
+          ) : (
+           <div className="w-full py-3 border-2 border-dashed border-sand rounded-xl text-xs text-soot text-center mb-4 px-3 leading-relaxed">
+            یک جلسه‌ی باز در جریان است — تا وقتی برگزار (یا لغو) نشود، جلسه‌ی تازه‌ای نمی‌شود داد.
+           </div>
           )}
 
-          <div className="text-xs text-soot mb-2 px-1">
-           جلسه‌های تکی دلخواه (جدا از پروتکل درمان — تاریخچه/یادداشت؛ این‌ها در پنل مراجع نمایش داده نمی‌شوند مگر پرونده از قبل وارد فاز درمان شده باشد)
-          </div>
-          <button onClick={() => setShowNewSession(true)}
-           className="w-full py-3 border-2 border-dashed border-sand rounded-xl text-sm text-soot hover:bg-gray-50 mb-4 transition-all">
-           + ثبت جلسه‌ی تکی جدید
-          </button>
-          <div className="space-y-2">
-           {renderSessionList(sessions.filter(s => !s.package_id))}
-          </div>
+          {/* جلسه‌های تکی قدیمی (قبل از یکی‌شدن مسیرها ثبت شده‌اند) — دیگر ساخته
+             نمی‌شوند ولی باید همان‌طور که بودند دیده شوند. برای پرونده‌های تازه
+             این فهرست خالی است و اصلا رندر نمی‌شود. */}
+          {sessions.some(s => !s.package_id) && (
+           <>
+            <div className="text-xs text-soot mb-2 px-1">جلسه‌های تکی (ثبت‌شده پیش از یکی‌شدن مسیر افزودن جلسه)</div>
+            <div className="space-y-2">
+             {renderSessionList(sessions.filter(s => !s.package_id))}
+            </div>
+           </>
+          )}
          </div>
         )}
 
@@ -3060,25 +3038,31 @@ export function PsychologyAdmin() {
        </div>
       )}
 
-      {/* ── Modal: افزودن مرحله‌ی پیش‌ازدرمان تازه ─────────────────── */}
+      {/* ── Modal: افزودن جلسه‌ی تازه ──────────────────────────────── */}
       {showNewStage && (
        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
         <div className="bg-white rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto p-6 shadow-xl" dir="rtl">
-         <h2 className="font-display font-semibold text-ink mb-1">افزودن مرحله‌ی پیش‌ازدرمان</h2>
+         <h2 className="font-display font-semibold text-ink mb-1">افزودن جلسه‌ی جدید</h2>
          <p className="text-xs text-soot mb-4">
-          مراجع در پنل خودش این مرحله را می‌بیند: اول باید هزینه‌اش را پرداخت کند، بعد وقت بگیرد.
+          هر نوع جلسه‌ای که لازم می‌دانید. مراجع در پنل خودش این جلسه را می‌بیند: اول هزینه‌اش را پرداخت می‌کند، بعد وقتش را انتخاب می‌کند.
          </p>
-         <div className="flex bg-gray-100 rounded-xl p-1 gap-1 mb-4">
-          {(['interview', 'assessment'] as const).map(t => (
+         <label className="text-xs text-soot mb-1 block">عنوان جلسه</label>
+         <div className="flex bg-gray-100 rounded-xl p-1 gap-1 mb-3">
+          {(['interview', 'assessment', 'custom'] as const).map(t => (
            <button key={t} onClick={() => setNewStageType(t)}
             className={`flex-1 text-xs py-2 rounded-lg font-medium transition-all ${newStageType === t ? 'bg-white text-ink shadow-sm' : 'text-soot'}`}>
-            {STAGE_TYPE_LABEL[t]}
+            {t === 'custom' ? 'دلخواه' : STAGE_TYPE_LABEL[t]}
            </button>
           ))}
          </div>
+         {newStageType === 'custom' && (
+          <input value={newStageTitle} onChange={e => setNewStageTitle(e.target.value)}
+           placeholder="مثلا: جلسه‌ی مشاوره‌ی خانواده"
+           className="w-full text-sm px-3 py-2 border border-sand rounded-lg mb-3 focus:outline-none focus:border-ink" />
+         )}
          <div className="flex gap-2">
           <button onClick={() => setShowNewStage(false)} className="flex-1 py-2.5 border border-sand text-soot rounded-xl text-sm">انصراف</button>
-          <button onClick={createStage} disabled={newStageSaving}
+          <button onClick={createStage} disabled={newStageSaving || (newStageType === 'custom' && !newStageTitle.trim())}
            className="flex-1 py-2.5 bg-ink text-white rounded-xl text-sm font-medium disabled:opacity-40">
            {newStageSaving ? 'در حال ثبت...' : 'ثبت'}
           </button>
@@ -3198,6 +3182,9 @@ export function PsychologyAdmin() {
        const childOf = (cn: string) => bookings.find(b => b.case_number === cn)?.client_name || cn
        const interviewPending = pendingStages.filter(s => s.stage_type === 'interview')
        const assessmentPending = pendingStages.filter(s => s.stage_type === 'assessment')
+       // هر چیزی که نه مصاحبه است نه ارزیابی (یعنی جلسه‌ی دلخواه) — بدون این،
+       // کارت پرداختش اصلا رندر نمی‌شد و فقط شمارنده بالا می‌رفت.
+       const customPending = pendingStages.filter(s => s.stage_type !== 'interview' && s.stage_type !== 'assessment')
        const pkgAmount = (p: Package) =>
         p.price || ((p.primary_sessions * (p.primary_session_type === 'online' ? PRICING.online : PRICING.offline)) +
         (p.secondary_sessions * (p.secondary_session_type === 'online' ? PRICING.online : PRICING.offline)))
@@ -3221,7 +3208,7 @@ export function PsychologyAdmin() {
            <PendingPayCard key={s.id} name={childOf(s.case_number)} caseNumber={s.case_number}
             amount={s.price || (bookings.find(b => b.case_number === s.case_number)?.session_type === 'online' ? PRICING.online : PRICING.offline)} receipt={s.payment_ref}>
             <div className="flex gap-2">
-             <button onClick={() => confirmStagePayment(s.id, 'interview')}
+             <button onClick={() => confirmStagePayment(s.id, stageTitle(s))}
               className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm">تأیید پرداخت</button>
              <button onClick={() => rejectStagePayment(s.id)}
               className="flex-1 py-2 border border-red-500/30 text-red-600 hover:bg-red-500/5 rounded-lg text-sm">رد</button>
@@ -3236,7 +3223,23 @@ export function PsychologyAdmin() {
            <PendingPayCard key={s.id} name={childOf(s.case_number)} caseNumber={s.case_number}
             amount={s.price || (bookings.find(b => b.case_number === s.case_number)?.session_type === 'online' ? PRICING.online : PRICING.offline)} receipt={s.payment_ref}>
             <div className="flex gap-2">
-             <button onClick={() => confirmStagePayment(s.id, 'assessment')}
+             <button onClick={() => confirmStagePayment(s.id, stageTitle(s))}
+              className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm">تأیید پرداخت</button>
+             <button onClick={() => rejectStagePayment(s.id)}
+              className="flex-1 py-2 border border-red-500/30 text-red-600 hover:bg-red-500/5 rounded-lg text-sm">رد</button>
+            </div>
+           </PendingPayCard>
+          ))}
+         </PendingSection>
+
+         {/* جلسه‌های دلخواه (stage_type = custom) — عنوانشان را خود دکتر گذاشته */}
+         <PendingSection title="جلسه‌ی دلخواه" icon="📝" count={customPending.length}>
+          {customPending.map(s => (
+           <PendingPayCard key={s.id} name={childOf(s.case_number)} caseNumber={s.case_number}
+            amount={s.price || (bookings.find(b => b.case_number === s.case_number)?.session_type === 'online' ? PRICING.online : PRICING.offline)} receipt={s.payment_ref}
+            sub={stageTitle(s)}>
+            <div className="flex gap-2">
+             <button onClick={() => confirmStagePayment(s.id, stageTitle(s))}
               className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm">تأیید پرداخت</button>
              <button onClick={() => rejectStagePayment(s.id)}
               className="flex-1 py-2 border border-red-500/30 text-red-600 hover:bg-red-500/5 rounded-lg text-sm">رد</button>
@@ -4883,73 +4886,6 @@ export function PsychologyAdmin() {
     </div>
    )}
 
-   {showNewSession && (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-     <div className="bg-white rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto p-6 shadow-xl" dir="rtl">
-      <h2 className="font-display font-semibold text-ink mb-4">ثبت جلسه‌ی تکی جدید</h2>
-      <div className="space-y-3">
-       {/* عنوان جلسه — این جلسه همیشه مستقل از پروتکل درمان است */}
-       <div>
-        <label className="text-xs text-soot mb-1 block">عنوان جلسه</label>
-        <div className="flex bg-gray-100 rounded-xl p-1 gap-1">
-         {(['ارزیابی', 'مصاحبه', 'دلخواه'] as const).map(t => (
-          <button key={t} onClick={() => setNewSess({ ...newSess, title: t })}
-           className={`flex-1 text-xs py-2 rounded-lg font-medium transition-all ${newSess.title === t ? 'bg-white text-ink shadow-sm' : 'text-soot'}`}>
-           {t}
-          </button>
-         ))}
-        </div>
-       </div>
-       {newSess.title === 'دلخواه' && (
-        <Field label="عنوان دلخواه" value={newSess.customTitle} onChange={v => setNewSess({ ...newSess, customTitle: v })} placeholder="مثلا: جلسه‌ی مشاوره‌ی خانواده" />
-       )}
-
-       {/* هشدار — این جلسه‌ی مستقل با «مرحله‌ی پیش‌ازدرمان» فرق دارد و اگر
-          پرونده هنوز نه مرحله‌ی باز دارد نه پروتکلی، این جلسه اصلا در پنل
-          مراجع دیده نمی‌شود (تا وقتی پرونده وارد فاز درمان شود). دقیقا همان
-          سردرگمی‌ای که باعث این هشدار شد: انتخاب «ارزیابی»/«مصاحبه» این‌جا با
-          دکمه‌ی جدای «افزودن مرحله‌ی مصاحبه/ارزیابی دیگر» بالای همین تب اشتباه
-          گرفته می‌شود. */}
-       {!selectedPatient?.current_stage_id && packages.length === 0 && (
-        <div className="text-xs text-amber-700 bg-amber-500/10 border border-amber-500/20 rounded-lg p-2.5 leading-relaxed">
-         ⚠️ این پرونده هنوز نه مرحله‌ی بازی دارد نه پروتکل درمانی — یعنی این جلسه‌ی مستقل، <strong>در پنل مراجع اصلا نمایش داده نمی‌شود</strong> تا وقتی پرونده وارد فاز درمان شود.
-         اگر منظورتان باز‌کردن «{newSess.title === 'دلخواه' ? 'مرحله' : newSess.title}» برای مراجع (پرداخت + نوبت‌گیری آنلاین) است، این پنجره را ببندید و از دکمه‌ی «+ افزودن مرحله‌ی مصاحبه/ارزیابی دیگر» بالای همین تب استفاده کنید.
-        </div>
-       )}
-
-       <p className="text-xs text-soot bg-sand border border-sand rounded-lg p-2.5">
-        فقط این جلسه را مجاز می‌کنید — تاریخ و ساعتش را خود مراجع از پنل خودش انتخاب می‌کند.
-       </p>
-
-       <div className="grid grid-cols-2 gap-3">
-        <div>
-         <label className="text-xs text-soot mb-1 block">نوع جلسه</label>
-         <select value={newSess.session_type} onChange={e => setNewSess({...newSess, session_type: e.target.value})}
-          className="w-full text-sm px-3 py-2 border border-sand rounded-lg bg-white">
-          <option value="offline">حضوری</option>
-          <option value="online">آنلاین</option>
-         </select>
-        </div>
-        <div>
-         <label className="text-xs text-soot mb-1 block">حضور</label>
-         <select value={newSess.attendee} onChange={e => setNewSess({...newSess, attendee: e.target.value})}
-          className="w-full text-sm px-3 py-2 border border-sand rounded-lg bg-white">
-          <option value="primary">🧑 مراجع</option>
-          <option value="secondary">👥 {profile.companion_label || 'همراه'}</option>
-         </select>
-         <p className="text-[11px] text-soot mt-1">مشخص می‌کند این جلسه‌ی خاص را چه کسی حضور می‌یابد — فقط برای نمایش در برنامه و پرونده؛ روی قیمت اثر ندارد.</p>
-        </div>
-       </div>
-      </div>
-      <div className="flex gap-2 mt-4">
-       <button onClick={() => setShowNewSession(false)}
-        className="flex-1 py-2.5 border border-sand rounded-xl text-sm text-soot">انصراف</button>
-       <button onClick={createSession}
-        className="flex-1 py-2.5 bg-ink text-white rounded-xl text-sm font-medium">ثبت جلسه</button>
-      </div>
-     </div>
-    </div>
-   )}
 
    {/* ── Edit Session Modal ─────────────────────────────────────────── */}
    {editSession && (

@@ -41,24 +41,33 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
   return NextResponse.json({ stages: data || [] })
 }
 
-// POST → دکتر یک مرحله‌ی تازه برای پرونده تعریف می‌کند (مصاحبه‌ی دیگر/ارزیابی).
-// فقط وقتی مجاز است که پرونده الان مرحله‌ی «در جریان»ی نداشته باشد.
+// POST → دکتر یک جلسه‌ی تازه برای پرونده تعریف می‌کند (مصاحبه/ارزیابی/دلخواه).
+// این تنها مسیر «دادن جلسه به مراجع» است — مراجع در پنل خودش وارد چرخه‌ی
+// «پرداخت → گرفتن وقت» می‌شود. فقط وقتی مجاز است که پرونده الان جلسه‌ی بازی
+// نداشته باشد.
 export async function POST(req: NextRequest, { params }: { params: { slug: string } }) {
   const a = await requirePanelAuth(req, params.slug)
   if (isPanelAuthResponse(a)) return a
   const body = await req.json()
   const { case_number, stage_type, price } = body
   if (!case_number || !(STAGE_TYPES as readonly string[]).includes(stage_type))
-    return NextResponse.json({ error: 'نوع مرحله نامعتبر است' }, { status: 400 })
+    return NextResponse.json({ error: 'نوع جلسه نامعتبر است' }, { status: 400 })
+
+  // عنوان فقط برای نوع دلخواه معنا دارد و در آن حالت اجباری است — وگرنه مرحله
+  // بدون عنوان می‌ماند و در پنل مراجع برچسب عمومی «جلسه» می‌گیرد.
+  const title = String(body.title || '').trim().slice(0, 60)
+  if (stage_type === 'custom' && !title)
+    return NextResponse.json({ error: 'برای جلسه‌ی دلخواه، عنوان لازم است' }, { status: 400 })
 
   let caseQ = sb().from('psy_cases').select('id, resource_id, current_stage_id, session_type').eq('tenant_id', a.tenant.id).eq('case_number', case_number)
   if (!a.isOwner) caseQ = caseQ.eq('resource_id', a.resourceId)
   const { data: c } = await caseQ.maybeSingle()
   if (!c) return NextResponse.json({ error: 'پرونده یافت نشد یا دسترسی ندارید' }, { status: 404 })
-  if (c.current_stage_id) return NextResponse.json({ error: 'این پرونده الان یک مرحله‌ی باز دیگر دارد — اول آن را تمام کنید' }, { status: 400 })
+  if (c.current_stage_id) return NextResponse.json({ error: 'این پرونده الان یک جلسه‌ی باز دیگر دارد — اول آن را تمام کنید' }, { status: 400 })
 
   const { data: stage, error } = await sb().from('psy_stages').insert({
     tenant_id: a.tenant.id, resource_id: c.resource_id, case_number, stage_type,
+    title: stage_type === 'custom' ? title : null,
     price: typeof price === 'number' && price >= 0 ? price : resolvePrice(c.session_type, await getResourcePricing(c.resource_id)),
     status: STAGE_STATUS.AWAITING_PAYMENT,
   }).select().single()

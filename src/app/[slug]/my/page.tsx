@@ -4,7 +4,7 @@ import { useParams, useSearchParams, useRouter } from 'next/navigation'
 import { PERSIAN_MONTHS, PERSIAN_WEEKDAYS, toFarsiNum, getCurrentJalali, getDaysInJalaliMonth, jalaliDateTimeToTimestamp } from '@/lib/calendar'
 import { PSY_PRICING as PRICING, DEFAULT_CANCELLATION_POLICY } from '@/lib/psy'
 import { usePublicClinic, usePatientFeatures, CardChooser } from '@/components/PsyPublic'
-import { STAGE_TYPE_LABEL } from '@/lib/flow'
+import { stageTitle } from '@/lib/flow'
 import { DialogHost, uiAlert, uiConfirm } from '@/components/ui/Dialog'
 import { useResendCooldown } from '@/lib/useResendCooldown'
 import { useModalBackClose } from '@/lib/useModalBackClose'
@@ -13,7 +13,8 @@ import { useTenantThemeColor } from '@/lib/useTenantThemeColor'
 
 type CaseStage = {
  id: string; case_number: string
- stage_type: 'interview' | 'assessment'
+ stage_type: 'interview' | 'assessment' | 'custom'
+ title?: string | null
  status: 'awaiting_payment' | 'payment_submitted' | 'awaiting_booking' | 'booked'
  price: number; paid: boolean; payment_submitted?: boolean; payment_ref?: string
  session_date?: string; session_time?: string; held?: boolean
@@ -350,7 +351,7 @@ export default function PatientPanel() {
        )}
        <StagePayment
         icon={currentStage.stage_type === 'assessment' ? '' : ''}
-        title={`هزینه‌ی ${STAGE_TYPE_LABEL[currentStage.stage_type] || ''}`}
+        title={`هزینه‌ی ${stageTitle(currentStage)}`}
         desc="برای ادامه، هزینه‌ی این مرحله را پرداخت کنید. پس از تأیید پرداخت، می‌توانید وقت بگیرید."
         amount={currentStage.price || (booking.session_type === 'online' ? PRICING.online : PRICING.offline)}
         resourceId={booking.resource_id} caseNumber={booking.case_number} phone={phone} stageId={currentStage.id}
@@ -373,7 +374,7 @@ export default function PatientPanel() {
         </div>
        )}
        <StageHero icon={currentStage.cancel_notice ? '🗓' : '✅'} title={currentStage.cancel_notice ? 'انتخاب زمان جدید' : 'پرداخت تأیید شد!'}
-        desc={`می‌توانید وقت ${STAGE_TYPE_LABEL[currentStage.stage_type] || ''} را انتخاب کنید.`} />
+        desc={`می‌توانید وقت ${stageTitle(currentStage)} را انتخاب کنید.`} />
        <button onClick={() => setShowSlotPicker(true)}
         className="w-full py-3 bg-accent text-white rounded-xl text-sm font-medium hover:bg-accent/90">
         گرفتن وقت
@@ -383,7 +384,7 @@ export default function PatientPanel() {
       <StageInfo icon="📅" title="وقت ثبت شد"
        desc="منتظر برگزاری باشید. پس از آن، دکتر مرحله‌ی بعد را مشخص می‌کند."
        date={currentStage.session_date} time={currentStage.session_time}
-       label={`وقت ${STAGE_TYPE_LABEL[currentStage.stage_type] || ''}`}
+       label={`وقت ${stageTitle(currentStage)}`}
        delayMinutes={currentStage.delay_minutes}
        isOnline={booking.session_type === 'online'}
        meetChannels={mergeMeetChannels(
@@ -399,7 +400,7 @@ export default function PatientPanel() {
 
    {showSlotPicker && currentStage && (
     <SlotPicker phone={phone} caseNumber={booking.case_number}
-     title={`انتخاب وقت ${STAGE_TYPE_LABEL[currentStage.stage_type] || ''}`} resourceId={booking.resource_id}
+     title={`انتخاب وقت ${stageTitle(currentStage)}`} resourceId={booking.resource_id}
      sessionType={booking.session_type} officeLocation={booking.office_location}
      onClose={() => setShowSlotPicker(false)}
      onDone={() => { setShowSlotPicker(false); loadData(booking.case_number) }}
@@ -1531,7 +1532,7 @@ function StagePayment({ icon, title, desc, amount, onPaid, onDone, resourceId, c
 function StageProgress({ stages, inTreatment }: { stages: CaseStage[]; inTreatment: boolean }) {
  const items = stages.map(s => ({
   icon: s.stage_type === 'assessment' ? '' : '',
-  label: STAGE_TYPE_LABEL[s.stage_type] || s.stage_type,
+  label: stageTitle(s),
   done: s.status === 'booked' && !!s.held,
   current: !(s.status === 'booked' && !!s.held),
  }))

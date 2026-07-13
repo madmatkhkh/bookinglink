@@ -1,11 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { sb } from '@/lib/supabase'
 import { requirePanelAuth, isPanelAuthResponse } from '@/lib/tenant'
-import { getResourcePricing, resolvePrice, redeemDiscountCodeByCode } from '@/lib/psy'
+import { redeemDiscountCodeByCode } from '@/lib/psy'
 import { recordLedgerEntry } from '@/lib/ledger'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
+
+// POST عمدا حذف شده: ساختن «جلسه‌ی تکی» مسیر دوم موازی «دادن جلسه به مراجع»
+// بود کنار psy_stages، و همان چیزی که دکترها مدام با آن یکی اشتباه می‌گرفتند.
+// حالا تنها مسیر ساخت جلسه‌ی تازه، POST روی panel/psy/stages است. جلسه‌های زیر
+// پروتکل درمان همچنان توسط روت packages ساخته می‌شوند (سمت سرور)، و ردیف‌های
+// قدیمی psy_sessions با همین GET/PATCH/DELETE خوانده و مدیریت می‌شوند.
 
 export async function GET(req: NextRequest, { params }: { params: { slug: string } }) {
   const a = await requirePanelAuth(req, params.slug)
@@ -41,51 +47,6 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
   if (!a.isOwner) query = query.eq('resource_id', a.resourceId)
   const { data } = await query
   return NextResponse.json({ sessions: data || [] })
-}
-
-export async function POST(req: NextRequest, { params }: { params: { slug: string } }) {
-  const a = await requirePanelAuth(req, params.slug)
-  if (isPanelAuthResponse(a)) return a
-  const body = await req.json()
-
-  // جلسه همیشه resource_id را از پرونده‌ی صاحبش به ارث می‌برد — نه از ورودی کاربر
-  let caseQ = sb().from('psy_cases').select('resource_id').eq('tenant_id', a.tenant.id).eq('case_number', body.case_number)
-  if (!a.isOwner) caseQ = caseQ.eq('resource_id', a.resourceId)
-  const { data: parentCase } = await caseQ.maybeSingle()
-  if (!parentCase) return NextResponse.json({ error: 'پرونده یافت نشد یا دسترسی ندارید' }, { status: 404 })
-
-  const count = await sb().from('psy_sessions').select('id', { count: 'exact' })
-    .eq('tenant_id', a.tenant.id).eq('case_number', body.case_number)
-  const { paid, price, resource_id: _ignored, ...rest } = body
-  // قیمت: اگر دکتر خودش عددی داده همان، وگرنه از روی تنظیمات خودش برای نوع این جلسه
-  let finalPrice = typeof price === 'number' && price >= 0 ? price : undefined
-  if (finalPrice === undefined) {
-    const pricing = await getResourcePricing(parentCase.resource_id)
-    finalPrice = resolvePrice(rest.session_type, pricing)
-  }
-  const { data } = await sb().from('psy_sessions').insert([{
-    ...rest, tenant_id: a.tenant.id, resource_id: parentCase.resource_id,
-    session_number: (count.count || 0) + 1, price: finalPrice,
-    status: 'confirmed', paid: paid === true,
-  }]).select().single()
-
-  // اگر دکتر جلسه را همان لحظه paid ثبت کرد (کارت‌به‌کارت حضوری) → دفتر حساب
-  if (paid === true && data) {
-    await recordLedgerEntry({
-      tenantId: a.tenant.id,
-      resourceId: data.resource_id || null,
-      caseNumber: data.case_number,
-      purpose: 'session',
-      method: 'card_to_card',
-      amount: data.price || 0,
-      commissionAmount: 0,
-      doctorAmount: data.price || 0,
-      sourceTable: 'psy_sessions',
-      sourceId: data.id,
-      recordedBy: a.isOwner ? 'owner' : 'staff',
-    })
-  }
-  return NextResponse.json({ session: data })
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: { slug: string } }) {
