@@ -18,6 +18,23 @@ export function PageHeader({ title, desc, action }: { title: string; desc?: stri
  )
 }
 
+// ── اسکلتون بارگذاری لیست‌ها — به‌جای متن «در حال بارگذاری…» ──
+export function SkeletonRows({ count = 4, height = 'h-[72px]' }: { count?: number; height?: string }) {
+ return (
+  <div className="space-y-2" aria-hidden="true">
+   {Array.from({ length: count }).map((_, i) => (
+    <div key={i} className={`${height} bg-white rounded-xl border border-sand p-4 flex items-center gap-3`}>
+     <div className="w-10 h-10 rounded-full bg-gray-100 animate-pulse shrink-0" />
+     <div className="flex-1 space-y-2">
+      <div className="h-3 bg-gray-100 rounded animate-pulse w-1/3" />
+      <div className="h-2.5 bg-gray-100 rounded animate-pulse w-1/2" />
+     </div>
+    </div>
+   ))}
+  </div>
+ )
+}
+
 // ── حالت خالی استاندارد — آیکون + عنوان + توضیح + اقدام (به‌جای یک خط متن خشک) ──
 export function EmptyState({ icon, title, desc, action }: { icon: string; title: string; desc?: string; action?: React.ReactNode }) {
  return (
