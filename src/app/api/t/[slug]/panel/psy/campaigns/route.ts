@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { sb } from '@/lib/supabase'
 import { requirePanelAuth, isPanelAuthResponse } from '@/lib/tenant'
+import { requireModule } from '@/lib/modules'
 import { sendFreeTextSms, freeTextSmsConfigured } from '@/lib/sms'
 import { sendCampaignEmail, emailConfigured } from '@/lib/email'
 
@@ -11,6 +12,8 @@ export const revalidate = 0
 export async function GET(req: NextRequest, { params }: { params: { slug: string } }) {
   const a = await requirePanelAuth(req, params.slug)
   if (isPanelAuthResponse(a)) return a
+  const gate = await requireModule(a.tenant.id, 'campaigns')
+  if (gate) return gate
   let q = sb().from('psy_campaigns').select('*').eq('tenant_id', a.tenant.id).order('created_at', { ascending: false }).limit(30)
   if (!a.isOwner) q = q.eq('resource_id', a.resourceId)
   const { data } = await q
@@ -53,6 +56,8 @@ async function resolveRecipients(tenantId: string, resourceId: string | null, se
 export async function POST(req: NextRequest, { params }: { params: { slug: string } }) {
   const a = await requirePanelAuth(req, params.slug)
   if (isPanelAuthResponse(a)) return a
+  const gate = await requireModule(a.tenant.id, 'campaigns')
+  if (gate) return gate
   const { channel, segment, message } = await req.json()
   if (!['sms', 'email'].includes(channel)) return NextResponse.json({ error: 'کانال نامعتبر' }, { status: 400 })
   if (!message?.trim()) return NextResponse.json({ error: 'متن پیام لازم است' }, { status: 400 })

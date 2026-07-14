@@ -3,18 +3,18 @@ import { sb } from '@/lib/supabase'
 import { isSuperAuthed, normalizePhone, signImpersonateToken } from '@/lib/auth'
 import { getNiche, isPsychologyNiche } from '@/lib/niche'
 import { MULTI_THERAPIST_FEATURE_KEY, CARD_TO_CARD_FEATURE_KEY } from '@/lib/psy'
+import { getModuleCatalog } from '@/lib/modules'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-// کلیدهای ماژول‌های سطح مراجع روانشناسی که از پنل سوپرادمین هم قابل سوییچ‌اند
-// (همان لیست PATIENT_FEATURE_KEYS در lib/psy.ts — این‌جا برای جلوگیری از
-// import یک فایل کاملا مخصوص نیچ در روت سطح پلتفرم، تکرار شده).
-const PSY_FEATURE_LABELS: Record<string, string> = {
+// لیست fallback برای وقتی کاتالوگ modules هنوز ساخته نشده (migration 0029
+// اجرا نشده) — همان دو کلید قدیمی، تا صفحه‌ی سوپرادمین قبل از migration هم
+// دقیقا مثل قبل کار کند.
+const FALLBACK_FEATURE_LABELS: Record<string, string> = {
   patient_buy_extra_session: 'خرید جلسه‌ی جایگزین',
   patient_self_cancel: 'کنسل خودکار توسط مراجع',
 }
-const PSY_FEATURE_KEYS = Object.keys(PSY_FEATURE_LABELS)
 
 // جزئیات کامل یک tenant: پروفایل، منابع (پرسنل)، آمار برحسب نیچ، ماژول‌ها.
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
@@ -60,23 +60,42 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     stats = { bookings: bookings.count || 0, services: services.count || 0, records: records.count || 0 }
   }
 
-  let features: { feature_key: string; label: string; enabled: boolean }[] = []
+  // ── ماژول‌ها از روی کاتالوگ (فاز 1 سیستم ماژولار — MODULES.md) ─────────
+  // فقط ماژول‌های enforced (که کد واقعا گیتشان می‌کند) سوییچ می‌گیرند تا سوییچ
+  // «الکی» به سوپرادمین نشان ندهیم. «حالت کلینیک» و «کارت‌به‌کارت» UI اختصاصی
+  // خودشان را پایین‌تر در همین صفحه دارند و از این لیست حذف می‌شوند.
+  let features: { feature_key: string; label: string; enabled: boolean; scope?: string }[] = []
   let multiTherapist = false
   let multiTherapistRequested = false
   let cardToCard = false
-  if (isPsychologyNiche(tenant.niche_key)) {
+  {
     const { data: rows } = await sb().from('tenant_features').select('feature_key, enabled, config')
-      .eq('tenant_id', id).in('feature_key', [...PSY_FEATURE_KEYS, MULTI_THERAPIST_FEATURE_KEY, CARD_TO_CARD_FEATURE_KEY])
-    features = PSY_FEATURE_KEYS.map(key => ({
-      feature_key: key,
-      label: PSY_FEATURE_LABELS[key],
-      enabled: rows?.find(r => r.feature_key === key)?.enabled ?? true, // پیش‌فرض: روشن
-    }))
-    // «حالت کلینیک» و «کارت‌به‌کارت» برخلاف بقیه‌ی ماژول‌های بالا پیش‌فرضشان خاموش است
-    const mtRow = rows?.find(r => r.feature_key === MULTI_THERAPIST_FEATURE_KEY)
-    multiTherapist = mtRow?.enabled ?? false
+      .eq('tenant_id', id)
+    const rowBy = new Map((rows || []).map(r => [r.feature_key, r]))
+
+    const catalog = await getModuleCatalog()
+    if (catalog.length > 0) {
+      const scopes = new Set(['platform', isPsychologyNiche(tenant.niche_key) ? 'psychology' : tenant.niche_key])
+      const SPECIAL = new Set([MULTI_THERAPIST_FEATURE_KEY, CARD_TO_CARD_FEATURE_KEY])
+      features = catalog
+        .filter(m => m.is_active && m.enforced && scopes.has(m.scope) && !SPECIAL.has(m.key))
+        .map(m => ({
+          feature_key: m.key, label: m.display_name, scope: m.scope,
+          enabled: (rowBy.get(m.key)?.enabled as boolean | undefined) ?? m.default_on,
+        }))
+    } else if (isPsychologyNiche(tenant.niche_key)) {
+      // fallback قبل از اجرای migration — رفتار قدیمی عینا
+      features = Object.entries(FALLBACK_FEATURE_LABELS).map(([key, label]) => ({
+        feature_key: key, label,
+        enabled: (rowBy.get(key)?.enabled as boolean | undefined) ?? true,
+      }))
+    }
+
+    // «حالت کلینیک» و «کارت‌به‌کارت» پیش‌فرضشان خاموش است
+    const mtRow = rowBy.get(MULTI_THERAPIST_FEATURE_KEY)
+    multiTherapist = (mtRow?.enabled as boolean | undefined) ?? false
     multiTherapistRequested = !multiTherapist && !!(mtRow?.config as any)?.requested
-    cardToCard = rows?.find(r => r.feature_key === CARD_TO_CARD_FEATURE_KEY)?.enabled ?? false
+    cardToCard = (rowBy.get(CARD_TO_CARD_FEATURE_KEY)?.enabled as boolean | undefined) ?? false
   }
 
   return NextResponse.json({

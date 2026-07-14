@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { sb } from '@/lib/supabase'
 import { requirePanelAuth, isPanelAuthResponse } from '@/lib/tenant'
+import { requireModule } from '@/lib/modules'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -11,6 +12,8 @@ export const revalidate = 0
 export async function GET(req: NextRequest, { params }: { params: { slug: string } }) {
   const a = await requirePanelAuth(req, params.slug)
   if (isPanelAuthResponse(a)) return a
+  const gate = await requireModule(a.tenant.id, 'analytics')
+  if (gate) return gate
   const db = sb()
   const since = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString()
 

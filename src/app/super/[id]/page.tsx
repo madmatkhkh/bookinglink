@@ -341,10 +341,11 @@ function Inner() {
         </div>
       </section>
 
-      {/* ماژول‌های پنل مراجع (فقط روانشناسی فعلا) */}
+      {/* ماژول‌ها — از کاتالوگ modules (فاز 1 سیستم ماژولار)؛ فقط ماژول‌های
+         enforced که کد واقعا گیتشان می‌کند سوییچ می‌گیرند */}
       {d.features.length > 0 && (
         <section className="bg-white border border-sand rounded-2xl p-5 space-y-3">
-          <h2 className="font-bold text-ink text-sm">ماژول‌های پنل مراجع</h2>
+          <h2 className="font-bold text-ink text-sm">ماژول‌ها</h2>
           {d.features.map(f => (
             <label key={f.feature_key} className="flex items-center justify-between gap-3 p-2 rounded-xl cursor-pointer">
               <span className="text-sm text-ink">{f.label}</span>

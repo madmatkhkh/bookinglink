@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { sb } from '@/lib/supabase'
 import { getActiveTenant } from '@/lib/tenant'
+import { requireModule } from '@/lib/modules'
 import { getClientPhone, matchesClientIdentity } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
@@ -12,6 +13,8 @@ export const revalidate = 0
 export async function POST(req: NextRequest, { params }: { params: { slug: string } }) {
   const t = await getActiveTenant(params.slug)
   if (!t) return NextResponse.json({ error: 'یافت نشد' }, { status: 404 })
+  const gate = await requireModule(t.id, 'waitlist')
+  if (gate) return gate
   const phone = getClientPhone(req)
   if (!phone) return NextResponse.json({ error: 'ابتدا با کد یک‌بارمصرف وارد شوید' }, { status: 401 })
 

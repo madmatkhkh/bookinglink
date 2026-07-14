@@ -44,6 +44,7 @@ drop table if exists
   public.client_records,
   public.contact_messages,
   public.ledger_entries,
+  public.modules,
   public.niches,
   public.otps,
   public.psy_campaigns,
@@ -143,6 +144,24 @@ CREATE TABLE public.ledger_entries (
     recorded_by text,
     note text,
     created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+-- Name: modules; Type: TABLE; Schema: public; Owner: -
+-- کاتالوگ ماژول‌ها (قابلیت = محصول) — فاز 1 سیستم ماژولار (MODULES.md).
+-- seed کامل در migrations/0029_module_catalog.sql
+
+CREATE TABLE public.modules (
+    key text NOT NULL,
+    display_name text NOT NULL,
+    description text DEFAULT ''::text NOT NULL,
+    scope text DEFAULT 'platform'::text NOT NULL,
+    depends_on jsonb DEFAULT '[]'::jsonb NOT NULL,
+    default_on boolean DEFAULT false NOT NULL,
+    enforced boolean DEFAULT false NOT NULL,
+    pricing_type text DEFAULT 'included'::text NOT NULL,
+    price bigint DEFAULT 0 NOT NULL,
+    is_active boolean DEFAULT true NOT NULL,
+    sort_order integer DEFAULT 0 NOT NULL
 );
 
 -- Name: niches; Type: TABLE; Schema: public; Owner: -
@@ -533,7 +552,9 @@ CREATE TABLE public.tenant_features (
     tenant_id uuid NOT NULL,
     feature_key text NOT NULL,
     enabled boolean DEFAULT false NOT NULL,
-    config jsonb DEFAULT '{}'::jsonb NOT NULL
+    config jsonb DEFAULT '{}'::jsonb NOT NULL,
+    source text DEFAULT 'manual'::text NOT NULL,
+    expires_at timestamp with time zone
 );
 
 -- Name: tenant_profiles; Type: TABLE; Schema: public; Owner: -
@@ -741,6 +762,11 @@ ALTER TABLE ONLY public.settlements
 
 ALTER TABLE ONLY public.support_tickets
     ADD CONSTRAINT support_tickets_pkey PRIMARY KEY (id);
+
+-- Name: modules modules_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+
+ALTER TABLE ONLY public.modules
+    ADD CONSTRAINT modules_pkey PRIMARY KEY (key);
 
 -- Name: tenant_features tenant_features_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 
@@ -1340,3 +1366,22 @@ ALTER TABLE public.weekly_schedules ENABLE ROW LEVEL SECURITY;
 INSERT INTO public.niches (key, display_name, tagline, icon, client_label, resource_label, booking_label, default_theme, record_fields, default_features, sample_services, setup_price, is_active, sort_order) VALUES ('psychology', 'روانشناسی و روان‌پزشکی', 'صفحه‌ی نوبت‌دهی اختصاصی برای رواندرمانگرها، مشاورها و روان‌پزشک‌ها', 'brain', 'مراجع', 'درمانگر', 'جلسه', '124 58 237', '[{"key": "diagnosis", "type": "text", "label": "تشخیص / علت مراجعه"}, {"key": "medication", "type": "textarea", "label": "داروهای فعلی"}, {"key": "session_count", "type": "number", "label": "تعداد جلسات گذشته"}, {"key": "notes", "type": "textarea", "label": "یادداشت درمانگر"}]', '[]', '[{"mode": "both", "name": "جلسه‌ی مشاوره‌ی فردی", "price": 0, "duration_minutes": 60}, {"mode": "both", "name": "مصاحبه‌ی اولیه", "price": 0, "duration_minutes": 45}]', 0, true, 1);
 INSERT INTO public.niches (key, display_name, tagline, icon, client_label, resource_label, booking_label, default_theme, record_fields, default_features, sample_services, setup_price, is_active, sort_order) VALUES ('psychology_clinic', 'روانشناسی (کلینیک چند‌درمانگر)', 'برای مجموعه‌هایی با چند درمانگر — مدیریت تیم، تقویم مشترک و تسویه‌ی جدا برای هرکدام', 'brain', 'مراجع', 'درمانگر', 'جلسه', '124 58 237', '[]', '[]', '[]', 0, false, 2);
 INSERT INTO public.niches (key, display_name, tagline, icon, client_label, resource_label, booking_label, default_theme, record_fields, default_features, sample_services, setup_price, is_active, sort_order) VALUES ('beauty_salon', 'سالن زیبایی', 'رزرو آنلاین برای سالن‌های زیبایی، آرایشگاه‌ها و مراکز مراقبت پوست', 'sparkles', 'مشتری', 'آرایشگر', 'رزرو', '212 83 126', '[{"key": "skin_hair_type", "type": "text", "label": "نوع پوست / مو"}, {"key": "allergies", "type": "textarea", "label": "حساسیت‌ها"}, {"key": "past_services", "type": "textarea", "label": "سرویس‌های قبلی"}, {"key": "notes", "type": "textarea", "label": "یادداشت"}]', '["multi_resource"]', '[{"mode": "in_person", "name": "کوتاهی و اصلاح", "price": 0, "duration_minutes": 45}, {"mode": "in_person", "name": "رنگ و مش", "price": 0, "duration_minutes": 120}, {"mode": "in_person", "name": "میکاپ", "price": 0, "duration_minutes": 90}]', 0, false, 3);
+
+-- seed کاتالوگ ماژول‌ها (قابلیت = محصول) — همسان با migrations/0029_module_catalog.sql
+INSERT INTO public.modules (key, display_name, description, scope, depends_on, default_on, enforced, sort_order) VALUES ('pay_online', 'پرداخت آنلاین (زیبال)', 'درگاه زیبال، تایید خودکار، کمیسیون پلتفرم', 'platform', '[]', false, false, 10);
+INSERT INTO public.modules (key, display_name, description, scope, depends_on, default_on, enforced, sort_order) VALUES ('card_to_card', 'پرداخت کارت‌به‌کارت', 'کارت‌به‌کارت با رسید + تب تایید پرداخت‌ها', 'platform', '[]', false, true, 20);
+INSERT INTO public.modules (key, display_name, description, scope, depends_on, default_on, enforced, sort_order) VALUES ('patient_self_cancel', 'کنسل توسط مراجع', 'کنسل از پنل مراجع طبق سیاست کنسلی هر متخصص', 'platform', '[]', true, true, 30);
+INSERT INTO public.modules (key, display_name, description, scope, depends_on, default_on, enforced, sort_order) VALUES ('patient_buy_extra_session', 'خرید جلسه‌ی جایگزین', 'خرید جلسه‌ی اضافه از پنل مراجع', 'platform', '["pay_online|card_to_card"]', true, true, 40);
+INSERT INTO public.modules (key, display_name, description, scope, depends_on, default_on, enforced, sort_order) VALUES ('discount_codes', 'کدهای تخفیف', 'ساخت و مدیریت کد تخفیف', 'platform', '["pay_online|card_to_card"]', true, true, 50);
+INSERT INTO public.modules (key, display_name, description, scope, depends_on, default_on, enforced, sort_order) VALUES ('waitlist', 'لیست انتظار', 'ثبت‌نام مراجع وقتی ظرفیت خالی نیست + اطلاع‌رسانی دستی', 'platform', '[]', true, true, 60);
+INSERT INTO public.modules (key, display_name, description, scope, depends_on, default_on, enforced, sort_order) VALUES ('reviews', 'نظرات و امتیاز مراجعان', 'ثبت نظر توسط مراجع + مدیریت و انتشار', 'platform', '[]', true, true, 70);
+INSERT INTO public.modules (key, display_name, description, scope, depends_on, default_on, enforced, sort_order) VALUES ('analytics', 'تحلیل کسب‌وکار', 'داشبورد درآمد، no-show، رشد پرونده‌ها', 'platform', '[]', true, true, 80);
+INSERT INTO public.modules (key, display_name, description, scope, depends_on, default_on, enforced, sort_order) VALUES ('campaigns', 'کمپین پیامک/ایمیل', 'پیام گروهی به مراجعان (سگمنت غیرفعال 30/90 روز)', 'platform', '[]', true, true, 90);
+INSERT INTO public.modules (key, display_name, description, scope, depends_on, default_on, enforced, sort_order) VALUES ('reminders', 'یادآور پیامکی نوبت', 'ارسال خودکار یادآور قبل از نوبت (cron)', 'platform', '[]', true, false, 100);
+INSERT INTO public.modules (key, display_name, description, scope, depends_on, default_on, enforced, sort_order) VALUES ('online_meeting', 'جلسه‌ی آنلاین (لینک)', 'لینک Meet/Zoom/WhatsApp/Bale/تلفن برای جلسه‌های آنلاین', 'platform', '[]', true, false, 110);
+INSERT INTO public.modules (key, display_name, description, scope, depends_on, default_on, enforced, sort_order) VALUES ('multi_therapist', 'حالت کلینیک (چندپرسنلی)', 'ورود مستقل پرسنل، تب پرسنل، انتخابگر متخصص در رزرو', 'platform', '[]', false, true, 120);
+INSERT INTO public.modules (key, display_name, description, scope, depends_on, default_on, enforced, is_active, sort_order) VALUES ('custom_domain', 'دامنه‌ی اختصاصی', 'اتصال دامنه‌ی خود مشتری (هنوز ساخته نشده)', 'platform', '[]', false, false, false, 130);
+INSERT INTO public.modules (key, display_name, description, scope, depends_on, default_on, enforced, sort_order) VALUES ('psy_stages', 'مراحل پیش‌ازدرمان', 'فلوی آزاد و تکرارپذیر مصاحبه/ارزیابی/دلخواه', 'psychology', '[]', true, false, 210);
+INSERT INTO public.modules (key, display_name, description, scope, depends_on, default_on, enforced, sort_order) VALUES ('psy_packages', 'پروتکل‌های درمان', 'پکیج جلسات ماهانه', 'psychology', '[]', true, false, 220);
+INSERT INTO public.modules (key, display_name, description, scope, depends_on, default_on, enforced, sort_order) VALUES ('clinical_notes', 'یادداشت بالینی (SOAP/DAP)', 'یادداشت ساختاریافته‌ی بالینی per-جلسه', 'psychology', '[]', true, false, 230);
+INSERT INTO public.modules (key, display_name, description, scope, depends_on, default_on, enforced, sort_order) VALUES ('intake_form', 'فرم‌بیلدر رزرو', 'بخش/سوال/منطق شرطی — کاندید ارتقا به سطح پلتفرم', 'psychology', '[]', true, false, 240);

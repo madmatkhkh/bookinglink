@@ -104,13 +104,18 @@ export async function POST(req: NextRequest) {
       }))
     )
   }
-  // ماژول‌های پیش‌فرض نیچ
+  // ماژول‌های پیش‌فرض نیچ — source='niche_default' (فاز 1 سیستم ماژولار)؛
+  // اگر migration 0029 هنوز اجرا نشده (ستون source نیست)، بدون آن retry می‌شود
+  // تا ساخت tenant هرگز نشکند (fail-open).
   if (niche.default_features?.length) {
-    await sb().from('tenant_features').insert(
-      niche.default_features.map((key: string) => ({
-        tenant_id: tenant.id, feature_key: key, enabled: true,
-      }))
-    )
+    const rows = niche.default_features.map((key: string) => ({
+      tenant_id: tenant.id, feature_key: key, enabled: true, source: 'niche_default',
+    }))
+    const { error: featErr } = await sb().from('tenant_features').insert(rows)
+    if (featErr) {
+      console.error('default_features insert with source failed, retrying without:', featErr.message)
+      await sb().from('tenant_features').insert(rows.map(({ source, ...r }: any) => r))
+    }
   }
   // نیچ روانشناسی (تک‌درمانگر یا کلینیک): تنظیمات کلینیک (سطح tenant) + پروفایل دکتر پیش‌فرض با badge نمونه
   // (نام/عنوان از قبل روی resources نشسته؛ بج‌ها per-resource‌اند، قابل ویرایش از پنل → تنظیمات)
@@ -127,7 +132,8 @@ export async function POST(req: NextRequest) {
     // الان لازم دارد — نیازی به فلوی درخواست/تایید جدا نیست (خود سوپرادمین
     // دارد این tenant را می‌سازد).
     if (nicheKey === 'psychology_clinic') {
-      await sb().from('tenant_features').insert({ tenant_id: tenant.id, feature_key: MULTI_THERAPIST_FEATURE_KEY, enabled: true })
+      const { error: mtErr } = await sb().from('tenant_features').insert({ tenant_id: tenant.id, feature_key: MULTI_THERAPIST_FEATURE_KEY, enabled: true, source: 'niche_default' })
+      if (mtErr) await sb().from('tenant_features').insert({ tenant_id: tenant.id, feature_key: MULTI_THERAPIST_FEATURE_KEY, enabled: true })
     }
   }
   return NextResponse.json({ tenant })

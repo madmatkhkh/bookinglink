@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { sb } from '@/lib/supabase'
 import { requirePanelAuth, isPanelAuthResponse } from '@/lib/tenant'
+import { requireModule } from '@/lib/modules'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -21,6 +22,8 @@ async function resolveResourceId(req: NextRequest, a: { isOwner: boolean; resour
 export async function GET(req: NextRequest, { params }: { params: { slug: string } }) {
   const a = await requirePanelAuth(req, params.slug)
   if (isPanelAuthResponse(a)) return a
+  const gate = await requireModule(a.tenant.id, 'discount_codes')
+  if (gate) return gate
   const resourceId = await resolveResourceId(req, a)
   if (!resourceId) return NextResponse.json({ codes: [] })
   const { data } = await sb().from('psy_discount_codes').select('*').eq('resource_id', resourceId).order('created_at', { ascending: false })
@@ -30,6 +33,8 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
 export async function POST(req: NextRequest, { params }: { params: { slug: string } }) {
   const a = await requirePanelAuth(req, params.slug)
   if (isPanelAuthResponse(a)) return a
+  const gate = await requireModule(a.tenant.id, 'discount_codes')
+  if (gate) return gate
   const b = await req.json().catch(() => ({}))
   const resourceId = b.resource_id && a.isOwner ? b.resource_id : (await resolveResourceId(req, a))
   if (!resourceId) return NextResponse.json({ error: 'منبع نامعتبر' }, { status: 400 })
@@ -59,6 +64,8 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
 export async function PATCH(req: NextRequest, { params }: { params: { slug: string } }) {
   const a = await requirePanelAuth(req, params.slug)
   if (isPanelAuthResponse(a)) return a
+  const gate = await requireModule(a.tenant.id, 'discount_codes')
+  if (gate) return gate
   const b = await req.json().catch(() => ({}))
   if (!b.id) return NextResponse.json({ error: 'id لازم است' }, { status: 400 })
   let q = sb().from('psy_discount_codes').update({ is_active: !!b.is_active }).eq('id', b.id).eq('tenant_id', a.tenant.id)
@@ -71,6 +78,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { slug: stri
 export async function DELETE(req: NextRequest, { params }: { params: { slug: string } }) {
   const a = await requirePanelAuth(req, params.slug)
   if (isPanelAuthResponse(a)) return a
+  const gate = await requireModule(a.tenant.id, 'discount_codes')
+  if (gate) return gate
   const { id } = await req.json().catch(() => ({}))
   if (!id) return NextResponse.json({ error: 'id لازم است' }, { status: 400 })
   let q = sb().from('psy_discount_codes').delete().eq('id', id).eq('tenant_id', a.tenant.id)
