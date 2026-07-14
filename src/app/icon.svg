@@ -1,6 +1,8 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
-  <rect width="200" height="200" fill="#FFFFFF"/>
-  <rect x="65" y="65" width="70" height="70" rx="18" fill="none" stroke="#000000" stroke-width="4"/>
-  <line x1="65" y1="88" x2="135" y2="88" stroke="#000000" stroke-width="4"/>
-  <circle cx="100" cy="112" r="7" fill="#000000"/>
-</svg>
+.site-icon {
+  width: 100px;         /* سایز آیکون را اینجا بزرگتر یا کوچکتر کنید */
+  height: 100px;
+  background-color: #f0f0f0; /* رنگ پس‌زمینه دایره */
+  border-radius: 50%;   /* تبدیل کردن قاب به دایره کامل */
+  padding: 15px;        /* فاصله گرفتن آیکون از لبه‌های دایره */
+  box-sizing: border-box;
+}
