@@ -677,3 +677,48 @@
 - ✅ **تایپ `ResourceRow` از StaffTab export می‌شود** و والد type-only import می‌کند (الگوی FinanceData).
 - ✅ **PsychologyAdmin از 5129 به 5015 خط رسید** (مجموع سه قدم: 5711 → 5015).
 - 📌 قدم بعدی فاز 4: تب «تأیید پرداخت‌ها» (bookings) به `panel/modules/bookings/`.
+
+## چنج‌لاگ 1405/04/23 (2026-07-14) — فاز 4 (قدم 4): جداسازی تب «تأیید پرداخت‌ها»
+
+**بدون تغییر رفتار؛ build سبز.**
+
+- ✅ **`panel/modules/bookings/BookingsTab.tsx` (جدید):** پنج بخش صندوق تایید (مصاحبه/ارزیابی/جلسه‌ی دلخواه/پروتکل/بازپرداخت کنسلی) + سه کارت اختصاصی‌اش (`PendingSection`, `PendingPayCard`, `RefundPendingCard` که فقط همین تب مصرفشان می‌کرد) منتقل شدند.
+- ✅ **این تب عمدا presentation-only است:** stateهای چهارگانه‌ی pending و اکشن‌های تایید/رد (`confirm*/reject*/markRefunded`) در والد ماندند — چون به loaderهای مشترک (fetchAll/loadAllSessions/loadAllStages)، بج سایدبار (`pendingActionCount`) و کارت‌های داشبورد گره خورده‌اند. همه از راه props پاس می‌شوند؛ lookupهای نام مراجع و نوع جلسه هم به‌صورت دو callback سبک (`clientNameOf`, `sessionTypeOf`) به‌جای پاس‌دادن کل آرایه‌ی bookings.
+- ✅ **تایپ‌های `Session`/`Package`/`CaseStage` در PsychologyAdmin با export علامت خوردند** — BookingsTab آنها را type-only import می‌کند (erase در build؛ چرخه‌ی runtime ندارد). این تایپ‌ها با جداسازی تب‌های schedule/patients احتمالا به یک فایل types مستقل ارتقا پیدا می‌کنند.
+- ✅ **PsychologyAdmin از 5015 به 4838 خط رسید** (مجموع چهار قدم: 5711 → 4838).
+- 📌 قدم بعدی فاز 4: تب «روزهای کاری» (schedule) — تنیده به sessions/stages؛ بعدش «پرونده‌ها» (patients) به‌عنوان آخرین و بزرگ‌ترین.
+
+## چنج‌لاگ 1405/04/23 (2026-07-14) — فاز 4 (قدم 5): جداسازی تب «روزهای کاری»
+
+تنیده‌ترین قدم تا این‌جا. **بدون تغییر رفتار؛ build سبز.**
+
+- ✅ **`panel/modules/schedule/ScheduleTab.tsx` (جدید، ~470 خط):** تقویم ماه، ویرایشگر ساعت‌های روز (اسلات‌ها/نوع/مطب)، ذخیره‌ی برنامه (با همان پیام‌های خطای 401/403 فایروال Vercel)، ساعت دلخواه، حالت حذف، و نمای «برنامه‌ی نوبت‌ها» (هفته/ماه) با 16 state محلی و توابع changeMonth/loadMonthSchedules/saveSchedule/selectSchedDay/parseCustomTime.
+- ✅ **مرز جداسازی (مهم‌ترین تصمیم‌ها):**
+  - `allSessions`/`allStages`/`bookings` و loaderهایشان در والد ماندند؛ پل داده به تب، **prop تابعی `apptsForDate`** است — کل منطق ساخت نوبت‌های یک روز در والد ماند و تب فقط صدایش می‌زند.
+  - `cancelAppointment`/`cancelDay`/`announceDelay` در والد ماندند (به fetchAll و loaderهای مشترک گره‌اند) — به‌صورت props.
+  - `persistQuickTimes` در والد ماند (پروفایل + snapshot را می‌سازد)؛ تب فقط `quickTimes/quickTimesSaving/persistQuickTimes` می‌گیرد.
+  - **پرش «مشاهده‌ی همه» از داشبورد** با state یک‌بارمصرف `schedJump` در والد + props `jump/onJumpConsumed`: داشبورد فقط درخواست را ثبت می‌کند و تب هنگام mount اجرایش می‌کند (باز‌کردن روز امروز). رفتار برای کاربر عینا مثل قبل.
+  - سوییچ owner بین دکترها: تب با effect روی `resourceQS` ماه را دوباره می‌خواند — معادل رفتار قبلی.
+- ✅ **helperهای `timeKey` و `enTime` به `modules/shared.tsx` منتقل شدند** (والد هم از همان‌جا import می‌کند)؛ `parseCustomTime` چون فقط این تب مصرفش می‌کرد همراه تب رفت.
+- ✅ **PsychologyAdmin از 4838 به 4425 خط رسید** (مجموع پنج قدم: 5711 → 4425؛ ~1300 خط).
+- ℹ️ همان تفاوت جزئی الگو: ماه/زیرتب انتخابی بعد از ترک تب و برگشتن به پیش‌فرض (ماه جاری/«تنظیم روزها») برمی‌گردد.
+- 📌 قدم آخر فاز 4: تب «پرونده‌ها» (patients) — بزرگ‌ترین و تنیده‌ترین؛ احتمالا خودش به چند زیرقدم شکسته می‌شود.
+
+## چنج‌لاگ 1405/04/23 (2026-07-14) — فاز 4 (قدم 6 — آماده‌سازی): نقشه‌ی جراحی تب «پرونده‌ها»
+
+جداسازی patients حجمش به‌اندازه‌ی دو-سه قدم قبلی با هم است و طبق قانون فاز 4 باید جلسه‌ی مستقل خودش را داشته باشد. این نقشه از روی کد فعلی (بعد از قدم 5) استخراج شده تا جلسه‌ی بعد مستقیم اجرا شود:
+
+**چهار ناحیه‌ی پخش‌شده در PsychologyAdmin که باید با هم منتقل شوند:**
+1. **stateها (~خطوط 408-460):** 25 state شامل patients/selectedPatient/patientView/patientTab/packages/sessions/stages/clinicalNotes/newNote*/patientSearch/showNewPackage/showNewStage/newStage*/showAddPatient/newPatientForm/editSession/editingPatient/patientIntakeForm/infoOpenSection/manualField*. (دو state وسطشان مال slug است — slugEditOpen/slugInput/slugSaving + saveSlug — آنها مال تب account هستند و می‌مانند.)
+2. **توابع (~خطوط 719-1035):** loadPatientData/openPatient/closePatientDetail/loadClinicalNotes/saveClinicalNote/deleteClinicalNote/createStage/deletePackage/deletePatient/startEdit/savePatient/saveStageSession/سایر CRUDهای session/stage + کمکی‌ها: detailFieldLabel/formatDetailValue/patientAnswers/patientFieldValue/renderSessionList و loadPatientIntakeForm.
+3. **رندر اصلی (خطوط 2264-2822، 558 خط)** + `filteredPatients` (مشتق از patients+patientSearch — همراه patientSearch می‌رود).
+4. **مودال‌ها بیرون از بلاک:** showNewPackage (~3589)، showAddPatient (~3658)، احتمالا editSession/StageSessionCard همان حوالی + سه `useModalBackClose` در ~1770-1772 که باید داخل کامپوننت بروند.
+
+**54 شناسه‌ی external شمارش شد** — دسته‌بندی:
+- می‌ماند و prop می‌شود: `patients` + `fetchAll` (loader مشترک با داشبورد/شمارنده‌ها)، `bookings`، `loading`، `me`، `profile` (companion_label)، `staffList`، `viewingResourceId`، `mod` (گیت clinical_notes).
+- کامپوننت/ثابت‌های module-level فقط-پرونده‌ای که همراه تب می‌روند: `InfoRow`، `Section`، `StageSessionCard`، `STATUS_COLOR`، `STATUS_LABEL`، `stageLabel` (+ چک شود Section/InfoRow جای دیگری مصرف نشده باشند؛ اگر شدند → shared.tsx).
+- بقیه‌ی 54تا همه محلی‌اند و می‌روند.
+
+**بررسی‌شده و خیالمان راحت:** داشبورد فقط `navigateTab('patients')` می‌زند و پرونده‌ی خاصی باز نمی‌کند — مکانیزم jump (مثل schedule) لازم نیست.
+
+**پیشنهاد ترتیب اجرا در جلسه‌ی بعد:** (الف) انتقال کامپوننت‌های module-level و مودال‌ها + build؛ (ب) انتقال state+توابع+رندر + build؛ (ج) در پایان، ارتقای تایپ‌های مشترک Session/Package/CaseStage/Patient به `panel/modules/types.ts` (الان از PsychologyAdmin export می‌شوند و سه ماژول type-only import می‌کنند — بعد از patients دیگر بهانه‌ای برای ماندنشان در فایل والد نیست).

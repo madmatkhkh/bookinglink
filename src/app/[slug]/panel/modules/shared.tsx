@@ -5,6 +5,7 @@
 // رفتار منتقل شده‌اند.
 import React from 'react'
 import { Glyph } from '@/components/Glyph'
+import { toLatinNum } from '@/lib/calendar'
 
 export function PageHeader({ title, desc, action }: { title: string; desc?: string; action?: React.ReactNode }) {
  return (
@@ -48,3 +49,13 @@ export function EmptyState({ icon, title, desc, action }: { icon: string; title:
   </div>
  )
 }
+
+// کلید مرتب‌سازی عددی ساعت («11:00» → دقیقه) تا ترتیب درست باشد نه الفبایی —
+// قبلا محلی در PsychologyAdmin بود؛ با جداشدن تب «روزهای کاری» مشترک شد.
+export function timeKey(t: string): number {
+ const [h, m] = toLatinNum(t || '').split(':').map(x => parseInt(x, 10))
+ return (isNaN(h) ? 0 : h) * 60 + (isNaN(m) ? 0 : m)
+}
+
+// نمایش ساعت/تاریخ با ارقام لاتین (قانون محصول: خروجی همیشه Latin digits)
+export const enTime = (t?: string) => toLatinNum(String(t || ''))

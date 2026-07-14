@@ -12,9 +12,11 @@ import { Glyph } from '@/components/Glyph'
 import { MonthYearWheel, JalaliDateWheel } from '@/components/WheelPicker'
 import { useModalBackClose } from '@/lib/useModalBackClose'
 import { moduleOn, GROWTH_SUBTABS, type ModuleFlags } from '@/lib/moduleManifest'
-import { PageHeader, EmptyState, SkeletonRows } from './modules/shared'
+import { PageHeader, EmptyState, SkeletonRows, timeKey, enTime } from './modules/shared'
+import ScheduleTab, { type SchedJump } from './modules/schedule/ScheduleTab'
 import FinanceTab, { type FinanceData } from './modules/finance/FinanceTab'
 import StaffTab, { type ResourceRow } from './modules/staff/StaffTab'
+import BookingsTab from './modules/bookings/BookingsTab'
 import GrowthTab, { type WaitlistEntry } from './modules/growth/GrowthTab'
 import { MEET_METHODS, MEET_META, MeetChannel, meetHref, usableMeetChannels } from '@/lib/meet'
 import ThemeModePicker from '@/components/ThemeModePicker'
@@ -22,7 +24,7 @@ import { DEFAULT_SAFE_THEME } from '@/lib/theme'
 
 // در پنل ادمین همه‌ی ارقام لاتین نمایش داده می‌شوند (فقط نمایش؛ فرمت ذخیره دست‌نخورده)
 const toFarsiNum = (n: number | string) => toLatinNum(String(n))
-const enTime = (t?: string) => toLatinNum(String(t || ''))
+// enTime به panel/modules/shared.tsx منتقل شد (فاز 4).
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -107,7 +109,7 @@ type Patient = {
 }
 
 // یک مرحله‌ی پیش‌ازدرمان (مصاحبه/ارزیابی) — هر پرونده هر تعداد از این‌ها می‌تواند داشته باشد
-type CaseStage = {
+export type CaseStage = {
  id: string
  case_number: string
  stage_type: 'interview' | 'assessment' | 'custom'
@@ -146,7 +148,7 @@ type Booking = {
  created_at: string
 }
 
-type Package = {
+export type Package = {
  id: string
  case_number: string
  month: string
@@ -164,7 +166,7 @@ type Package = {
  payment_reject_reason?: string
 }
 
-type Session = {
+export type Session = {
  id: string
  package_id: string
  case_number: string
@@ -232,24 +234,12 @@ const DEFAULT_PROFILE: ResourceProfileView = {
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 
-// کلید مرتب‌سازی عددی ساعت («11:00» → دقیقه) تا ترتیب درست باشد نه الفبایی
-function timeKey(t: string): number {
- const [h, m] = toLatinNum(t || '').split(':').map(x => parseInt(x, 10))
- return (isNaN(h) ? 0 : h) * 60 + (isNaN(m) ? 0 : m)
-}
+// timeKey به panel/modules/shared.tsx منتقل شد (فاز 4).
 
 // اعتبارسنجی و نرمال‌سازی ساعت دلخواه واردشده‌ی دکتر (مثلا «9», «9:30», «14:05»، همه با
 // رقم فارسی یا لاتین) به همان قالب لاتین استفاده‌شده در ALL_TIMES («9:00»)؛ اگر نامعتبر
 // بود null برمی‌گرداند. هیچ‌جا خروجی به رقم فارسی تبدیل نمی‌شود.
-function parseCustomTime(raw: string): string | null {
- const s = toLatinNum(raw || '').trim()
- const m = s.match(/^(\d{1,2})(?::(\d{1,2}))?$/)
- if (!m) return null
- const h = parseInt(m[1], 10)
- const min = m[2] ? parseInt(m[2], 10) : 0
- if (h < 0 || h > 23 || min < 0 || min > 59) return null
- return `${h}:${String(min).padStart(2, '0')}`
-}
+// parseCustomTime همراه تب «روزهای کاری» به ScheduleTab.tsx رفت (فاز 4).
 
 // برچسب ترکیبی نمایش سریع یک مرحله («مصاحبه: منتظر پرداخت»)
 function stageLabel(s?: CaseStage | null): string {
@@ -329,48 +319,9 @@ function StageSessionCard({ stage, index, onSave }: {
  )
 }
 
-function PendingSection({ title, icon, count, children }: { title: string; icon: string; count: number; children: React.ReactNode }) {
- return (
-  <div>
-   <div className="flex items-center gap-2 mb-3">
-    <Glyph icon={icon} className="w-5 h-5 shrink-0 text-ink" />
-    <h3 className="text-sm font-semibold text-ink">{title}</h3>
-    <span className={`text-xs px-2 py-0.5 rounded-full ${count > 0 ? 'bg-amber-500/10 text-amber-600 border border-amber-500/20' : 'bg-gray-100 text-soot'}`}>{toFarsiNum(count)}</span>
-   </div>
-   {count === 0 ? (
-    <div className="text-center py-6 text-xs text-gray-300 bg-white rounded-xl border border-dashed border-sand">موردی نیست</div>
-   ) : (
-    <div className="space-y-2">{children}</div>
-   )}
-  </div>
- )
-}
+// PendingSection به panel/modules/bookings/BookingsTab.tsx منتقل شد (فاز 4).
 
-function PendingPayCard({ name, caseNumber, amount, receipt, sub, children }: {
- name: string; caseNumber: string; amount: number; receipt?: string; sub?: string; children: React.ReactNode
-}) {
- return (
-  <div className="bg-white rounded-xl border border-sand p-4">
-   <div className="flex items-start justify-between mb-2">
-    <div>
-     <div className="flex items-center gap-2">
-      <span className="font-medium text-ink text-sm">{name}</span>
-      <span className="text-xs px-2 py-0.5 bg-gray-100 text-soot rounded-md font-mono">{caseNumber}</span>
-     </div>
-     {sub && <div className="text-xs text-soot mt-0.5">{sub}</div>}
-    </div>
-    <span className="text-sm font-semibold text-amber-600 shrink-0">{amount.toLocaleString('en-US')} ت</span>
-   </div>
-   {receipt && (
-    <div className="bg-gray-50 rounded-lg p-2.5 border border-sand mb-3">
-     <p className="text-xs text-soot mb-0.5">فیش واریزی:</p>
-     <p className="text-xs text-ink whitespace-pre-wrap break-words">{receipt}</p>
-    </div>
-   )}
-   {children}
-  </div>
- )
-}
+// PendingPayCard به BookingsTab.tsx منتقل شد (فاز 4).
 
 // انتخابگر تاریخ جلالی (سال/ماه/روز) برای بازه‌ی گزارش
 // JalaliDateSelect همراه تب مالی به FinanceTab.tsx رفت (فقط همان مصرفش می‌کرد).
@@ -385,35 +336,7 @@ function InfoRow({ label, value }: { label: string; value?: string | null }) {
  )
 }
 
-// کارت بازپرداخت کنسلی: نمایش کارت مراجع + ورودی فیش واریز
-function RefundPendingCard({ name, caseNumber, card, amount, onDone }: {
- name: string; caseNumber: string; card: string; amount: number; onDone: (ref: string) => void
-}) {
- const [ref, setRef] = useState('')
- const [saving, setSaving] = useState(false)
- return (
-  <div className="bg-white rounded-xl border border-sand p-4">
-   <div className="flex items-start justify-between mb-2">
-    <div className="flex items-center gap-2">
-     <span className="font-medium text-ink text-sm">{name}</span>
-     <span className="text-xs px-2 py-0.5 bg-gray-100 text-soot rounded-md font-mono">{caseNumber}</span>
-    </div>
-    <span className="text-sm font-semibold text-amber-600 shrink-0">{amount.toLocaleString('en-US')} ت</span>
-   </div>
-   <div className="bg-amber-500/10 rounded-lg p-2.5 border border-amber-500/20 mb-3">
-    <p className="text-xs text-soot mb-0.5">شماره کارت مراجع برای واریز:</p>
-    <p dir="ltr" className="font-mono text-sm text-ink tracking-wider text-right">{card || '—'}</p>
-   </div>
-   <input value={ref} onChange={e => setRef(e.target.value)} placeholder="متن فیش واریز (کد پیگیری/تاریخ)"
-    className="w-full text-sm px-3 py-2 border border-sand rounded-lg mb-2 focus:outline-none focus:border-ink" />
-   <button disabled={saving || !ref.trim()}
-    onClick={async () => { if (!await uiConfirm(`واریز بازپرداخت ${amount.toLocaleString('en-US')} تومان به کارت مراجع ثبت شود؟`)) return; setSaving(true); await onDone(ref); setSaving(false) }}
-    className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm disabled:opacity-40">
-    {saving ? 'در حال ثبت...' : '✓ ثبت واریز بازپرداخت'}
-   </button>
-  </div>
- )
-}
+// RefundPendingCard به BookingsTab.tsx منتقل شد (فاز 4).
 
 function Section({ title, icon, children }: { title: string; icon?: string; children: React.ReactNode }) {
  return (
@@ -553,23 +476,12 @@ export function PsychologyAdmin() {
  const [pendingStages, setPendingStages] = useState<CaseStage[]>([])
 
  // ── Schedule state ─────────────────────────────────────────────
+ // state تب «روزهای کاری» به ScheduleTab.tsx منتقل شد (فاز 4). این‌جا فقط
+ // درخواست پرش از داشبورد (schedJump) و quickTimesSaving (که persistQuickTimes
+ // والد تنظیمش می‌کند) ماند.
  const today = getCurrentJalali()
- const [schedMonth, setSchedMonth] = useState(today.month)
- const [schedYear, setSchedYear] = useState(today.year)
- const [selectedDay, setSelectedDay] = useState<number | null>(null)
- const [selectedTimes, setSelectedTimes] = useState<string[]>([])
- const [slotTypes, setSlotTypes] = useState<Record<string, 'online' | 'offline'>>({})
- const [slotLocs, setSlotLocs] = useState<Record<string, string>>({})
- const [customTime, setCustomTime] = useState('')
- const [removeTimeMode, setRemoveTimeMode] = useState(false)
+ const [schedJump, setSchedJump] = useState<SchedJump | null>(null)
  const [quickTimesSaving, setQuickTimesSaving] = useState(false)
- const [isOff, setIsOff] = useState(false)
- const [schedSaving, setSchedSaving] = useState(false)
- const [schedSaved, setSchedSaved] = useState(false)
- const [schedSubTab, setSchedSubTab] = useState<'edit' | 'agenda'>('edit')
- const [agendaMode, setAgendaMode] = useState<'month' | 'week'>('week')
- const [weekIdx, setWeekIdx] = useState(0)
- const [monthSchedules, setMonthSchedules] = useState<{ date: string; available_times: string[]; is_off: boolean; slot_types?: Record<string, string>; slot_locs?: Record<string, string> }[]>([])
  const [allSessions, setAllSessions] = useState<{ id: string; case_number: string; session_date: string; session_time: string; session_type: string; attendee: string; status: string; delay_minutes?: number | null }[]>([])
  const [allStages, setAllStages] = useState<CaseStage[]>([])
 
@@ -1114,11 +1026,9 @@ export function PsychologyAdmin() {
 
  // ─── Schedule ────────────────────────────────────────────────────────────────
 
- const daysInMonth = getDaysInJalaliMonth(schedYear, schedMonth)
-
+ // daysInMonth و schedForDay همراه تب به ScheduleTab.tsx رفتند (فاز 4).
  // ── کمک‌توابع برنامه ───────────────────────────────────────────
  const childNameOf = (cn: string) => bookings.find(b => b.case_number === cn)?.client_name || cn
- const schedForDay = (d: number) => monthSchedules.find(s => s.date === `${schedYear}/${schedMonth + 1}/${d}`)
 
  // یک ردیف جلسه (هم برای «جلسات تکی» هم برای جلسه‌های زیر هر پروتکل درمان)
  function renderSessionList(list: Session[]) {
@@ -1263,27 +1173,9 @@ export function PsychologyAdmin() {
 
 
 
- function changeMonth(dir: number) {
-  let m = schedMonth + dir, y = schedYear
-  if (m < 0) { m = 11; y-- }
-  if (m > 11) { m = 0; y++ }
-  setSchedMonth(m); setSchedYear(y)
-  setSelectedDay(null); setSelectedTimes([]); setIsOff(false)
-  setWeekIdx(0)
-  loadMonthSchedules(m, y)
- }
-
+ // changeMonth و loadMonthSchedules همراه تب به ScheduleTab.tsx رفتند (فاز 4).
  // owner با viewingResourceId مشخص می‌کند برنامه‌ی کدام دکتر را می‌بیند/ویرایش می‌کند
  const scheduleResourceQS = () => (me?.isOwner && viewingResourceId) ? `&resource_id=${viewingResourceId}` : ''
-
- // برنامه‌ی کل ماه را بخوان تا روزهای تقویم رنگی شوند
- async function loadMonthSchedules(month: number, year: number) {
-  try {
-   const res = await fetch(api(`/schedule?year=${year}&month=${month + 1}${scheduleResourceQS()}`), { cache: 'no-store' })
-   const data = await res.json()
-   setMonthSchedules(data.schedules || [])
-  } catch {}
- }
 
  // همه‌ی جلسه‌های زمان‌بندی‌شده را بخوان (برای نمای برنامه)
  async function loadAllSessions() {
@@ -1334,7 +1226,7 @@ export function PsychologyAdmin() {
  // با ورود به تب برنامه، داده‌های ماه و جلسه‌ها را بارگذاری کن
  useEffect(() => {
   if (mainTab === 'dashboard') { loadAllSessions(); loadAllStages(); if (!profileLoaded) loadProfile(); loadDashboardFinance(); if (hasWorkingDays === null) checkWorkingDays() }
-  if (mainTab === 'schedule') { loadMonthSchedules(schedMonth, schedYear); loadAllSessions(); loadAllStages(); refreshBookings(); if (!profileLoaded) loadProfile() }
+  if (mainTab === 'schedule') { /* ماه را خود ScheduleTab هنگام mount می‌خواند */ loadAllSessions(); loadAllStages(); refreshBookings(); if (!profileLoaded) loadProfile() }
   if (mainTab === 'settings') {
    if (!settingsLoaded) loadSettings()
    loadProfile()
@@ -1821,90 +1713,7 @@ export function PsychologyAdmin() {
 
  // applyCustomRange همراه تب مالی به FinanceTab.tsx رفت.
 
- async function saveSchedule() {
-  if (!selectedDay) return
-  setSchedSaving(true)
-  const date = `${schedYear}/${schedMonth + 1}/${selectedDay}`
-  // نوع هر اسلات: هر اسلات یک نوع مشخص دارد (آنلاین یا یکی از مطب‌ها) — «هردو» حذف شد
-  const mode = profile.session_modes
-  const offlineLocs = settings.office_locations
-  const firstLoc = offlineLocs[0]?.title
-  const outTypes: Record<string, string> = {}
-  const outLocs: Record<string, string> = {}
-  for (const t of selectedTimes) {
-   if (mode === 'online') outTypes[t] = 'online'
-   else if (mode === 'offline') {
-    outTypes[t] = 'offline'
-    const loc = slotLocs[t] || firstLoc
-    if (loc) outLocs[t] = loc
-   } else {
-    // حالت «هردو» در تنظیمات: دکتر برای هر اسلات آنلاین یا یک مطب را انتخاب می‌کند
-    if (slotTypes[t] === 'offline') {
-     outTypes[t] = 'offline'
-     const loc = slotLocs[t] || firstLoc
-     if (loc) outLocs[t] = loc
-    } else {
-     // پیش‌فرض یا انتخاب صریح آنلاین
-     outTypes[t] = 'online'
-    }
-   }
-  }
-  try {
-   const res = await fetch(api('/schedule'), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-     date, available_times: selectedTimes, is_off: isOff, slot_types: outTypes, slot_locs: outLocs,
-     ...(me?.isOwner && viewingResourceId ? { resource_id: viewingResourceId } : {}),
-    }),
-   })
-   setSchedSaving(false)
-   if (res.status === 401) { uiAlert('نشست شما منقضی شده. دوباره وارد شوید.'); setNeedsLogin(true); return }
-   if (!res.ok) {
-    // متن واقعی پاسخ را بخوان (اگر JSON نبود، احتمالا بلاک سطح سرور/فایروال است)
-    const raw = await res.text().catch(() => '')
-    let msg = ''
-    try { msg = JSON.parse(raw).error || '' } catch {}
-    if (res.status === 403 && !msg) {
-     uiAlert('ذخیره نشد (403). این خطا از خود برنامه نیست؛ درخواست توسط فایروال Vercel بلاک شده. در پنل Vercel → Firewall، گزینه‌ی «Attack Challenge Mode» را خاموش کن (یا Deployment Protection را بررسی کن).')
-    } else {
-     uiAlert(`ذخیره نشد (کد ${res.status}): ${msg || raw.slice(0, 200) || 'خطای ناشناخته'}`)
-    }
-    return
-   }
-   setSchedSaved(true)
-   setTimeout(() => setSchedSaved(false), 2000)
-   // بعد از ذخیره، همان روز و کل ماه را دوباره بخوان + رزروها را تازه کن
-   selectSchedDay(selectedDay)
-   loadMonthSchedules(schedMonth, schedYear)
-   loadAllSessions()
-   refreshBookings()
-  } catch (e: any) {
-   setSchedSaving(false)
-   uiAlert('خطای شبکه: ' + (e?.message || e))
-  }
- }
-
- // با کلیک روی هر روز، ساعت‌های ذخیره‌شده‌اش را بارگذاری کن تا ویرایش درست باشد
- async function selectSchedDay(d: number, month = schedMonth, year = schedYear) {
-  setSelectedDay(d)
-  setSelectedTimes([])
-  setSlotTypes({})
-  setSlotLocs({})
-  setIsOff(false)
-  setCustomTime('')
-  const date = `${year}/${month + 1}/${d}`
-  try {
-   const res = await fetch(api(`/schedule?date=${date}${scheduleResourceQS()}`), { cache: 'no-store' })
-   const data = await res.json()
-   if (data.schedule) {
-    setSelectedTimes(data.schedule.available_times || [])
-    setSlotTypes(data.schedule.slot_types || {})
-    setSlotLocs(data.schedule.slot_locs || {})
-    setIsOff(data.schedule.is_off || false)
-   }
-  } catch {}
- }
+ // saveSchedule و selectSchedDay همراه تب به ScheduleTab.tsx رفتند (فاز 4).
 
  // ─── Filtered lists ──────────────────────────────────────────────────────────
 
@@ -2423,10 +2232,9 @@ export function PsychologyAdmin() {
           <h2 className="text-sm font-display font-semibold text-ink">برنامه‌ی امروز</h2>
           <button onClick={() => {
             const t = getCurrentJalali()
+            // درخواست پرش را ثبت کن؛ ScheduleTab هنگام mount اجرایش می‌کند
+            setSchedJump({ day: t.day, month: t.month, year: t.year })
             navigateTab('schedule')
-            setSchedMonth(t.month); setSchedYear(t.year)
-            loadMonthSchedules(t.month, t.year)
-            selectSchedDay(t.day, t.month, t.year)
            }} className="text-xs text-soot hover:text-ink">مشاهده‌ی همه ←</button>
          </div>
          {todayAppts.length === 0 ? (
@@ -3016,421 +2824,29 @@ export function PsychologyAdmin() {
       TAB: BOOKINGS
     ════════════════════════════════════════════════════════════════ */}
     {mainTab === 'bookings' && (
-     <div>
-      <PageHeader title="تأیید پرداخت‌ها" desc="پرداخت‌های کارت‌به‌کارت اعلام‌شده توسط مراجعان، منتظر بررسی و تایید شما هستند." />
-      {/* صندوق تأیید پرداخت‌ها — سه بخش */}
-      {(() => {
-       const childOf = (cn: string) => bookings.find(b => b.case_number === cn)?.client_name || cn
-       const interviewPending = pendingStages.filter(s => s.stage_type === 'interview')
-       const assessmentPending = pendingStages.filter(s => s.stage_type === 'assessment')
-       // هر چیزی که نه مصاحبه است نه ارزیابی (یعنی جلسه‌ی دلخواه) — بدون این،
-       // کارت پرداختش اصلا رندر نمی‌شد و فقط شمارنده بالا می‌رفت.
-       const customPending = pendingStages.filter(s => s.stage_type !== 'interview' && s.stage_type !== 'assessment')
-       const pkgAmount = (p: Package) =>
-        p.price || ((p.primary_sessions * (p.primary_session_type === 'online' ? PRICING.online : PRICING.offline)) +
-        (p.secondary_sessions * (p.secondary_session_type === 'online' ? PRICING.online : PRICING.offline)))
-       const totalPending = pendingStages.length + pendingPkgs.length + pendingSess.length + pendingRefunds.length
-       const refundAmt = (s: Session) => {
-        const full = s.price || (s.session_type === 'online' ? PRICING.online : PRICING.offline)
-        return Math.round(full * (s.refund_percent || 50) / 100)
-       }
-
-       if (loading) return <div className="text-center py-16 text-soot">در حال بارگذاری...</div>
-
-       return (
-        <div className="space-y-6">
-         <p className={`text-sm ${totalPending === 0 ? 'text-soot' : 'text-amber-600 font-medium'}`}>
-          {totalPending === 0 ? 'مورد منتظر اقدامی وجود ندارد.' : `${toFarsiNum(totalPending)} مورد منتظر اقدام است.`}
-         </p>
-
-         {/* بخش 1: مصاحبه */}
-         <PendingSection title="مصاحبه‌ی اولیه" icon="🩺" count={interviewPending.length}>
-          {interviewPending.map(s => (
-           <PendingPayCard key={s.id} name={childOf(s.case_number)} caseNumber={s.case_number}
-            amount={s.price || (bookings.find(b => b.case_number === s.case_number)?.session_type === 'online' ? PRICING.online : PRICING.offline)} receipt={s.payment_ref}>
-            <div className="flex gap-2">
-             <button onClick={() => confirmStagePayment(s.id, stageTitle(s))}
-              className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm">تأیید پرداخت</button>
-             <button onClick={() => rejectStagePayment(s.id)}
-              className="flex-1 py-2 border border-red-500/30 text-red-600 hover:bg-red-500/5 rounded-lg text-sm">رد</button>
-            </div>
-           </PendingPayCard>
-          ))}
-         </PendingSection>
-
-         {/* بخش 2: ارزیابی */}
-         <PendingSection title="ارزیابی" icon="🧩" count={assessmentPending.length}>
-          {assessmentPending.map(s => (
-           <PendingPayCard key={s.id} name={childOf(s.case_number)} caseNumber={s.case_number}
-            amount={s.price || (bookings.find(b => b.case_number === s.case_number)?.session_type === 'online' ? PRICING.online : PRICING.offline)} receipt={s.payment_ref}>
-            <div className="flex gap-2">
-             <button onClick={() => confirmStagePayment(s.id, stageTitle(s))}
-              className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm">تأیید پرداخت</button>
-             <button onClick={() => rejectStagePayment(s.id)}
-              className="flex-1 py-2 border border-red-500/30 text-red-600 hover:bg-red-500/5 rounded-lg text-sm">رد</button>
-            </div>
-           </PendingPayCard>
-          ))}
-         </PendingSection>
-
-         {/* جلسه‌های دلخواه (stage_type = custom) — عنوانشان را خود دکتر گذاشته */}
-         <PendingSection title="جلسه‌ی دلخواه" icon="📝" count={customPending.length}>
-          {customPending.map(s => (
-           <PendingPayCard key={s.id} name={childOf(s.case_number)} caseNumber={s.case_number}
-            amount={s.price || (bookings.find(b => b.case_number === s.case_number)?.session_type === 'online' ? PRICING.online : PRICING.offline)} receipt={s.payment_ref}
-            sub={stageTitle(s)}>
-            <div className="flex gap-2">
-             <button onClick={() => confirmStagePayment(s.id, stageTitle(s))}
-              className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm">تأیید پرداخت</button>
-             <button onClick={() => rejectStagePayment(s.id)}
-              className="flex-1 py-2 border border-red-500/30 text-red-600 hover:bg-red-500/5 rounded-lg text-sm">رد</button>
-            </div>
-           </PendingPayCard>
-          ))}
-         </PendingSection>
-
-         {/* بخش 3: پروتکل‌های درمان */}
-         <PendingSection title="پروتکل درمان" icon="📦" count={pendingPkgs.length}>
-          {pendingPkgs.map(p => (
-           <PendingPayCard key={p.id} name={childOf(p.case_number)} caseNumber={p.case_number}
-            amount={pkgAmount(p)} receipt={p.payment_ref}
-            sub={`${PERSIAN_MONTHS[parseInt(p.month) - 1]} ${p.year} • ${p.primary_sessions + p.secondary_sessions} جلسه`}>
-            <div className="flex gap-2">
-             <button onClick={() => confirmPackagePayment(p.id)}
-              className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm">تأیید پرداخت</button>
-             <button onClick={() => rejectPackagePayment(p.id)}
-              className="flex-1 py-2 border border-red-500/30 text-red-600 hover:bg-red-500/5 rounded-lg text-sm">رد</button>
-            </div>
-           </PendingPayCard>
-          ))}
-         </PendingSection>
-
-         {/* بخش 4: جلسات تکی/دلخواه (جدا از پروتکل درمان) */}
-         <PendingSection title="جلسه‌ی دلخواه / جایگزین" icon="📝" count={pendingSess.length}>
-          {pendingSess.map(s => (
-           <PendingPayCard key={s.id} name={childOf(s.case_number)} caseNumber={s.case_number}
-            amount={s.price || (s.session_type === 'online' ? PRICING.online : PRICING.offline)} receipt={s.payment_ref}
-            sub={s.title || 'جلسه‌ی جایگزین'}>
-            <div className="flex gap-2">
-             <button onClick={() => confirmSessionPayment(s.id)}
-              className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm">تأیید پرداخت</button>
-             <button onClick={() => rejectSessionPayment(s.id)}
-              className="flex-1 py-2 border border-red-500/30 text-red-600 hover:bg-red-500/5 rounded-lg text-sm">رد</button>
-            </div>
-           </PendingPayCard>
-          ))}
-         </PendingSection>
-
-         {/* بخش 5: بازپرداخت کنسلی‌ها */}
-         <PendingSection title="بازپرداخت کنسلی" icon="💸" count={pendingRefunds.length}>
-          {pendingRefunds.map(s => (
-           <RefundPendingCard key={s.id} name={childOf(s.case_number)} caseNumber={s.case_number}
-            card={s.refund_card || ''} amount={refundAmt(s)}
-            onDone={(ref) => markRefunded(s.id, ref)} />
-          ))}
-         </PendingSection>
-        </div>
-       )
-      })()}
-
-     </div>
+     <BookingsTab loading={loading}
+      pendingStages={pendingStages} pendingPkgs={pendingPkgs} pendingSess={pendingSess} pendingRefunds={pendingRefunds}
+      clientNameOf={(cn) => bookings.find(b => b.case_number === cn)?.client_name || cn}
+      sessionTypeOf={(cn) => bookings.find(b => b.case_number === cn)?.session_type}
+      confirmStagePayment={confirmStagePayment} rejectStagePayment={rejectStagePayment}
+      confirmPackagePayment={confirmPackagePayment} rejectPackagePayment={rejectPackagePayment}
+      confirmSessionPayment={confirmSessionPayment} rejectSessionPayment={rejectSessionPayment}
+      markRefunded={markRefunded} />
     )}
 
     {/* ════════════════════════════════════════════════════════════════
       TAB: SCHEDULE
     ════════════════════════════════════════════════════════════════ */}
     {mainTab === 'schedule' && (
-     <div className="max-w-2xl mx-auto">
-      <PageHeader title="روزهای کاری" desc="روزها و ساعت‌های در دسترس را تنظیم کنید و برنامه‌ی نوبت‌ها را ببینید." />
-      {/* زیرتب‌ها */}
-      <div className="flex bg-white rounded-xl border border-sand p-1 mb-4">
-       {([['edit', 'تنظیم روزها'], ['agenda', 'برنامه‌ی نوبت‌ها']] as const).map(([k, label]) => (
-        <button key={k} onClick={() => setSchedSubTab(k)}
-         className={`flex-1 text-sm py-2 rounded-lg font-medium transition-all ${schedSubTab === k ? 'bg-ink text-white' : 'text-soot'}`}>
-         {label}
-        </button>
-       ))}
-      </div>
-
-      {/* نوار ماه (مشترک) */}
-      <div className="bg-white rounded-2xl border border-sand p-3 mb-4 flex items-center justify-between gap-2">
-       <button onClick={() => changeMonth(-1)} className="px-3 py-1.5 border border-sand rounded-lg text-xs text-soot hover:bg-gray-50 shrink-0">قبلی</button>
-       <h2 className="text-sm sm:text-base font-display font-medium text-ink text-center">{PERSIAN_MONTHS[schedMonth]} {toFarsiNum(schedYear)}</h2>
-       <button onClick={() => changeMonth(1)} className="px-3 py-1.5 border border-sand rounded-lg text-xs text-soot hover:bg-gray-50 shrink-0">بعدی</button>
-      </div>
-
-      {/* ════ نمای تنظیم روزها ════ */}
-      {schedSubTab === 'edit' && (
-       <>
-        {/* راهنمای رنگ‌ها */}
-        <div className="flex items-center justify-center gap-4 text-xs text-soot mb-3">
-         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-emerald-500/15 border border-emerald-500/40" /> روز کاری</span>
-         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-amber-100 border border-amber-300" /> نوبت رزروشده</span>
-        </div>
-
-        <div className="bg-white rounded-2xl border border-sand p-5 mb-4">
-         <div className="grid grid-cols-7 gap-1 mb-2">
-          {['ش','ی','د','س','چ','پ','ج'].map(d => (
-           <div key={d} className="text-center text-xs text-soot py-1">{d}</div>
-          ))}
-         </div>
-         <div className="grid grid-cols-7 gap-1">
-          {Array(2).fill(null).map((_, i) => <div key={i} />)}
-          {Array(daysInMonth).fill(null).map((_, i) => {
-           const d = i + 1
-           const isPast = schedYear === today.year && schedMonth === today.month && d < today.day
-           const sched = schedForDay(d)
-           const totalSlots = sched?.available_times?.length || 0
-           const dateStr = `${schedYear}/${schedMonth + 1}/${d}`
-           const booked = apptsForDate(dateStr).length
-           const isSel = selectedDay === d
-           return (
-            <div key={d}
-             onClick={() => { if (!isPast) selectSchedDay(d) }}
-             className={`relative text-center py-2.5 rounded-lg text-sm transition-all
-              ${isPast ? 'text-gray-300 cursor-default' : 'cursor-pointer'}
-              ${isSel ? 'ring-2 ring-ink font-medium' : ''}
-              ${!isPast && totalSlots > 0 ? 'bg-emerald-500/10 text-emerald-700' : ''}
-              ${!isPast && totalSlots === 0 ? 'text-soot hover:bg-gray-50' : ''}`}>
-             {toFarsiNum(d)}
-             {!isPast && totalSlots > 0 && (
-              <span className="block text-[10px] mt-0.5 text-emerald-600">{toFarsiNum(totalSlots)} ساعت</span>
-             )}
-             {booked > 0 && (
-              <span className="absolute top-1 left-1 w-4 h-4 bg-amber-100 text-amber-800 text-[10px] rounded-full flex items-center justify-center font-bold leading-none">{toFarsiNum(booked)}</span>
-             )}
-            </div>
-           )
-          })}
-         </div>
-        </div>
-
-        {selectedDay && (
-         <div className="bg-white rounded-2xl border border-sand p-5">
-          <h3 className="text-sm font-medium text-ink mb-1">
-           ساعات کاری — {toFarsiNum(selectedDay)} {PERSIAN_MONTHS[schedMonth]}
-          </h3>
-          <p className="text-xs text-soot mb-4">ساعت‌هایی که نوبت می‌دهی را انتخاب کن. اگر هیچ ساعتی انتخاب نکنی، آن روز تعطیل محسوب می‌شود.</p>
-          {profile.session_modes === 'both' && (
-           <p className="text-[11px] text-soot mb-3">روی نوع هر ساعت بزن تا بین آنلاین و مطب‌های حضوری جابجا شود. هر ساعت یک نوع مشخص دارد.</p>
-          )}
-          {profile.session_modes === 'offline' && settings.office_locations.length > 1 && (
-           <p className="text-[11px] text-soot mb-3">روی هر ساعت بزن تا بین مطب‌ها جابجا شود.</p>
-          )}
-
-          {/* افزودن/حذف ساعت از لیست سریع این دکتر — این لیست برای همه‌ی روزها مشترک است */}
-          <div className="flex items-center gap-2 mb-1.5">
-           <input value={customTime} onChange={e => setCustomTime(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter') {
-             const t = parseCustomTime(customTime)
-             if (!t) { uiAlert('ساعت نامعتبر است — مثال: 9:30 یا 14:00'); return }
-             if (!profile.quick_times.includes(t)) persistQuickTimes([...profile.quick_times, t])
-             if (!selectedTimes.includes(t)) setSelectedTimes(prev => [...prev, t])
-             setCustomTime('')
-            }}}
-            placeholder="ساعت دلخواه (مثلا 9:30)"
-            className="flex-1 text-sm px-3 py-2 border border-sand rounded-xl" dir="ltr" />
-           <button onClick={() => {
-             const t = parseCustomTime(customTime)
-             if (!t) { uiAlert('ساعت نامعتبر است — مثال: 9:30 یا 14:00'); return }
-             if (!profile.quick_times.includes(t)) persistQuickTimes([...profile.quick_times, t])
-             if (!selectedTimes.includes(t)) setSelectedTimes(prev => [...prev, t])
-             setCustomTime('')
-            }}
-            disabled={quickTimesSaving}
-            className="px-4 py-2 border border-sand text-ink rounded-xl text-sm font-medium hover:bg-sand shrink-0 disabled:opacity-50">
-            افزودن
-           </button>
-           <button onClick={() => setRemoveTimeMode(v => !v)}
-            disabled={quickTimesSaving}
-            className={`px-4 py-2 border rounded-xl text-sm font-medium shrink-0 disabled:opacity-50 ${removeTimeMode ? 'bg-ink border-ink text-white' : 'border-sand text-ink hover:bg-gray-100'}`}>
-            حذف
-           </button>
-          </div>
-          {removeTimeMode && (
-           <p className="text-[11px] text-ink mb-3">هر ساعتی را که می‌خواهی از لیست گزینه‌ها کامل حذف کنی، لمس کن. برای خروج از این حالت، دوباره «حذف» را بزن.</p>
-          )}
-
-          <div className="grid grid-cols-3 gap-2 mb-4">
-           {Array.from(new Set([...profile.quick_times, ...selectedTimes])).sort((a, b) => timeKey(a) - timeKey(b)).map(t => {
-            const dateStr = `${schedYear}/${schedMonth + 1}/${selectedDay}`
-            const takenBy = apptsForDate(dateStr).find(a => a.time === t)
-            const slotTs = jalaliDateTimeToTimestamp(dateStr, t)
-            const isPastTime = slotTs !== null && slotTs <= Date.now()
-            const selected = selectedTimes.includes(t)
-            const locked = !!takenBy || isPastTime
-            const mode = profile.session_modes
-            const offlineLocs = settings.office_locations
-            // گزینه‌های ممکن برای این اسلات (بدون «هردو» — هر اسلات یک نوع مشخص دارد)
-            type Opt = { kind: 'online' | 'offline'; loc?: string; label: string }
-            const opts: Opt[] = []
-            if (mode === 'both' || mode === 'online') opts.push({ kind: 'online', label: 'آنلاین' })
-            if (mode === 'both' || mode === 'offline') {
-             if (offlineLocs.length <= 1) opts.push({ kind: 'offline', loc: offlineLocs[0]?.title, label: `${offlineLocs[0]?.title || 'حضوری'}` })
-             else offlineLocs.forEach(l => opts.push({ kind: 'offline', loc: l.title, label: `${l.title}` }))
-            }
-            const fixed = opts.length === 1
-            const curKind = slotTypes[t] === 'offline' ? 'offline' : slotTypes[t] === 'online' ? 'online' : ''
-            const curLoc = slotLocs[t]
-            let curIdx = opts.findIndex(o => o.kind === curKind && (o.kind !== 'offline' || (o.loc || '') === (curLoc || '')))
-            if (curIdx < 0) curIdx = 0 // پیش‌فرض: اولین گزینه
-            const curLabel = opts[curIdx]?.label
-            const setOpt = (o: Opt) => {
-             setSlotTypes(prev => ({ ...prev, [t]: o.kind }))
-             setSlotLocs(prev => { const n = { ...prev }; if (o.kind === 'offline' && o.loc) n[t] = o.loc; else delete n[t]; return n })
-            }
-            const cycle = (ev: { stopPropagation: () => void }) => {
-             ev.stopPropagation()
-             setOpt(opts[(curIdx + 1) % opts.length])
-            }
-            const removeThisTime = () => {
-             if (profile.quick_times.includes(t)) persistQuickTimes(profile.quick_times.filter(x => x !== t))
-             setSelectedTimes(prev => prev.filter(x => x !== t))
-             setSlotTypes(st => { const n = { ...st }; delete n[t]; return n })
-             setSlotLocs(sl => { const n = { ...sl }; delete n[t]; return n })
-            }
-            return (
-             <div key={t}
-              onClick={() => {
-               if (removeTimeMode) { removeThisTime(); return }
-               if (locked) return
-               if (selected) {
-                setSelectedTimes(prev => prev.filter(x => x !== t))
-                setSlotTypes(st => { const n = { ...st }; delete n[t]; return n })
-                setSlotLocs(sl => { const n = { ...sl }; delete n[t]; return n })
-               } else {
-                setSelectedTimes(prev => [...prev, t])
-                setOpt(opts[0]) // پیش‌فرض: اولین گزینه (بدون «هردو»)
-               }
-              }}
-              className={`relative text-center py-2 border rounded-xl text-sm transition-all
-               ${removeTimeMode ? 'cursor-pointer border-sand bg-gray-100 text-ink hover:bg-gray-200' :
-                isPastTime ? 'border-sand bg-gray-50 text-gray-300 cursor-not-allowed line-through' :
-                takenBy ? 'border-amber-500/20 bg-amber-500/10 text-amber-600 cursor-not-allowed' :
-                'cursor-pointer ' + (selected ? 'border-ink bg-sand text-ink font-medium' : 'border-sand text-soot hover:border-gray-300')}`}>
-              {enTime(t)}
-              {!removeTimeMode && takenBy && !isPastTime && <span className="block text-[10px] mt-0.5">🔒 {takenBy.name}</span>}
-              {!removeTimeMode && selected && !locked && (
-               fixed
-                ? <span className="block text-[10px] mt-1 text-ink">{opts[0]?.label}</span>
-                : <button onClick={cycle}
-                  className="block w-full text-[10px] mt-1 text-ink bg-white/70 border border-sand rounded py-0.5 hover:bg-white truncate">{curLabel}</button>
-              )}
-             </div>
-            )
-           })}
-          </div>
-          <button onClick={saveSchedule} disabled={schedSaving}
-           className="w-full py-3 bg-ink text-white rounded-xl text-sm font-medium disabled:opacity-40 hover:bg-ink/90 transition-colors">
-           {schedSaving ? 'در حال ذخیره...' : schedSaved ? 'ذخیره شد!' : 'ذخیره برنامه'}
-          </button>
-         </div>
-        )}
-       </>
-      )}
-
-      {/* ════ نمای برنامه‌ی نوبت‌ها ════ */}
-      {schedSubTab === 'agenda' && (
-       <div className="space-y-3">
-        {/* تاگل هفتگی/ماهانه */}
-        <div className="flex bg-white rounded-xl border border-sand p-1">
-         {([['week', 'هفتگی'], ['month', 'ماهانه']] as const).map(([k, label]) => (
-          <button key={k} onClick={() => setAgendaMode(k)}
-           className={`flex-1 text-sm py-1.5 rounded-lg font-medium transition-all ${agendaMode === k ? 'bg-ink text-white' : 'text-soot'}`}>
-           {label}
-          </button>
-         ))}
-        </div>
-
-        {(() => {
-         const WEEK = ['شنبه', 'یک‌شنبه', 'دوشنبه', 'سه‌شنبه', 'چهارشنبه', 'پنج‌شنبه', 'جمعه']
-         // مرز هفته‌ها (شنبه‌ها در روزهای 6، 13، 20، 27 شروع می‌شوند؛ هفته‌ی اول 1 تا 5)
-         const weekStarts = [1, 6, 13, 20, 27].filter(s => s <= daysInMonth)
-         const wIdx = Math.min(weekIdx, weekStarts.length - 1)
-         let rangeStart = 1, rangeEnd = daysInMonth
-         if (agendaMode === 'week') {
-          rangeStart = weekStarts[wIdx]
-          rangeEnd = (weekStarts[wIdx + 1] ? weekStarts[wIdx + 1] - 1 : daysInMonth)
-         }
-
-         const days = []
-         for (let d = rangeStart; d <= rangeEnd; d++) {
-          const dateStr = `${schedYear}/${schedMonth + 1}/${d}`
-          const sched = schedForDay(d)
-          const appts = apptsForDate(dateStr)
-          const slotTimes = sched?.available_times || []
-          const extra = appts.map(a => a.time).filter(t => !slotTimes.includes(t))
-          const allTimes = Array.from(new Set([...slotTimes, ...extra])).sort((a, b) => timeKey(a) - timeKey(b))
-          if (allTimes.length === 0) continue
-          days.push({ d, dateStr, appts, allTimes, weekday: WEEK[(d + 1) % 7] })
-         }
-
-         return (
-          <>
-           {agendaMode === 'week' && (
-            <div className="flex items-center justify-between bg-white rounded-xl border border-sand px-3 py-2 gap-2">
-             <button onClick={() => setWeekIdx(i => Math.max(0, i - 1))} disabled={wIdx === 0}
-              className="px-3 py-1.5 border border-sand rounded-lg text-xs text-soot disabled:opacity-30 shrink-0">قبلی</button>
-             <span className="text-xs text-soot text-center">هفته‌ی {toFarsiNum(wIdx + 1)} — {toFarsiNum(rangeStart)} تا {toFarsiNum(rangeEnd)} {PERSIAN_MONTHS[schedMonth]}</span>
-             <button onClick={() => setWeekIdx(i => Math.min(weekStarts.length - 1, i + 1))} disabled={wIdx >= weekStarts.length - 1}
-              className="px-3 py-1.5 border border-sand rounded-lg text-xs text-soot disabled:opacity-30 shrink-0">بعدی</button>
-            </div>
-           )}
-
-           {days.length === 0 ? (
-            <div className="text-center py-16 text-soot bg-white rounded-2xl border border-sand">
-             {agendaMode === 'week' ? 'برای این هفته روز کاری‌ای تنظیم نشده است.' : 'برای این ماه روز کاری‌ای تنظیم نشده است.'}
-            </div>
-           ) : days.map(({ d, appts, allTimes, weekday }) => (
-            <div key={d} className="bg-white rounded-2xl border border-sand p-4">
-             <div className="flex items-center justify-between mb-3 pb-2 border-b border-sand">
-              <span className="text-sm font-semibold text-ink">{weekday} {toFarsiNum(d)} {PERSIAN_MONTHS[schedMonth]}</span>
-              <div className="flex items-center gap-2">
-               <span className="text-xs text-soot">{toFarsiNum(appts.length)} از {toFarsiNum(allTimes.length)} رزرو</span>
-               {appts.length > 0 && (
-                <button onClick={() => cancelDay(`${schedYear}/${schedMonth + 1}/${d}`, appts)}
-                 className="text-xs px-2 py-0.5 border border-red-500/30 text-red-600 rounded-lg hover:bg-red-500/5">لغو روز</button>
-               )}
-              </div>
-             </div>
-             <div className="space-y-1.5">
-              {allTimes.map(t => {
-               const appt = appts.find(a => a.time === t)
-               const slotType = schedForDay(d)?.slot_types?.[t]
-               const slotLoc = schedForDay(d)?.slot_locs?.[t]
-               const slotTypeLabel = slotType === 'online' ? 'آنلاین' : slotType === 'offline' ? `${slotLoc || 'حضوری'}` : 'خالی'
-               return (
-                <div key={t} className="flex items-center gap-3 text-sm">
-                 <span className="font-mono text-xs text-soot w-12 shrink-0">{enTime(t)}</span>
-                 {appt ? (
-                  <span className={`flex-1 flex items-center justify-between px-3 py-1.5 rounded-lg border text-xs ${appt.color}`}>
-                   <span className="font-medium">{appt.mode === 'online' ? '🎥 ' : appt.mode === 'offline' ? '🏥 ' : ''}{appt.name}</span>
-                   <span className="flex items-center gap-2">
-                    <span className="opacity-75">{appt.type}{appt.loc ? ` — ${appt.loc}` : ''}</span>
-                    {!!appt.delayMinutes && (
-                     <span className="px-1.5 py-0.5 bg-amber-500/10 text-amber-600 border border-amber-500/20 rounded font-medium">⏱ {toFarsiNum(appt.delayMinutes)} د تاخیر</span>
-                    )}
-                    <button onClick={() => announceDelay(appt)}
-                     className="px-1.5 py-0.5 bg-amber-500/10 border border-amber-500/20 rounded text-amber-600 hover:bg-amber-500/20">⏱ تاخیر</button>
-                    <button onClick={() => cancelAppointment(appt)}
-                     className="px-1.5 py-0.5 bg-red-500/10 border border-red-500/20 rounded text-red-600 hover:bg-red-500/20">لغو</button>
-                   </span>
-                  </span>
-                 ) : (
-                  <span className="flex-1 px-3 py-1.5 rounded-lg border border-dashed border-sand text-xs text-gray-300">{slotTypeLabel}</span>
-                 )}
-                </div>
-               )
-              })}
-             </div>
-            </div>
-           ))}
-          </>
-         )
-        })()}
-       </div>
-      )}
-     </div>
+     <ScheduleTab api={api}
+      resourceQS={scheduleResourceQS()}
+      resourceId={(me?.isOwner && viewingResourceId) ? viewingResourceId : null}
+      quickTimes={profile.quick_times} quickTimesSaving={quickTimesSaving} persistQuickTimes={persistQuickTimes}
+      sessionModes={profile.session_modes} officeLocations={settings.office_locations}
+      apptsForDate={apptsForDate} cancelAppointment={cancelAppointment} cancelDay={cancelDay}
+      announceDelay={announceDelay} onUnauthorized={() => setNeedsLogin(true)}
+      onSaved={() => { loadAllSessions(); refreshBookings() }}
+      jump={schedJump} onJumpConsumed={() => setSchedJump(null)} />
     )}
 
     {/* ════════════════════════════════════════════════════════════════
