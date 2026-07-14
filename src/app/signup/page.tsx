@@ -92,9 +92,7 @@ export default function Signup() {
     <div className="min-h-screen bg-paper text-ink">
       <header className="max-w-2xl mx-auto px-6 h-16 flex items-center justify-between">
         <a href="/" className="flex items-center gap-2">
-          <span className="w-7 h-7 rounded-lg bg-ink flex items-center justify-center">
-            <svg viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={1.7} className="w-3.5 h-3.5"><rect x="4" y="5" width="16" height="16" rx="2"/><path d="M16 3v4M8 3v4M4 11h16"/></svg>
-          </span>
+          <img src="/logo.svg" alt="" className="w-7 h-7" />
           <span className="font-display font-extrabold text-lg tracking-tightest">{PLATFORM_NAME}</span>
         </a>
         <a href="/login" className="text-[13px] text-soot hover:text-ink">قبلا ثبت‌نام کرده‌ای؟ ورود</a>

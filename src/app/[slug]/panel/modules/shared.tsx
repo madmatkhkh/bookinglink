@@ -59,3 +59,44 @@ export function timeKey(t: string): number {
 
 // نمایش ساعت/تاریخ با ارقام لاتین (قانون محصول: خروجی همیشه Latin digits)
 export const enTime = (t?: string) => toLatinNum(String(t || ''))
+
+// ─── Helper field components ──────────────────────────────────────────────────
+
+export function Field({ label, value, onChange, placeholder, fullWidth }: {
+ label: string; value?: string; onChange: (v: string) => void; placeholder?: string; fullWidth?: boolean
+}) {
+ return (
+  <div className={fullWidth ? 'col-span-2' : ''}>
+   <label className="text-xs text-soot mb-1 block">{label}</label>
+   <input value={value || ''} onChange={e => onChange(e.target.value)} placeholder={placeholder}
+    className="w-full text-sm px-3 py-2 border border-sand rounded-lg focus:outline-none focus:border-ink" />
+  </div>
+ )
+}
+
+export function SelectField({ label, value, onChange, options }: {
+ label: string; value?: string; onChange: (v: string) => void; options: string[]
+}) {
+ return (
+  <div>
+   <label className="text-xs text-soot mb-1 block">{label}</label>
+   <select value={value || ''} onChange={e => onChange(e.target.value)}
+    className="w-full text-sm px-3 py-2 border border-sand rounded-lg bg-white focus:outline-none focus:border-ink">
+    <option value="">انتخاب کنید...</option>
+    {options.map(o => <option key={o} value={o}>{o}</option>)}
+   </select>
+  </div>
+ )
+}
+
+export function TextareaField({ label, value, onChange, rows, placeholder }: {
+ label: string; value?: string; onChange: (v: string) => void; rows?: number; placeholder?: string
+}) {
+ return (
+  <div>
+   <label className="text-xs text-soot mb-1 block">{label}</label>
+   <textarea value={value || ''} onChange={e => onChange(e.target.value)} rows={rows || 3} placeholder={placeholder}
+    className="w-full text-sm px-3 py-2 border border-sand rounded-lg resize-none focus:outline-none focus:border-ink" />
+  </div>
+ )
+}

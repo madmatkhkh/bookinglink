@@ -730,7 +730,7 @@ function GenericLogin({ slug, onSuccess }: { slug: string; onSuccess: () => void
     <div className="min-h-screen bg-paper flex items-center justify-center p-6" dir="rtl">
       <div className="w-full max-w-sm">
         <div className="text-center mb-6">
-          <div className="text-4xl mb-3">🔐</div>
+          <img src="/logo.svg" alt="" className="w-12 h-12 mx-auto mb-3" />
           <h1 className="text-lg font-bold text-ink">ورود به پنل</h1>
           <p className="text-xs text-soot mt-1.5">کد ورود به موبایل صاحب پنل فرستاده می‌شود.</p>
         </div>
