@@ -646,3 +646,13 @@
   - `/my` — `ReviewBox`: با ماژول reviews خاموش، کلا رندر نمی‌شود (early return بعد از hookها).
 - ⚠️ همان اصل fail-open: تا قبل از migration 0029 هیچ تغییر رفتاری دیده نمی‌شود.
 - 📌 فاز بعد (4): جداسازی تدریجی تب‌ها از PsychologyAdmin به `panel/modules/<key>/` — ترتیب: growth → finance → staff → bookings → schedule → patients؛ هر تب یک جلسه‌ی مستقل با build سبز.
+
+## چنج‌لاگ 1405/04/23 (2026-07-14) — فاز 4 (قدم 1): جداسازی تب «رشد و مراجعان»
+
+اولین قدم شکستن PsychologyAdmin (طبق ترتیب MODULES.md: growth → finance → staff → bookings → schedule → patients). **بدون تغییر رفتار؛ build سبز.**
+
+- ✅ **`panel/modules/shared.tsx` (جدید):** `PageHeader` و `EmptyState` عینا از PsychologyAdmin به این‌جا منتقل و export شدند — الگوی مشترک برای همه‌ی تب‌هایی که از این به بعد جدا می‌شوند. PsychologyAdmin حالا import می‌کند.
+- ✅ **`panel/modules/growth/GrowthTab.tsx` (جدید، ~300 خط):** کل تب رشد — زیرتب‌ها، state، loaderها (reviews/analytics/campaigns) و اکشن‌ها (notify/remove لیست انتظار، انتشار/مخفی نظر، ارسال کمپین) — به کامپوننت مستقل منتقل شد. props ورودی: `api`, `growthTabs`, `modules`, `waitlist`, `reloadWaitlist`.
+- ✅ **PsychologyAdmin از 5711 به 5450 خط رسید.** فقط این‌ها از تب رشد در والد ماند: state لیست انتظار + `loadWaitlist` + effect زمان mount — چون **بج عددی سایدبار بیرون تب رشد هم به شمارنده نیاز دارد**؛ از راه prop به GrowthTab می‌رود و اکشن‌های داخل تب با `reloadWaitlist` تازه‌اش می‌کنند.
+- ℹ️ دو تفاوت جزئی و بی‌ضرر: (1) زیرتب انتخابی تب رشد بعد از رفتن به تب دیگر و برگشتن، به زیرتب اول برمی‌گردد (state داخل کامپوننت است و با خروج از تب unmount می‌شود) — قبلا در حافظه می‌ماند. (2) داده‌های reviews/analytics/campaigns با هر ورود به تب از صفر لود می‌شوند (قبلا داده‌ی قبلی تا رسیدن پاسخ تازه دیده می‌شد)؛ fetch مجدد در هر ورود همان رفتار قبلی بود.
+- 📌 قدم بعدی فاز 4: جداسازی تب «گزارشات مالی» (finance) به `panel/modules/finance/` — یک جلسه‌ی مستقل با build سبز.
