@@ -8,6 +8,13 @@ const nextConfig = {
     // دیتای تازه جایگزین می‌شود («ریلود یهو عوض می‌شود»، دقیقا چیزی که گزارش
     // شد). staleTimes.dynamic=0 این کش را برای صفحات داینامیک خاموش می‌کند.
     staleTimes: { dynamic: 0 },
+    // فونت‌های ttf تصویرهای og با fs خوانده می‌شوند؛ tracing خودکار Next
+    // مسیر process.cwd() را نمی‌بیند — این‌جا صریح به خروجی serverless اضافه
+    // می‌شوند تا روی Vercel هم کنار route باشند.
+    outputFileTracingIncludes: {
+      '/opengraph-image': ['./src/app/og/*.ttf'],
+      '/[slug]/opengraph-image': ['./src/app/og/*.ttf'],
+    },
   },
 }
 module.exports = nextConfig
