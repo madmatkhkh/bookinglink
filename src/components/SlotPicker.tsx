@@ -4,6 +4,8 @@ import { useParams } from 'next/navigation'
 import { PERSIAN_MONTHS, PERSIAN_WEEKDAYS, toFarsiNum, getCurrentJalali, getDaysInJalaliMonth, jalaliDateTimeToTimestamp } from '@/lib/calendar'
 import { uiAlert } from '@/components/ui/Dialog'
 import { useModalBackClose } from '@/lib/useModalBackClose'
+import { usePatientFeatures } from '@/components/PsyPublic'
+import { moduleOn } from '@/lib/moduleManifest'
 
 // انتخاب زمان یک جلسه — مشترک بین پنل مراجع و فرم مصاحبه.
 //
@@ -44,6 +46,10 @@ export default function SlotPicker({ session, phone, caseNumber, onClose, onDone
 }) {
  const { slug } = useParams<{ slug: string }>()
  useModalBackClose(true, onClose)
+ // ماژول لیست انتظار — اگر برای این مجموعه خاموش باشد، دکمه‌ی «افزودن به لیست
+ // انتظار» اصلا نشان داده نمی‌شود (سرورش هم از فاز 2 گیت شده). fail-open.
+ const patientFeatures = usePatientFeatures(slug)
+ const waitlistOn = moduleOn(patientFeatures, 'waitlist')
  const today = getCurrentJalali()
  const [curMonth, setCurMonth] = useState(today.month)
  const [curYear, setCurYear] = useState(today.year)
@@ -189,7 +195,7 @@ export default function SlotPicker({ session, phone, caseNumber, onClose, onDone
      {!loadingSched && availDays.length === 0 && (
       <div className="text-center mb-4">
        <p className="text-xs text-soot mb-2">برای این ماه ساعت آزادی موجود نیست.</p>
-       {resourceId && !waitlistJoined && (
+       {resourceId && waitlistOn && !waitlistJoined && (
         <button onClick={joinWaitlist} disabled={waitlistJoining}
          className="text-xs px-4 py-2 border border-ink text-ink rounded-lg hover:bg-sand disabled:opacity-40">
          {waitlistJoining ? 'در حال ثبت...' : '+ افزودن به لیست انتظار'}

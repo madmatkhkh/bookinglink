@@ -11,6 +11,7 @@ import { useResendCooldown } from '@/lib/useResendCooldown'
 import { Glyph } from '@/components/Glyph'
 import { MonthYearWheel, JalaliDateWheel } from '@/components/WheelPicker'
 import { useModalBackClose } from '@/lib/useModalBackClose'
+import { moduleOn, GROWTH_SUBTABS, type ModuleFlags } from '@/lib/moduleManifest'
 import { MEET_METHODS, MEET_META, MeetChannel, meetHref, usableMeetChannels } from '@/lib/meet'
 import ThemeModePicker from '@/components/ThemeModePicker'
 import { DEFAULT_SAFE_THEME } from '@/lib/theme'
@@ -763,7 +764,7 @@ export function PsychologyAdmin() {
  const [toJ, setToJ] = useState(() => { const t = getCurrentJalali(); return { y: t.year, m: t.month + 1, d: t.day } })
 
  // ── چندکارمندی: کی وارد شده (صاحب مجموعه یا یک کارمند مشخص)؟ ──
- const [me, setMe] = useState<{ isOwner: boolean; resourceId: string | null; resourceName: string | null; phone: string | null; slug: string | null; multiTherapist: boolean; multiTherapistRequested: boolean } | null>(null)
+ const [me, setMe] = useState<{ isOwner: boolean; resourceId: string | null; resourceName: string | null; phone: string | null; slug: string | null; multiTherapist: boolean; multiTherapistRequested: boolean; modules: ModuleFlags } | null>(null)
  const [changePhoneOpen, setChangePhoneOpen] = useState(false)
  const [newPhoneInput, setNewPhoneInput] = useState('')
  const [changePhoneCode, setChangePhoneCode] = useState('')
@@ -833,7 +834,7 @@ export function PsychologyAdmin() {
    const r = await fetch(panelApi('/whoami'), { cache: 'no-store' })
    if (r.status === 401) { setNeedsLogin(true); return }
    const d = await r.json()
-   setMe({ isOwner: !!d.isOwner, resourceId: d.resourceId || null, resourceName: d.resourceName || null, phone: d.phone || null, slug: d.slug || null, multiTherapist: !!d.multiTherapist, multiTherapistRequested: !!d.multiTherapistRequested })
+   setMe({ isOwner: !!d.isOwner, resourceId: d.resourceId || null, resourceName: d.resourceName || null, phone: d.phone || null, slug: d.slug || null, multiTherapist: !!d.multiTherapist, multiTherapistRequested: !!d.multiTherapistRequested, modules: d.modules || {} })
    if (d.isOwner) loadStaff()
    loadProfile()
   } catch {}
@@ -1480,7 +1481,14 @@ export function PsychologyAdmin() {
   if (mainTab === 'staff' && me?.isOwner && !staffLoaded) loadStaff()
   if (mainTab === 'tickets') loadTickets()
   if (mainTab === 'finance') loadFinance()
-  if (mainTab === 'growth') { loadWaitlist(); loadReviews(); loadAnalytics(); loadCampaigns() }
+  if (mainTab === 'growth') {
+   // فقط ماژول‌های فعال — route ماژول خاموش از فاز 2 به‌هرحال 403 می‌دهد
+   const flags = me?.modules
+   if (moduleOn(flags, 'waitlist')) loadWaitlist()
+   if (moduleOn(flags, 'reviews')) loadReviews()
+   if (moduleOn(flags, 'analytics')) loadAnalytics()
+   if (moduleOn(flags, 'campaigns')) loadCampaigns()
+  }
   // eslint-disable-next-line react-hooks/exhaustive-deps
  }, [mainTab, viewingResourceId])
 
@@ -2186,13 +2194,23 @@ export function PsychologyAdmin() {
  // رسیدگی مانده باشد (مثلا یک بازپرداخت کنسلی که همیشه دستی می‌ماند).
  const showBookingsTab = profile.payment_methods.card_to_card || pendingActionCount > 0
 
+ // ── سیستم ماژولار (فاز 3): تب/زیرتب‌ها از روی ماژول‌های فعال tenant ─────────
+ // mod() fail-open است — قبل از migration 0029 (نقشه‌ی خالی از whoami) همه‌چیز
+ // مثل قبل دیده می‌شود. با خاموش‌کردن ماژول از سوپرادمین، هم تبش این‌جا غیب
+ // می‌شود هم API‌اش (requireModule فاز 2) رد می‌کند — UI و سرور هماهنگ.
+ const mod = (key: string) => moduleOn(me?.modules, key)
+ const growthTabs = GROWTH_SUBTABS.filter(t => mod(t.module))
+ const activeGrowthTab = growthTabs.some(t => t.key === growthSubTab)
+  ? growthSubTab
+  : (growthTabs[0]?.key ?? 'waitlist')
+
  const navItems = [
   { key: 'dashboard' as const, icon: '🏠', label: 'داشبورد', badge: 0 },
   { key: 'patients' as const, icon: '📁', label: 'پرونده‌ها', badge: 0 },
   { key: 'schedule' as const, icon: '🗓', label: 'روزهای کاری', badge: 0 },
   ...(showBookingsTab ? [{ key: 'bookings' as const, icon: '💳', label: 'تأیید پرداخت‌ها', badge: pendingActionCount }] : []),
   { key: 'finance' as const, icon: '📊', label: 'گزارشات مالی', badge: 0 },
-  { key: 'growth' as const, icon: '👥', label: 'رشد و مراجعان', badge: waitlistCount },
+  ...(growthTabs.length ? [{ key: 'growth' as const, icon: '👥', label: 'رشد و مراجعان', badge: mod('waitlist') ? waitlistCount : 0 }] : []),
  ]
 
  // این‌ها قبلا زیر «تنظیمات» صفحه‌ی دوم بودند ولی خودشان واقعا تنظیمات نیستند —
@@ -3886,16 +3904,16 @@ export function PsychologyAdmin() {
      <div className="max-w-3xl mx-auto">
       <PageHeader title="رشد و مراجعان" desc="لیست انتظار، نظرات مراجعان، آمار کسب‌وکار و ارسال پیام گروهی." />
       <div className="flex bg-white rounded-xl border border-sand p-1 mb-4 overflow-x-auto">
-       {([['waitlist', 'لیست انتظار'], ['reviews', 'نظرات مراجعان'], ['analytics', 'آمار کسب‌وکار'], ['campaigns', 'پیام گروهی']] as const).map(([k, label]) => (
+       {growthTabs.map(({ key: k, label }) => (
         <button key={k} onClick={() => setGrowthSubTab(k)}
-         className={`flex-1 text-xs py-2 rounded-lg font-medium whitespace-nowrap px-3 transition-all ${growthSubTab === k ? 'bg-ink text-white' : 'text-soot'}`}>
+         className={`flex-1 text-xs py-2 rounded-lg font-medium whitespace-nowrap px-3 transition-all ${activeGrowthTab === k ? 'bg-ink text-white' : 'text-soot'}`}>
          {label}{k === 'waitlist' && waitlistCount > 0 ? ` (${toFarsiNum(waitlistCount)})` : ''}
         </button>
        ))}
       </div>
 
       {/* ── لیست انتظار ─────────────────────────────────────────── */}
-      {growthSubTab === 'waitlist' && (
+      {activeGrowthTab === 'waitlist' && (
        <div className="space-y-2">
         <p className="text-xs text-soot mb-2">وقتی ساعت آزادی برای کسی که این‌جا منتظر است پیدا کردید، «اطلاع بده» را بزنید تا پیامک/ایمیل برایش برود.</p>
         {waitlist.length === 0 ? (
@@ -3923,7 +3941,7 @@ export function PsychologyAdmin() {
       )}
 
       {/* ── نظرات مراجعان ───────────────────────────────────────── */}
-      {growthSubTab === 'reviews' && (
+      {activeGrowthTab === 'reviews' && (
        <div className="space-y-2">
         {reviews.length === 0 ? (
          <EmptyState icon="📝" title="هنوز نظری ثبت نشده است"
@@ -3954,7 +3972,7 @@ export function PsychologyAdmin() {
       )}
 
       {/* ── آمار کسب‌وکار ───────────────────────────────────────── */}
-      {growthSubTab === 'analytics' && (
+      {activeGrowthTab === 'analytics' && (
        !analytics ? <div className="text-center py-16 text-soot">در حال بارگذاری...</div> : (
         <div className="space-y-4">
          <p className="text-xs text-soot">۹۰ روز اخیر</p>
@@ -4012,7 +4030,7 @@ export function PsychologyAdmin() {
       )}
 
       {/* ── پیام گروهی (کمپین) ──────────────────────────────────── */}
-      {growthSubTab === 'campaigns' && (
+      {activeGrowthTab === 'campaigns' && (
        <div className="space-y-4">
         <div className="bg-white rounded-2xl border border-sand p-5">
          <h2 className="text-sm font-display font-semibold text-ink mb-3">ارسال پیام گروهی</h2>
@@ -4430,8 +4448,9 @@ export function PsychologyAdmin() {
        </section>
        )}
 
-       {/* کدهای تخفیف — per-resource؛ اختیاری برای بعضی مراجعان */}
-       {settingsSubTab === 'pricing' && (
+       {/* کدهای تخفیف — per-resource؛ اختیاری برای بعضی مراجعان.
+           فقط وقتی ماژول discount_codes روشن است (API‌اش هم از فاز 2 گیت دارد). */}
+       {settingsSubTab === 'pricing' && mod('discount_codes') && (
         <DiscountCodesSection slug={slug} isOwner={!!me?.isOwner} viewingResourceId={viewingResourceId} />
        )}
 

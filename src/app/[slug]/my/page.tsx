@@ -4,6 +4,7 @@ import { useParams, useSearchParams, useRouter } from 'next/navigation'
 import { PERSIAN_MONTHS, PERSIAN_WEEKDAYS, toFarsiNum, getCurrentJalali, getDaysInJalaliMonth, jalaliDateTimeToTimestamp } from '@/lib/calendar'
 import { PSY_PRICING as PRICING, DEFAULT_CANCELLATION_POLICY } from '@/lib/psy'
 import { usePublicClinic, usePatientFeatures, CardChooser } from '@/components/PsyPublic'
+import { moduleOn } from '@/lib/moduleManifest'
 import { stageTitle } from '@/lib/flow'
 import { DialogHost, uiAlert, uiConfirm } from '@/components/ui/Dialog'
 import { useResendCooldown } from '@/lib/useResendCooldown'
@@ -1443,6 +1444,9 @@ function ReviewBox({ resourceId, caseNumber, phone, slug }: { resourceId: string
  const [submitting, setSubmitting] = useState(false)
  const [done, setDone] = useState(false)
  const [err, setErr] = useState('')
+ // ماژول نظرات — خاموش برای این مجموعه یعنی باکس نظر کلا نمایش داده نشود
+ // (سرورش هم از فاز 2 گیت شده). fail-open: فلگ غایب = روشن.
+ const patientFeatures = usePatientFeatures(slug)
 
  async function submit() {
   if (!rating) { setErr('لطفا امتیاز را انتخاب کنید'); return }
@@ -1457,7 +1461,10 @@ function ReviewBox({ resourceId, caseNumber, phone, slug }: { resourceId: string
   setDone(true)
  }
 
- if (done) return (
+ if (moduleOn(patientFeatures, 'reviews') === false) return null
+
+ if (done)
+  return (
   <div className="bg-white rounded-xl border border-sand p-4 text-center">
    <p className="text-sm text-emerald-600">ممنون از نظرتان! پس از بررسی دکتر منتشر می‌شود.</p>
   </div>
