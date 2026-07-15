@@ -1,7 +1,7 @@
-// ── تصویر og سطح پلتفرم — طراحی «سکوت هندسی» (og/DESIGN.md) ─────────────────
-// بوم سفید، لوگو در نقطه‌ی شروع خواندن (راست)، نام کنارش، تگ‌لاین نازک،
-// یک خط حساب‌شده‌ی مشکی به‌عنوان تنها ژست گرافیکی. متن‌های فارسی از rtl()
-// عبور می‌کنند (جبران بیدی satori — توضیح در og/shared.tsx).
+// ── تصویر og سطح پلتفرم (nobatlink.com) ─────────────────────────────────────
+// چیدمان: لوگو (راست) + نام برند، بعد توضیح دو خطی. بدون خط جداکننده.
+// هر خط توضیح یک RtlText مستقل است (نه wrap دستی) تا به‌هم‌ریختگی نیم‌فاصله
+// پیش نیاید — توضیح در og/shared.tsx تفصیلی آمده.
 import { ImageResponse } from 'next/og'
 import { OG_SIZE, ogFonts, LogoMark, RtlText } from './og/shared'
 
@@ -16,27 +16,27 @@ export default async function OgImage() {
       <div
         style={{
           width: '100%', height: '100%', display: 'flex', flexDirection: 'column',
-          background: '#ffffff', fontFamily: 'Vazirmatn', position: 'relative',
+          alignItems: 'center', justifyContent: 'center', background: '#ffffff',
+          fontFamily: 'Vazirmatn', padding: '0 90px',
         }}
       >
-        {/* لوکاپ مرکزی: در RTL لوگو اول (راست)، بعد نام — row-reverse این ترتیب را می‌سازد */}
-        <div style={{ display: 'flex', flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            <div style={{ display: 'flex', flexDirection: 'row-reverse', alignItems: 'center' }}>
-              <LogoMark size={108} />
-              <RtlText text="نوبت‌لینک" fontSize={92} fontWeight={700} color="#0a0a0a" />
-            </div>
-            {/* خط جداکننده‌ی نازک — تنها ژست گرافیکی کارت */}
-            <div style={{ display: 'flex', width: 96, height: 3, background: '#0a0a0a', marginTop: 44, marginBottom: 36 }} />
-            <RtlText text="صفحه‌ی نوبت‌دهی اختصاصی شما" fontSize={33} color="#8a8a8a" />
-          </div>
+        {/* لوگو + نام برند */}
+        <div style={{ display: 'flex', flexDirection: 'row-reverse', alignItems: 'center', gap: 40, marginBottom: 40 }}>
+          <LogoMark size={124} />
+          <RtlText text="نوبت‌لینک" fontSize={88} fontWeight={700} color="#0a0a0a" />
         </div>
 
-        {/* دامنه — زمزمه‌وار، پایین مرکز */}
+        {/* توضیح برند — دو خط، وسط‌چین */}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 18 }}>
+          <RtlText text="نوبت‌دهی را به صفحه‌ی اختصاصی‌تان بسپارید" fontSize={38} fontWeight={700} color="#0a0a0a" align="center" />
+          <RtlText text="از مشاوره تا سالن زیبایی — یک صفحه‌ی رزرو با رنگ و هویت خودتان" fontSize={28} color="#6b6b6b" wrapAt={38} align="center" />
+        </div>
+
         <div
           style={{
-            display: 'flex', justifyContent: 'center', paddingBottom: 52,
-            fontSize: 24, color: '#b5b5b5', letterSpacing: 3,
+            position: 'absolute', bottom: 44, left: 0, right: 0,
+            display: 'flex', justifyContent: 'center',
+            fontSize: 23, color: '#c2c2c2', letterSpacing: 2,
           }}
         >
           nobatlink.com

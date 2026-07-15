@@ -50,15 +50,37 @@ export function rgbOf(themeColor?: string | null): string {
 //      ذاتی می‌گذارد — چیدن کلمه‌به‌کلمه با div هم بن‌بست است.
 //   3) یک رشته‌ی «یکپارچه» (بدون فاصله‌ی ASCII) مستقیم به شکل‌دهنده‌ی فونت
 //      می‌رود که RTL را بومی و درست هندل می‌کند: ترتیب درست + فاصله‌ی طبیعی.
-// پس: فاصله‌ی معمولی → NBSP (که satori نمی‌شکندش)، نیم‌فاصله همان‌طور می‌ماند،
+// پس: چینش کلمه‌به‌کلمه با ترتیب معکوس دستی (پیاده‌سازی زیر).
 // و هیچ direction ای ست نمی‌شود. همین.
-export function RtlText({ text, fontSize, fontWeight = 400, color }: {
+export function RtlText({ text, fontSize, fontWeight = 400, color, wrapAt, align = 'flex-end' }: {
   text: string; fontSize: number; fontWeight?: 400 | 700; color: string
+  wrapAt?: number; align?: 'flex-end' | 'center' | 'flex-start'
 }) {
-  return (
-    <div style={{ display: 'flex', fontSize, fontWeight, color, lineHeight: 1.4 }}>
-      {text.trim().replace(/ +/g, NBSP)}
+  // satori بیدی کامل ندارد: هر رشته‌ی چندکلمه‌ای (حتی با NBSP) را LTR می‌چیند.
+  // تنها راه بی‌نقص: هر کلمه یک المان جدا، و ترتیب کلمات را خودمان با
+  // row-reverse معکوس می‌کنیم. داخل هر کلمه (شامل نیم‌فاصله) رشته‌ی یکپارچه
+  // است که فونت درست شکل می‌دهد. gap بین کلمات = فاصله‌ی طبیعی (~0.28em).
+  const renderLine = (line: string, key?: number) => (
+    <div key={key} style={{ display: 'flex', flexDirection: 'row-reverse', gap: Math.round(fontSize * 0.28), fontSize, fontWeight, color, lineHeight: 1.35 }}>
+      {line.trim().split(/\s+/).map((w, i) => (
+        <div key={i} style={{ display: 'flex' }}>{w}</div>
+      ))}
     </div>
   )
+
+  if (wrapAt) {
+    const lines: string[] = []
+    let cur = ''
+    for (const w of text.trim().split(/\s+/)) {
+      if (cur && (cur + ' ' + w).length > wrapAt) { lines.push(cur); cur = w }
+      else cur = cur ? cur + ' ' + w : w
+    }
+    if (cur) lines.push(cur)
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: align, gap: Math.round(fontSize * 0.4) }}>
+        {lines.map((ln, i) => renderLine(ln, i))}
+      </div>
+    )
+  }
+  return renderLine(text)
 }
-const NBSP = String.fromCharCode(160)
