@@ -22,7 +22,7 @@ export default async function OgImage() {
         {/* لوکاپ مرکزی: در RTL لوگو اول (راست)، بعد نام — row-reverse این ترتیب را می‌سازد */}
         <div style={{ display: 'flex', flex: 1, alignItems: 'center', justifyContent: 'center' }}>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            <div style={{ display: 'flex', flexDirection: 'row-reverse', alignItems: 'center', gap: 34 }}>
+            <div style={{ display: 'flex', flexDirection: 'row-reverse', alignItems: 'center' }}>
               <LogoMark size={108} />
               <RtlText text="نوبت‌لینک" fontSize={92} fontWeight={700} color="#0a0a0a" />
             </div>
