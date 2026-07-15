@@ -1,9 +1,9 @@
-// ── تصویر og سطح پلتفرم (nobatlink.com) — کارت پیش‌نمایش لینک ────────────────
-// Next خودش این فایل را به متاتگ og:image تبدیل می‌کند؛ نیازی به دست‌زدن به
-// metadata لایه‌ی layout نیست.
+// ── تصویر og سطح پلتفرم — طراحی «سکوت هندسی» (og/DESIGN.md) ─────────────────
+// بوم سفید، لوگو در نقطه‌ی شروع خواندن (راست)، نام کنارش، تگ‌لاین نازک،
+// یک خط حساب‌شده‌ی مشکی به‌عنوان تنها ژست گرافیکی. متن‌های فارسی از rtl()
+// عبور می‌کنند (جبران بیدی satori — توضیح در og/shared.tsx).
 import { ImageResponse } from 'next/og'
-import { OG_SIZE, ogFonts, LogoMark } from './og/shared'
-import { PLATFORM_NAME } from '@/lib/config'
+import { OG_SIZE, ogFonts, LogoMark, RtlText } from './og/shared'
 
 export const runtime = 'nodejs'
 export const size = OG_SIZE
@@ -16,27 +16,29 @@ export default async function OgImage() {
       <div
         style={{
           width: '100%', height: '100%', display: 'flex', flexDirection: 'column',
-          alignItems: 'center', justifyContent: 'center', background: '#0a0a0a',
-          fontFamily: 'Vazirmatn', direction: 'rtl',
+          background: '#ffffff', fontFamily: 'Vazirmatn', position: 'relative',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 28 }}>
-          {/* کاشی لوگو روی زمینه‌ی تیره: نسخه‌ی معکوس (کاشی سفید) که گم نشود */}
-          <svg width={120} height={120} viewBox="15 15 70 70">
-            <rect x="20" y="20" width="60" height="60" rx="20" fill="#ffffff" />
-            <rect x="44" y="15" width="12" height="70" rx="6" fill="#0a0a0a" transform="rotate(45 50 50)" />
-            <circle cx="50" cy="50" r="14" fill="#0a0a0a" />
-            <circle cx="50" cy="50" r="6" fill="#ffffff" />
-          </svg>
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <div style={{ fontSize: 84, fontWeight: 700, color: '#ffffff', lineHeight: 1.15 }}>{PLATFORM_NAME}</div>
-            <div style={{ fontSize: 34, color: '#a3a3a3', marginTop: 6 }}>رزرو نوبت آنلاین</div>
+        {/* لوکاپ مرکزی: در RTL لوگو اول (راست)، بعد نام — row-reverse این ترتیب را می‌سازد */}
+        <div style={{ display: 'flex', flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <div style={{ display: 'flex', flexDirection: 'row-reverse', alignItems: 'center', gap: 34 }}>
+              <LogoMark size={108} />
+              <RtlText text="نوبت‌لینک" fontSize={92} fontWeight={700} color="#0a0a0a" />
+            </div>
+            {/* خط جداکننده‌ی نازک — تنها ژست گرافیکی کارت */}
+            <div style={{ display: 'flex', width: 96, height: 3, background: '#0a0a0a', marginTop: 44, marginBottom: 36 }} />
+            <RtlText text="صفحه‌ی نوبت‌دهی اختصاصی شما" fontSize={33} color="#8a8a8a" />
           </div>
         </div>
-        <div style={{ display: 'flex', fontSize: 26, color: '#737373', marginTop: 56 }}>
-          صفحه‌ی نوبت‌دهی اختصاصی و برندشده برای متخصص‌ها و کسب‌وکارهای خدماتی
-        </div>
-        <div style={{ display: 'flex', fontSize: 24, color: '#525252', marginTop: 40, letterSpacing: 1 }}>
+
+        {/* دامنه — زمزمه‌وار، پایین مرکز */}
+        <div
+          style={{
+            display: 'flex', justifyContent: 'center', paddingBottom: 52,
+            fontSize: 24, color: '#b5b5b5', letterSpacing: 3,
+          }}
+        >
           nobatlink.com
         </div>
       </div>

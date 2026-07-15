@@ -41,3 +41,30 @@ export function rgbOf(themeColor?: string | null): string {
   const t = (themeColor || '').trim()
   return /^\d{1,3} \d{1,3} \d{1,3}$/.test(t) ? `rgb(${t})` : 'rgb(13 148 136)'
 }
+
+// ── جبران بیدی satori ────────────────────────────────────────────────────────
+// satori الگوریتم بیدی کامل ندارد: متن فارسی را روی فاصله و حتی نیم‌فاصله
+// می‌شکند، تکه‌ها را LTR می‌چیند و بین همه‌شان فاصله‌ی پیش‌فرض خودش را
+// می‌گذارد (باگ‌های گزارش‌شده: ترتیب برعکس + فاصله‌های غیرعادی بزرگ).
+// راه‌حل قطعی: خودمان کلمه‌به‌کلمه می‌چینیم —
+//   کلمه‌ها: row-reverse با gap صریح و استاندارد (0.3em).
+//   تکه‌های دو طرف نیم‌فاصله: row-reverse با gap صفر — چون خود نیم‌فاصله یعنی
+//   «نچسبیدن حروف بدون فاصله‌ی دیداری»؛ رندر جدا هم دقیقا همان شکل درست
+//   (ت پایانی + ل آغازین) را می‌دهد.
+// فقط برای رشته‌های تمام-فارسی؛ رشته‌ی لاتین (دامنه و...) را جدا رندر کن.
+export function RtlText({ text, fontSize, fontWeight = 400, color }: {
+  text: string; fontSize: number; fontWeight?: 400 | 700; color: string
+}) {
+  const words = text.trim().split(/\s+/)
+  return (
+    <div style={{ display: 'flex', flexDirection: 'row-reverse', flexWrap: 'wrap', justifyContent: 'flex-start', gap: Math.round(fontSize * 0.3), fontSize, fontWeight, color, lineHeight: 1.4 }}>
+      {words.map((w, i) => (
+        <div key={i} style={{ display: 'flex', flexDirection: 'row-reverse' }}>
+          {w.split('\u200c').map((seg, j) => (
+            <div key={j} style={{ display: 'flex' }}>{seg}</div>
+          ))}
+        </div>
+      ))}
+    </div>
+  )
+}
