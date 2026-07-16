@@ -117,6 +117,42 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
   const monthlySorted = Object.entries(monthly).sort((a, b) => (a[0] < b[0] ? -1 : 1)).slice(-12)
     .map(([month, amount]) => ({ month, amount }))
 
+  // ── امروز / این هفته / سری روزانه (Shopify-style) ─────────────────────────
+  // این‌ها بازه‌های مطلق‌اند (نه بازه‌ی گزارش انتخابی) — «امروز» یعنی امروز،
+  // فارغ از این‌که کاربر بازه‌ی گزارش را چه گذاشته. پس روی همه‌ی ردیف‌ها (نه St/P/S
+  // فیلترشده) حساب می‌شوند.
+  const now = new Date()
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
+  // شروع هفته: شنبه (هفته‌ی ایرانی). getDay(): 0=یکشنبه..6=شنبه → شنبه=6
+  const daysSinceSaturday = (now.getDay() + 1) % 7
+  const startOfWeek = startOfToday - daysSinceSaturday * 86400000
+  const dayKey = (iso: string | undefined): number | null => {
+    if (!iso) return null
+    const d = new Date(iso); if (isNaN(d.getTime())) return null
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
+  }
+  // amountByDay از همه‌ی ردیف‌های paid (بدون فیلتر بازه) — برای today/week/daily
+  const amountByDay = new Map<number, number>()
+  const addDay = (iso: string | undefined, amt: number) => {
+    const k = dayKey(iso); if (k === null) return
+    amountByDay.set(k, (amountByDay.get(k) || 0) + amt)
+  }
+  for (const st of stages || []) if (st.paid) addDay(st.created_at, st.price || 0)
+  for (const p of packages || []) if (p.paid) addDay(p.created_at, pkgTotal(p, pricingFor(p.resource_id)))
+  for (const s of sessions || []) if (s.paid) addDay(s.created_at, sessPrice(s, pricingFor(s.resource_id)))
+
+  let todayTotal = 0, weekTotal = 0
+  amountByDay.forEach((amt, k) => {
+    if (k >= startOfToday) todayTotal += amt
+    if (k >= startOfWeek) weekTotal += amt
+  })
+  // سری ۳۰ روز اخیر برای نمودار میله‌ای روزانه (قدیمی‌ترین → جدیدترین)
+  const daily: { date: string; amount: number }[] = []
+  for (let i = 29; i >= 0; i--) {
+    const k = startOfToday - i * 86400000
+    daily.push({ date: new Date(k).toISOString(), amount: amountByDay.get(k) || 0 })
+  }
+
   const perCase: Record<string, number> = {}
   const bump = (cn: string, amt: number) => { if (cn) perCase[cn] = (perCase[cn] || 0) + amt }
   for (const st of St) if (st.paid) bump(st.case_number, st.price || 0)
@@ -164,6 +200,7 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
 
   return NextResponse.json({
     totalPaid, totalPending, refundsTotal, refundsCount, netPaid, refundsList,
+    todayTotal, weekTotal, daily,
     paid, paidCount, pending, pendingCount, split, monthly: monthlySorted, topCases, settlement: settlementWithManual,
   }, { headers: NO_STORE })
 }
