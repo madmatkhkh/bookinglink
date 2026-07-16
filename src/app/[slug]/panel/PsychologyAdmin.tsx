@@ -5,7 +5,7 @@ import { PERSIAN_MONTHS, toLatinNum, getCurrentJalali, getDaysInJalaliMonth, jal
 import { STAGE_TYPE_LABEL, STAGE_STATUS_LABEL, stageTitle } from '@/lib/flow'
 import { PRICING, PLATFORM_NAME, RESERVED_SLUGS, SLUG_PATTERN, SLUG_RULE_TEXT } from '@/lib/config'
 import { ClinicSettings, DEFAULT_SETTINGS, SessionMode, OfficeLocation, PaymentCardInfo } from '@/lib/settings'
-import { IntakeForm, FormField, FormFieldType, DEFAULT_INTAKE_FORM, LEGACY_DETAIL_LABELS, CancellationPolicy, PaymentMethods, Pricing, DEFAULT_PRICING, TermsSettings, DEFAULT_TERMS, INTAKE_KNOWN_COLUMNS, fieldVisible } from '@/lib/psy'
+import { IntakeForm, FormField, FormFieldType, DEFAULT_INTAKE_FORM, LEGACY_DETAIL_LABELS, CancellationPolicy, PaymentMethods, DEFAULT_PAYMENT_METHODS, DEFAULT_CANCELLATION_POLICY, Pricing, DEFAULT_PRICING, TermsSettings, DEFAULT_TERMS, INTAKE_KNOWN_COLUMNS, fieldVisible } from '@/lib/psy'
 import { DialogHost, uiAlert, uiConfirm, uiPrompt } from '@/components/ui/Dialog'
 import { useResendCooldown } from '@/lib/useResendCooldown'
 import { Glyph } from '@/components/Glyph'
@@ -224,8 +224,8 @@ const ALL_TIMES = ['8:00','9:00','10:00','11:00','12:00','13:00','14:00','15:00'
 
 const DEFAULT_PROFILE: ResourceProfileView = {
  resource_id: '', name: '', title: '', avatar_url: '', badges: [], session_modes: 'both', cards: [],
- cancellation_policy: { enabled: true, threshold_hours: 12, early_refund_percent: 50, late_refund_percent: 0 },
- payment_methods: { card_to_card: true, online: false },
+ cancellation_policy: DEFAULT_CANCELLATION_POLICY,
+ payment_methods: DEFAULT_PAYMENT_METHODS,
  quick_times: ALL_TIMES,
  settlement_sheba: '', settlement_sheba_holder_name: '',
  pricing: DEFAULT_PRICING,
