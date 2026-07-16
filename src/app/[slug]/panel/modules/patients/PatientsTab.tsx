@@ -22,6 +22,12 @@ import type { Session, Package, CaseStage, Patient, Booking } from '../../Psycho
 
 // فقط دو فیلدی که این تب از پروفایل مصرف می‌کند (برچسب همراه + قیمت‌ها)
 type ProfileBits = { companion_label?: string | null; pricing: Pricing }
+type ExtraCharge = {
+ id: string; case_number: string; title: string; amount: number
+ status: 'awaiting_payment' | 'payment_submitted' | 'paid'
+ payment_ref?: string | null; payment_reject_reason?: string | null; created_at: string
+}
+type Refund = { id: string; case_number: string; amount: number; note?: string | null; created_at: string }
 import type { ResourceRow } from '../staff/StaffTab'
 import type { ModuleFlags } from '@/lib/moduleManifest'
 
@@ -135,6 +141,14 @@ export default function PatientsTab({
  const [packages, setPackages] = useState<Package[]>([])
  const [sessions, setSessions] = useState<Session[]>([])
  const [stages, setStages] = useState<CaseStage[]>([])
+ const [extraCharges, setExtraCharges] = useState<ExtraCharge[]>([])
+ const [refunds, setRefunds] = useState<Refund[]>([])
+ const [newChargeTitle, setNewChargeTitle] = useState('')
+ const [newChargeAmount, setNewChargeAmount] = useState('')
+ const [chargeSaving, setChargeSaving] = useState(false)
+ const [newRefundAmount, setNewRefundAmount] = useState('')
+ const [newRefundNote, setNewRefundNote] = useState('')
+ const [refundSaving, setRefundSaving] = useState(false)
  const [clinicalNotes, setClinicalNotes] = useState<{ id: string; format: string; fields: Record<string, string>; created_at: string; updated_at: string }[]>([])
  const [newNoteFormat, setNewNoteFormat] = useState<'soap' | 'dap' | 'freeform'>('soap')
  const [newNoteFields, setNewNoteFields] = useState<Record<string, string>>({})
@@ -194,17 +208,89 @@ export default function PatientsTab({
  useModalBackClose(!!editSession, () => setEditSession(null))
 
  async function loadPatientData(case_number: string) {
-  const [pkgRes, sessRes, stageRes] = await Promise.all([
+  const [pkgRes, sessRes, stageRes, chargeRes, refundRes] = await Promise.all([
    fetch(api(`/packages?case_number=${case_number}`), { cache: 'no-store' }),
    fetch(api(`/sessions?case_number=${case_number}`), { cache: 'no-store' }),
    fetch(api(`/stages?case_number=${case_number}`), { cache: 'no-store' }),
+   fetch(api(`/extra-charges?case_number=${case_number}`), { cache: 'no-store' }),
+   fetch(api(`/refunds?case_number=${case_number}`), { cache: 'no-store' }),
   ])
   const pkgData = await pkgRes.json()
   const sessData = await sessRes.json()
   const stageData = await stageRes.json()
+  const chargeData = await chargeRes.json().catch(() => ({}))
+  const refundData = await refundRes.json().catch(() => ({}))
   setPackages(pkgData.packages || [])
   setSessions(sessData.sessions || [])
   setStages(stageData.stages || [])
+  setExtraCharges(chargeData.extra_charges || [])
+  setRefunds(refundData.refunds || [])
+ }
+
+ async function createExtraCharge(case_number: string) {
+  const title = newChargeTitle.trim()
+  const amount = Math.round(Number(newChargeAmount) || 0)
+  if (!title) { uiAlert('بابت چه چیزی؟ (توضیح لازم است)'); return }
+  if (!(amount > 0)) { uiAlert('مبلغ نامعتبر است'); return }
+  setChargeSaving(true)
+  const res = await fetch(api('/extra-charges'), {
+   method: 'POST', headers: { 'Content-Type': 'application/json' },
+   body: JSON.stringify({ case_number, title, amount }),
+  })
+  const data = await res.json().catch(() => ({}))
+  setChargeSaving(false)
+  if (!res.ok) { uiAlert(data.error || 'ثبت شارژ اضافه ناموفق بود'); return }
+  setNewChargeTitle(''); setNewChargeAmount('')
+  await loadPatientData(case_number)
+ }
+
+ async function confirmExtraCharge(id: string, case_number: string) {
+  const res = await fetch(api('/extra-charges'), {
+   method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+   body: JSON.stringify({ id, confirm_payment: true }),
+  })
+  if (!res.ok) { uiAlert('تایید ناموفق بود'); return }
+  await loadPatientData(case_number)
+ }
+
+ async function rejectExtraCharge(id: string, case_number: string) {
+  const reason = await uiPrompt('دلیل رد پرداخت (اختیاری):', { defaultValue: '' })
+  if (reason === null) return
+  const res = await fetch(api('/extra-charges'), {
+   method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+   body: JSON.stringify({ id, reject_payment: true, reject_reason: reason }),
+  })
+  if (!res.ok) { uiAlert('رد ناموفق بود'); return }
+  await loadPatientData(case_number)
+ }
+
+ async function deleteExtraCharge(id: string, case_number: string) {
+  const ok = await uiConfirm('این شارژ اضافه حذف شود؟')
+  if (!ok) return
+  const res = await fetch(api('/extra-charges'), {
+   method: 'DELETE', headers: { 'Content-Type': 'application/json' },
+   body: JSON.stringify({ id }),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) { uiAlert(data.error || 'حذف ناموفق بود'); return }
+  await loadPatientData(case_number)
+ }
+
+ async function createRefund(case_number: string) {
+  const amount = Math.round(Number(newRefundAmount) || 0)
+  if (!(amount > 0)) { uiAlert('مبلغ نامعتبر است'); return }
+  const ok = await uiConfirm(`${amount.toLocaleString('en-US')} تومان به این مراجع بازپرداخت شود؟ این عمل بلافاصله در دفتر حساب ثبت می‌شود.`)
+  if (!ok) return
+  setRefundSaving(true)
+  const res = await fetch(api('/refunds'), {
+   method: 'POST', headers: { 'Content-Type': 'application/json' },
+   body: JSON.stringify({ case_number, amount, note: newRefundNote.trim() || undefined }),
+  })
+  const data = await res.json().catch(() => ({}))
+  setRefundSaving(false)
+  if (!res.ok) { uiAlert(data.error || 'ثبت بازپرداخت ناموفق بود'); return }
+  setNewRefundAmount(''); setNewRefundNote('')
+  await loadPatientData(case_number)
  }
 
  async function openPatient(p: Patient) {
@@ -717,14 +803,18 @@ export default function PatientsTab({
         })()}
 
         {/* ── Tab: اطلاعات پرداخت ─────────────────────────────── */}
-        {patientTab === 'payment' && (
-         <div className="bg-white rounded-xl border border-sand p-4">
-          {(() => {
-           const fmt = (paid?: boolean, sub?: boolean, ref?: string) =>
-            paid ? `پرداخت‌شده${ref ? ' — فیش: ' + ref : ''}` : sub ? 'منتظر تأیید' : '—'
-           const typeCounts: Record<string, number> = {}
-           return (
-            <Section title="اطلاعات پرداخت" icon="💳">
+        {patientTab === 'payment' && (() => {
+         const fmt = (paid?: boolean, sub?: boolean, ref?: string) =>
+          paid ? `پرداخت‌شده${ref ? ' — فیش: ' + ref : ''}` : sub ? 'منتظر تأیید' : '—'
+         const CHARGE_STATUS_LABEL: Record<string, string> = {
+          awaiting_payment: '—', payment_submitted: 'منتظر تأیید', paid: 'پرداخت‌شده',
+         }
+         const typeCounts: Record<string, number> = {}
+         return (
+          <div className="space-y-4">
+           {/* بخش ۱: پرداختی‌های مراجع */}
+           <div className="bg-white rounded-xl border border-sand p-4">
+            <Section title="پرداختی‌های مراجع" icon="💳">
              {stages.map(s => {
               typeCounts[s.stage_type] = (typeCounts[s.stage_type] || 0) + 1
               const n = typeCounts[s.stage_type]
@@ -735,11 +825,92 @@ export default function PatientsTab({
               <InfoRow key={p.id} label={`پروتکل درمان ${PERSIAN_MONTHS[parseInt(p.month) - 1]} ${p.year}`}
                value={fmt(p.paid, p.payment_submitted, p.payment_ref)} />
              ))}
+             {extraCharges.map(c => (
+              <InfoRow key={c.id} label={c.title} value={`${c.amount.toLocaleString('en-US')} ت — ${CHARGE_STATUS_LABEL[c.status]}`} />
+             ))}
             </Section>
-           )
-          })()}
-         </div>
-        )}
+           </div>
+
+           {/* بخش ۲: بازپرداخت — دکتر به مراجع پرداخت می‌کند (عمل قطعی، همان لحظه) */}
+           <div className="bg-white rounded-xl border border-sand p-4">
+            <Section title="بازپرداخت" icon="↩️">
+             <p className="text-xs text-soot mb-3">وقتی به هر دلیلی مبلغی به این مراجع برمی‌گردانید، همین‌جا ثبت کنید — بلافاصله در دفتر حساب (بازپرداخت) می‌نشیند.</p>
+             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-2">
+              <input type="number" min={0} value={newRefundAmount} onChange={e => setNewRefundAmount(e.target.value)}
+               placeholder="مبلغ (تومان)" className="text-sm px-3 py-2 border border-sand rounded-lg tnum focus:outline-none focus:border-ink" />
+              <input value={newRefundNote} onChange={e => setNewRefundNote(e.target.value)}
+               placeholder="یادداشت (اختیاری)" className="text-sm px-3 py-2 border border-sand rounded-lg focus:outline-none focus:border-ink" />
+             </div>
+             <button onClick={() => createRefund(selectedPatient.case_number)} disabled={refundSaving || !newRefundAmount}
+              className="px-4 py-2 bg-ink text-white rounded-lg text-xs font-medium disabled:opacity-40">
+              {refundSaving ? 'در حال ثبت...' : 'ثبت بازپرداخت'}
+             </button>
+             {refunds.length > 0 && (
+              <div className="mt-3 pt-3 border-t border-sand space-y-1.5">
+               {refunds.map(r => (
+                <div key={r.id} className="flex items-center justify-between text-xs">
+                 <span className="text-soot">{r.note || 'بدون یادداشت'}</span>
+                 <span className="font-medium text-ink tnum">{r.amount.toLocaleString('en-US')} ت</span>
+                </div>
+               ))}
+              </div>
+             )}
+            </Section>
+           </div>
+
+           {/* بخش ۳: ارسال لینک پرداخت اضافه — دکتر مبلغی مشخص می‌کند، در پنل مراجع قابل‌پرداخت می‌شود */}
+           <div className="bg-white rounded-xl border border-sand p-4">
+            <Section title="ارسال لینک پرداخت اضافه" icon="➕">
+             <p className="text-xs text-soot mb-3">یک مبلغ دلخواه (مثلا هزینه‌ی دقایق اضافه) بفرستید — در پنل مراجع به‌صورت قابل‌پرداخت (آنلاین یا کارت‌به‌کارت) ظاهر می‌شود.</p>
+             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-2">
+              <input value={newChargeTitle} onChange={e => setNewChargeTitle(e.target.value)}
+               placeholder="بابت چه چیزی؟ (مثلا «۱۵ دقیقه اضافه»)" className="text-sm px-3 py-2 border border-sand rounded-lg focus:outline-none focus:border-ink" />
+              <input type="number" min={0} value={newChargeAmount} onChange={e => setNewChargeAmount(e.target.value)}
+               placeholder="مبلغ (تومان)" className="text-sm px-3 py-2 border border-sand rounded-lg tnum focus:outline-none focus:border-ink" />
+             </div>
+             <button onClick={() => createExtraCharge(selectedPatient.case_number)} disabled={chargeSaving || !newChargeTitle.trim() || !newChargeAmount}
+              className="px-4 py-2 bg-ink text-white rounded-lg text-xs font-medium disabled:opacity-40">
+              {chargeSaving ? 'در حال ارسال...' : 'ارسال به پنل مراجع'}
+             </button>
+             {extraCharges.length > 0 && (
+              <div className="mt-3 pt-3 border-t border-sand space-y-2">
+               {extraCharges.map(c => (
+                <div key={c.id} className="bg-gray-50 rounded-lg p-3 border border-sand">
+                 <div className="flex items-center justify-between mb-1">
+                  <span className="text-sm text-ink">{c.title}</span>
+                  <span className="text-sm font-medium text-ink tnum">{c.amount.toLocaleString('en-US')} ت</span>
+                 </div>
+                 <div className="flex items-center justify-between">
+                  <span className={`text-xs ${c.status === 'paid' ? 'text-emerald-600' : c.status === 'payment_submitted' ? 'text-amber-600' : 'text-soot'}`}>
+                   {CHARGE_STATUS_LABEL[c.status]}
+                  </span>
+                  {c.status === 'payment_submitted' ? (
+                   <div className="flex gap-1.5">
+                    <button onClick={() => confirmExtraCharge(c.id, selectedPatient.case_number)}
+                     className="text-xs px-2 py-1 border border-emerald-500/30 text-emerald-700 rounded-md hover:bg-emerald-500/5">تایید</button>
+                    <button onClick={() => rejectExtraCharge(c.id, selectedPatient.case_number)}
+                     className="text-xs px-2 py-1 border border-red-500/30 text-red-600 rounded-md hover:bg-red-500/5">رد</button>
+                   </div>
+                  ) : c.status === 'awaiting_payment' ? (
+                   <button onClick={() => deleteExtraCharge(c.id, selectedPatient.case_number)}
+                    className="text-xs px-2 py-1 border border-sand text-soot rounded-md hover:bg-gray-100">حذف</button>
+                  ) : null}
+                 </div>
+                 {c.payment_reject_reason && (
+                  <p className="text-xs text-red-600 mt-1.5 pt-1.5 border-t border-sand">پرداخت قبلی رد شد — {c.payment_reject_reason}</p>
+                 )}
+                 {c.payment_ref && c.status === 'payment_submitted' && (
+                  <p className="text-xs text-soot mt-1.5 pt-1.5 border-t border-sand whitespace-pre-wrap break-words">فیش: {c.payment_ref}</p>
+                 )}
+                </div>
+               ))}
+              </div>
+             )}
+            </Section>
+           </div>
+          </div>
+         )
+        })()}
 
         {/* ── Tab: پروتکل‌های درمان ──────────────────────────────────── */}
         {patientTab === 'packages' && (

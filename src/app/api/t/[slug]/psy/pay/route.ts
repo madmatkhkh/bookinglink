@@ -10,7 +10,7 @@ export const revalidate = 0
 export async function POST(req: NextRequest, { params }: { params: { slug: string } }) {
   const t = await getActiveTenant(params.slug)
   if (!t) return NextResponse.json({ error: 'یافت نشد' }, { status: 404 })
-  const { package_id, session_id, stage_id, case_number, payment_ref, discount_code } = await req.json()
+  const { package_id, session_id, stage_id, extra_charge_id, case_number, payment_ref, discount_code } = await req.json()
   // auth با کوکی امضاشده — نه شماره‌ای که کلاینت در body می‌فرستد. دو راه مجاز:
   // 1) کوکی مراجع OTPشده که شماره‌اش روی پرونده باشد (پنل /my)
   // 2) کوکی مجوز پرداخت همین پرونده (فلو مصاحبه‌ی اولیه، درست بعد از ثبت فرم)
@@ -68,7 +68,12 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
       .eq('id', session_id).eq('tenant_id', t.id).eq('case_number', case_number)
     return NextResponse.json({ success: true })
   }
-  const { data: pkg } = await sb().from('psy_packages').select('price').eq('id', package_id).eq('tenant_id', t.id).maybeSingle()
+  if (extra_charge_id) {
+   await sb().from('psy_extra_charges').update({ status: 'payment_submitted', payment_ref: payment_ref || null })
+    .eq('id', extra_charge_id).eq('tenant_id', t.id).eq('case_number', case_number).eq('status', 'awaiting_payment')
+   return NextResponse.json({ success: true })
+ }
+ const { data: pkg } = await sb().from('psy_packages').select('price').eq('id', package_id).eq('tenant_id', t.id).maybeSingle()
   if (pkg) {
     const dcErr = await applyDiscount('psy_packages', package_id, pkg.price || 0)
     if (dcErr) return NextResponse.json({ error: dcErr }, { status: 400 })

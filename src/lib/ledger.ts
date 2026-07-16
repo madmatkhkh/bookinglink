@@ -12,7 +12,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { sb } from './supabase'
 
-export type LedgerPurpose = 'interview' | 'assessment' | 'package' | 'session' | 'refund'
+export type LedgerPurpose = 'interview' | 'assessment' | 'package' | 'session' | 'refund' | 'extra_charge'
 export type LedgerMethod = 'online' | 'card_to_card'
 
 export type RecordLedgerInput = {

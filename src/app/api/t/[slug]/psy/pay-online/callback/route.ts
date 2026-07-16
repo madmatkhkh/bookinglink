@@ -75,6 +75,7 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
     ledgerPurpose = st?.stage_type === 'assessment' ? 'assessment' : 'interview'
   } else if (intent.purpose === 'package') ledgerPurpose = 'package'
   else if (intent.purpose === 'session') ledgerPurpose = 'session'
+  else if (intent.purpose === 'extra_charge') ledgerPurpose = 'extra_charge'
 
   await recordLedgerEntry({
     tenantId: t.id,
@@ -158,6 +159,8 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
     }
   } else if (intent.purpose === 'session' && intent.ref_id) {
     await sb().from('psy_sessions').update({ paid: true, price: intent.amount, ...discountPatch }).eq('id', intent.ref_id).eq('tenant_id', t.id)
+  } else if (intent.purpose === 'extra_charge' && intent.ref_id) {
+    await sb().from('psy_extra_charges').update({ status: 'paid' }).eq('id', intent.ref_id).eq('tenant_id', t.id)
   }
   if (intent.discount_code_id) await redeemDiscountCode(intent.discount_code_id)
 

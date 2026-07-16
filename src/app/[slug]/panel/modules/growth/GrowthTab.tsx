@@ -209,7 +209,7 @@ export default function GrowthTab({ api, growthTabs, modules, waitlist, reloadWa
         <p className="text-xs text-soot mb-3">درآمد به تفکیک نوع</p>
         <div className="space-y-2">
          {Object.entries(analytics.revenueByPurpose).map(([purpose, amount]) => {
-          const label = purpose === 'interview' ? 'مصاحبه' : purpose === 'assessment' ? 'ارزیابی' : purpose === 'package' ? 'پروتکل درمان' : purpose === 'session' ? 'جلسه‌ی جایگزین' : purpose
+          const label = purpose === 'interview' ? 'مصاحبه' : purpose === 'assessment' ? 'ارزیابی' : purpose === 'package' ? 'پروتکل درمان' : purpose === 'session' ? 'جلسه‌ی جایگزین' : purpose === 'extra_charge' ? 'شارژ اضافه' : purpose
           const pct = analytics.totalInflow > 0 ? Math.round((amount / analytics.totalInflow) * 100) : 0
           return (
            <div key={purpose}>

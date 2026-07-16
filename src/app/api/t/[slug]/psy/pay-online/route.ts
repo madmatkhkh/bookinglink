@@ -10,7 +10,7 @@ import { getClientPhone, getPayCase, matchesClientIdentity } from '@/lib/auth'
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-type Purpose = 'stage' | 'package' | 'session'
+type Purpose = 'stage' | 'package' | 'session' | 'extra_charge'
 
 // نقطه‌ی واحد برای شروع پرداخت آنلاین در همه‌ی مراحل (مصاحبه/ارزیابی/پروتکل/جلسه).
 // موفقیت‌آمیز بودن پرداخت را callback تایید می‌کند و همان کاری را می‌کند که تایید
@@ -101,13 +101,21 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
     if (s.paid) return NextResponse.json({ error: 'قبلا پرداخت شده' }, { status: 400 })
     amount = s.price || resolvePrice(s.session_type, resourcePricing)
     description = 'هزینه‌ی جلسه'
+  } else if (purpose === 'extra_charge') {
+    if (!ref_id) return NextResponse.json({ error: 'شناسه‌ی شارژ لازم است' }, { status: 400 })
+    const { data: charge } = await sb().from('psy_extra_charges').select('*').eq('id', ref_id).eq('tenant_id', t.id).eq('case_number', case_number).single()
+    if (!charge) return NextResponse.json({ error: 'شارژ یافت نشد' }, { status: 404 })
+    if (charge.status === 'paid') return NextResponse.json({ error: 'قبلا پرداخت شده' }, { status: 400 })
+    amount = charge.amount
+    description = charge.title || 'شارژ اضافه'
   } else {
     return NextResponse.json({ error: 'نوع پرداخت نامعتبر است' }, { status: 400 })
   }
 
   const originalAmount = amount
   let discountCodeCheck: Awaited<ReturnType<typeof checkDiscountCode>> | null = null
-  if (discount_code) {
+  // کد تخفیف برای شارژ اضافه معنا ندارد — دکتر مبلغ دقیق را خودش تعیین کرده.
+  if (discount_code && purpose !== 'extra_charge') {
     discountCodeCheck = await checkDiscountCode(c.resource_id, discount_code, amount)
     if (discountCodeCheck.ok) amount = discountCodeCheck.discountedAmount
   }

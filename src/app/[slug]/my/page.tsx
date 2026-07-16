@@ -52,6 +52,12 @@ type Session = {
  delay_minutes?: number | null
 }
 
+type ExtraCharge = {
+ id: string; case_number: string; title: string; amount: number
+ status: 'awaiting_payment' | 'payment_submitted' | 'paid'
+ payment_ref?: string | null; payment_reject_reason?: string | null; resource_id?: string | null; created_at: string
+}
+
 type Step = 'login' | 'otp' | 'panel'
 
 export default function PatientPanel() {
@@ -74,6 +80,7 @@ export default function PatientPanel() {
  const [packages, setPackages] = useState<Package[]>([])
  const [sessions, setSessions] = useState<Session[]>([])
  const [stages, setStages] = useState<CaseStage[]>([])
+ const [extraCharges, setExtraCharges] = useState<ExtraCharge[]>([])
  type ClientTab = 'packages' | 'sessions' | 'info'
  const VALID_CLIENT_TABS: ClientTab[] = ['packages', 'sessions', 'info']
  const initialSection = (searchParams.get('section') as ClientTab) || 'packages'
@@ -81,7 +88,6 @@ export default function PatientPanel() {
  const [selectedPkg, setSelectedPkg] = useState<Package | null>(null)
  const [scheduleView, setScheduleView] = useState(false)
  const [prepayView, setPrepayView] = useState(false)
- const [prepayDiscountCode, setPrepayDiscountCode] = useState<string | undefined>()
  const [showSlotPicker, setShowSlotPicker] = useState(false)
  const resend = useResendCooldown()
 
@@ -132,6 +138,7 @@ export default function PatientPanel() {
       setPackages(data.packages || [])
       setSessions(data.sessions || [])
       setStages(data.stages || [])
+      setExtraCharges(data.extra_charges || [])
       setStep('panel')
      }
     } finally {
@@ -209,6 +216,7 @@ export default function PatientPanel() {
   setPackages(data.packages || [])
   setSessions(data.sessions || [])
   setStages(data.stages || [])
+  setExtraCharges(data.extra_charges || [])
  }
 
  const pkgPrice = (p: Package) =>
@@ -449,6 +457,14 @@ export default function PatientPanel() {
    </div>
 
    <div className="max-w-lg mx-auto p-4">
+    {extraCharges.filter(c => c.status !== 'paid').length > 0 && (
+     <div className="space-y-3 mb-4">
+      {extraCharges.filter(c => c.status !== 'paid').map(c => (
+       <ExtraChargeCard key={c.id} charge={c} phone={phone} caseNumber={booking.case_number} onUpdate={() => loadData(booking.case_number)} />
+      ))}
+     </div>
+    )}
+
     <div className="flex bg-white rounded-xl border border-sand p-1 mb-4">
      {(['packages', 'sessions', 'info'] as const).map(t => (
       <button key={t} onClick={() => navigateSection(t)}
@@ -511,7 +527,7 @@ export default function PatientPanel() {
          {!pkg.paid ? (
           !pkg.payment_submitted ? (
            <PayButton pkg={pkg} phone={phone} onSuccess={() => loadData(booking.case_number)} total={total}
-            onPrepayOnline={(discountCode) => { setSelectedPkg(pkg); setPrepayDiscountCode(discountCode); setPrepayView(true) }} />
+            onPrepayOnline={() => { setSelectedPkg(pkg); setPrepayView(true) }} />
           ) : (
            <div className="text-center py-2 text-xs text-amber-600 bg-amber-500/10 rounded-xl border border-amber-500/20">پرداخت ثبت شد — در انتظار تأیید</div>
           )
@@ -591,14 +607,13 @@ export default function PatientPanel() {
     <SchedulePicker
      mode="prepay"
      payTotal={pkgPrice(selectedPkg)}
-     discountCode={prepayDiscountCode}
      pkg={selectedPkg}
      existingSessions={[]}
      phone={phone}
      caseNumber={booking.case_number}
      resourceId={booking.resource_id}
-     onClose={() => { setPrepayView(false); setPrepayDiscountCode(undefined) }}
-     onDone={() => { setPrepayView(false); setPrepayDiscountCode(undefined); loadData(booking.case_number) }}
+     onClose={() => setPrepayView(false)}
+     onDone={() => { setPrepayView(false); loadData(booking.case_number) }}
     />
    )}
   </div>
@@ -902,8 +917,104 @@ function SessionCard({ session: s, num, phone, caseNumber, onUpdate }: {
  )
 }
 
+// ==================== EXTRA CHARGE CARD (شارژ اضافه‌ی ارسالی دکتر) ====================
+function ExtraChargeCard({ charge, phone, caseNumber, onUpdate }: {
+ charge: ExtraCharge; phone: string; caseNumber: string; onUpdate: () => void
+}) {
+ const [payOpen, setPayOpen] = useState(false)
+ const [payRef, setPayRef] = useState('')
+ const [paying, setPaying] = useState(false)
+ const [onlineLoading, setOnlineLoading] = useState(false)
+ const { slug } = useParams<{ slug: string }>()
+ const settings = usePublicClinic(slug)
+ const doctor = settings.doctors.find(d => d.id === charge.resource_id)
+ const pm = doctor?.payment_methods
+ const onlineOn = !!pm?.online
+ const cardOn = pm ? pm.card_to_card : false
+
+ async function payOnline() {
+  setOnlineLoading(true)
+  try {
+   const res = await fetch(`/api/t/${slug}/psy/pay-online`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ case_number: caseNumber, phone, purpose: 'extra_charge', ref_id: charge.id }),
+   })
+   const data = await res.json()
+   if (data.url) window.location.href = data.url
+   else { uiAlert(data.error || 'خطا در اتصال به درگاه'); setOnlineLoading(false) }
+  } catch { uiAlert('خطا در ارتباط با سرور'); setOnlineLoading(false) }
+ }
+
+ async function pay() {
+  setPaying(true)
+  const res = await fetch(`/api/t/${slug}/psy/pay`, {
+   method: 'POST', headers: { 'Content-Type': 'application/json' },
+   body: JSON.stringify({ extra_charge_id: charge.id, case_number: caseNumber, phone, payment_ref: payRef.trim() })
+  })
+  setPaying(false)
+  if (!res.ok) { uiAlert('ثبت پرداخت ناموفق بود'); return }
+  onUpdate()
+ }
+
+ if (charge.status === 'payment_submitted') return (
+  <div className="bg-white rounded-xl border border-amber-200 p-4">
+   <div className="flex items-center justify-between">
+    <span className="text-sm text-ink">{charge.title}</span>
+    <span className="text-sm font-semibold text-ink">{charge.amount.toLocaleString()} تومان</span>
+   </div>
+   <div className="mt-2 text-xs text-amber-600 bg-amber-500/10 border border-amber-500/20 rounded-lg p-2 text-center">پرداخت ثبت شد — در انتظار تأیید</div>
+  </div>
+ )
+
+ return (
+  <div className="bg-white rounded-xl border border-amber-200 p-4">
+   <div className="flex items-center justify-between mb-1">
+    <span className="text-sm font-medium text-ink">{charge.title}</span>
+    <span className="text-sm font-semibold text-ink">{charge.amount.toLocaleString()} تومان</span>
+   </div>
+   <p className="text-xs text-soot mb-3">درخواست پرداخت جدید از طرف متخصص</p>
+   {charge.payment_reject_reason && (
+    <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-2.5 mb-3 text-right">
+     <p className="text-xs text-red-700"><span className="font-medium">پرداخت قبلی تأیید نشد — </span>{charge.payment_reject_reason}</p>
+    </div>
+   )}
+   {!settings.loaded ? (
+    <div className="h-11 rounded-xl bg-gray-100 animate-pulse" />
+   ) : !payOpen ? (
+    <div className="flex gap-2">
+     {onlineOn && (
+      <button onClick={payOnline} disabled={onlineLoading}
+       className="flex-1 py-2.5 bg-accent text-white rounded-xl text-sm font-medium disabled:opacity-40">
+       {onlineLoading ? 'در حال اتصال...' : 'پرداخت آنلاین'}
+      </button>
+     )}
+     {cardOn && (
+      <button onClick={() => setPayOpen(true)}
+       className={`py-2.5 rounded-xl text-sm font-medium ${onlineOn ? 'flex-1 border border-gray-300 text-soot' : 'w-full bg-accent text-white'}`}>
+       کارت‌به‌کارت
+      </button>
+     )}
+    </div>
+   ) : (
+    <div className="text-right">
+     <div className="bg-sand border border-sand rounded-xl p-3 mb-2">
+      <CardChooser cards={settings.cards} loaded={settings.loaded} />
+     </div>
+     <label className="text-xs text-soot mb-1 block">متن فیش واریزی <span className="text-red-500">*</span></label>
+     <textarea value={payRef} onChange={e => setPayRef(e.target.value)} rows={2} placeholder="اطلاعات فیش واریزی..."
+      className="w-full text-sm px-3 py-2 border border-sand rounded-xl focus:outline-none focus:border-ink mb-2 resize-none" />
+     <button onClick={pay} disabled={paying || !payRef.trim()}
+      className="w-full py-2.5 bg-accent text-white rounded-xl text-sm font-medium disabled:opacity-40">
+      {paying ? 'در حال ثبت...' : 'پرداخت کردم'}
+     </button>
+    </div>
+   )}
+  </div>
+ )
+}
+
 // ==================== PAY BUTTON (کارت‌به‌کارت پروتکل درمان) ====================
-function PayButton({ pkg, phone, onSuccess, total, onPrepayOnline }: { pkg: Package; phone: string; onSuccess: () => void; total: number; onPrepayOnline: (discountCode?: string) => void }) {
+function PayButton({ pkg, phone, onSuccess, total, onPrepayOnline }: { pkg: Package; phone: string; onSuccess: () => void; total: number; onPrepayOnline: () => void }) {
  const [open, setOpen] = useState(false)
  const [paying, setPaying] = useState(false)
  const [ref, setRef] = useState('')
@@ -928,34 +1039,30 @@ function PayButton({ pkg, phone, onSuccess, total, onPrepayOnline }: { pkg: Pack
   onSuccess()
  }
 
- function payOnline() {
-  // گزینه الف: پرداخت آنلاین پروتکل «اول انتخاب جلسات، بعد درگاه» است.
-  // پس اینجا مستقیم به درگاه نمی‌رویم؛ پیکر انتخاب جلسات (mode=prepay) باز
-  // می‌شود و بعد از انتخاب کامل، خودش به pay-online با package_slots می‌رود.
-  // کد تخفیف (اگر اینجا زده شده) همراه همان درخواست می‌رود.
-  onPrepayOnline(discount?.code)
- }
+ // گزینه الف: پرداخت آنلاین پروتکل «اول انتخاب جلسات، بعد درگاه» است. پس اینجا
+ // مستقیم به درگاه نمی‌رویم؛ پیکر انتخاب جلسات (SchedulePicker، mode=prepay)
+ // باز می‌شود. کد تخفیف آنجا (درست کنار دکمه‌ی نهایی «پرداخت») گرفته می‌شود، نه
+ // اینجا — چون این‌جا هنوز جلسات انتخاب نشده و همان صفحه‌ی نهایی است که واقعا
+ // به درگاه می‌رود.
+ function payOnline() { onPrepayOnline() }
 
  // تا نرسیدن روش‌های پرداخت، هیچ دکمه‌ای نشان نمی‌دهیم — نه دکمه‌ی اشتباه، نه هیچ‌کدام
  if (!settings.loaded) return <div className="h-11 rounded-xl bg-gray-100 animate-pulse" />
 
  if (!open) return (
-  <div>
-   <DiscountCodeField slug={slug} resourceId={pkg.resource_id} amount={total} onApplied={setDiscount} />
-   <div className="flex gap-2">
-    {onlineOn && (
-     <button onClick={payOnline} disabled={onlineLoading}
-      className="flex-1 py-2.5 bg-accent text-white rounded-xl text-sm font-medium disabled:opacity-40">
-      {onlineLoading ? 'در حال اتصال...' : `پرداخت آنلاین ${finalTotal.toLocaleString()}`}
-     </button>
-    )}
-    {cardOn && (
-     <button onClick={() => setOpen(true)}
-      className={`py-2.5 rounded-xl text-sm font-medium ${onlineOn ? 'flex-1 border border-gray-300 text-soot' : 'w-full bg-accent text-white'}`}>
-      {onlineOn ? 'کارت‌به‌کارت' : `پرداخت کارت‌به‌کارت ${finalTotal.toLocaleString()} تومان`}
-     </button>
-    )}
-   </div>
+  <div className="flex gap-2">
+   {onlineOn && (
+    <button onClick={payOnline} disabled={onlineLoading}
+     className="flex-1 py-2.5 bg-accent text-white rounded-xl text-sm font-medium disabled:opacity-40">
+     {onlineLoading ? 'در حال اتصال...' : `پرداخت آنلاین ${total.toLocaleString()}`}
+    </button>
+   )}
+   {cardOn && (
+    <button onClick={() => setOpen(true)}
+     className={`py-2.5 rounded-xl text-sm font-medium ${onlineOn ? 'flex-1 border border-gray-300 text-soot' : 'w-full bg-accent text-white'}`}>
+     {onlineOn ? 'کارت‌به‌کارت' : `پرداخت کارت‌به‌کارت ${total.toLocaleString()} تومان`}
+    </button>
+   )}
   </div>
  )
 
@@ -967,9 +1074,10 @@ function PayButton({ pkg, phone, onSuccess, total, onPrepayOnline }: { pkg: Pack
    <label className="text-xs text-soot mb-1 block">متن فیش واریزی <span className="text-red-500">*</span></label>
    <textarea value={ref} onChange={e => setRef(e.target.value)} rows={3} placeholder="اطلاعات فیش واریزی را وارد کنید..."
     className="w-full text-sm px-3 py-2 border border-sand rounded-xl focus:outline-none focus:border-ink mb-2 resize-none" />
+   <DiscountCodeField slug={slug} resourceId={pkg.resource_id} amount={total} onApplied={setDiscount} />
    <button onClick={pay} disabled={paying || !ref.trim()}
     className="w-full py-2.5 bg-accent text-white rounded-xl text-sm font-medium disabled:opacity-40">
-    {paying ? 'در حال ثبت...' : 'پرداخت کردم'}
+    {paying ? 'در حال ثبت...' : discount ? `پرداخت کردم — ${finalTotal.toLocaleString()} تومان` : 'پرداخت کردم'}
    </button>
    <p className="text-[11px] text-soot mt-1.5 text-center">پس از واریز، متن فیش را وارد و «پرداخت کردم» را بزنید تا بررسی و تأیید شود.</p>
   </div>
@@ -978,14 +1086,13 @@ function PayButton({ pkg, phone, onSuccess, total, onPrepayOnline }: { pkg: Pack
 
 
 // ==================== SCHEDULE PICKER ====================
-function SchedulePicker({ pkg, existingSessions, phone, caseNumber, onClose, onDone, resourceId, mode = 'schedule', payTotal, discountCode }: {
+function SchedulePicker({ pkg, existingSessions, phone, caseNumber, onClose, onDone, resourceId, mode = 'schedule', payTotal }: {
  pkg: Package; existingSessions: Session[]; phone: string; caseNumber: string; onClose: () => void; onDone: () => void
  resourceId?: string | null
  // 'schedule' = پروتکل قبلا پرداخت‌شده، جلسات را می‌سازد (رفتار قدیمی).
  // 'prepay'  = پروتکل هنوز پرداخت‌نشده؛ اول همه‌ی جلسات انتخاب، بعد درگاه (گزینه الف).
  mode?: 'schedule' | 'prepay'
  payTotal?: number
- discountCode?: string // فقط برای mode='prepay' — کد تخفیفی که در PayButton زده شده
 }) {
  const { slug } = useParams<{ slug: string }>()
  useModalBackClose(true, onClose)
@@ -1001,6 +1108,8 @@ function SchedulePicker({ pkg, existingSessions, phone, caseNumber, onClose, onD
  const [selectedSlots, setSelectedSlots] = useState<Record<number, string[]>>({})
  const [saving, setSaving] = useState(false)
  const [attendeeMap, setAttendeeMap] = useState<Record<string, string>>({})
+ const [discount, setDiscount] = useState<DiscountApplied | null>(null)
+ const finalPayTotal = discount ? discount.discountedAmount : (payTotal || 0)
  const [loadingSched, setLoadingSched] = useState(true)
 
  const totalNeeded = pkg.primary_sessions + pkg.secondary_sessions
@@ -1092,7 +1201,7 @@ function SchedulePicker({ pkg, existingSessions, phone, caseNumber, onClose, onD
     body: JSON.stringify({
      case_number: caseNumber, phone, purpose: 'package', ref_id: pkg.id,
      package_slots: slots.map(s => ({ session_date: s.session_date, session_time: s.session_time, session_type: s.session_type, attendee: s.attendee })),
-     discount_code: discountCode,
+     discount_code: discount?.code,
     }),
    })
    const data = await res.json().catch(() => ({}))
@@ -1262,11 +1371,17 @@ function SchedulePicker({ pkg, existingSessions, phone, caseNumber, onClose, onD
       </div>
      )}
 
+     {/* کد تخفیف — همین‌جا، درست بالای دکمه‌ی نهایی پرداخت، چون این آخرین صفحه
+        قبل از درگاه است (نه صفحه‌ی قبلی‌تر که مراجع معمولا رد می‌شود). */}
+     {mode === 'prepay' && (
+      <DiscountCodeField slug={slug} resourceId={resourceId} amount={payTotal || 0} onApplied={setDiscount} />
+     )}
+
      <button onClick={confirmSessions} disabled={totalSelected < remaining || saving}
       className="w-full py-3 bg-accent text-white rounded-xl text-sm font-medium disabled:opacity-40">
       {saving ? (mode === 'prepay' ? 'در حال اتصال به درگاه...' : 'در حال ثبت...')
         : totalSelected < remaining ? `${remaining - totalSelected} جلسه دیگر انتخاب کنید`
-        : mode === 'prepay' ? `پرداخت ${(payTotal || 0).toLocaleString()} تومان` : 'ثبت روزهای جلسات'}
+        : mode === 'prepay' ? `پرداخت ${finalPayTotal.toLocaleString()} تومان` : 'ثبت روزهای جلسات'}
      </button>
     </div>
    </div>

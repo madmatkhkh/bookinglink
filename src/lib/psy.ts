@@ -16,8 +16,19 @@ export const PSY_PRICING = {
 }
 
 // ── قیمت‌گذاری خود متخصص (per-resource) ────────────────────────────────────
-export type Pricing = { online: number; offline: number }
-export const DEFAULT_PRICING: Pricing = { ...PSY_PRICING }
+// duration_* و extra_minute_price برای نمایش مدت جلسه و محاسبه‌ی هزینه‌ی
+// دقیقه‌ی اضافه (وقتی جلسه بیشتر از مدت معمول طول می‌کشد) اضافه شدند —
+// صرفا تنظیمات نمایشی/مرجع‌اند، روی موتور نوبت‌دهی/اسلات‌ها اثر نمی‌گذارند.
+export type Pricing = {
+  online: number; offline: number
+  duration_online: number; duration_offline: number  // دقیقه
+  extra_minute_price: number                         // تومان به‌ازای هر دقیقه‌ی اضافه
+}
+export const DEFAULT_PRICING: Pricing = {
+  ...PSY_PRICING,
+  duration_online: 50, duration_offline: 50,
+  extra_minute_price: 0,
+}
 
 // قیمت بر اساس نوع حضور (نه نوع کار) — مصاحبه/ارزیابی/جلسه/پروتکل همه از همین برمی‌آیند
 export function resolvePrice(mode: string, pricing: Pricing = DEFAULT_PRICING): number {
@@ -33,11 +44,17 @@ export function mergePricing(raw: any): Pricing {
     return {
       online: clamp(raw.sessionOnline, DEFAULT_PRICING.online),
       offline: clamp(raw.sessionOffline, DEFAULT_PRICING.offline),
+      duration_online: clamp(raw?.duration_online, DEFAULT_PRICING.duration_online),
+      duration_offline: clamp(raw?.duration_offline, DEFAULT_PRICING.duration_offline),
+      extra_minute_price: clamp(raw?.extra_minute_price, DEFAULT_PRICING.extra_minute_price),
     }
   }
   return {
     online: clamp(raw?.online, DEFAULT_PRICING.online),
     offline: clamp(raw?.offline, DEFAULT_PRICING.offline),
+    duration_online: clamp(raw?.duration_online, DEFAULT_PRICING.duration_online),
+    duration_offline: clamp(raw?.duration_offline, DEFAULT_PRICING.duration_offline),
+    extra_minute_price: clamp(raw?.extra_minute_price, DEFAULT_PRICING.extra_minute_price),
   }
 }
 
