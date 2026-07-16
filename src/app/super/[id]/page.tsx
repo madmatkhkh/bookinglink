@@ -67,6 +67,10 @@ function Inner() {
   useEffect(() => {
     const err = searchParams.get('impersonate_error')
     if (!err) return
+    // مثل باگ پیام تکراری پرداخت در my/page.tsx: router.replace (پایین) کافی
+    // نیست، چون از مسیر ناوبری Next رد می‌شود؛ history.replaceState همزمان و
+    // مستقیم آدرس را پاک می‌کند تا رفرش صفحه دوباره همین alert را نشان ندهد.
+    if (typeof window !== 'undefined') window.history.replaceState(null, '', `/super/${id}`)
     dialog.uiAlert(err === 'suspended' ? 'این مجموعه فعال نیست — فقط برای مجموعه‌های فعال ممکن است.'
       : err === 'expired' ? 'لینک ورود منقضی شده بود — دوباره دکمه‌ی ورود را بزن.'
       : 'مجموعه یافت نشد.')

@@ -148,6 +148,12 @@ export default function PatientPanel() {
   const result = searchParams.get('payment')
   if (!result) return
   paymentHandled.current = true
+  // پاک‌کردن پارامتر از آدرس نوار مرورگر باید همین‌جا و همزمان اتفاق بیفتد —
+  // router.replace (پایین) هم همین کار را می‌کند ولی از مسیر ناوبری کلاینت Next
+  // رد می‌شود و ممکن است با تاخیر/بی‌اثر انجام شود؛ باگ گزارش‌شده دقیقا همین بود:
+  // با رفرش صفحه بلافاصله بعد از پرداخت، آدرس هنوز ?payment=... را داشت و همین
+  // toast دوباره نشان داده می‌شد. history.replaceState مستقیم و بی‌درنگ است.
+  if (typeof window !== 'undefined') window.history.replaceState(null, '', `/${slug}/my`)
   if (result === 'success') uiAlert('پرداخت با موفقیت انجام شد و وقت شما ثبت شد.')
   // پرداخت موفق بوده ولی همان چند دقیقه‌ای که در صفحه‌ی درگاه بودید، آن ساعت را
   // شخص دیگری گرفته — پول پرداخت‌شده سرجایش است و فقط باید وقت دیگری انتخاب شود.
