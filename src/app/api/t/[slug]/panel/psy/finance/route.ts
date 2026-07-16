@@ -147,8 +147,23 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
     return acc
   }, { totalOnline: 0, totalCommission: 0, autoSettled: 0, owed: 0, count: 0 })
 
+  // معوق واقعی: مانده‌ی بدهی همیشه یک عدد سراسری است، نه چیزی که به بازه‌ی
+  // گزارش انتخابی محدود باشد — دقیقا همان چیزی که سوپرادمین در /super/settlements
+  // می‌بیند (owed_gross - settled_manual). قبلا اینجا `settlement.owed` هیچ‌وقت
+  // تسویه‌های ثبت‌شده‌ی سوپرادمین (جدول settlements) را کم نمی‌کرد؛ یعنی تسویه‌ی
+  // سوپر هیچ‌وقت اینجا دیده نمی‌شد. owed را با همین محاسبه‌ی سراسری جایگزین می‌کنیم.
+  let allIntentsQ = sb().from('psy_payment_intents').select('amount, commission_amount, split_applied').eq('tenant_id', t.id).eq('status', 'paid')
+  if (resourceFilter) allIntentsQ = allIntentsQ.eq('resource_id', resourceFilter)
+  let settlementsQ = sb().from('settlements').select('amount').eq('tenant_id', t.id)
+  if (resourceFilter) settlementsQ = settlementsQ.eq('resource_id', resourceFilter)
+  const [{ data: allIntents }, { data: settlementRows }] = await Promise.all([allIntentsQ, settlementsQ])
+  const owedGross = (allIntents || []).reduce((sum, i) => sum + (i.split_applied ? 0 : (i.amount || 0) - (i.commission_amount || 0)), 0)
+  const settledManual = (settlementRows || []).reduce((sum, s) => sum + (s.amount || 0), 0)
+  settlement.owed = Math.max(0, owedGross - settledManual)
+  const settlementWithManual = { ...settlement, settledManual }
+
   return NextResponse.json({
     totalPaid, totalPending, refundsTotal, refundsCount, netPaid, refundsList,
-    paid, paidCount, pending, pendingCount, split, monthly: monthlySorted, topCases, settlement,
+    paid, paidCount, pending, pendingCount, split, monthly: monthlySorted, topCases, settlement: settlementWithManual,
   }, { headers: NO_STORE })
 }

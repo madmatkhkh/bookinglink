@@ -76,6 +76,61 @@ export function usePatientFeatures(slug: string): Record<string, boolean> {
   return flags
 }
 
+export type DiscountApplied = { code: string; discountedAmount: number; discountAmount: number }
+
+// فیلد کد تخفیف — همان منطق/UI که در فرم پرداخت مصاحبه‌ی اولیه (interview/page.tsx)
+// از قبل بود، اینجا مشترک شد تا پنل مراجع (/my) هم برای جلسه‌ی تکی/جایگزین و
+// پروتکل درمان همین را داشته باشد. بک‌اند (psy/pay و psy/pay-online) از قبل
+// discount_code را برای هر سه نوع پرداخت (stage/package/session) می‌پذیرد —
+// فقط UI برای گرفتنش در /my وجود نداشت.
+export function DiscountCodeField({ slug, resourceId, amount, onApplied }: {
+  slug: string; resourceId?: string | null; amount: number
+  onApplied: (result: DiscountApplied | null) => void
+}) {
+  const [show, setShow] = useState(false)
+  const [code, setCode] = useState('')
+  const [checking, setChecking] = useState(false)
+  const [result, setResult] = useState<{ ok: true; discountedAmount: number; discountAmount: number } | { ok: false; error: string } | null>(null)
+
+  async function check() {
+    if (!code.trim() || !resourceId) return
+    setChecking(true)
+    try {
+      const res = await fetch(`/api/t/${slug}/psy/discount-check?resource_id=${resourceId}&code=${encodeURIComponent(code.trim())}&amount=${amount}`)
+      const d = await res.json()
+      setResult(d)
+      onApplied(d.ok ? { code: code.trim(), discountedAmount: d.discountedAmount, discountAmount: d.discountAmount } : null)
+    } catch {
+      setResult({ ok: false, error: 'خطا در بررسی کد' })
+      onApplied(null)
+    }
+    setChecking(false)
+  }
+
+  if (!resourceId) return null
+  return (
+    <div className="mb-3">
+      {!show ? (
+        <button type="button" onClick={() => setShow(true)} className="text-xs text-soot underline">کد تخفیف دارید؟</button>
+      ) : (
+        <div className="flex gap-2">
+          <input value={code} onChange={e => { setCode(e.target.value.toUpperCase()); setResult(null); onApplied(null) }}
+            dir="ltr" placeholder="کد تخفیف" className="flex-1 text-sm px-3 py-2 border border-sand rounded-lg tnum" />
+          <button type="button" onClick={check} disabled={checking || !code.trim()}
+            className="px-3 py-2 border border-sand rounded-lg text-xs text-ink disabled:opacity-50">
+            {checking ? '...' : 'اعمال'}
+          </button>
+        </div>
+      )}
+      {result && (
+        <p className={`text-xs mt-1.5 ${result.ok ? 'text-emerald-700' : 'text-red-600'}`}>
+          {result.ok ? `کد اعمال شد — ${result.discountAmount.toLocaleString()} تومان تخفیف` : result.error}
+        </p>
+      )}
+    </div>
+  )
+}
+
 export function CardChooser({ cards, loaded = true }: { cards: PaymentCardInfo[]; loaded?: boolean }) {
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const list = cards && cards.length ? cards : []

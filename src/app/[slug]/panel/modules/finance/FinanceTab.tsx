@@ -26,7 +26,7 @@ export type FinanceData = {
  monthly: { month: string; amount: number }[]
  topCases: { case_number: string; name: string; amount: number }[]
  refundsList: { case_number: string; name: string; amount: number; percent: number; date: string; card: string | null }[]
- settlement: { totalOnline: number; totalCommission: number; autoSettled: number; owed: number; count: number }
+ settlement: { totalOnline: number; totalCommission: number; autoSettled: number; settledManual: number; owed: number; count: number }
 }
 
 // پوسته‌ی سازگار: بیرون همان {y,m,d} قدیمی را می‌گیرد/می‌دهد، داخلش از
@@ -207,6 +207,12 @@ export default function FinanceTab({ api, onUnauthorized }: {
              <div className="flex justify-between p-3 rounded-xl border border-emerald-200 bg-emerald-50">
               <span className="text-emerald-800">خودکار واریزشده به شما</span>
               <span className="font-medium text-emerald-800 tnum">{money(f.settlement.autoSettled)}</span>
+             </div>
+            )}
+            {f.settlement.settledManual > 0 && (
+             <div className="flex justify-between p-3 rounded-xl border border-emerald-200 bg-emerald-50">
+              <span className="text-emerald-800">تسویه‌شده توسط {PLATFORM_NAME}</span>
+              <span className="font-medium text-emerald-800 tnum">{money(f.settlement.settledManual)}</span>
              </div>
             )}
             <div className="flex justify-between p-3 rounded-xl border border-amber-200 bg-amber-50">
