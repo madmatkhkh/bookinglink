@@ -268,12 +268,9 @@ export function mergePaymentMethods(raw: Partial<PaymentMethods> | null | undefi
   return { card_to_card: card, online: online || !card }
 }
 
-// ── شرایط و مقررات قبل از پرداخت — اختیاری، به‌ازای هر متخصص. متن نهایی از
-// ترکیب مدت جلسه/هزینه‌ی دقیقه‌ی اضافه (pricing) + سیاست کنسلی
-// (cancellation_policy) + این متن اضافه‌ی آزاد ساخته می‌شود (composeTermsText
-// در PsyPublic.tsx) — چون آن مقادیر جای دیگری «منبع اصلی» دارند و اینجا فقط
-// تکرارشان می‌کنیم، نه دوباره ذخیره؛ اگر دکتر بعدا مدت جلسه را عوض کند، متن
-// خودکار به‌روز می‌ماند بدون اینکه یادش بیفتد شرایط را هم دستی ویرایش کند.
+// ── شرایط و مقررات قبل از پرداخت — اختیاری، به‌ازای هر متخصص. متن کاملا آزاد و
+// دست خود دکتر است (extra) — عمدا هیچ متن پیش‌فرض/قالبی به آن اضافه نمی‌شود،
+// چون هر دکتری ممکن است مدل/فرمت کاملا متفاوتی برای شرایطش بخواهد بنویسد.
 export type TermsSettings = { enabled: boolean; extra: string }
 export const DEFAULT_TERMS: TermsSettings = { enabled: false, extra: '' }
 export function mergeTerms(raw: any): TermsSettings {
@@ -281,22 +278,6 @@ export function mergeTerms(raw: any): TermsSettings {
     enabled: raw?.enabled === true,
     extra: typeof raw?.extra === 'string' ? raw.extra.trim().slice(0, 2000) : '',
   }
-}
-
-// متن نهایی شرایط و مقررات — از مدت جلسه + هزینه‌ی دقیقه‌ی اضافه (pricing) +
-// سیاست کنسلی (cancellation_policy) + متن آزاد دکتر ساخته می‌شود. یک‌جا تعریف
-// شده تا هم پیش‌نمایش تنظیمات هم چیزی که واقعا به مراجع نشان داده می‌شود، از
-// روی دقیقا همین منبع باشند — هیچ‌وقت از هم جدا نمی‌افتند.
-export function composeTermsText(input: { pricing: Pricing; cancellation_policy: CancellationPolicy; terms: TermsSettings }): string {
-  const { pricing, cancellation_policy: cp, terms } = input
-  const lines: string[] = []
-  lines.push(`مدت هر جلسه‌ی آنلاین ${pricing.duration_online} دقیقه و هر جلسه‌ی حضوری ${pricing.duration_offline} دقیقه است.`)
-  if (pricing.extra_minute_price > 0)
-    lines.push(`اگر جلسه بیشتر از این مدت طول بکشد، هر دقیقه‌ی اضافه ${pricing.extra_minute_price.toLocaleString('en-US')} تومان محاسبه و جداگانه از شما دریافت می‌شود.`)
-  if (cp.enabled)
-    lines.push(`در صورت کنسلی از طرف شما حداقل ${cp.threshold_hours} ساعت پیش از نوبت، ${cp.early_refund_percent}٪ مبلغ پرداختی بازگردانده می‌شود؛ کنسلی دیرتر از آن ${cp.late_refund_percent}٪.`)
-  if (terms.extra) lines.push(terms.extra)
-  return lines.join('\n\n')
 }
 
 // ── کارت‌به‌کارت: فقط با اجازه‌ی سوپرادمین (به‌ازای هر tenant) ─────────────

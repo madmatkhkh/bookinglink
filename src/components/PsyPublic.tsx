@@ -9,7 +9,6 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { useEffect, useState } from 'react'
 import type { OfficeLocation, PaymentCardInfo, SessionMode, PublicDoctor } from '@/lib/psy'
-import { composeTermsText } from '@/lib/psy'
 
 export type PublicClinicView = {
   office_locations: OfficeLocation[]
@@ -144,7 +143,7 @@ export function TermsGate({ doctor, accepted, onAcceptedChange }: {
 }) {
   const [expanded, setExpanded] = useState(false)
   if (!doctor?.terms?.enabled) return null
-  const text = composeTermsText({ pricing: doctor.pricing, cancellation_policy: doctor.cancellation_policy, terms: doctor.terms })
+  const text = doctor.terms.extra
   return (
     <div className="mb-3 bg-gray-50 border border-sand rounded-xl p-3">
       <button type="button" onClick={() => setExpanded(v => !v)} className="text-xs text-ink underline mb-2 block">

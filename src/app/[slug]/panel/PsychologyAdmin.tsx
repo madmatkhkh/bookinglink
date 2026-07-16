@@ -5,7 +5,7 @@ import { PERSIAN_MONTHS, toLatinNum, getCurrentJalali, getDaysInJalaliMonth, jal
 import { STAGE_TYPE_LABEL, STAGE_STATUS_LABEL, stageTitle } from '@/lib/flow'
 import { PRICING, PLATFORM_NAME, RESERVED_SLUGS, SLUG_PATTERN, SLUG_RULE_TEXT } from '@/lib/config'
 import { ClinicSettings, DEFAULT_SETTINGS, SessionMode, OfficeLocation, PaymentCardInfo } from '@/lib/settings'
-import { IntakeForm, FormField, FormFieldType, DEFAULT_INTAKE_FORM, LEGACY_DETAIL_LABELS, CancellationPolicy, PaymentMethods, Pricing, DEFAULT_PRICING, TermsSettings, DEFAULT_TERMS, composeTermsText, INTAKE_KNOWN_COLUMNS, fieldVisible } from '@/lib/psy'
+import { IntakeForm, FormField, FormFieldType, DEFAULT_INTAKE_FORM, LEGACY_DETAIL_LABELS, CancellationPolicy, PaymentMethods, Pricing, DEFAULT_PRICING, TermsSettings, DEFAULT_TERMS, INTAKE_KNOWN_COLUMNS, fieldVisible } from '@/lib/psy'
 import { DialogHost, uiAlert, uiConfirm, uiPrompt } from '@/components/ui/Dialog'
 import { useResendCooldown } from '@/lib/useResendCooldown'
 import { Glyph } from '@/components/Glyph'
@@ -2300,15 +2300,14 @@ export function PsychologyAdmin() {
         <DiscountCodesSection slug={slug} isOwner={!!me?.isOwner} viewingResourceId={viewingResourceId} />
        )}
 
-       {/* شرایط و مقررات قبل از پرداخت — کاملا اختیاری. متن از مدت جلسه/هزینه‌ی
-           دقیقه‌ی اضافه (تب قیمت‌گذاری) + سیاست کنسلی (تب پرداخت‌ها) + این متن
-           آزاد ساخته می‌شود؛ composeTermsText همان تابعی است که پنل مراجع هم
-           برای نمایش واقعی استفاده می‌کند — پیش‌نمایش زیر دقیقا همان چیزی است
-           که مراجع می‌بیند. */}
+       {/* شرایط و مقررات قبل از پرداخت — کاملا اختیاری و کاملا متن آزاد خود
+           دکتر. عمدا هیچ متن پیش‌فرض/قالبی (مثل مدت جلسه یا سیاست کنسلی)
+           به آن اضافه نمی‌شود — چون هر دکتری ممکن است مدل کاملا متفاوتی
+           برای نوشتن شرایطش بخواهد. */}
        {settingsSubTab === 'terms' && (
        <section className="bg-white rounded-2xl border border-sand p-5">
         <h2 className="text-sm font-display font-semibold text-ink mb-1">شرایط و مقررات قبل از پرداخت</h2>
-        <p className="text-xs text-soot mb-4">اگر روشن باشد، مراجع پیش از هر پرداخت (آنلاین یا کارت‌به‌کارت) باید این شرایط را ببیند و با تیک‌زدن آن را بپذیرد — وگرنه دکمه‌ی پرداخت غیرفعال می‌ماند. اگر خاموش باشد، این بخش برای مراجع اصلا نمایش داده نمی‌شود.</p>
+        <p className="text-xs text-soot mb-4">اگر روشن باشد، مراجع پیش از هر پرداخت (آنلاین یا کارت‌به‌کارت) باید این متن را ببیند و با تیک‌زدن آن را بپذیرد — وگرنه دکمه‌ی پرداخت غیرفعال می‌ماند. اگر خاموش باشد، این بخش برای مراجع اصلا نمایش داده نمی‌شود.</p>
 
         <label className="flex items-center gap-2.5 mb-4 cursor-pointer">
          <input type="checkbox" checked={profile.terms.enabled}
@@ -2318,19 +2317,12 @@ export function PsychologyAdmin() {
         </label>
 
         <div className={profile.terms.enabled ? '' : 'opacity-50 pointer-events-none'}>
-         <label className="text-xs text-soot mb-1 block">متن اضافه (اختیاری)</label>
-         <p className="text-xs text-soot mb-2">هر نکته‌ی دیگری که خودتان لازم می‌دانید — مثلا شرایط کنسلی از طرف خودتان، قوانین جلسه‌ی آنلاین، یا هر چیز دیگر. مدت جلسه، هزینه‌ی دقیقه‌ی اضافه، و سیاست کنسلی مراجع خودکار و از تب‌های دیگر اضافه می‌شوند — نیازی به تکرارشان اینجا نیست.</p>
-         <textarea value={profile.terms.extra} rows={5} maxLength={2000}
+         <label className="text-xs text-soot mb-1 block">متن شرایط و مقررات</label>
+         <p className="text-xs text-soot mb-2">هر مدل و فرمتی که خودتان می‌خواهید — مدت جلسه، هزینه‌ی دقیقه‌ی اضافه، شرایط کنسلی هر دو طرف، یا هر نکته‌ی دیگر. دقیقا همین متن به مراجع نشان داده می‌شود.</p>
+         <textarea value={profile.terms.extra} rows={7} maxLength={2000}
           onChange={e => patchProfile({ terms: { ...profile.terms, extra: e.target.value } })}
-          placeholder="مثلا: در صورت تاخیر بیش از ۱۵ دقیقه، جلسه کنسل تلقی می‌شود..."
+          placeholder={'مثلا:\nمدت هر جلسه ۵۰ دقیقه است. هر دقیقه‌ی اضافه ۵۰,۰۰۰ تومان محاسبه می‌شود.\nکنسلی تا ۱۲ ساعت قبل: ۵۰٪ بازگشت وجه. دیرتر از آن: بدون بازگشت.\nدر صورت کنسلی از طرف من، جلسه‌ی جایگزین رایگان تعیین می‌شود.'}
           className="w-full text-sm px-3 py-2 border border-sand rounded-lg focus:outline-none focus:border-ink resize-none" />
-
-         <div className="mt-4 pt-4 border-t border-sand">
-          <p className="text-xs text-soot mb-2">پیش‌نمایش — دقیقا همین متن به مراجع نشان داده می‌شود:</p>
-          <div className="bg-gray-50 border border-sand rounded-xl p-3 text-xs text-ink whitespace-pre-wrap leading-6">
-           {composeTermsText({ pricing: profile.pricing, cancellation_policy: profile.cancellation_policy, terms: profile.terms })}
-          </div>
-         </div>
         </div>
        </section>
        )}
