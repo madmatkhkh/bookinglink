@@ -63,7 +63,8 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
     return NextResponse.redirect(`${redirectBase}?payment=error`)
   }
 
-  await sb().from('psy_payment_intents').update({ status: 'paid' }).eq('id', intentId)
+  const bankRef = verify.refNumber != null ? String(verify.refNumber) : null
+  await sb().from('psy_payment_intents').update({ status: 'paid', bank_ref_number: bankRef }).eq('id', intentId)
 
   // ثبت در دفتر حساب — منبع حقیقت حسابداری. purpose از خود intent می‌آید؛
   // «stage» به interview/assessment ترجمه می‌شود چون ledger این دو را جدا نگه می‌دارد.
@@ -90,6 +91,7 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
     sourceId: intent.id,
     paymentIntentId: intent.id,
     splitApplied: intent.split_applied || false,
+    bankRefNumber: bankRef,
     recordedBy: 'zibal_callback',
   })
 

@@ -330,6 +330,9 @@ export type ResourceProfile = {
   settlement_sheba_holder_name: string
   pricing: Pricing
   terms: TermsSettings
+  // override اختیاری کمیسیون این متخصص. null = از درصد سراسری پلتفرم تبعیت کن.
+  // super-admin تنظیمش می‌کند؛ متخصص خودش نمی‌بیند/تغییر نمی‌دهد.
+  commission_percent_override: number | null
   // برچسب «تماس دوم/همراه» — به‌انتخاب خود متخصص. خالی = این مفهوم اصلا
   // استفاده نمی‌شود (مثلا درمان فردی بزرگسال)؛ پر = نام و مسیر جلسه‌ی دومی
   // با همین برچسب نمایش داده می‌شود (مثلا «والدین»، «همسر»، «همراه»).
@@ -354,6 +357,7 @@ export const DEFAULT_RESOURCE_PROFILE: Omit<ResourceProfile, 'resource_id'> = {
   settlement_sheba_holder_name: '',
   pricing: DEFAULT_PRICING,
   terms: DEFAULT_TERMS,
+  commission_percent_override: null,
   companion_label: '',
   meet_link: '',
   meet_channels: [],
@@ -374,6 +378,10 @@ export function mergeResourceProfile(resourceId: string, raw: Partial<ResourcePr
     settlement_sheba_holder_name: typeof raw?.settlement_sheba_holder_name === 'string' ? raw.settlement_sheba_holder_name : '',
     pricing: mergePricing(raw?.pricing),
     terms: mergeTerms((raw as any)?.terms),
+    commission_percent_override: (() => {
+      const v = (raw as any)?.commission_percent_override
+      return typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= 100 ? v : null
+    })(),
     companion_label: typeof raw?.companion_label === 'string' ? raw.companion_label.trim().slice(0, 20) : '',
     meet_link: typeof raw?.meet_link === 'string' ? raw.meet_link.trim().slice(0, 300) : '',
     // اگر meet_channels خالی بود، meet_link قدیمی به‌عنوان کانال گوگل‌میت تفسیر می‌شود

@@ -29,6 +29,7 @@ export type RecordLedgerInput = {
   sourceId?: string | null
   paymentIntentId?: string | null
   splitApplied?: boolean
+  bankRefNumber?: string | null
   recordedBy?: string
   note?: string
 }
@@ -58,6 +59,7 @@ export async function recordLedgerEntry(input: RecordLedgerInput): Promise<boole
       source_id: input.sourceId || null,
       payment_intent_id: input.paymentIntentId || null,
       split_applied: input.splitApplied || false,
+      bank_ref_number: input.bankRefNumber || null,
       recorded_by: input.recordedBy || 'system',
       note: input.note || null,
     })

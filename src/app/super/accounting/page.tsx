@@ -25,12 +25,14 @@ type BySpecialist = {
   resource_id: string; resource_name: string | null; tenant_name: string | null; tenant_slug: string | null
   gross: number; commission: number; specialistShare: number; online: number; cardToCard: number; refunds: number; count: number
 }
+type UnsettledItem = { id: string; doctor_amount: number; case_number: string | null; bank_ref_number: string | null; created_at: string }
 type SettlementSummary = {
   resource_id: string; resource_name: string | null; tenant_slug: string | null; tenant_name: string | null
   auto_settled: number; owed_gross: number; settled_manual: number; outstanding: number
+  unsettled_items: UnsettledItem[]
   settlement_sheba: string | null; settlement_holder: string | null
 }
-type SettlementRow = { id: string; resource_name: string | null; tenant_slug: string | null; amount: number; reference: string | null; note: string | null; created_at: string }
+type SettlementRow = { id: string; resource_name: string | null; tenant_slug: string | null; amount: number; reference: string | null; bank_ref_number: string | null; paid_at: string | null; note: string | null; created_at: string }
 
 const PURPOSE_LABEL: Record<string, string> = {
   interview: 'مصاحبه', assessment: 'ارزیابی', package: 'پروتکل', session: 'جلسه', refund: 'بازپرداخت', extra_charge: 'شارژ اضافه',
@@ -41,7 +43,7 @@ function AccountingInner() {
   const dialog = useDialog()
   const router = useRouter()
   const [authed, setAuthed] = useState<boolean | null>(null)
-  const [tab, setTab] = useState<'specialists' | 'ledger' | 'settlements'>('specialists')
+  const [tab, setTab] = useState<'specialists' | 'ledger' | 'settlements' | 'commission'>('specialists')
 
   // ledger + بر اساس متخصص (از همون /api/super/accounting می‌آید)
   const [entries, setEntries] = useState<LedgerEntry[]>([])
@@ -57,6 +59,59 @@ function AccountingInner() {
   const [settlements, setSettlements] = useState<SettlementRow[]>([])
   const [settleLoading, setSettleLoading] = useState(false)
   const [busyResource, setBusyResource] = useState<string | null>(null)
+
+  // کمیسیون
+  const [commGlobal, setCommGlobal] = useState<number | null>(null)
+  const [commOverrides, setCommOverrides] = useState<{ resource_id: string; override: number; resource_name: string | null }[]>([])
+  const [commInput, setCommInput] = useState('')
+  const [commSaving, setCommSaving] = useState(false)
+
+  const loadCommission = useCallback(async () => {
+    const res = await fetch('/api/super/commission', { cache: 'no-store' })
+    if (res.status === 401) { setAuthed(false); return }
+    const d = await res.json().catch(() => ({}))
+    setCommGlobal(typeof d.global_percent === 'number' ? d.global_percent : null)
+    setCommInput(d.global_percent != null ? String(d.global_percent) : '')
+    setCommOverrides(d.overrides || [])
+  }, [])
+
+  async function saveGlobalCommission() {
+    const pct = Number(commInput)
+    if (!Number.isFinite(pct) || pct < 0 || pct > 100) { await dialog.uiAlert('درصد نامعتبر است (۰ تا ۱۰۰)'); return }
+    setCommSaving(true)
+    const res = await fetch('/api/super/commission', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ global_percent: pct }),
+    })
+    setCommSaving(false)
+    if (!res.ok) { const d = await res.json().catch(() => ({})); await dialog.uiAlert(d.error || 'ثبت ناموفق بود'); return }
+    loadCommission()
+  }
+
+  async function setOverride(resourceId: string, resourceName: string | null) {
+    const val = await dialog.uiPrompt(
+      `درصد کمیسیون اختصاصی برای ${resourceName || 'این متخصص'} (۰ تا ۱۰۰):`,
+      { required: true, okText: 'ثبت' }
+    )
+    if (val === null) return
+    const res = await fetch('/api/super/commission', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ resource_id: resourceId, override: val.trim() }),
+    })
+    if (!res.ok) { const d = await res.json().catch(() => ({})); await dialog.uiAlert(d.error || 'ثبت ناموفق بود'); return }
+    loadCommission()
+  }
+
+  async function removeOverride(resourceId: string) {
+    const ok = await dialog.uiConfirm('این override حذف شود؟ کمیسیون این متخصص به درصد سراسری برمی‌گردد.')
+    if (!ok) return
+    const res = await fetch('/api/super/commission', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ resource_id: resourceId, override: null }),
+    })
+    if (!res.ok) { await dialog.uiAlert('حذف ناموفق بود'); return }
+    loadCommission()
+  }
 
   const loadAccounting = useCallback(async () => {
     setLoading(true)
@@ -86,6 +141,7 @@ function AccountingInner() {
 
   useEffect(() => { loadAccounting() }, [loadAccounting])
   useEffect(() => { if (tab === 'settlements') loadSettlements() }, [tab, loadSettlements])
+  useEffect(() => { if (tab === 'commission') loadCommission() }, [tab, loadCommission])
   useEffect(() => { if (authed === false) router.replace('/super') }, [authed, router])
 
   function viewSpecialistLedger(s: BySpecialist) {
@@ -94,12 +150,22 @@ function AccountingInner() {
   }
 
   async function markSettled(s: SettlementSummary) {
-    const ok = await dialog.uiConfirm(`تسویه‌ی ${money(s.outstanding)} تومان برای ${s.resource_name || 'این متخصص'} ثبت شود؟ این یعنی سهم او را به شبایش واریز کرده‌اید.`)
-    if (!ok) return
+    const bankRef = await dialog.uiPrompt(
+      `تسویه‌ی ${money(s.outstanding)} تومان برای ${s.resource_name || 'این متخصص'}.\nشماره پیگیری بانکی واریز را وارد کنید (برای شفافیت حسابداری لازم است):`,
+      { required: true, okText: 'ثبت تسویه' }
+    )
+    if (bankRef === null) return
     setBusyResource(s.resource_id)
     const res = await fetch('/api/super/settlements', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ resource_id: s.resource_id, amount: s.outstanding }),
+      body: JSON.stringify({
+        resource_id: s.resource_id,
+        bank_ref_number: bankRef.trim(),
+        paid_at: new Date().toISOString(),
+        // همه‌ی تراکنش‌های تسویه‌نشده‌ی این متخصص را پوشش بده — مبلغ از خودشان
+        // گرفته می‌شود، پس دقیقا برابر outstanding می‌شود و به تراکنش‌ها لینک می‌ماند.
+        entry_ids: s.unsettled_items.map(i => i.id),
+      }),
     })
     setBusyResource(null)
     if (!res.ok) { const d = await res.json().catch(() => ({})); await dialog.uiAlert(d.error || 'ثبت تسویه ناموفق بود'); return }
@@ -118,7 +184,7 @@ function AccountingInner() {
       </header>
 
       <div className="flex bg-white rounded-xl border border-sand p-1 gap-1 max-w-lg">
-        {([['specialists', 'بر اساس متخصص'], ['ledger', 'دفتر حساب'], ['settlements', 'تسویه']] as const).map(([k, lbl]) => (
+        {([['specialists', 'بر اساس متخصص'], ['ledger', 'دفتر حساب'], ['settlements', 'تسویه'], ['commission', 'کمیسیون']] as const).map(([k, lbl]) => (
           <button key={k} onClick={() => setTab(k)}
             className={`flex-1 text-sm py-2 rounded-lg font-medium transition-all ${tab === k ? 'bg-ink text-white' : 'text-soot'}`}>
             {lbl}
@@ -335,7 +401,8 @@ function AccountingInner() {
                         <div>
                           <div className="text-sm text-ink">{s.resource_name || '—'} <span className="text-[11px] text-soot">({s.tenant_slug})</span></div>
                           <div className="text-[11px] text-soot">
-                            {new Date(s.created_at).toLocaleDateString('fa-IR')}{s.reference ? ` · پیگیری: ${s.reference}` : ''}
+                            {new Date(s.paid_at || s.created_at).toLocaleDateString('fa-IR')}
+                            {s.bank_ref_number ? ` · پیگیری بانکی: ${s.bank_ref_number}` : s.reference ? ` · پیگیری: ${s.reference}` : ''}
                           </div>
                         </div>
                         <span className="text-sm font-medium text-ink tnum">{money(s.amount)}</span>
@@ -346,6 +413,65 @@ function AccountingInner() {
               </div>
             </>
           )}
+        </>
+      )}
+
+      {/* ════════════════════ کمیسیون ════════════════════ */}
+      {tab === 'commission' && (
+        <>
+          <div className="bg-white rounded-2xl border border-sand p-5">
+            <h2 className="text-sm font-display font-bold text-ink mb-1">کمیسیون سراسری</h2>
+            <p className="text-xs text-soot mb-4">
+              درصدی از هر پرداخت آنلاین موفق که سهم پلتفرم است. روی پرداخت‌های تازه اعمال می‌شود (تراکنش‌های قبلی با همان درصد زمان ثبت‌شان می‌مانند). کارت‌به‌کارت کمیسیون ندارد.
+            </p>
+            <div className="flex items-center gap-2">
+              <input type="number" min={0} max={100} value={commInput} onChange={e => setCommInput(e.target.value)}
+                className="w-28 text-sm px-3 py-2 border border-sand rounded-lg tnum text-center focus:outline-none focus:border-ink" />
+              <span className="text-sm text-soot">٪</span>
+              <button onClick={saveGlobalCommission} disabled={commSaving}
+                className="px-4 py-2 bg-ink text-white rounded-lg text-xs font-medium disabled:opacity-50">
+                {commSaving ? 'در حال ثبت…' : 'ذخیره'}
+              </button>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl border border-sand p-5">
+            <h2 className="text-sm font-display font-bold text-ink mb-1">کمیسیون اختصاصی متخصص‌ها</h2>
+            <p className="text-xs text-soot mb-4">
+              اگر برای متخصصی درصد جداگانه تعیین کنید، به‌جای درصد سراسری برای او اعمال می‌شود.
+            </p>
+            {commOverrides.length === 0 ? (
+              <p className="text-sm text-soot text-center py-4">هیچ متخصصی درصد اختصاصی ندارد — همه از {commGlobal ?? '—'}٪ سراسری تبعیت می‌کنند.</p>
+            ) : (
+              <div className="divide-y divide-sand mb-4">
+                {commOverrides.map(o => (
+                  <div key={o.resource_id} className="py-2.5 flex items-center justify-between">
+                    <span className="text-sm text-ink">{o.resource_name || o.resource_id}</span>
+                    <div className="flex items-center gap-3">
+                      <button onClick={() => setOverride(o.resource_id, o.resource_name)} className="text-sm font-medium text-ink tnum hover:underline">{o.override}٪</button>
+                      <button onClick={() => removeOverride(o.resource_id)}
+                        className="text-[11px] px-2 py-1 border border-red-500/30 text-red-600 rounded-md hover:bg-red-500/5">حذف</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {bySpecialist.length > 0 && (
+              <div className="pt-3 border-t border-sand">
+                <p className="text-[11px] text-soot mb-2">تعیین درصد اختصاصی برای یک متخصص:</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {bySpecialist
+                    .filter(sp => !commOverrides.some(o => o.resource_id === sp.resource_id))
+                    .map(sp => (
+                      <button key={sp.resource_id} onClick={() => setOverride(sp.resource_id, sp.resource_name)}
+                        className="text-[11px] px-2.5 py-1.5 border border-sand rounded-lg text-ink hover:bg-sand">
+                        + {sp.resource_name || 'متخصص'}
+                      </button>
+                    ))}
+                </div>
+              </div>
+            )}
+          </div>
         </>
       )}
     </main>

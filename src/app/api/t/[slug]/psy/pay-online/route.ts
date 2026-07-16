@@ -4,7 +4,8 @@ import { getActiveTenant } from '@/lib/tenant'
 import { getPaymentMethods, effectivePaymentMethods, isCardToCardAllowed, getResourceProfile, isValidSheba, getResourcePricing, packageAmount, resolvePrice, checkDiscountCode, validateClientSlot } from '@/lib/psy'
 import { acquirePendingLocksAtomic, sweepExpiredLocks } from '@/lib/slotLocks'
 import { stageTitle } from '@/lib/flow'
-import { requestZibalPayment, PLATFORM_COMMISSION_PERCENT, MULTIPLEXING_ENABLED } from '@/lib/zibal'
+import { requestZibalPayment, MULTIPLEXING_ENABLED } from '@/lib/zibal'
+import { resolveCommissionPercent } from '@/lib/commission'
 import { getClientPhone, getPayCase, matchesClientIdentity } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
@@ -120,7 +121,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
     if (discountCodeCheck.ok) amount = discountCodeCheck.discountedAmount
   }
 
-  const commissionPercent = PLATFORM_COMMISSION_PERCENT
+  const commissionPercent = await resolveCommissionPercent(c.resource_id)
   const commissionAmount = Math.round(amount * (commissionPercent / 100))
   const profile = await getResourceProfile(c.resource_id)
   const shebaOk = isValidSheba(profile.settlement_sheba)

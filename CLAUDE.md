@@ -905,3 +905,30 @@
 **علت:** `DEFAULT_PROFILE` (مقدار موقتی state قبل از رسیدن پروفایل واقعی از سرور) هاردکد شده بود روی `payment_methods: { card_to_card: true, online: false }` — این با پیش‌فرض واقعی سیستم (`DEFAULT_PAYMENT_METHODS` در `lib/psy.ts`: `{ card_to_card: false, online: true }`) هم‌خوانی نداشت و ظاهرا از قبل از تغییر سیاست پیش‌فرض کارت‌به‌کارت مانده بود. نتیجه: `showBookingsTab` روی رندر اول (قبل از فچ) با مقدار موقتی اشتباه `true` محاسبه می‌شد و تب «تأیید پرداخت‌ها» لحظه‌ای نشان داده می‌شد، بعد با رسیدن پروفایل واقعی (که کارت‌به‌کارت واقعا خاموش بود) ناپدید می‌شد.
 
 **فیکس:** `DEFAULT_PROFILE.payment_methods` و `.cancellation_policy` حالا مستقیم از همان ثابت‌های مشترک (`DEFAULT_PAYMENT_METHODS`, `DEFAULT_CANCELLATION_POLICY` در `lib/psy.ts`) می‌آیند، نه یک کپی دستی جدا که ممکن است دوباره از پیش‌فرض واقعی جا بماند.
+
+## چنج‌لاگ 1405/04/25 (2026-07-16) — پایه‌ی حسابداری شفاف (مرجع بانکی + کمیسیون + تسویه‌ی متصل)
+
+**migration جدید: `migrations/0033_accounting_foundation.sql`** — باید در Supabase SQL editor اجرا شود. کاملا additive.
+
+### تسک ۱ — شماره پیگیری بانکی (فوری، برگشت‌ناپذیر)
+زیبال موقع verify مقدار `refNumber` (مرجع بانکی واقعی تراکنش) را برمی‌گرداند ولی تا الان هیچ‌جا ذخیره نمی‌شد و برای همیشه از دست می‌رفت. حالا هم روی `psy_payment_intents.bank_ref_number` هم روی `ledger_entries.bank_ref_number` ذخیره می‌شود. برای تطبیق با صورت‌حساب بانکی و ارائه به مالیات حیاتی است. (`recordLedgerEntry` فیلد `bankRefNumber` گرفت.)
+
+### تسک ۲ — کمیسیون سراسری قابل‌تغییر + override به‌ازای متخصص
+- کمیسیون سراسری از ثابت هاردکد `config.ts` به ردیف `commission_percent` در جدول جدید `platform_settings` منتقل شد — بدون دیپلوی مجدد از پنل super قابل تغییر. مقدار اولیه = همان ۷٪.
+- `psy_resource_profiles.commission_percent_override` (nullable): اگر پر باشد، به‌جای درصد سراسری برای همان متخصص اعمال می‌شود.
+- `lib/commission.ts`: `getGlobalCommissionPercent()` و `resolveCommissionPercent(resourceId)` — با fallback امن به ثابت config اگر migration هنوز نخورده باشد (fail-safe نه fail-zero). pay-online به‌جای ثابت از resolver می‌خواند.
+- API جدید `super/commission` (GET درصد سراسری + overrideها؛ PATCH تغییر سراسری یا تنظیم/حذف override).
+- تب جدید «کمیسیون» در `/super/accounting`: ویرایش درصد سراسری + تعیین/حذف override برای هر متخصص.
+- ⚠️ فقط پرداخت آنلاین کمیسیون دارد. کارت‌به‌کارت مستقیم بین مراجع و دکتر است، از حساب پلتفرم رد نمی‌شود، کمیسیونش همیشه صفر (دست‌نخورده ماند).
+
+### تسک ۳ — تسویه‌ی ردیابی‌شونده و متصل به تراکنش
+- `settlements` سه ستون گرفت: `bank_ref_number` (شماره پیگیری واریز)، `paid_at` (تاریخ واقعی واریز)، `status`.
+- جدول واسط جدید `settlement_items`: هر تسویه به دقیقا کدام ردیف‌های `ledger_entries` مربوط است (unique روی `ledger_entry_id` — یک تراکنش دوبار تسویه نمی‌شود). این همان چیزی است که حسابرس می‌خواهد.
+- `super/settlements` POST بازنویسی شد: اگر `entry_ids` بدهی، مبلغ از جمع سهم همان تراکنش‌ها گرفته می‌شود (همیشه دقیق) و لینک می‌خورد؛ شماره پیگیری بانکی حالا هنگام ثبت تسویه پرسیده می‌شود (اجباری). GET حالا `unsettled_items` per-resource هم برمی‌گرداند.
+- تاریخچه‌ی تسویه شماره پیگیری بانکی را نشان می‌دهد.
+
+### Push Transaction زیبال
+callback فعلی از قبل برای Push آماده است — به cookie/session وابسته نیست (فقط `intentId` + `trackId` از URL)، گارد `status==='paid'` جلوی finalize دوباره را می‌گیرد، و ثبت ledger هم idempotent است. پس فعال‌کردن Push در پنل زیبال بدون تغییر کد کار می‌کند و مشکل «پول کم شد ولی سیستم می‌گوید پرداخت‌نشده» (وقتی کاربر به callback برنمی‌گردد) را حل می‌کند.
+
+### افزوده
+`uiPrompt` (دیالوگ ورودی متن) به `components/Dialog.tsx` (پنل super) اضافه شد — برای گرفتن شماره پیگیری بانکی و درصد override.
