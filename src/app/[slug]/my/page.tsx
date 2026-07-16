@@ -52,6 +52,8 @@ type Session = {
  delay_minutes?: number | null
 }
 
+type ManualRefund = { id: string; amount: number; note?: string | null; bank_ref_number?: string | null; created_at: string }
+
 type ExtraCharge = {
  id: string; case_number: string; title: string; amount: number
  status: 'awaiting_payment' | 'payment_submitted' | 'paid'
@@ -81,6 +83,7 @@ export default function PatientPanel() {
  const [sessions, setSessions] = useState<Session[]>([])
  const [stages, setStages] = useState<CaseStage[]>([])
  const [extraCharges, setExtraCharges] = useState<ExtraCharge[]>([])
+ const [manualRefunds, setManualRefunds] = useState<ManualRefund[]>([])
  type ClientTab = 'packages' | 'sessions' | 'info'
  const VALID_CLIENT_TABS: ClientTab[] = ['packages', 'sessions', 'info']
  const initialSection = (searchParams.get('section') as ClientTab) || 'packages'
@@ -139,6 +142,7 @@ export default function PatientPanel() {
       setSessions(data.sessions || [])
       setStages(data.stages || [])
       setExtraCharges(data.extra_charges || [])
+      setManualRefunds(data.refunds || [])
       setStep('panel')
      }
     } finally {
@@ -217,6 +221,7 @@ export default function PatientPanel() {
   setSessions(data.sessions || [])
   setStages(data.stages || [])
   setExtraCharges(data.extra_charges || [])
+  setManualRefunds(data.refunds || [])
  }
 
  const pkgPrice = (p: Package) =>
@@ -584,6 +589,25 @@ export default function PatientPanel() {
         </div>
        ) : null)}
       </div>
+      {manualRefunds.length > 0 && (
+       <div className="bg-white rounded-xl border border-sand p-4">
+        <h3 className="text-sm font-medium text-ink pb-2 mb-2 border-b border-sand">بازپرداخت‌های شما</h3>
+        <div className="space-y-2">
+         {manualRefunds.map(r => (
+          <div key={r.id} className="bg-emerald-500/5 border border-emerald-500/20 rounded-lg p-3">
+           <div className="flex items-center justify-between mb-1">
+            <span className="text-sm text-ink">{r.note || 'بازپرداخت'}</span>
+            <span className="text-sm font-bold text-emerald-700 tnum">{r.amount.toLocaleString()} تومان</span>
+           </div>
+           <div className="flex items-center justify-between text-[11px] text-soot">
+            <span className="tnum">{new Date(r.created_at).toLocaleDateString('fa-IR')}</span>
+            {r.bank_ref_number && <span dir="ltr" className="tnum">پیگیری بانکی: {r.bank_ref_number}</span>}
+           </div>
+          </div>
+         ))}
+        </div>
+       </div>
+      )}
       {booking.resource_id && <ReviewBox resourceId={booking.resource_id} caseNumber={booking.case_number} phone={phone} slug={slug} />}
      </div>
     )}

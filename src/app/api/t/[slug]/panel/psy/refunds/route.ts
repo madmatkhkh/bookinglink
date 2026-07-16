@@ -32,8 +32,11 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   const case_number = String(body.case_number || '').trim()
   const amount = Math.round(Number(body.amount) || 0)
   const note = body.note ? String(body.note).trim().slice(0, 300) : null
+  const bankRef = String(body.bank_ref_number || '').trim().slice(0, 100)
   if (!case_number) return NextResponse.json({ error: 'case_number لازم است' }, { status: 400 })
   if (!(amount > 0)) return NextResponse.json({ error: 'مبلغ نامعتبر است' }, { status: 400 })
+  // شماره پیگیری بانکی اجباری است — مراجع باید بتواند واریز را در سیستم بانکی پیگیری کند.
+  if (!bankRef) return NextResponse.json({ error: 'شماره پیگیری بانکی الزامی است' }, { status: 400 })
 
   let caseQ = sb().from('psy_cases').select('id, resource_id').eq('tenant_id', a.tenant.id).eq('case_number', case_number)
   if (!a.isOwner) caseQ = caseQ.eq('resource_id', a.resourceId)
@@ -42,7 +45,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
 
   const recordedBy = a.isOwner ? 'owner' : 'staff'
   const { data: refund, error } = await sb().from('psy_refunds').insert({
-    tenant_id: a.tenant.id, resource_id: c.resource_id, case_number, amount, note, recorded_by: recordedBy,
+    tenant_id: a.tenant.id, resource_id: c.resource_id, case_number, amount, note, bank_ref_number: bankRef, recorded_by: recordedBy,
   }).select().single()
   if (error || !refund) {
     console.error('panel/psy/refunds POST error:', error)
@@ -53,6 +56,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
     purpose: 'refund', method: 'card_to_card', direction: 'outflow', amount,
     commissionAmount: 0, doctorAmount: amount,
     sourceTable: 'psy_refunds', sourceId: refund.id, note: note || undefined,
+    bankRefNumber: bankRef,
     recordedBy,
   })
   return NextResponse.json({ success: true, refund })
