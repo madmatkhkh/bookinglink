@@ -5,7 +5,7 @@ import { PERSIAN_MONTHS, toLatinNum, getCurrentJalali, getDaysInJalaliMonth, jal
 import { STAGE_TYPE_LABEL, STAGE_STATUS_LABEL, stageTitle } from '@/lib/flow'
 import { PRICING, PLATFORM_NAME, RESERVED_SLUGS, SLUG_PATTERN, SLUG_RULE_TEXT } from '@/lib/config'
 import { ClinicSettings, DEFAULT_SETTINGS, SessionMode, OfficeLocation, PaymentCardInfo } from '@/lib/settings'
-import { IntakeForm, FormField, FormFieldType, DEFAULT_INTAKE_FORM, LEGACY_DETAIL_LABELS, CancellationPolicy, PaymentMethods, Pricing, DEFAULT_PRICING, INTAKE_KNOWN_COLUMNS, fieldVisible } from '@/lib/psy'
+import { IntakeForm, FormField, FormFieldType, DEFAULT_INTAKE_FORM, LEGACY_DETAIL_LABELS, CancellationPolicy, PaymentMethods, Pricing, DEFAULT_PRICING, TermsSettings, DEFAULT_TERMS, composeTermsText, INTAKE_KNOWN_COLUMNS, fieldVisible } from '@/lib/psy'
 import { DialogHost, uiAlert, uiConfirm, uiPrompt } from '@/components/ui/Dialog'
 import { useResendCooldown } from '@/lib/useResendCooldown'
 import { Glyph } from '@/components/Glyph'
@@ -217,6 +217,7 @@ type ResourceProfileView = {
  pricing: Pricing
  companion_label: string
  meet_channels: MeetChannel[]
+ terms: TermsSettings
 }
 
 const ALL_TIMES = ['8:00','9:00','10:00','11:00','12:00','13:00','14:00','15:00','16:00','17:00','18:00']
@@ -230,6 +231,7 @@ const DEFAULT_PROFILE: ResourceProfileView = {
  pricing: DEFAULT_PRICING,
  companion_label: '',
  meet_channels: [],
+ terms: DEFAULT_TERMS,
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -293,7 +295,7 @@ export function PsychologyAdmin() {
  // زیرمجموعه‌هایش (صفحه‌ی عمومی + پنل مراجع) همین‌جا زیرش باز می‌شوند.
  // تیم/حساب/پشتیبانی هم از تنظیمات جدا شدند و تب مستقل خودشان را دارند.
  type MainTab = 'dashboard' | 'patients' | 'bookings' | 'schedule' | 'settings' | 'finance' | 'growth' | 'staff' | 'account' | 'tickets'
- type SettingsSub = 'profile' | 'payments' | 'pricing' | 'locations' | 'appearance' | 'form' | 'patient_panel'
+ type SettingsSub = 'profile' | 'payments' | 'pricing' | 'terms' | 'locations' | 'appearance' | 'form' | 'patient_panel'
 
  const [mainTab, setMainTab] = useState<MainTab>('dashboard')
  // null = هیچ زیرتبی باز نیست → «نمای کلی تنظیمات» نشان داده می‌شود. کلیک روی
@@ -1344,6 +1346,7 @@ export function PsychologyAdmin() {
     { key: 'profile', icon: '👤', label: 'پروفایل' },
     { key: 'payments', icon: '💳', label: 'پرداخت‌ها' },
     { key: 'pricing', icon: '💰', label: 'قیمت‌گذاری' },
+    { key: 'terms', icon: '📝', label: 'شرایط و مقررات' },
     { key: 'form', icon: '📝', label: 'فرم رزرو' },
     ...(me?.isOwner !== false ? [{ key: 'locations' as const, icon: '🏢', label: 'مکان‌های حضوری' }] : []),
     ...(me?.isOwner !== false ? [{ key: 'appearance' as const, icon: '🎨', label: 'ظاهر و برند' }] : []),
@@ -1912,7 +1915,7 @@ export function PsychologyAdmin() {
       ) : (
       <>
        {/* سوییچر دکتر — فقط وقتی owner است و بیش از یک نفر پرسنل دارد */}
-       {!!settingsSubTab && ['profile', 'payments', 'pricing', 'form'].includes(settingsSubTab) && me?.isOwner && staffList.filter(r => r.is_active).length > 1 && (
+       {!!settingsSubTab && ['profile', 'payments', 'pricing', 'terms', 'form'].includes(settingsSubTab) && me?.isOwner && staffList.filter(r => r.is_active).length > 1 && (
         <section className="bg-white rounded-2xl border border-sand p-5">
          <h2 className="text-sm font-display font-semibold text-ink mb-1">پروفایل کدام دکتر؟</h2>
          <p className="text-xs text-soot mb-3">مجموعه‌ی شما چند نفر پرسنل دارد؛ اول انتخاب کنید پروفایل و برنامه‌ی کاری کدام‌شان را ویرایش می‌کنید.</p>
@@ -2297,6 +2300,41 @@ export function PsychologyAdmin() {
         <DiscountCodesSection slug={slug} isOwner={!!me?.isOwner} viewingResourceId={viewingResourceId} />
        )}
 
+       {/* شرایط و مقررات قبل از پرداخت — کاملا اختیاری. متن از مدت جلسه/هزینه‌ی
+           دقیقه‌ی اضافه (تب قیمت‌گذاری) + سیاست کنسلی (تب پرداخت‌ها) + این متن
+           آزاد ساخته می‌شود؛ composeTermsText همان تابعی است که پنل مراجع هم
+           برای نمایش واقعی استفاده می‌کند — پیش‌نمایش زیر دقیقا همان چیزی است
+           که مراجع می‌بیند. */}
+       {settingsSubTab === 'terms' && (
+       <section className="bg-white rounded-2xl border border-sand p-5">
+        <h2 className="text-sm font-display font-semibold text-ink mb-1">شرایط و مقررات قبل از پرداخت</h2>
+        <p className="text-xs text-soot mb-4">اگر روشن باشد، مراجع پیش از هر پرداخت (آنلاین یا کارت‌به‌کارت) باید این شرایط را ببیند و با تیک‌زدن آن را بپذیرد — وگرنه دکمه‌ی پرداخت غیرفعال می‌ماند. اگر خاموش باشد، این بخش برای مراجع اصلا نمایش داده نمی‌شود.</p>
+
+        <label className="flex items-center gap-2.5 mb-4 cursor-pointer">
+         <input type="checkbox" checked={profile.terms.enabled}
+          onChange={e => patchProfile({ terms: { ...profile.terms, enabled: e.target.checked } })}
+          className="w-4 h-4" />
+         <span className="text-sm text-ink">پیش از پرداخت از مراجع تاییدیه بگیر</span>
+        </label>
+
+        <div className={profile.terms.enabled ? '' : 'opacity-50 pointer-events-none'}>
+         <label className="text-xs text-soot mb-1 block">متن اضافه (اختیاری)</label>
+         <p className="text-xs text-soot mb-2">هر نکته‌ی دیگری که خودتان لازم می‌دانید — مثلا شرایط کنسلی از طرف خودتان، قوانین جلسه‌ی آنلاین، یا هر چیز دیگر. مدت جلسه، هزینه‌ی دقیقه‌ی اضافه، و سیاست کنسلی مراجع خودکار و از تب‌های دیگر اضافه می‌شوند — نیازی به تکرارشان اینجا نیست.</p>
+         <textarea value={profile.terms.extra} rows={5} maxLength={2000}
+          onChange={e => patchProfile({ terms: { ...profile.terms, extra: e.target.value } })}
+          placeholder="مثلا: در صورت تاخیر بیش از ۱۵ دقیقه، جلسه کنسل تلقی می‌شود..."
+          className="w-full text-sm px-3 py-2 border border-sand rounded-lg focus:outline-none focus:border-ink resize-none" />
+
+         <div className="mt-4 pt-4 border-t border-sand">
+          <p className="text-xs text-soot mb-2">پیش‌نمایش — دقیقا همین متن به مراجع نشان داده می‌شود:</p>
+          <div className="bg-gray-50 border border-sand rounded-xl p-3 text-xs text-ink whitespace-pre-wrap leading-6">
+           {composeTermsText({ pricing: profile.pricing, cancellation_policy: profile.cancellation_policy, terms: profile.terms })}
+          </div>
+         </div>
+        </div>
+       </section>
+       )}
+
        {/* همراه/تماس دوم — کاملا اختیاری، برچسبش را خود متخصص تعیین می‌کند.
            اینجاست چون مستقیم به فرم رزرو مربوط می‌شود (بخش «همراه» توی فرم و
            انتخاب حضور جلسات)، نه به هویت خود متخصص. */}
@@ -2620,7 +2658,7 @@ export function PsychologyAdmin() {
        )}
 
        {/* نوار ذخیره (چسبیده به پایین) — فقط وقتی چیزی واقعا عوض شده باشد، و فقط روی زیرتب‌هایی که این دکمه ذخیره‌شان می‌کند */}
-       {!!settingsSubTab && ['profile', 'payments', 'pricing', 'locations', 'form'].includes(settingsSubTab) && (isSettingsTabDirty || settingsSaved || profileSaved || intakeSaved) && (
+       {!!settingsSubTab && ['profile', 'payments', 'pricing', 'terms', 'locations', 'form'].includes(settingsSubTab) && (isSettingsTabDirty || settingsSaved || profileSaved || intakeSaved) && (
         <div className="fixed bottom-0 inset-x-0 z-30 bg-white/95 border-t border-sand backdrop-blur">
          <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-end gap-3">
           {(settingsSaved || profileSaved || intakeSaved) && <span className="text-xs text-emerald-600 font-medium">✓ تنظیمات ذخیره شد</span>}

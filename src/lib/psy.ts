@@ -268,6 +268,37 @@ export function mergePaymentMethods(raw: Partial<PaymentMethods> | null | undefi
   return { card_to_card: card, online: online || !card }
 }
 
+// ── شرایط و مقررات قبل از پرداخت — اختیاری، به‌ازای هر متخصص. متن نهایی از
+// ترکیب مدت جلسه/هزینه‌ی دقیقه‌ی اضافه (pricing) + سیاست کنسلی
+// (cancellation_policy) + این متن اضافه‌ی آزاد ساخته می‌شود (composeTermsText
+// در PsyPublic.tsx) — چون آن مقادیر جای دیگری «منبع اصلی» دارند و اینجا فقط
+// تکرارشان می‌کنیم، نه دوباره ذخیره؛ اگر دکتر بعدا مدت جلسه را عوض کند، متن
+// خودکار به‌روز می‌ماند بدون اینکه یادش بیفتد شرایط را هم دستی ویرایش کند.
+export type TermsSettings = { enabled: boolean; extra: string }
+export const DEFAULT_TERMS: TermsSettings = { enabled: false, extra: '' }
+export function mergeTerms(raw: any): TermsSettings {
+  return {
+    enabled: raw?.enabled === true,
+    extra: typeof raw?.extra === 'string' ? raw.extra.trim().slice(0, 2000) : '',
+  }
+}
+
+// متن نهایی شرایط و مقررات — از مدت جلسه + هزینه‌ی دقیقه‌ی اضافه (pricing) +
+// سیاست کنسلی (cancellation_policy) + متن آزاد دکتر ساخته می‌شود. یک‌جا تعریف
+// شده تا هم پیش‌نمایش تنظیمات هم چیزی که واقعا به مراجع نشان داده می‌شود، از
+// روی دقیقا همین منبع باشند — هیچ‌وقت از هم جدا نمی‌افتند.
+export function composeTermsText(input: { pricing: Pricing; cancellation_policy: CancellationPolicy; terms: TermsSettings }): string {
+  const { pricing, cancellation_policy: cp, terms } = input
+  const lines: string[] = []
+  lines.push(`مدت هر جلسه‌ی آنلاین ${pricing.duration_online} دقیقه و هر جلسه‌ی حضوری ${pricing.duration_offline} دقیقه است.`)
+  if (pricing.extra_minute_price > 0)
+    lines.push(`اگر جلسه بیشتر از این مدت طول بکشد، هر دقیقه‌ی اضافه ${pricing.extra_minute_price.toLocaleString('en-US')} تومان محاسبه و جداگانه از شما دریافت می‌شود.`)
+  if (cp.enabled)
+    lines.push(`در صورت کنسلی از طرف شما حداقل ${cp.threshold_hours} ساعت پیش از نوبت، ${cp.early_refund_percent}٪ مبلغ پرداختی بازگردانده می‌شود؛ کنسلی دیرتر از آن ${cp.late_refund_percent}٪.`)
+  if (terms.extra) lines.push(terms.extra)
+  return lines.join('\n\n')
+}
+
 // ── کارت‌به‌کارت: فقط با اجازه‌ی سوپرادمین (به‌ازای هر tenant) ─────────────
 // تصمیم صریح کسب‌وکاری: کارمزد پلتفرم فقط از تراکنش آنلاین (که از مرچنت خود
 // پلتفرم رد می‌شود) قابل دریافت است؛ کارت‌به‌کارت مستقیم بین مراجع و دکتر است
@@ -317,6 +348,7 @@ export type ResourceProfile = {
   settlement_sheba: string
   settlement_sheba_holder_name: string
   pricing: Pricing
+  terms: TermsSettings
   // برچسب «تماس دوم/همراه» — به‌انتخاب خود متخصص. خالی = این مفهوم اصلا
   // استفاده نمی‌شود (مثلا درمان فردی بزرگسال)؛ پر = نام و مسیر جلسه‌ی دومی
   // با همین برچسب نمایش داده می‌شود (مثلا «والدین»، «همسر»، «همراه»).
@@ -340,6 +372,7 @@ export const DEFAULT_RESOURCE_PROFILE: Omit<ResourceProfile, 'resource_id'> = {
   settlement_sheba: '',
   settlement_sheba_holder_name: '',
   pricing: DEFAULT_PRICING,
+  terms: DEFAULT_TERMS,
   companion_label: '',
   meet_link: '',
   meet_channels: [],
@@ -359,6 +392,7 @@ export function mergeResourceProfile(resourceId: string, raw: Partial<ResourcePr
     settlement_sheba: typeof raw?.settlement_sheba === 'string' ? raw.settlement_sheba : '',
     settlement_sheba_holder_name: typeof raw?.settlement_sheba_holder_name === 'string' ? raw.settlement_sheba_holder_name : '',
     pricing: mergePricing(raw?.pricing),
+    terms: mergeTerms((raw as any)?.terms),
     companion_label: typeof raw?.companion_label === 'string' ? raw.companion_label.trim().slice(0, 20) : '',
     meet_link: typeof raw?.meet_link === 'string' ? raw.meet_link.trim().slice(0, 300) : '',
     // اگر meet_channels خالی بود، meet_link قدیمی به‌عنوان کانال گوگل‌میت تفسیر می‌شود
@@ -409,6 +443,7 @@ export type PublicDoctor = {
   payment_methods: PaymentMethods
   cancellation_policy: CancellationPolicy
   pricing: Pricing
+  terms: TermsSettings
   companion_label: string
   meet_link: string
   meet_channels: MeetChannel[]
@@ -445,7 +480,7 @@ export async function listPublicDoctors(tenantId: string): Promise<PublicDoctor[
       id: r.id, name: r.name, title: r.title, avatar_url: r.avatar_url,
       badges: prof.badges, session_modes: prof.session_modes, cards: prof.cards,
       payment_methods: effectivePaymentMethods(prof.payment_methods, cardToCardAllowed), cancellation_policy: prof.cancellation_policy,
-      pricing: prof.pricing, companion_label: prof.companion_label, meet_link: prof.meet_link, meet_channels: prof.meet_channels,
+      pricing: prof.pricing, terms: prof.terms, companion_label: prof.companion_label, meet_link: prof.meet_link, meet_channels: prof.meet_channels,
       rating_avg, rating_count,
     }
   })

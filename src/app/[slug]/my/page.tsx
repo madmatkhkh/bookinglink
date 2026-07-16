@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useParams, useSearchParams, useRouter } from 'next/navigation'
 import { PERSIAN_MONTHS, PERSIAN_WEEKDAYS, toFarsiNum, getCurrentJalali, getDaysInJalaliMonth, jalaliDateTimeToTimestamp } from '@/lib/calendar'
 import { PSY_PRICING as PRICING, DEFAULT_CANCELLATION_POLICY } from '@/lib/psy'
-import { usePublicClinic, usePatientFeatures, CardChooser, DiscountCodeField, DiscountApplied } from '@/components/PsyPublic'
+import { usePublicClinic, usePatientFeatures, CardChooser, DiscountCodeField, DiscountApplied, TermsGate } from '@/components/PsyPublic'
 import { moduleOn } from '@/lib/moduleManifest'
 import { stageTitle } from '@/lib/flow'
 import { DialogHost, uiAlert, uiConfirm } from '@/components/ui/Dialog'
@@ -633,6 +633,7 @@ function SessionCard({ session: s, num, phone, caseNumber, onUpdate }: {
  const [payOpen, setPayOpen] = useState(false)
  const [payRef, setPayRef] = useState('')
  const [discount, setDiscount] = useState<DiscountApplied | null>(null)
+ const [termsAccepted, setTermsAccepted] = useState(false)
  const { slug } = useParams<{ slug: string }>()
  const settings = usePublicClinic(slug)
 
@@ -832,19 +833,21 @@ function SessionCard({ session: s, num, phone, caseNumber, onUpdate }: {
     // می‌داد. تا لود نشدن، هیچ دکمه‌ای نشان نمی‌دهیم.
     const cardOn = pm ? pm.card_to_card : false
     if (!settings.loaded) return <div className="mt-3 h-11 rounded-xl bg-gray-100 animate-pulse" />
+    const termsBlocked = !!doctorForSession?.terms.enabled && !termsAccepted
     return !payOpen ? (
      <div className="mt-3">
       <DiscountCodeField slug={slug} resourceId={s.resource_id} amount={sessionPrice} onApplied={setDiscount} />
+      <TermsGate doctor={doctorForSession} accepted={termsAccepted} onAcceptedChange={setTermsAccepted} />
       <div className="flex gap-2">
        {onlineOn && (
-        <button onClick={paySessionOnline} disabled={onlineLoading}
+        <button onClick={paySessionOnline} disabled={onlineLoading || termsBlocked}
          className="flex-1 py-2.5 bg-accent text-white rounded-xl text-sm font-medium disabled:opacity-40">
          {onlineLoading ? 'در حال اتصال...' : `پرداخت آنلاین ${finalSessionPrice.toLocaleString()}`}
         </button>
        )}
        {cardOn && (
-        <button onClick={() => setPayOpen(true)}
-         className={`py-2.5 rounded-xl text-sm font-medium ${onlineOn ? 'flex-1 border border-gray-300 text-soot' : 'w-full bg-accent text-white'}`}>
+        <button onClick={() => setPayOpen(true)} disabled={termsBlocked}
+         className={`py-2.5 rounded-xl text-sm font-medium disabled:opacity-40 ${onlineOn ? 'flex-1 border border-gray-300 text-soot' : 'w-full bg-accent text-white'}`}>
          {onlineOn ? 'کارت‌به‌کارت' : `پرداخت کارت‌به‌کارت ${finalSessionPrice.toLocaleString()} تومان`}
         </button>
        )}
@@ -858,7 +861,8 @@ function SessionCard({ session: s, num, phone, caseNumber, onUpdate }: {
       <label className="text-xs text-soot mb-1 block">متن فیش واریزی <span className="text-red-500">*</span></label>
       <textarea value={payRef} onChange={e => setPayRef(e.target.value)} rows={2} placeholder="اطلاعات فیش واریزی..."
        className="w-full text-sm px-3 py-2 border border-sand rounded-xl focus:outline-none focus:border-ink mb-2 resize-none" />
-      <button onClick={paySession} disabled={paying || !payRef.trim()}
+      <TermsGate doctor={doctorForSession} accepted={termsAccepted} onAcceptedChange={setTermsAccepted} />
+      <button onClick={paySession} disabled={paying || !payRef.trim() || termsBlocked}
        className="w-full py-2.5 bg-accent text-white rounded-xl text-sm font-medium disabled:opacity-40">
        {paying ? 'در حال ثبت...' : 'پرداخت کردم'}
       </button>
@@ -925,12 +929,14 @@ function ExtraChargeCard({ charge, phone, caseNumber, onUpdate }: {
  const [payRef, setPayRef] = useState('')
  const [paying, setPaying] = useState(false)
  const [onlineLoading, setOnlineLoading] = useState(false)
+ const [termsAccepted, setTermsAccepted] = useState(false)
  const { slug } = useParams<{ slug: string }>()
  const settings = usePublicClinic(slug)
  const doctor = settings.doctors.find(d => d.id === charge.resource_id)
  const pm = doctor?.payment_methods
  const onlineOn = !!pm?.online
  const cardOn = pm ? pm.card_to_card : false
+ const termsBlocked = !!doctor?.terms.enabled && !termsAccepted
 
  async function payOnline() {
   setOnlineLoading(true)
@@ -981,20 +987,23 @@ function ExtraChargeCard({ charge, phone, caseNumber, onUpdate }: {
    {!settings.loaded ? (
     <div className="h-11 rounded-xl bg-gray-100 animate-pulse" />
    ) : !payOpen ? (
-    <div className="flex gap-2">
-     {onlineOn && (
-      <button onClick={payOnline} disabled={onlineLoading}
-       className="flex-1 py-2.5 bg-accent text-white rounded-xl text-sm font-medium disabled:opacity-40">
-       {onlineLoading ? 'در حال اتصال...' : 'پرداخت آنلاین'}
-      </button>
-     )}
-     {cardOn && (
-      <button onClick={() => setPayOpen(true)}
-       className={`py-2.5 rounded-xl text-sm font-medium ${onlineOn ? 'flex-1 border border-gray-300 text-soot' : 'w-full bg-accent text-white'}`}>
-       کارت‌به‌کارت
-      </button>
-     )}
-    </div>
+    <>
+     <TermsGate doctor={doctor} accepted={termsAccepted} onAcceptedChange={setTermsAccepted} />
+     <div className="flex gap-2">
+      {onlineOn && (
+       <button onClick={payOnline} disabled={onlineLoading || termsBlocked}
+        className="flex-1 py-2.5 bg-accent text-white rounded-xl text-sm font-medium disabled:opacity-40">
+        {onlineLoading ? 'در حال اتصال...' : 'پرداخت آنلاین'}
+       </button>
+      )}
+      {cardOn && (
+       <button onClick={() => setPayOpen(true)} disabled={termsBlocked}
+        className={`py-2.5 rounded-xl text-sm font-medium disabled:opacity-40 ${onlineOn ? 'flex-1 border border-gray-300 text-soot' : 'w-full bg-accent text-white'}`}>
+        کارت‌به‌کارت
+       </button>
+      )}
+     </div>
+    </>
    ) : (
     <div className="text-right">
      <div className="bg-sand border border-sand rounded-xl p-3 mb-2">
@@ -1003,7 +1012,8 @@ function ExtraChargeCard({ charge, phone, caseNumber, onUpdate }: {
      <label className="text-xs text-soot mb-1 block">متن فیش واریزی <span className="text-red-500">*</span></label>
      <textarea value={payRef} onChange={e => setPayRef(e.target.value)} rows={2} placeholder="اطلاعات فیش واریزی..."
       className="w-full text-sm px-3 py-2 border border-sand rounded-xl focus:outline-none focus:border-ink mb-2 resize-none" />
-     <button onClick={pay} disabled={paying || !payRef.trim()}
+     <TermsGate doctor={doctor} accepted={termsAccepted} onAcceptedChange={setTermsAccepted} />
+     <button onClick={pay} disabled={paying || !payRef.trim() || termsBlocked}
       className="w-full py-2.5 bg-accent text-white rounded-xl text-sm font-medium disabled:opacity-40">
       {paying ? 'در حال ثبت...' : 'پرداخت کردم'}
      </button>
@@ -1020,6 +1030,7 @@ function PayButton({ pkg, phone, onSuccess, total, onPrepayOnline }: { pkg: Pack
  const [ref, setRef] = useState('')
  const [onlineLoading, setOnlineLoading] = useState(false)
  const [discount, setDiscount] = useState<DiscountApplied | null>(null)
+ const [termsAccepted, setTermsAccepted] = useState(false)
  const finalTotal = discount ? discount.discountedAmount : total
  const { slug } = useParams<{ slug: string }>()
  const settings = usePublicClinic(slug)
@@ -1075,7 +1086,8 @@ function PayButton({ pkg, phone, onSuccess, total, onPrepayOnline }: { pkg: Pack
    <textarea value={ref} onChange={e => setRef(e.target.value)} rows={3} placeholder="اطلاعات فیش واریزی را وارد کنید..."
     className="w-full text-sm px-3 py-2 border border-sand rounded-xl focus:outline-none focus:border-ink mb-2 resize-none" />
    <DiscountCodeField slug={slug} resourceId={pkg.resource_id} amount={total} onApplied={setDiscount} />
-   <button onClick={pay} disabled={paying || !ref.trim()}
+   <TermsGate doctor={settings.doctors.find(d => d.id === pkg.resource_id)} accepted={termsAccepted} onAcceptedChange={setTermsAccepted} />
+   <button onClick={pay} disabled={paying || !ref.trim() || (!!settings.doctors.find(d => d.id === pkg.resource_id)?.terms.enabled && !termsAccepted)}
     className="w-full py-2.5 bg-accent text-white rounded-xl text-sm font-medium disabled:opacity-40">
     {paying ? 'در حال ثبت...' : discount ? `پرداخت کردم — ${finalTotal.toLocaleString()} تومان` : 'پرداخت کردم'}
    </button>
@@ -1109,6 +1121,7 @@ function SchedulePicker({ pkg, existingSessions, phone, caseNumber, onClose, onD
  const [saving, setSaving] = useState(false)
  const [attendeeMap, setAttendeeMap] = useState<Record<string, string>>({})
  const [discount, setDiscount] = useState<DiscountApplied | null>(null)
+ const [termsAccepted, setTermsAccepted] = useState(false)
  const finalPayTotal = discount ? discount.discountedAmount : (payTotal || 0)
  const [loadingSched, setLoadingSched] = useState(true)
 
@@ -1371,13 +1384,17 @@ function SchedulePicker({ pkg, existingSessions, phone, caseNumber, onClose, onD
       </div>
      )}
 
-     {/* کد تخفیف — همین‌جا، درست بالای دکمه‌ی نهایی پرداخت، چون این آخرین صفحه
-        قبل از درگاه است (نه صفحه‌ی قبلی‌تر که مراجع معمولا رد می‌شود). */}
+     {/* کد تخفیف + شرایط و مقررات — همین‌جا، درست بالای دکمه‌ی نهایی پرداخت،
+        چون این آخرین صفحه قبل از درگاه است (نه صفحه‌ی قبلی‌تر که مراجع معمولا رد می‌شود). */}
      {mode === 'prepay' && (
-      <DiscountCodeField slug={slug} resourceId={resourceId} amount={payTotal || 0} onApplied={setDiscount} />
+      <>
+       <DiscountCodeField slug={slug} resourceId={resourceId} amount={payTotal || 0} onApplied={setDiscount} />
+       <TermsGate doctor={settings.doctors.find(d => d.id === resourceId)} accepted={termsAccepted} onAcceptedChange={setTermsAccepted} />
+      </>
      )}
 
-     <button onClick={confirmSessions} disabled={totalSelected < remaining || saving}
+     <button onClick={confirmSessions}
+      disabled={totalSelected < remaining || saving || (mode === 'prepay' && !!settings.doctors.find(d => d.id === resourceId)?.terms.enabled && !termsAccepted)}
       className="w-full py-3 bg-accent text-white rounded-xl text-sm font-medium disabled:opacity-40">
       {saving ? (mode === 'prepay' ? 'در حال اتصال به درگاه...' : 'در حال ثبت...')
         : totalSelected < remaining ? `${remaining - totalSelected} جلسه دیگر انتخاب کنید`
@@ -1458,6 +1475,7 @@ function StagePayment({ icon, title, desc, amount, onPaid, onDone, resourceId, c
  const [submitting, setSubmitting] = useState(false)
  const [showSlotPicker, setShowSlotPicker] = useState(false)
  const [discount, setDiscount] = useState<DiscountApplied | null>(null)
+ const [termsAccepted, setTermsAccepted] = useState(false)
  const finalAmount = discount ? discount.discountedAmount : amount
  const { slug } = useParams<{ slug: string }>()
  const settings = usePublicClinic(slug)
@@ -1529,6 +1547,7 @@ function StagePayment({ icon, title, desc, amount, onPaid, onDone, resourceId, c
    </div>
 
    <DiscountCodeField slug={slug} resourceId={resourceId} amount={amount} onApplied={setDiscount} />
+   <TermsGate doctor={settings.doctors.find(d => d.id === resourceId)} accepted={termsAccepted} onAcceptedChange={setTermsAccepted} />
 
    {/* تا وقتی روش‌های پرداخت این متخصص نرسیده، هیچ روشی نشان نمی‌دهیم — نشان‌دادن
       یکی از آن‌ها در این لحظه یعنی حدس‌زدن، و حدس قبلی (کارت‌به‌کارت) دقیقا همان
@@ -1558,7 +1577,8 @@ function StagePayment({ icon, title, desc, amount, onPaid, onDone, resourceId, c
       <>
        <p className="text-xs text-soot mb-3 text-center">اول وقت خود را انتخاب کنید، سپس پرداخت می‌کنید. به‌محض تایید پرداخت، همان وقت برایتان ثبت می‌شود.</p>
        <button onClick={() => setShowSlotPicker(true)}
-        className="w-full py-3 bg-accent text-white rounded-xl text-sm font-medium">
+        disabled={!!settings.doctors.find(d => d.id === resourceId)?.terms.enabled && !termsAccepted}
+        className="w-full py-3 bg-accent text-white rounded-xl text-sm font-medium disabled:opacity-40">
         انتخاب وقت و پرداخت
        </button>
       </>
@@ -1570,7 +1590,7 @@ function StagePayment({ icon, title, desc, amount, onPaid, onDone, resourceId, c
        <label className="text-xs text-soot mb-1 block">متن فیش واریزی <span className="text-red-500">*</span></label>
        <textarea value={ref} onChange={e => setRef(e.target.value)} rows={3} placeholder="اطلاعات فیش واریزی را وارد کنید (کد پیگیری، شماره کارت مبدأ، تاریخ و ساعت واریز...)"
         className="w-full text-sm px-3 py-2.5 border border-sand rounded-xl focus:outline-none focus:border-ink mb-3 resize-none" />
-       <button onClick={submit} disabled={submitting || !ref.trim()}
+       <button onClick={submit} disabled={submitting || !ref.trim() || (!!settings.doctors.find(d => d.id === resourceId)?.terms.enabled && !termsAccepted)}
         className="w-full py-3 bg-accent text-white rounded-xl text-sm font-medium disabled:opacity-40">
         {submitting ? 'در حال ثبت...' : 'پرداخت کردم'}
        </button>

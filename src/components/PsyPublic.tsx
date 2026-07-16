@@ -9,6 +9,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { useEffect, useState } from 'react'
 import type { OfficeLocation, PaymentCardInfo, SessionMode, PublicDoctor } from '@/lib/psy'
+import { composeTermsText } from '@/lib/psy'
 
 export type PublicClinicView = {
   office_locations: OfficeLocation[]
@@ -127,6 +128,33 @@ export function DiscountCodeField({ slug, resourceId, amount, onApplied }: {
           {result.ok ? `کد اعمال شد — ${result.discountAmount.toLocaleString()} تومان تخفیف` : result.error}
         </p>
       )}
+    </div>
+  )
+}
+
+// شرایط و مقررات قبل از پرداخت — اگر دکتر خاموشش کرده (doctor.terms.enabled
+// === false)، اصلا چیزی رندر نمی‌شود و پرداخت مثل قبل آزاد است. اگر روشن
+// است، تا وقتی مراجع تیک «می‌پذیرم» را نزده accepted=false می‌ماند و صفحه‌ی
+// صدازننده (SessionCard/StagePayment/PayButton/...) دکمه‌ی پرداخت را غیرفعال
+// نگه می‌دارد.
+export function TermsGate({ doctor, accepted, onAcceptedChange }: {
+  doctor: PublicDoctor | undefined
+  accepted: boolean
+  onAcceptedChange: (v: boolean) => void
+}) {
+  const [expanded, setExpanded] = useState(false)
+  if (!doctor?.terms?.enabled) return null
+  const text = composeTermsText({ pricing: doctor.pricing, cancellation_policy: doctor.cancellation_policy, terms: doctor.terms })
+  return (
+    <div className="mb-3 bg-gray-50 border border-sand rounded-xl p-3">
+      <button type="button" onClick={() => setExpanded(v => !v)} className="text-xs text-ink underline mb-2 block">
+        {expanded ? 'بستن شرایط و مقررات' : 'مشاهده‌ی شرایط و مقررات'}
+      </button>
+      {expanded && <p className="text-xs text-soot whitespace-pre-wrap leading-6 mb-2">{text}</p>}
+      <label className="flex items-start gap-2 text-xs text-ink cursor-pointer">
+        <input type="checkbox" checked={accepted} onChange={e => onAcceptedChange(e.target.checked)} className="mt-0.5 shrink-0" />
+        <span>شرایط و مقررات را مطالعه کردم و می‌پذیرم.</span>
+      </label>
     </div>
   )
 }

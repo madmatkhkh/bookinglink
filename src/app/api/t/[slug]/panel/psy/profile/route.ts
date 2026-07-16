@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { sb } from '@/lib/supabase'
 import { requirePanelAuth, isPanelAuthResponse } from '@/lib/tenant'
-import { mergeResourceProfile, mergeCancellationPolicy, mergePaymentMethods, effectivePaymentMethods, isCardToCardAllowed, mergePricing, isValidSheba } from '@/lib/psy'
+import { mergeResourceProfile, mergeCancellationPolicy, mergePaymentMethods, effectivePaymentMethods, isCardToCardAllowed, mergePricing, mergeTerms, isValidSheba } from '@/lib/psy'
 import { deleteFromR2, keyFromPublicUrl } from '@/lib/r2'
 import { isMeetMethod, validateMeetValue, mergeMeetChannels, MEET_META, MeetMethod } from '@/lib/meet'
 
@@ -43,7 +43,7 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
       payment_methods: effectivePaymentMethods(prof.payment_methods, cardToCardAllowed),
       quick_times: prof.quick_times,
       settlement_sheba: prof.settlement_sheba, settlement_sheba_holder_name: prof.settlement_sheba_holder_name,
-      pricing: prof.pricing, companion_label: prof.companion_label, meet_channels: prof.meet_channels },
+      pricing: prof.pricing, companion_label: prof.companion_label, meet_channels: prof.meet_channels, terms: prof.terms },
     plan: a.tenant.plan,
     card_to_card_allowed: cardToCardAllowed,
   }, { headers: NO_STORE })
@@ -92,6 +92,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   }
   if ('settlement_sheba_holder_name' in body) profilePatch.settlement_sheba_holder_name = String(body.settlement_sheba_holder_name || '').trim().slice(0, 80)
   if ('pricing' in body) profilePatch.pricing = mergePricing(body.pricing)
+  if ('terms' in body) profilePatch.terms = mergeTerms(body.terms)
   if ('companion_label' in body) profilePatch.companion_label = String(body.companion_label || '').trim().slice(0, 20)
   // روش جلسه‌ی آنلاین و مقدارش با هم اعتبارسنجی می‌شوند — چون قاعده‌ی معتبربودن
   // به روش وابسته است (لینک برای گوگل‌میت/زوم، شماره‌ی موبایل برای واتساپ/بله/تلفن).

@@ -3,9 +3,9 @@ import { useState, useEffect, useMemo, useRef } from 'react'
 import { useParams } from 'next/navigation'
 import { toFarsiNum, toLatinNum, getCurrentJalali } from '@/lib/calendar'
 import { PSY_PRICING as PRICING } from '@/lib/psy'
-import { usePublicClinic, CardChooser } from '@/components/PsyPublic'
+import { usePublicClinic, CardChooser, TermsGate } from '@/components/PsyPublic'
 import { onlineAvailable, offlineAvailable, fieldVisible, missingIntakeFields } from '@/lib/psy'
-import type { PaymentCardInfo, IntakeForm, FormField, PaymentMethods } from '@/lib/psy'
+import type { PaymentCardInfo, IntakeForm, FormField, PaymentMethods, PublicDoctor } from '@/lib/psy'
 import { DialogHost, uiAlert, uiConfirm, uiPrompt } from '@/components/ui/Dialog'
 import { JalaliDateWheel } from '@/components/WheelPicker'
 import { useTenantThemeColor } from '@/lib/useTenantThemeColor'
@@ -168,7 +168,7 @@ export default function InterviewPage() {
  }
 
  if (step === 'pay') return <InterviewPayScreen amount={sessionType === 'online' ? (displayDoctor?.pricing.online ?? PRICING.online) : (displayDoctor?.pricing.offline ?? PRICING.offline)} cards={settings.cards} loaded={settings.loaded} loading={loading}
-  onPay={submitInterviewPayment} paymentMethods={displayDoctor?.payment_methods} slug={slug} caseNumber={caseNumber} phone={contactPhone} stageId={stageId} resourceId={displayDoctor?.id}
+  onPay={submitInterviewPayment} paymentMethods={displayDoctor?.payment_methods} doctor={displayDoctor} slug={slug} caseNumber={caseNumber} phone={contactPhone} stageId={stageId} resourceId={displayDoctor?.id}
   sessionType={sessionType || undefined} officeLocation={officeLoc} />
 
  if (step === 'done') return (
@@ -492,12 +492,14 @@ function StepBar({ current }: { current: number }) {
  )
 }
 // صفحه‌ی پرداخت کارت‌به‌کارت مصاحبه‌ی اولیه
-function InterviewPayScreen({ amount, cards, loaded, loading, onPay, paymentMethods, slug, caseNumber, phone, stageId, resourceId, sessionType, officeLocation }: {
+function InterviewPayScreen({ amount, cards, loaded, loading, onPay, paymentMethods, doctor, slug, caseNumber, phone, stageId, resourceId, sessionType, officeLocation }: {
  amount: number; cards: PaymentCardInfo[]; loaded: boolean; loading: boolean; onPay: (ref: string, discountCode?: string) => void
- paymentMethods?: PaymentMethods; slug: string; caseNumber: string; phone: string; stageId: string; resourceId?: string
+ paymentMethods?: PaymentMethods; doctor?: PublicDoctor; slug: string; caseNumber: string; phone: string; stageId: string; resourceId?: string
  sessionType?: 'online' | 'offline'; officeLocation?: string
 }) {
  const [ref, setRef] = useState('')
+ const [termsAccepted, setTermsAccepted] = useState(false)
+ const termsBlocked = !!doctor?.terms.enabled && !termsAccepted
  const online = !!paymentMethods?.online
  const cardToCard = paymentMethods ? paymentMethods.card_to_card : false
 
@@ -600,6 +602,8 @@ function InterviewPayScreen({ amount, cards, loaded, loading, onPay, paymentMeth
      </div>
     )}
 
+    <TermsGate doctor={doctor} accepted={termsAccepted} onAcceptedChange={setTermsAccepted} />
+
     {online && cardToCard && (
      <div className="grid grid-cols-2 gap-2 mb-3 p-1 bg-gray-100 rounded-xl">
       <button onClick={() => setPicked('online')}
@@ -617,8 +621,8 @@ function InterviewPayScreen({ amount, cards, loaded, loading, onPay, paymentMeth
      <>
       <p className="text-xs text-soot mb-3 text-center">اول وقت مصاحبه را انتخاب کنید، سپس پرداخت می‌کنید. به‌محض تایید پرداخت، همان وقت برایتان ثبت می‌شود.</p>
       {onlineError && <div className="text-xs text-red-600 bg-red-500/10 border border-red-500/20 rounded-lg p-2.5 mb-3 text-center">{onlineError}</div>}
-      <button onClick={() => setShowSlotPicker(true)}
-       className="w-full py-3 bg-accent text-white rounded-xl text-sm font-medium">
+      <button onClick={() => setShowSlotPicker(true)} disabled={termsBlocked}
+       className="w-full py-3 bg-accent text-white rounded-xl text-sm font-medium disabled:opacity-40">
        انتخاب وقت و پرداخت
       </button>
      </>
@@ -631,7 +635,7 @@ function InterviewPayScreen({ amount, cards, loaded, loading, onPay, paymentMeth
       <label className="text-xs text-soot mb-1 block">متن فیش واریزی <span className="text-red-500">*</span></label>
       <textarea value={ref} onChange={e => setRef(e.target.value)} rows={3} placeholder="اطلاعات فیش واریزی را وارد کنید (کد پیگیری، شماره کارت مبدأ، تاریخ و ساعت واریز...)"
        className="w-full text-sm px-3 py-2.5 border border-sand rounded-xl focus:outline-none focus:border-ink mb-3 resize-none" />
-      <button onClick={() => onPay(ref.trim(), discountResult?.ok ? discountCode.trim() : undefined)} disabled={loading || !ref.trim()}
+      <button onClick={() => onPay(ref.trim(), discountResult?.ok ? discountCode.trim() : undefined)} disabled={loading || !ref.trim() || termsBlocked}
        className="w-full py-3 bg-accent text-white rounded-xl text-sm font-medium disabled:opacity-40">
        {loading ? 'در حال ثبت...' : 'پرداخت کردم'}
       </button>
