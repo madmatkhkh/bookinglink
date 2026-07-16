@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { sb } from '@/lib/supabase'
 import { getActiveTenant } from '@/lib/tenant'
 import { STAGE_STATUS } from '@/lib/flow'
-import { validateClientSlot, slotTaken } from '@/lib/psy'
+import { validateClientSlot } from '@/lib/psy'
+import { acquireActiveLock, releaseLockBySlot } from '@/lib/slotLocks'
 import { getClientPhone, matchesClientIdentity } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
@@ -33,15 +34,21 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   const slotOk = await validateClientSlot(t.id, booking.resource_id, session_date, session_time)
   if (!slotOk.ok) return NextResponse.json({ error: slotOk.error }, { status: 400 })
 
-  if (await slotTaken(t.id, booking.resource_id, session_date, session_time, stage_id))
+  // ضدتداخل اساسی: به‌جای «اول چک کن»، قفل اتمی بگیر (slot_locks، migration
+  // 0030). موفق نشد = گرفته‌شده. این بین‌جدولی است — با جلسه‌ی پکیج هم تداخل
+  // می‌گیرد، نه فقط مرحله‌ی دیگر.
+  const locked = await acquireActiveLock(t.id, booking.resource_id,
+    { session_date, session_time }, { table: 'psy_stages', id: stage_id, caseNumber: case_number })
+  if (!locked)
     return NextResponse.json({ error: 'این ساعت قبلا رزرو شده. لطفا زمان دیگری انتخاب کنید.' }, { status: 409 })
 
   const { error } = await sb().from('psy_stages')
     .update({ session_date, session_time, status: STAGE_STATUS.BOOKED, cancel_notice: null })
     .eq('id', stage_id).eq('tenant_id', t.id)
   if (error) {
-    // 23505 = unique index اسلات (migration 0019) — دو درخواست هم‌زمان روی یک ساعت؛
-    // چک بالا race را نمی‌گیرد، این ضامن نهایی دیتابیس است.
+    // update شکست خورد → قفلی که تازه گرفتیم را آزاد کن تا اسلات بلوکه نماند
+    await releaseLockBySlot(t.id, booking.resource_id, { session_date, session_time })
+    // 23505 = unique index قدیمی اسلات (دفاع دولایه) — دو درخواست هم‌زمان
     if ((error as any).code === '23505')
       return NextResponse.json({ error: 'این ساعت همین الان توسط شخص دیگری رزرو شد. لطفا زمان دیگری انتخاب کنید.' }, { status: 409 })
     console.error('psy/stage-book error:', error)

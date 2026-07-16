@@ -80,6 +80,7 @@ export default function PatientPanel() {
  const [activeTab, setActiveTab] = useState<ClientTab>(VALID_CLIENT_TABS.includes(initialSection) ? initialSection : 'packages')
  const [selectedPkg, setSelectedPkg] = useState<Package | null>(null)
  const [scheduleView, setScheduleView] = useState(false)
+ const [prepayView, setPrepayView] = useState(false)
  const [showSlotPicker, setShowSlotPicker] = useState(false)
  const resend = useResendCooldown()
 
@@ -502,7 +503,8 @@ export default function PatientPanel() {
 
          {!pkg.paid ? (
           !pkg.payment_submitted ? (
-           <PayButton pkg={pkg} phone={phone} onSuccess={() => loadData(booking.case_number)} total={total} />
+           <PayButton pkg={pkg} phone={phone} onSuccess={() => loadData(booking.case_number)} total={total}
+            onPrepayOnline={() => { setSelectedPkg(pkg); setPrepayView(true) }} />
           ) : (
            <div className="text-center py-2 text-xs text-amber-600 bg-amber-500/10 rounded-xl border border-amber-500/20">پرداخت ثبت شد — در انتظار تأیید</div>
           )
@@ -574,6 +576,21 @@ export default function PatientPanel() {
      resourceId={booking.resource_id}
      onClose={() => setScheduleView(false)}
      onDone={() => { setScheduleView(false); loadData(booking.case_number) }}
+    />
+   )}
+
+   {/* Prepay Picker Modal — انتخاب همه‌ی جلسات قبل از پرداخت آنلاین (گزینه الف) */}
+   {prepayView && selectedPkg && (
+    <SchedulePicker
+     mode="prepay"
+     payTotal={pkgPrice(selectedPkg)}
+     pkg={selectedPkg}
+     existingSessions={[]}
+     phone={phone}
+     caseNumber={booking.case_number}
+     resourceId={booking.resource_id}
+     onClose={() => setPrepayView(false)}
+     onDone={() => { setPrepayView(false); loadData(booking.case_number) }}
     />
    )}
   </div>
@@ -873,7 +890,7 @@ function SessionCard({ session: s, num, phone, caseNumber, onUpdate }: {
 }
 
 // ==================== PAY BUTTON (کارت‌به‌کارت پروتکل درمان) ====================
-function PayButton({ pkg, phone, onSuccess, total }: { pkg: Package; phone: string; onSuccess: () => void; total: number }) {
+function PayButton({ pkg, phone, onSuccess, total, onPrepayOnline }: { pkg: Package; phone: string; onSuccess: () => void; total: number; onPrepayOnline: () => void }) {
  const [open, setOpen] = useState(false)
  const [paying, setPaying] = useState(false)
  const [ref, setRef] = useState('')
@@ -896,17 +913,11 @@ function PayButton({ pkg, phone, onSuccess, total }: { pkg: Package; phone: stri
   onSuccess()
  }
 
- async function payOnline() {
-  setOnlineLoading(true)
-  try {
-   const res = await fetch(`/api/t/${slug}/psy/pay-online`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ case_number: pkg.case_number, phone, purpose: 'package', ref_id: pkg.id }),
-   })
-   const data = await res.json()
-   if (data.url) window.location.href = data.url
-   else { uiAlert(data.error || 'خطا در اتصال به درگاه'); setOnlineLoading(false) }
-  } catch { uiAlert('خطا در ارتباط با سرور'); setOnlineLoading(false) }
+ function payOnline() {
+  // گزینه الف: پرداخت آنلاین پروتکل «اول انتخاب جلسات، بعد درگاه» است.
+  // پس اینجا مستقیم به درگاه نمی‌رویم؛ پیکر انتخاب جلسات (mode=prepay) باز
+  // می‌شود و بعد از انتخاب کامل، خودش به pay-online با package_slots می‌رود.
+  onPrepayOnline()
  }
 
  // تا نرسیدن روش‌های پرداخت، هیچ دکمه‌ای نشان نمی‌دهیم — نه دکمه‌ی اشتباه، نه هیچ‌کدام
@@ -948,9 +959,13 @@ function PayButton({ pkg, phone, onSuccess, total }: { pkg: Package; phone: stri
 
 
 // ==================== SCHEDULE PICKER ====================
-function SchedulePicker({ pkg, existingSessions, phone, caseNumber, onClose, onDone, resourceId }: {
+function SchedulePicker({ pkg, existingSessions, phone, caseNumber, onClose, onDone, resourceId, mode = 'schedule', payTotal }: {
  pkg: Package; existingSessions: Session[]; phone: string; caseNumber: string; onClose: () => void; onDone: () => void
  resourceId?: string | null
+ // 'schedule' = پروتکل قبلا پرداخت‌شده، جلسات را می‌سازد (رفتار قدیمی).
+ // 'prepay'  = پروتکل هنوز پرداخت‌نشده؛ اول همه‌ی جلسات انتخاب، بعد درگاه (گزینه الف).
+ mode?: 'schedule' | 'prepay'
+ payTotal?: number
 }) {
  const { slug } = useParams<{ slug: string }>()
  useModalBackClose(true, onClose)
@@ -1032,23 +1047,47 @@ function SchedulePicker({ pkg, existingSessions, phone, caseNumber, onClose, onD
 
  async function confirmSessions() {
   setSaving(true)
-  const sessionsToCreate = []
-  for (const [day, slots] of Object.entries(selectedSlots)) {
-   for (const slot of slots) {
-    sessionsToCreate.push({
+  // اسلات‌های انتخاب‌شده را با نوع/attendee جمع می‌کنیم — هر دو حالت لازمش دارند
+  const slots = []
+  for (const [day, daySlots] of Object.entries(selectedSlots)) {
+   for (const slot of daySlots) {
+    const attendee = attendeeMap[`${day}-${slot}`] || 'primary'
+    slots.push({
      case_number: caseNumber,
      package_id: pkg.id,
      session_date: `${curYear}/${curMonth + 1}/${day}`,
      session_time: slot,
-     session_type: pkg.primary_session_type,
-     attendee: attendeeMap[`${day}-${slot}`] || 'primary',
+     session_type: attendee === 'secondary' ? pkg.secondary_session_type : pkg.primary_session_type,
+     attendee,
     })
    }
   }
+
+  if (mode === 'prepay') {
+   // گزینه الف: همه‌ی جلسات انتخاب شدند → حالا برو درگاه با package_slots.
+   // callback بعد از پرداخت موفق جلسات را می‌سازد. اینجا هیچ جلسه‌ای ساخته
+   // نمی‌شود؛ فقط قفل موقت گرفته و به زیبال هدایت می‌شویم.
+   const res = await fetch(`/api/t/${slug}/psy/pay-online`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+     case_number: caseNumber, phone, purpose: 'package', ref_id: pkg.id,
+     package_slots: slots.map(s => ({ session_date: s.session_date, session_time: s.session_time, session_type: s.session_type, attendee: s.attendee })),
+    }),
+   })
+   const data = await res.json().catch(() => ({}))
+   setSaving(false)
+   if (data.url) { window.location.href = data.url; return }
+   uiAlert(data.error || 'خطا در اتصال به درگاه. لطفا دوباره تلاش کنید.')
+   setSelectedSlots({}); setAttendeeMap({}); setSelectedDay(null)
+   loadSchedule(curMonth, curYear)
+   return
+  }
+
+  // حالت schedule (پروتکل قبلا پرداخت‌شده): جلسات را مستقیم بساز
   const res = await fetch(`/api/t/${slug}/psy/sessions`, {
    method: 'POST',
    headers: { 'Content-Type': 'application/json' },
-   body: JSON.stringify({ sessions: sessionsToCreate, phone })
+   body: JSON.stringify({ sessions: slots, phone })
   })
   const data = await res.json().catch(() => ({}))
   setSaving(false)
@@ -1204,7 +1243,9 @@ function SchedulePicker({ pkg, existingSessions, phone, caseNumber, onClose, onD
 
      <button onClick={confirmSessions} disabled={totalSelected < remaining || saving}
       className="w-full py-3 bg-accent text-white rounded-xl text-sm font-medium disabled:opacity-40">
-      {saving ? 'در حال ثبت...' : totalSelected < remaining ? `${remaining - totalSelected} جلسه دیگر انتخاب کنید` : 'ثبت روزهای جلسات'}
+      {saving ? (mode === 'prepay' ? 'در حال اتصال به درگاه...' : 'در حال ثبت...')
+        : totalSelected < remaining ? `${remaining - totalSelected} جلسه دیگر انتخاب کنید`
+        : mode === 'prepay' ? `پرداخت ${(payTotal || 0).toLocaleString()} تومان` : 'ثبت روزهای جلسات'}
      </button>
     </div>
    </div>

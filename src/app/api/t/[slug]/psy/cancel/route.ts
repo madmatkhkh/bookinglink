@@ -4,6 +4,7 @@ import { getActiveTenant } from '@/lib/tenant'
 import { requireModule } from '@/lib/modules'
 import { jalaliDateTimeToTimestamp } from '@/lib/calendar'
 import { getCancellationPolicy } from '@/lib/psy'
+import { releaseLockBySlot } from '@/lib/slotLocks'
 import { getClientPhone, matchesClientIdentity } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
@@ -38,8 +39,16 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   const hours = ts === null ? null : (ts - Date.now()) / (1000 * 60 * 60)
   if (hours === null || hours <= 0) return NextResponse.json({ error: 'زمان این جلسه گذشته است' }, { status: 400 })
 
+  // اسلات آزادشده باید از slot_locks هم حذف شود تا فورا برای دیگران آزاد شود.
+  // مختصات را قبل از پاک‌کردن نگه می‌داریم و در هر مسیر خروج آزاد می‌کنیم.
+  const freedSlot = { session_date: session.session_date, session_time: session.session_time }
+  const releaseSlot = () => session.resource_id
+    ? releaseLockBySlot(t.id, session.resource_id, freedSlot)
+    : Promise.resolve()
+
   if (!session.paid) {
     await sb().from('psy_sessions').update({ session_date: '', session_time: '' }).eq('id', session_id)
+    await releaseSlot()
     return NextResponse.json({ success: true, outcome: 'unpaid_released' })
   }
 
@@ -55,6 +64,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
       refund_card: earlyPercent > 0 ? (card || null) : null,
       refund_status: earlyPercent > 0 && card ? 'pending' : null,
     }).eq('id', session_id)
+    await releaseSlot()
     return NextResponse.json({ success: true, outcome: earlyPercent > 0 ? 'partial_refund' : 'forfeited', refund_percent: earlyPercent })
   } else {
     const card = (refund_card || '').toString().trim()
@@ -64,6 +74,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
       refund_card: latePercent > 0 ? (card || null) : null,
       refund_status: latePercent > 0 && card ? 'pending' : null,
     }).eq('id', session_id)
+    await releaseSlot()
     return NextResponse.json({ success: true, outcome: latePercent > 0 ? 'partial_refund' : 'forfeited', refund_percent: latePercent })
   }
 }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { sb } from '@/lib/supabase'
 import { getActiveTenant } from '@/lib/tenant'
 import { validateClientSlot } from '@/lib/psy'
+import { acquireActiveLock, releaseLockBySlot } from '@/lib/slotLocks'
 import { getClientPhone, matchesClientIdentity } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
@@ -30,16 +31,15 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   const slotOk = await validateClientSlot(t.id, booking.resource_id, session_date, session_time)
   if (!slotOk.ok) return NextResponse.json({ error: slotOk.error }, { status: 400 })
 
-  const db = sb()
-  const [{ data: takenS }, { data: takenSt }] = await Promise.all([
-    db.from('psy_sessions').select('id').eq('tenant_id', t.id).eq('resource_id', booking.resource_id).eq('session_date', session_date).eq('session_time', session_time).neq('id', session_id),
-    db.from('psy_stages').select('id').eq('tenant_id', t.id).eq('resource_id', booking.resource_id).eq('session_date', session_date).eq('session_time', session_time),
-  ])
-  if ((takenS && takenS.length > 0) || (takenSt && takenSt.length > 0))
+  // ضدتداخل اساسی: قفل اتمی (slot_locks). بین‌جدولی و بدون race.
+  const locked = await acquireActiveLock(t.id, booking.resource_id,
+    { session_date, session_time }, { table: 'psy_sessions', id: session_id, caseNumber: case_number })
+  if (!locked)
     return NextResponse.json({ error: 'این ساعت قبلا رزرو شده. لطفا زمان دیگری انتخاب کنید.' }, { status: 409 })
 
   const { error } = await sb().from('psy_sessions').update({ session_date, session_time }).eq('id', session_id)
   if (error) {
+    await releaseLockBySlot(t.id, booking.resource_id, { session_date, session_time })
     if ((error as any).code === '23505')
       return NextResponse.json({ error: 'این ساعت همین الان توسط شخص دیگری رزرو شد. لطفا زمان دیگری انتخاب کنید.' }, { status: 409 })
     console.error('src/app/api/t/[slug]/psy/schedule-one/route.ts error:', error)

@@ -821,3 +821,27 @@
 - 🗑 وابستگی sharp از package.json حذف شد (فقط برای ساخت apple-icon/پیش‌نمایش‌ها استفاده شده بود؛ apple-icon.png حالا فایل ثابت است و به sharp در runtime نیاز ندارد).
 - ✅ **دست‌نخورده و سالم:** متادیتای openGraph متنی (عنوان/توضیح) در layout.tsx و [slug]/page.tsx — بدون کلید images، پس Next تمیز بدون تصویر رندر می‌کند. لوگوی جدید (logo.svg/icon.svg/apple-icon.png) و جایگزینی نشان برند در login/signup/PanelLogin هم دست نخورد.
 - 🧠 درس ثبت‌شده: satori الگوریتم بیدی کامل ندارد؛ برای متن RTL چندکلمه‌ای در تصاویر og، رندر قابل‌اعتماد نیاز به شکل‌دهی harfbuzz→SVG-path دارد (نه چیدمان flex). اگر روزی og لازم شد، این مسیر درست است، نه دستکاری flexDirection.
+
+## چنج‌لاگ 1405/04/25 (2026-07-16) — ضدتداخل اساسی + پرداخت پیش از رزرو (slot_locks)
+
+قانون کلی جدید: **اول اسلات قفل شود، بعد پرداخت، و رزرو فقط با قفل موفق ثبت شود.** پیاده‌سازی برای مقیاس بالا (دیتابیس تنها مرجع، نه pre-check برنامه که در همزمانی می‌شکند).
+
+### زیرساخت
+- **migration 0030_slot_locks.sql:** جدول slot_locks با UNIQUE(tenant,resource,date,time) به‌عنوان تنها مرجع ضدتداخل — بین‌جدولی (مصاحبه/ارزیابی/جلسه‌ی پکیج/جایگزین همه یک فضای قفل مشترک). status: pending (قفل موقت پرداخت با expires_at) / active (رزرو نهایی). backfill رزروهای موجود. ستون package_slots روی psy_payment_intents اضافه شد.
+- **src/lib/slotLocks.ts:** primitiveهای اتمی — acquireActiveLock/acquireActiveLocksAtomic (all-or-nothing با rollback)/acquirePendingLocksAtomic (TTL=15دقیقه، sweep منقضی‌ها)/activatePendingLocks/releaseLocks/releaseLockBySource/releaseLockBySlot/sweepExpiredLocks.
+
+### نقاط رزرو (همه از قفل اتمی استفاده می‌کنند، دیگر «اول چک کن گرفته‌شده؟» نیست)
+- **stage-book** و **schedule-one:** acquireActiveLock + releaseLockBySlot در صورت شکست update.
+- **sessions (جلسات پکیج پرداخت‌شده):** acquireActiveLocksAtomic + چک تکراری درون batch + rollback.
+- **pay-online:** مرحله و پروتکل هر دو acquirePendingLocksAtomic (قفل موقت قبل درگاه).
+- **callback:** activatePendingLocks؛ برای پروتکل جلسات واقعی را از package_slots ذخیره‌شده می‌سازد.
+- **cancel:** releaseLockBySlot در هر مسیر خروج (اسلات فورا آزاد می‌شود).
+
+### پرداخت پروتکل درمان — گزینه الف (اول انتخاب همه‌ی جلسات، بعد پرداخت)
+- **قبلا باگ:** پروتکل اول وارد درگاه می‌شد، بعد جلسات زمان‌بندی می‌شدند.
+- **حالا:** دکمه‌ی پرداخت آنلاین پروتکل → SchedulePicker با mode=prepay باز می‌شود → مراجع همه‌ی جلسات را انتخاب می‌کند → قفل موقت همه گرفته می‌شود → درگاه → callback جلسات را می‌سازد و قفل‌ها را active می‌کند. اگر پرداخت رها شد، قفل‌های موقت با TTL آزاد می‌شوند.
+- SchedulePicker حالا prop اختیاری mode ('schedule'|'prepay') و payTotal دارد.
+
+### باگ ضدتداخل بین‌جدولی که رفع شد
+دو unique index جدا (psy_sessions_slot_uniq، psy_stages_slot_uniq) همدیگر را نمی‌دیدند — یک جلسه و یک مرحله می‌توانستند در race یک ساعت را بگیرند. slot_locks این شکاف را با یک UNIQUE مشترک می‌بندد. indexهای قدیمی به‌عنوان دفاع دولایه ماندند.
+- slotTaken در psy.ts دیگر استفاده نمی‌شود (تعریفش بی‌ضرر ماند).

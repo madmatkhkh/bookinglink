@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { sb } from '@/lib/supabase'
 import { getActiveTenant } from '@/lib/tenant'
-import { getPaymentMethods, effectivePaymentMethods, isCardToCardAllowed, getResourceProfile, isValidSheba, getResourcePricing, packageAmount, resolvePrice, checkDiscountCode, validateClientSlot, slotTaken } from '@/lib/psy'
+import { getPaymentMethods, effectivePaymentMethods, isCardToCardAllowed, getResourceProfile, isValidSheba, getResourcePricing, packageAmount, resolvePrice, checkDiscountCode, validateClientSlot } from '@/lib/psy'
+import { acquirePendingLocksAtomic, sweepExpiredLocks } from '@/lib/slotLocks'
 import { stageTitle } from '@/lib/flow'
 import { requestZibalPayment, PLATFORM_COMMISSION_PERCENT, MULTIPLEXING_ENABLED } from '@/lib/zibal'
 import { getClientPhone, getPayCase, matchesClientIdentity } from '@/lib/auth'
@@ -18,7 +19,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   const t = await getActiveTenant(params.slug)
   if (!t) return NextResponse.json({ error: 'یافت نشد' }, { status: 404 })
 
-  const { case_number, purpose, ref_id, discount_code, session_date, session_time } = await req.json() as { case_number: string; purpose: Purpose; ref_id?: string; discount_code?: string; session_date?: string; session_time?: string }
+  const { case_number, purpose, ref_id, discount_code, session_date, session_time, package_slots } = await req.json() as { case_number: string; purpose: Purpose; ref_id?: string; discount_code?: string; session_date?: string; session_time?: string; package_slots?: { session_date: string; session_time: string; session_type?: string; attendee?: string }[] }
   // auth با کوکی امضاشده — نه شماره‌ای که کلاینت در body می‌فرستد. دو راه مجاز:
   // 1) کوکی مراجع OTPشده که شماره‌اش روی پرونده باشد (پنل /my)
   // 2) کوکی مجوز پرداخت همین پرونده (فلو مصاحبه‌ی اولیه، درست بعد از ثبت فرم)
@@ -51,22 +52,46 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
     description = `هزینه‌ی ${stageTitle(stage)}`
 
     // پرداخت آنلاین = «اول وقت، بعد پرداخت» — پس وقت باید همین‌جا بیاید و همین
-    // حالا اعتبارسنجی شود؛ جلوی «پول بده، بعد بفهم آن ساعت اصلا آزاد نبود» را
-    // می‌گیرد. کارت‌به‌کارت این مسیر را نمی‌رود و ترتیب قبلی‌اش (تایید دکتر، بعد
-    // گرفتن وقت) دست‌نخورده است.
+    // حالا اعتبارسنجی و به‌صورت قفل موقت (pending) رزرو شود. کارت‌به‌کارت این
+    // مسیر را نمی‌رود و ترتیب قبلی‌اش دست‌نخورده است.
     if (!session_date || !session_time)
       return NextResponse.json({ error: 'اول وقت جلسه را انتخاب کنید' }, { status: 400 })
     const slotOk = await validateClientSlot(t.id, c.resource_id, session_date, session_time)
     if (!slotOk.ok) return NextResponse.json({ error: slotOk.error }, { status: 400 })
-    if (await slotTaken(t.id, c.resource_id, session_date, session_time, ref_id))
+    // قفل موقت پرداخت (TTL): اسلات تا وقتی مراجع در درگاه است نگه داشته می‌شود.
+    // اگر پرداخت نشد، خودکار آزاد می‌شود. callback بعد از موفقیت active می‌کند.
+    const lockRes = await acquirePendingLocksAtomic(t.id, c.resource_id,
+      [{ session_date, session_time }], { table: 'psy_stages', caseNumber: case_number })
+    if (!lockRes.ok)
       return NextResponse.json({ error: 'این ساعت قبلا رزرو شده. لطفا زمان دیگری انتخاب کنید.' }, { status: 409 })
   } else if (purpose === 'package') {
     if (!ref_id) return NextResponse.json({ error: 'شناسه‌ی پروتکل لازم است' }, { status: 400 })
     const { data: pkg } = await sb().from('psy_packages').select('*').eq('id', ref_id).eq('tenant_id', t.id).eq('case_number', case_number).single()
     if (!pkg) return NextResponse.json({ error: 'پروتکل یافت نشد' }, { status: 404 })
     if (pkg.paid) return NextResponse.json({ error: 'قبلا پرداخت شده' }, { status: 400 })
-    // ردیف‌های قدیمی ممکن است price ذخیره‌شده نداشته باشند (۰) — برای آن‌ها با
-    // قیمت فعلی دکتر بازمحاسبه می‌شود؛ ردیف‌های تازه از روی price ذخیره‌شده‌ی خودشان می‌آیند.
+    // گزینه الف: مراجع همه‌ی جلسات پروتکل را قبل از پرداخت انتخاب می‌کند. اینجا
+    // اعتبارسنجی و قفل موقت می‌شوند؛ callback بعد از پرداخت موفق، جلسات واقعی را
+    // می‌سازد. تعداد باید دقیقا برابر ظرفیت پروتکل باشد.
+    const totalSessions = (pkg.primary_sessions || 0) + (pkg.secondary_sessions || 0)
+    if (!package_slots || !Array.isArray(package_slots) || package_slots.length !== totalSessions)
+      return NextResponse.json({ error: `باید دقیقا ${totalSessions} جلسه انتخاب کنید` }, { status: 400 })
+    // اسلات‌های تکراری داخل انتخاب
+    const seen = new Set<string>()
+    for (const s of package_slots) {
+      if (!s.session_date || !s.session_time) return NextResponse.json({ error: 'انتخاب زمان ناقص است' }, { status: 400 })
+      const k = `${s.session_date}|${s.session_time}`
+      if (seen.has(k)) return NextResponse.json({ error: 'یک ساعت را دوبار انتخاب کرده‌اید' }, { status: 400 })
+      seen.add(k)
+      const v = await validateClientSlot(t.id, c.resource_id, s.session_date, s.session_time)
+      if (!v.ok) return NextResponse.json({ error: v.error }, { status: 400 })
+    }
+    // قفل موقت همه‌ی اسلات‌ها به‌صورت اتمی
+    const lockRes = await acquirePendingLocksAtomic(t.id, c.resource_id,
+      package_slots.map(s => ({ session_date: s.session_date, session_time: s.session_time })),
+      { table: 'psy_sessions', caseNumber: case_number })
+    if (!lockRes.ok)
+      return NextResponse.json({ error: `ساعت ${lockRes.conflict.session_time} در تاریخ ${lockRes.conflict.session_date} قبلا رزرو شده. لطفا زمان دیگری انتخاب کنید.` }, { status: 409 })
+    // ردیف‌های قدیمی ممکن است price ذخیره‌شده نداشته باشند (۰) — بازمحاسبه
     amount = pkg.price || packageAmount(pkg, resourcePricing)
     description = 'هزینه‌ی پروتکل درمان'
   } else if (purpose === 'session') {
@@ -99,6 +124,8 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
     settlement_sheba: shebaOk ? profile.settlement_sheba : null,
     // فقط برای مرحله معنا دارد — کال‌بک بعد از verify موفق همین را روی مرحله ثبت می‌کند
     ...(purpose === 'stage' ? { booking_date: session_date, booking_time: session_time } : {}),
+    // اسلات‌های انتخاب‌شده‌ی پروتکل — callback جلسات را از رویشان می‌سازد
+    ...(purpose === 'package' && package_slots ? { package_slots } : {}),
     ...(discountCodeCheck?.ok ? {
       discount_code_id: discountCodeCheck.id, discount_code: discountCodeCheck.code,
       discount_amount: discountCodeCheck.discountAmount, original_amount: originalAmount,

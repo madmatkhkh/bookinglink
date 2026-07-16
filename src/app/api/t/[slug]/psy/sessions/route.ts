@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { sb } from '@/lib/supabase'
 import { getActiveTenant } from '@/lib/tenant'
 import { getClientPhone, matchesClientIdentity } from '@/lib/auth'
+import { acquireActiveLocksAtomic, releaseLocks } from '@/lib/slotLocks'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -20,19 +21,22 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   if (!booking || !matchesClientIdentity(booking, phone))
     return NextResponse.json({ error: 'دسترسی ندارید' }, { status: 403 })
 
-  const reqDates = Array.from(new Set(sessions.map((s: any) => s.session_date)))
-  const db = sb()
-  const [{ data: takenSessions }, { data: takenStages }] = await Promise.all([
-    db.from('psy_sessions').select('session_date, session_time').eq('tenant_id', t.id).eq('resource_id', booking.resource_id).in('session_date', reqDates),
-    db.from('psy_stages').select('session_date, session_time').eq('tenant_id', t.id).eq('resource_id', booking.resource_id).in('session_date', reqDates),
-  ])
-  const takenSet = new Set<string>()
-  for (const s of takenSessions || []) takenSet.add(`${s.session_date}|${s.session_time}`)
-  for (const s of takenStages || []) if (s.session_date && s.session_time) takenSet.add(`${s.session_date}|${s.session_time}`)
+  // درون همین batch هم نباید دو اسلات تکراری باشد (قبلا فقط با DB چک می‌شد)
+  const seen = new Set<string>()
+  for (const s of sessions) {
+    const k = `${s.session_date}|${s.session_time}`
+    if (seen.has(k)) return NextResponse.json({ error: `ساعت ${s.session_time} در تاریخ ${s.session_date} دوبار انتخاب شده.` }, { status: 400 })
+    seen.add(k)
+  }
 
-  const clash = sessions.find((s: any) => takenSet.has(`${s.session_date}|${s.session_time}`))
-  if (clash)
-    return NextResponse.json({ error: `ساعت ${clash.session_time} در تاریخ ${clash.session_date} قبلا رزرو شده.` }, { status: 409 })
+  // ضدتداخل اساسی: همه‌ی اسلات‌ها را اتمی قفل کن (slot_locks، migration 0030).
+  // all-or-nothing: اگر یکی گرفته‌شده باشد، قفل‌های گرفته‌شده‌ی همین درخواست
+  // برگردانده می‌شوند و اسلات متضاد گزارش می‌شود. بین‌جدولی: با مصاحبه/ارزیابی
+  // هم تداخل می‌گیرد، نه فقط جلسه‌ی دیگر.
+  const lockSlots = sessions.map((s: any) => ({ session_date: s.session_date, session_time: s.session_time }))
+  const lockRes = await acquireActiveLocksAtomic(t.id, booking.resource_id, lockSlots, { table: 'psy_sessions', caseNumber: case_number })
+  if (!lockRes.ok)
+    return NextResponse.json({ error: `ساعت ${lockRes.conflict.session_time} در تاریخ ${lockRes.conflict.session_date} قبلا رزرو شده.` }, { status: 409 })
 
   const { count } = await sb().from('psy_sessions').select('id', { count: 'exact' })
     .eq('tenant_id', t.id).eq('case_number', case_number)
@@ -42,6 +46,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
 
   const { error } = await sb().from('psy_sessions').insert(toInsert)
   if (error) {
+    await releaseLocks(t.id, booking.resource_id, lockSlots) // rollback قفل‌ها
     if (error.code === '23505')
       return NextResponse.json({ error: 'این ساعت همین الان توسط فرد دیگری رزرو شد.' }, { status: 409 })
     console.error('psy/sessions POST error:', error)

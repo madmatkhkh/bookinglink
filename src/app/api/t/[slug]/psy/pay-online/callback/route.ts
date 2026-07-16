@@ -4,6 +4,7 @@ import { getActiveTenant } from '@/lib/tenant'
 import { verifyZibalPayment } from '@/lib/zibal'
 import { recordLedgerEntry, LedgerPurpose } from '@/lib/ledger'
 import { redeemDiscountCode } from '@/lib/psy'
+import { activatePendingLocks, releaseLockBySlot, releaseLocks } from '@/lib/slotLocks'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -110,14 +111,19 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
     const wantsSlot = !!(intent.booking_date && intent.booking_time)
     let booked = false
     if (wantsSlot) {
+      // قفل موقت این اسلات موقع رفتن به درگاه گرفته شده بود؛ حالا active می‌شود.
+      await activatePendingLocks(t.id, intent.resource_id, intent.case_number, { table: 'psy_stages' })
       const { error: bookErr } = await sb().from('psy_stages').update({
         paid: true, status: 'booked', price: intent.amount,
         session_date: intent.booking_date, session_time: intent.booking_time,
         cancel_notice: null, ...discountPatch,
       }).eq('id', intent.ref_id).eq('tenant_id', t.id)
       if (!bookErr) booked = true
-      else if ((bookErr as any).code === '23505') slotTakenFallback = true
-      else console.error('pay-online callback: stage book failed:', bookErr)
+      else if ((bookErr as any).code === '23505') {
+        // نباید رخ دهد (قفل داشتیم) ولی دفاع دولایه: اسلات را آزاد کن
+        await releaseLockBySlot(t.id, intent.resource_id, { session_date: intent.booking_date, session_time: intent.booking_time })
+        slotTakenFallback = true
+      } else console.error('pay-online callback: stage book failed:', bookErr)
     }
     if (!booked) {
       await sb().from('psy_stages').update({ paid: true, status: 'awaiting_booking', price: intent.amount, ...discountPatch })
@@ -128,7 +134,28 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
       await sb().from('psy_cases').update({ status: 'confirmed' }).eq('tenant_id', t.id).eq('case_number', stage.case_number).eq('status', 'pending')
     }
   } else if (intent.purpose === 'package' && intent.ref_id) {
+    // پرداخت موفق پروتکل: قفل‌های موقت را active کن و جلسات واقعی را از
+    // اسلات‌های ذخیره‌شده‌ی intent بساز (گزینه الف).
     await sb().from('psy_packages').update({ paid: true, price: intent.amount, ...discountPatch }).eq('id', intent.ref_id).eq('tenant_id', t.id)
+    const slots = Array.isArray(intent.package_slots) ? intent.package_slots : []
+    if (slots.length) {
+      await activatePendingLocks(t.id, intent.resource_id, intent.case_number, { table: 'psy_sessions' })
+      const { count } = await sb().from('psy_sessions').select('id', { count: 'exact' })
+        .eq('tenant_id', t.id).eq('case_number', intent.case_number)
+      const toInsert = slots.map((s: any, i: number) => ({
+        tenant_id: t.id, resource_id: intent.resource_id, case_number: intent.case_number,
+        package_id: intent.ref_id, session_number: (count || 0) + i + 1,
+        session_date: s.session_date, session_time: s.session_time,
+        session_type: s.session_type || null, attendee: s.attendee || 'primary',
+        status: 'confirmed', paid: true, price: null,
+      }))
+      const { error: insErr } = await sb().from('psy_sessions').insert(toInsert)
+      if (insErr) {
+        // نباید رخ دهد (قفل داشتیم). لاگ کن؛ جلسات با «انتخاب روزهای جلسات»
+        // قابل بازسازی‌اند و قفل‌ها active مانده‌اند تا جای کسی گرفته نشود.
+        console.error('pay-online callback: package sessions insert failed:', insErr)
+      }
+    }
   } else if (intent.purpose === 'session' && intent.ref_id) {
     await sb().from('psy_sessions').update({ paid: true, price: intent.amount, ...discountPatch }).eq('id', intent.ref_id).eq('tenant_id', t.id)
   }
