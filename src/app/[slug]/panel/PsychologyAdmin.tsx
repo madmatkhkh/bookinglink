@@ -295,7 +295,7 @@ export function PsychologyAdmin() {
  // زیرمجموعه‌هایش (صفحه‌ی عمومی + پنل مراجع) همین‌جا زیرش باز می‌شوند.
  // تیم/حساب/پشتیبانی هم از تنظیمات جدا شدند و تب مستقل خودشان را دارند.
  type MainTab = 'dashboard' | 'patients' | 'bookings' | 'schedule' | 'settings' | 'finance' | 'growth' | 'staff' | 'account' | 'tickets'
- type SettingsSub = 'profile' | 'payments' | 'pricing' | 'terms' | 'locations' | 'appearance' | 'form' | 'patient_panel'
+ type SettingsSub = 'profile' | 'payments' | 'pricing' | 'terms' | 'appearance' | 'form' | 'patient_panel'
 
  const [mainTab, setMainTab] = useState<MainTab>('dashboard')
  // null = هیچ زیرتبی باز نیست → «نمای کلی تنظیمات» نشان داده می‌شود. کلیک روی
@@ -1344,11 +1344,10 @@ export function PsychologyAdmin() {
   {
    title: 'صفحه‌ی عمومی', items: [
     { key: 'profile', icon: '👤', label: 'پروفایل' },
-    { key: 'payments', icon: '💳', label: 'پرداخت‌ها' },
+    { key: 'payments', icon: '💳', label: 'روش پرداخت' },
     { key: 'pricing', icon: '💰', label: 'قیمت‌گذاری' },
     { key: 'terms', icon: '📝', label: 'شرایط و مقررات' },
     { key: 'form', icon: '📝', label: 'فرم رزرو' },
-    ...(me?.isOwner !== false ? [{ key: 'locations' as const, icon: '🏢', label: 'مکان‌های حضوری' }] : []),
     ...(me?.isOwner !== false ? [{ key: 'appearance' as const, icon: '🎨', label: 'ظاهر و برند' }] : []),
    ],
   },
@@ -1404,7 +1403,7 @@ export function PsychologyAdmin() {
  // حالا هم‌سطح بقیه‌ی تب‌های اصلی‌اند، بعد از خود تب «تنظیمات».
  const bottomNavItems = [
   ...(me?.isOwner && me?.multiTherapist ? [{ key: 'staff' as const, icon: '🩺', label: 'درمانگرها', badge: 0 }] : []),
-  { key: 'account' as const, icon: '🪪', label: 'حساب', badge: 0 },
+  { key: 'account' as const, icon: '🪪', label: 'حساب من', badge: 0 },
   { key: 'tickets' as const, icon: '🎫', label: 'پشتیبانی', badge: 0 },
  ]
 
@@ -1694,7 +1693,7 @@ export function PsychologyAdmin() {
           ...(profile.session_modes !== 'online' ? [{
            key: 'location', label: 'ثبت مکان حضوری',
            done: settings.office_locations.length > 0,
-           go: () => navigateSettingsSub('locations'),
+           go: () => navigateSettingsSub('profile'),
           }] : []),
          ]
          const doneCount = checklist.filter(c => c.done).length
@@ -2117,33 +2116,10 @@ export function PsychologyAdmin() {
        </section>
        )}
 
-       {/* شبای تسویه — برای واریز خودکار سهم خودتان از پرداخت آنلاین */}
-       {settingsSubTab === 'payments' && (
-       <section className="bg-white rounded-2xl border border-sand p-5">
-        <h2 className="text-sm font-display font-semibold text-ink mb-1">شبای دریافت سهم از پرداخت آنلاین</h2>
-        <p className="text-xs text-soot mb-4">
-         چون پرداخت آنلاین از حساب پلتفرم رد می‌شود، سهم شما برای واریز خودکار به این شبا نیاز دارد. تا وقتی این را ثبت نکنید، تسویه به‌صورت دستی هماهنگ می‌شود.
-        </p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-         <input
-          dir="ltr"
-          placeholder="IR00 0000 0000 0000 0000 0000 00"
-          value={profile.settlement_sheba}
-          onChange={e => patchProfile({ settlement_sheba: e.target.value })}
-          className="border border-sand rounded-xl px-3 py-2 text-sm tnum"
-         />
-         <input
-          placeholder="نام صاحب حساب"
-          value={profile.settlement_sheba_holder_name}
-          onChange={e => patchProfile({ settlement_sheba_holder_name: e.target.value })}
-          className="border border-sand rounded-xl px-3 py-2 text-sm"
-         />
-        </div>
-       </section>
-       )}
-
-       {/* مکان‌های حضوری — سطح tenant، مشترک همه‌ی دکترها؛ فقط owner ویرایش می‌کند */}
-       {settingsSubTab === 'locations' && me?.isOwner !== false && (
+       {/* مکان‌های حضوری — سطح tenant، مشترک همه‌ی دکترها؛ فقط owner ویرایش می‌کند.
+           قبلا تب مستقل خودش بود؛ چون فقط یک بخش کوچک از تنظیمات پروفایل است،
+           به همین تب منتقل شد. */}
+       {settingsSubTab === 'profile' && me?.isOwner !== false && (
         <section className="bg-white rounded-2xl border border-sand p-5">
          <div className="flex items-center justify-between mb-1">
           <h2 className="text-sm font-display font-semibold text-ink">مکان‌های جلسه‌ی حضوری</h2>
@@ -2291,6 +2267,47 @@ export function PsychologyAdmin() {
           onChange={e => patchProfile({ pricing: { ...profile.pricing, extra_minute_price: Math.max(0, Number(e.target.value) || 0) } })}
           className="w-full sm:w-56 text-sm px-3 py-2 border border-sand rounded-lg tnum focus:outline-none focus:border-ink" />
         </div>
+       </section>
+       )}
+
+       {/* سیاست کنسلی — per-resource؛ وقتی مراجع خودش کنسل می‌کند این محاسبه
+           می‌شود. قبلا در تب «ماژول‌ها و سیاست‌ها» بود؛ چون مستقیم به قیمت‌گذاری
+           مربوط است (چند درصد از همان مبلغ برگردد)، به این تب منتقل شد. */}
+       {settingsSubTab === 'pricing' && (
+       <section className="bg-white rounded-2xl border border-sand p-5">
+        <h2 className="text-sm font-display font-semibold text-ink mb-1">سیاست کنسلی جلسه</h2>
+        <p className="text-xs text-soot mb-4">وقتی مراجع خودش یک جلسه را کنسل می‌کند، طبق همین قانون بازپرداخت محاسبه می‌شود.</p>
+        <label className="flex items-center justify-between p-3 rounded-xl border border-sand cursor-pointer mb-3">
+         <span className="text-sm text-ink">مراجع اجازه‌ی کنسل‌کردن خودکار داشته باشد</span>
+         <input type="checkbox" checked={profile.cancellation_policy.enabled}
+          onChange={e => patchProfile({ cancellation_policy: { ...profile.cancellation_policy, enabled: e.target.checked } })}
+          className="w-5 h-5 accent-ink shrink-0" />
+        </label>
+        {profile.cancellation_policy.enabled && (
+         <div className="space-y-3 bg-gray-50 rounded-xl p-3.5">
+          <div className="flex items-center gap-2">
+           <span className="text-xs text-soot shrink-0">اگه حداقل</span>
+           <input type="number" min={0} value={profile.cancellation_policy.threshold_hours}
+            onChange={e => patchProfile({ cancellation_policy: { ...profile.cancellation_policy, threshold_hours: parseInt(e.target.value) || 0 } })}
+            className="w-16 text-sm px-2 py-1.5 border border-sand rounded-lg bg-white text-center" />
+           <span className="text-xs text-soot shrink-0">ساعت قبل از جلسه کنسل کرد:</span>
+          </div>
+          <div className="flex items-center gap-2 pr-2">
+           <span className="text-xs text-soot shrink-0">چند درصد پول برگردد؟</span>
+           <input type="number" min={0} max={100} value={profile.cancellation_policy.early_refund_percent}
+            onChange={e => patchProfile({ cancellation_policy: { ...profile.cancellation_policy, early_refund_percent: Math.min(100, Math.max(0, parseInt(e.target.value) || 0)) } })}
+            className="w-16 text-sm px-2 py-1.5 border border-sand rounded-lg bg-white text-center" />
+           <span className="text-xs text-soot shrink-0">٪</span>
+          </div>
+          <div className="flex items-center gap-2 pt-2 border-t border-sand">
+           <span className="text-xs text-soot shrink-0">اگه دیرتر از اون (نزدیک‌تر به جلسه) کنسل کرد، چند درصد برگردد؟</span>
+           <input type="number" min={0} max={100} value={profile.cancellation_policy.late_refund_percent}
+            onChange={e => patchProfile({ cancellation_policy: { ...profile.cancellation_policy, late_refund_percent: Math.min(100, Math.max(0, parseInt(e.target.value) || 0)) } })}
+            className="w-16 text-sm px-2 py-1.5 border border-sand rounded-lg bg-white text-center shrink-0" />
+           <span className="text-xs text-soot shrink-0">٪</span>
+          </div>
+         </div>
+        )}
        </section>
        )}
 
@@ -2650,7 +2667,7 @@ export function PsychologyAdmin() {
        )}
 
        {/* نوار ذخیره (چسبیده به پایین) — فقط وقتی چیزی واقعا عوض شده باشد، و فقط روی زیرتب‌هایی که این دکمه ذخیره‌شان می‌کند */}
-       {!!settingsSubTab && ['profile', 'payments', 'pricing', 'terms', 'locations', 'form'].includes(settingsSubTab) && (isSettingsTabDirty || settingsSaved || profileSaved || intakeSaved) && (
+       {!!settingsSubTab && ['profile', 'payments', 'pricing', 'terms', 'form'].includes(settingsSubTab) && (isSettingsTabDirty || settingsSaved || profileSaved || intakeSaved) && (
         <div className="fixed bottom-0 inset-x-0 z-30 bg-white/95 border-t border-sand backdrop-blur">
          <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-end gap-3">
           {(settingsSaved || profileSaved || intakeSaved) && <span className="text-xs text-emerald-600 font-medium">✓ تنظیمات ذخیره شد</span>}
@@ -2713,7 +2730,7 @@ export function PsychologyAdmin() {
            className="w-5 h-5 accent-ink shrink-0" />
          </label>
          <p className="text-[11px] text-soot px-1">
-          اجازه‌ی کنسل‌کردن خودکار پایین همین صفحه، کنار سیاست کنسلی، تنظیم می‌شود.
+          اجازه‌ی کنسل‌کردن خودکار از تب «قیمت‌گذاری» تنظیمات، کنار سیاست کنسلی، مشخص می‌شود.
          </p>
         </div>
        )}
@@ -2747,67 +2764,6 @@ export function PsychologyAdmin() {
        </div>
       </div>
      </div>
-
-     {/* سیاست کنسلی — per-resource؛ وقتی مراجع خودش کنسل می‌کند این محاسبه می‌شود */}
-     <div className="bg-white rounded-2xl border border-sand p-5 mt-4">
-      <h2 className="text-sm font-display font-bold text-ink mb-1">سیاست کنسلی جلسه</h2>
-      <p className="text-xs text-soot mb-4">وقتی مراجع خودش یک جلسه را کنسل می‌کند، طبق همین قانون بازپرداخت محاسبه می‌شود.</p>
-
-      {me?.isOwner && staffList.filter(r => r.is_active).length > 1 && (
-       <select value={viewingResourceId || staffList.find(r => r.is_active)?.id || ''}
-        onChange={e => { setViewingResourceId(e.target.value); setProfileLoaded(false) }}
-        className="w-full text-sm px-3 py-2 border border-sand rounded-lg mb-4 focus:outline-none focus:border-ink">
-        {staffList.filter(r => r.is_active).map(r => (
-         <option key={r.id} value={r.id}>{r.name}{r.title ? ` — ${r.title}` : ''}</option>
-        ))}
-       </select>
-      )}
-
-      {!profileLoaded ? (
-       <div className="text-center py-8 text-soot text-sm">در حال بارگذاری...</div>
-      ) : (
-       <>
-        <label className="flex items-center justify-between p-3 rounded-xl border border-sand cursor-pointer mb-3">
-         <span className="text-sm text-ink">مراجع اجازه‌ی کنسل‌کردن خودکار داشته باشد</span>
-         <input type="checkbox" checked={profile.cancellation_policy.enabled}
-          onChange={e => patchProfile({ cancellation_policy: { ...profile.cancellation_policy, enabled: e.target.checked } })}
-          className="w-5 h-5 accent-ink shrink-0" />
-        </label>
-        {profile.cancellation_policy.enabled && (
-         <div className="space-y-3 bg-gray-50 rounded-xl p-3.5">
-          <div className="flex items-center gap-2">
-           <span className="text-xs text-soot shrink-0">اگه حداقل</span>
-           <input type="number" min={0} value={profile.cancellation_policy.threshold_hours}
-            onChange={e => patchProfile({ cancellation_policy: { ...profile.cancellation_policy, threshold_hours: parseInt(e.target.value) || 0 } })}
-            className="w-16 text-sm px-2 py-1.5 border border-sand rounded-lg bg-white text-center" />
-           <span className="text-xs text-soot shrink-0">ساعت قبل از جلسه کنسل کرد:</span>
-          </div>
-          <div className="flex items-center gap-2 pr-2">
-           <span className="text-xs text-soot shrink-0">چند درصد پول برگردد؟</span>
-           <input type="number" min={0} max={100} value={profile.cancellation_policy.early_refund_percent}
-            onChange={e => patchProfile({ cancellation_policy: { ...profile.cancellation_policy, early_refund_percent: Math.min(100, Math.max(0, parseInt(e.target.value) || 0)) } })}
-            className="w-16 text-sm px-2 py-1.5 border border-sand rounded-lg bg-white text-center" />
-           <span className="text-xs text-soot shrink-0">٪</span>
-          </div>
-          <div className="flex items-center gap-2 pt-2 border-t border-sand">
-           <span className="text-xs text-soot shrink-0">اگه دیرتر از اون (نزدیک‌تر به جلسه) کنسل کرد، چند درصد برگردد؟</span>
-           <input type="number" min={0} max={100} value={profile.cancellation_policy.late_refund_percent}
-            onChange={e => patchProfile({ cancellation_policy: { ...profile.cancellation_policy, late_refund_percent: Math.min(100, Math.max(0, parseInt(e.target.value) || 0)) } })}
-            className="w-16 text-sm px-2 py-1.5 border border-sand rounded-lg bg-white text-center shrink-0" />
-           <span className="text-xs text-soot shrink-0">٪</span>
-          </div>
-         </div>
-        )}
-        <div className="flex items-center justify-end gap-3 mt-4">
-         {profileSaved && <span className="text-xs text-emerald-600 font-medium">✓ ذخیره شد</span>}
-         <button onClick={saveProfile} disabled={profileSaving}
-          className="px-5 py-2 bg-ink text-white rounded-xl text-sm font-medium disabled:opacity-40 hover:bg-ink/90">
-          {profileSaving ? 'در حال ذخیره...' : 'ذخیره‌ی سیاست کنسلی'}
-         </button>
-        </div>
-       </>
-      )}
-     </div>
     </div>
    )}
 
@@ -2816,7 +2772,7 @@ export function PsychologyAdmin() {
    ════════════════════════════════════════════════════════════════ */}
    {mainTab === 'account' && (
     <div className="max-w-lg mx-auto space-y-4 pb-24">
-     <PageHeader title="حساب" desc="مشخصات حساب، پلن مجموعه و تنظیمات سطح دسترسی." />
+     <PageHeader title="حساب من" desc="مشخصات حساب، پلن مجموعه و تنظیمات سطح دسترسی." />
      <section className="bg-white rounded-2xl border border-sand p-5">
       <h2 className="text-sm font-display font-bold text-ink mb-1">مشخصات حساب</h2>
       <p className="text-xs text-soot mb-4">
@@ -2977,6 +2933,56 @@ export function PsychologyAdmin() {
         {tenantPlan === 'pro' ? 'حرفه‌ای' : 'رایگان'}
        </span>
       </div>
+     </section>
+
+     {/* شبای تسویه — برای واریز خودکار سهم خودتان از پرداخت آنلاین. per-resource
+         است، نه صفحه‌ی عمومی، پس اینجا (حساب من) جایش درست‌تر از تب «روش
+         پرداخت» بود. این تب بخشی از سیستم نوار ذخیره‌ی مشترک تنظیمات نیست، پس
+         سوییچر دکتر و دکمه‌ی ذخیره‌ی خودش را دارد. */}
+     <section className="bg-white rounded-2xl border border-sand p-5">
+      <h2 className="text-sm font-display font-bold text-ink mb-1">شبای دریافت سهم از پرداخت آنلاین</h2>
+      <p className="text-xs text-soot mb-4">
+       چون پرداخت آنلاین از حساب پلتفرم رد می‌شود، سهم شما برای واریز خودکار به این شبا نیاز دارد. تا وقتی این را ثبت نکنید، تسویه به‌صورت دستی هماهنگ می‌شود.
+      </p>
+
+      {me?.isOwner && staffList.filter(r => r.is_active).length > 1 && (
+       <select value={viewingResourceId || staffList.find(r => r.is_active)?.id || ''}
+        onChange={e => { setViewingResourceId(e.target.value); setProfileLoaded(false) }}
+        className="w-full text-sm px-3 py-2 border border-sand rounded-lg mb-4 focus:outline-none focus:border-ink">
+        {staffList.filter(r => r.is_active).map(r => (
+         <option key={r.id} value={r.id}>{r.name}{r.title ? ` — ${r.title}` : ''}</option>
+        ))}
+       </select>
+      )}
+
+      {!profileLoaded ? (
+       <div className="text-center py-8 text-soot text-sm">در حال بارگذاری...</div>
+      ) : (
+       <>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+         <input
+          dir="ltr"
+          placeholder="IR00 0000 0000 0000 0000 0000 00"
+          value={profile.settlement_sheba}
+          onChange={e => patchProfile({ settlement_sheba: e.target.value })}
+          className="border border-sand rounded-xl px-3 py-2 text-sm tnum"
+         />
+         <input
+          placeholder="نام صاحب حساب"
+          value={profile.settlement_sheba_holder_name}
+          onChange={e => patchProfile({ settlement_sheba_holder_name: e.target.value })}
+          className="border border-sand rounded-xl px-3 py-2 text-sm"
+         />
+        </div>
+        <div className="flex items-center justify-end gap-3 mt-4">
+         {profileSaved && <span className="text-xs text-emerald-600 font-medium">✓ ذخیره شد</span>}
+         <button onClick={saveProfile} disabled={profileSaving}
+          className="px-5 py-2 bg-ink text-white rounded-xl text-sm font-medium disabled:opacity-40 hover:bg-ink/90">
+          {profileSaving ? 'در حال ذخیره...' : 'ذخیره‌ی شبا'}
+         </button>
+        </div>
+       </>
+      )}
      </section>
 
      <button onClick={doLogout}
