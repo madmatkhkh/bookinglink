@@ -15,6 +15,15 @@ export const SUPPORT_PHONE = '09134682153'
 // (تعرفه‌ها، FAQ، قوانین) از همین ثابت می‌خوانند — تغییرش فقط همین‌جا.
 export const PLATFORM_COMMISSION_PERCENT = 7
 
+// ── حالت تست پرداخت ────────────────────────────────────────────
+// وقتی PAYMENT_TEST_MODE=true باشد، پرداخت آنلاین به‌جای رفتن به درگاه واقعی
+// زیبال، یک صفحه‌ی شبیه‌سازی داخلی نشان می‌دهد («پرداخت موفق» / «لغو») که همان
+// منطق نهایی‌سازی واقعی را اجرا می‌کند — بدون پول واقعی و بدون خروج از برنامه.
+// ⚠️ env-gated است و پیش‌فرض خاموش؛ روی پروداکشن هرگز نباید true باشد.
+// NEXT_PUBLIC نسخه فقط برای این است که UI بتواند یک نشان «حالت تست» نمایش دهد.
+export const PAYMENT_TEST_MODE =
+  process.env.PAYMENT_TEST_MODE === 'true' || process.env.NEXT_PUBLIC_PAYMENT_TEST_MODE === 'true'
+
 // اسلاگ یک صفحه‌ی نمونه‌ی واقعی (مثلا tenant تستی خودت) — اگر پر شود، روی
 // لندینگ لینک «دیدن نمونه صفحه‌ی رزرو» نشان داده می‌شود تا داور شاپرک بتواند
 // فرایند کامل خرید (انتخاب خدمت → قیمت → پرداخت) را ببیند. خالی = مخفی.
@@ -22,7 +31,7 @@ export const DEMO_SLUG = 'psysoleimani'
 
 // slugهایی که با مسیرهای سیستمی تداخل دارند و قابل ثبت نیستند
 export const RESERVED_SLUGS = [
-  'api', 'super', 'admin', 'panel', 'book', 'my', 'login', 'signup',
+  'api', 'super', 'admin', 'panel', 'book', 'my', 'login', 'signup', 'pay-sim',
   '_next', 'favicon.ico', 'robots.txt', 'sitemap.xml', 'assets',
 ]
 
