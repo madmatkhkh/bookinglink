@@ -21,7 +21,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   const t = await getActiveTenant(params.slug)
   if (!t) return NextResponse.json({ error: 'یافت نشد' }, { status: 404 })
 
-  const { case_number, purpose, ref_id, discount_code, session_date, session_time, package_slots } = await req.json() as { case_number: string; purpose: Purpose; ref_id?: string; discount_code?: string; session_date?: string; session_time?: string; package_slots?: { session_date: string; session_time: string; session_type?: string; attendee?: string }[] }
+  const { case_number, purpose, ref_id, discount_code, session_date, session_time, package_slots, session_type } = await req.json() as { case_number: string; purpose: Purpose; ref_id?: string; discount_code?: string; session_date?: string; session_time?: string; package_slots?: { session_date: string; session_time: string; session_type?: string; attendee?: string }[]; session_type?: string }
   // auth با کوکی امضاشده — نه شماره‌ای که کلاینت در body می‌فرستد. دو راه مجاز:
   // 1) کوکی مراجع OTPشده که شماره‌اش روی پرونده باشد (پنل /my)
   // 2) کوکی مجوز پرداخت همین پرونده (فلو مصاحبه‌ی اولیه، درست بعد از ثبت فرم)
@@ -50,7 +50,14 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
     if (!ref_id || c.current_stage_id !== ref_id) return NextResponse.json({ error: 'این جلسه در دسترس نیست' }, { status: 400 })
     const { data: stage } = await sb().from('psy_stages').select('*').eq('id', ref_id).eq('tenant_id', t.id).single()
     if (!stage || stage.status !== 'awaiting_payment') return NextResponse.json({ error: 'این جلسه در حالت پرداخت نیست' }, { status: 400 })
-    amount = stage.price || 0
+    // نوع جلسه را خود مراجع همین‌جا انتخاب می‌کند (آنلاین/حضوری) و قیمت از روی
+    // همان تعیین می‌شود — نه چیزی که کلاینت به‌عنوان مبلغ می‌فرستد.
+    const chosenType = session_type === 'online' || session_type === 'offline' ? session_type : (stage.session_type || null)
+    const basePrice = chosenType ? resolvePrice(chosenType, resourcePricing) : (stage.price || 0)
+    amount = basePrice
+    if (chosenType && (chosenType !== stage.session_type || basePrice !== stage.price)) {
+      await sb().from('psy_stages').update({ session_type: chosenType, price: basePrice }).eq('id', ref_id).eq('tenant_id', t.id)
+    }
     description = `هزینه‌ی ${stageTitle(stage)}`
 
     // پرداخت آنلاین = «اول وقت، بعد پرداخت» — پس وقت باید همین‌جا بیاید و همین

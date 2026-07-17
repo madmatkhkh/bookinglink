@@ -165,6 +165,7 @@ export default function PatientsTab({
  // مودال یادداشت بالینی هر جلسه — به‌جای تب مستقل. scope مشخص می‌کند یادداشت به کدام
  // مرحله (stage) یا جلسه‌ی پروتکل (session) گره می‌خورد.
  const [clinicalModal, setClinicalModal] = useState<{ scope: 'stage' | 'session'; id: string; label: string } | null>(null)
+ const [editingNoteId, setEditingNoteId] = useState<string | null>(null)
  const [newNoteFormat, setNewNoteFormat] = useState<'soap' | 'dap' | 'freeform'>('soap')
  const [newNoteFields, setNewNoteFields] = useState<Record<string, string>>({})
  const [savingNote, setSavingNote] = useState(false)
@@ -177,7 +178,6 @@ export default function PatientsTab({
  const [showNewPackage, setShowNewPackage] = useState(false)
  const [showNewStage, setShowNewStage] = useState(false)
  const [newStageTitle, setNewStageTitle] = useState('')
- const [newStageType, setNewStageType] = useState<'online' | 'offline'>('offline')
  const [newStageSaving, setNewStageSaving] = useState(false)
  const [showAddPatient, setShowAddPatient] = useState(false)
  const [addPatientSaving, setAddPatientSaving] = useState(false)
@@ -449,14 +449,13 @@ export default function PatientsTab({
   setNewStageSaving(true)
   const res = await fetch(api('/stages'), {
    method: 'POST', headers: { 'Content-Type': 'application/json' },
-   body: JSON.stringify({ case_number: selectedPatient.case_number, stage_type: 'custom', title, session_type: newStageType }),
+   body: JSON.stringify({ case_number: selectedPatient.case_number, stage_type: 'custom', title }),
   })
   const data = await res.json().catch(() => ({}))
   setNewStageSaving(false)
   if (!res.ok) { uiAlert(data.error || 'ثبت جلسه ناموفق بود'); return }
   setShowNewStage(false)
   setNewStageTitle('')
-  setNewStageType('offline')
   await loadPatientData(selectedPatient.case_number)
   await fetchAll() // current_stage_id در لیست پرونده‌ها هم به‌روز شود
  }
@@ -493,23 +492,40 @@ export default function PatientsTab({
   const hasContent = Object.values(newNoteFields).some(v => v?.trim())
   if (!hasContent) { uiAlert('حداقل یک فیلد را پر کن.'); return }
   setSavingNote(true)
-  const res = await fetch(api('/clinical-notes'), {
-   method: 'POST', headers: { 'Content-Type': 'application/json' },
-   body: JSON.stringify({
-    case_number: selectedPatient.case_number, format: newNoteFormat, fields: newNoteFields,
-    session_id: clinicalModal.scope === 'session' ? clinicalModal.id : null,
-    stage_id: clinicalModal.scope === 'stage' ? clinicalModal.id : null,
-   }),
-  })
+  let res: Response
+  if (editingNoteId) {
+   // ویرایش درجای همان یادداشت — نه ساختن رکورد تازه
+   res = await fetch(api('/clinical-notes'), {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id: editingNoteId, format: newNoteFormat, fields: newNoteFields }),
+   })
+  } else {
+   res = await fetch(api('/clinical-notes'), {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+     case_number: selectedPatient.case_number, format: newNoteFormat, fields: newNoteFields,
+     session_id: clinicalModal.scope === 'session' ? clinicalModal.id : null,
+     stage_id: clinicalModal.scope === 'stage' ? clinicalModal.id : null,
+    }),
+   })
+  }
   setSavingNote(false)
   if (!res.ok) { uiAlert('ثبت ناموفق بود'); return }
-  setNewNoteFields({})
   await loadClinicalNotes(selectedPatient.case_number)
+  setClinicalModal(null); setEditingNoteId(null); setNewNoteFields({})
  }
 
- // باز کردن مودال یادداشت بالینی برای یک جلسه‌ی مشخص
+ // باز کردن مودال یادداشت بالینی برای یک جلسه — اگر یادداشتی از قبل هست، همان را
+ // برای ویرایش درجا بارگذاری می‌کند (یک یادداشت به‌ازای هر جلسه).
  function openClinical(scope: 'stage' | 'session', id: string, label: string) {
-  setNewNoteFormat('soap'); setNewNoteFields({})
+  const existing = clinicalNotes.find(n => scope === 'stage' ? n.stage_id === id : n.session_id === id)
+  if (existing) {
+   setNewNoteFormat((['soap', 'dap', 'freeform'].includes(existing.format) ? existing.format : 'soap') as 'soap' | 'dap' | 'freeform')
+   setNewNoteFields(existing.fields || {})
+   setEditingNoteId(existing.id)
+  } else {
+   setNewNoteFormat('soap'); setNewNoteFields({}); setEditingNoteId(null)
+  }
   setClinicalModal({ scope, id, label })
  }
 
@@ -1207,15 +1223,7 @@ export default function PatientsTab({
          <input value={newStageTitle} onChange={e => setNewStageTitle(e.target.value)} autoFocus
           placeholder="مثلا: جلسه‌ی مشاوره، ارزیابی، پیگیری..."
           className="w-full text-sm px-3 py-2 border border-sand rounded-lg mb-3 focus:outline-none focus:border-ink" />
-         <label className="text-xs text-soot mb-1 block">نوع این جلسه</label>
-         <div className="flex bg-gray-100 rounded-xl p-1 gap-1 mb-3">
-          {([['offline', '🏥 حضوری'], ['online', '🎥 آنلاین']] as const).map(([v, label]) => (
-           <button key={v} onClick={() => setNewStageType(v)}
-            className={`flex-1 text-xs py-2 rounded-lg font-medium transition-all ${newStageType === v ? 'bg-white text-ink shadow-sm' : 'text-soot'}`}>
-            {label}
-           </button>
-          ))}
-         </div>
+         <p className="text-xs text-soot mb-3">حضوری یا آنلاین بودن جلسه را خود مراجع هنگام پرداخت انتخاب می‌کند.</p>
          <div className="flex gap-2">
           <button onClick={() => setShowNewStage(false)} className="flex-1 py-2.5 border border-sand text-soot rounded-xl text-sm">انصراف</button>
           <button onClick={createStage} disabled={newStageSaving || !newStageTitle.trim()}
@@ -1350,11 +1358,17 @@ export default function PatientsTab({
          </select>
         </div>
        </div>
-       {profile.companion_label && (
+       {profile.companion_label ? (
         <label className="flex items-center gap-2 text-sm text-ink cursor-pointer select-none">
          <input type="checkbox" checked={newPkg.secondary_sessions > 0}
           onChange={e => setNewPkg({ ...newPkg, secondary_sessions: e.target.checked ? 2 : 0 })} />
          این پروتکل جلسه‌ی {profile.companion_label} هم دارد
+        </label>
+       ) : (
+        <label className="flex items-center gap-2 text-sm text-ink cursor-pointer select-none">
+         <input type="checkbox" checked={newPkg.secondary_sessions > 0}
+          onChange={e => setNewPkg({ ...newPkg, secondary_sessions: e.target.checked ? 2 : 0 })} />
+         این پروتکل جلسه‌ی همراه هم دارد
         </label>
        )}
        {newPkg.secondary_sessions > 0 && (
@@ -1469,77 +1483,56 @@ export default function PatientsTab({
 
 
    {/* ── Clinical Notes Modal (یادداشت بالینی هر جلسه) ─────────────────── */}
-   {clinicalModal && (() => {
-    const notes = clinicalNotes.filter(n => clinicalModal.scope === 'stage' ? n.stage_id === clinicalModal.id : n.session_id === clinicalModal.id)
-    return (
-     <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50" onClick={() => setClinicalModal(null)}>
+   {clinicalModal && (
+     <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50" onClick={() => { setClinicalModal(null); setEditingNoteId(null) }}>
       <div className="bg-white rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto p-6 shadow-xl" dir="rtl" onClick={e => e.stopPropagation()}>
        <div className="flex items-center justify-between mb-1">
-        <h3 className="font-semibold text-ink">یادداشت بالینی</h3>
-        <button onClick={() => setClinicalModal(null)} className="text-soot hover:text-ink text-xl leading-none">×</button>
+        <h3 className="font-semibold text-ink">یادداشت بالینی{editingNoteId ? ' (ویرایش)' : ''}</h3>
+        <button onClick={() => { setClinicalModal(null); setEditingNoteId(null) }} className="text-soot hover:text-ink text-xl leading-none">×</button>
        </div>
        <p className="text-xs text-soot mb-3">جلسه: {clinicalModal.label}</p>
        <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 text-xs text-amber-700 mb-4">
         🔒 این یادداشت‌ها فقط برای خودتان است — هیچ‌وقت در پنل مراجع نمایش داده نمی‌شود.
        </div>
 
-       <div className="bg-white rounded-xl border border-sand p-4 mb-4">
-        <div className="flex bg-gray-100 rounded-xl p-1 gap-1 mb-3">
-         {(['soap', 'dap', 'freeform'] as const).map(f => (
-          <button key={f} onClick={() => { setNewNoteFormat(f); setNewNoteFields({}) }}
-           className={`flex-1 text-xs py-2 rounded-lg font-medium transition-all ${newNoteFormat === f ? 'bg-white text-ink shadow-sm' : 'text-soot'}`}>
-           {f === 'soap' ? 'SOAP' : f === 'dap' ? 'DAP' : 'آزاد'}
-          </button>
-         ))}
-        </div>
-        <div className="space-y-2">
-         {(newNoteFormat === 'soap'
-           ? [['subjective', 'Subjective — گفته‌ی مراجع'], ['objective', 'Objective — مشاهده‌ی دکتر'], ['assessment', 'Assessment — ارزیابی/تشخیص'], ['plan', 'Plan — برنامه‌ی ادامه']]
-           : newNoteFormat === 'dap'
-           ? [['data', 'Data — شرح جلسه'], ['assessment', 'Assessment — ارزیابی/تشخیص'], ['plan', 'Plan — برنامه‌ی ادامه']]
-           : [['note', 'یادداشت آزاد']]
-         ).map(([key, label]) => (
-          <div key={key}>
-           <label className="text-xs text-soot mb-1 block">{label}</label>
-           <textarea value={newNoteFields[key] || ''} onChange={e => setNewNoteFields(f => ({ ...f, [key]: e.target.value }))}
-            rows={key === 'note' ? 6 : 2}
-            className="w-full text-sm px-3 py-2 border border-sand rounded-lg focus:outline-none focus:border-ink resize-none" />
-          </div>
-         ))}
-        </div>
-        <button onClick={saveClinicalNote} disabled={savingNote}
-         className="w-full mt-3 py-2.5 bg-ink text-white rounded-xl text-sm font-medium disabled:opacity-40">
-         {savingNote ? 'در حال ثبت...' : '+ ثبت یادداشت برای این جلسه'}
-        </button>
+       <div className="flex bg-gray-100 rounded-xl p-1 gap-1 mb-3">
+        {(['soap', 'dap', 'freeform'] as const).map(f => (
+         <button key={f} onClick={() => { setNewNoteFormat(f); setNewNoteFields({}) }}
+          className={`flex-1 text-xs py-2 rounded-lg font-medium transition-all ${newNoteFormat === f ? 'bg-white text-ink shadow-sm' : 'text-soot'}`}>
+          {f === 'soap' ? 'SOAP' : f === 'dap' ? 'DAP' : 'آزاد'}
+         </button>
+        ))}
        </div>
-
        <div className="space-y-2">
-        {notes.length === 0 ? (
-         <div className="text-center py-6 text-soot text-sm">هنوز برای این جلسه یادداشتی ثبت نشده.</div>
-        ) : notes.map(n => (
-         <div key={n.id} className="bg-white rounded-xl border border-sand p-4">
-          <div className="flex items-center justify-between mb-2">
-           <span className="text-xs font-medium text-ink bg-gray-100 px-2 py-0.5 rounded">{n.format.toUpperCase()}</span>
-           <div className="flex items-center gap-2">
-            <span className="text-[11px] text-soot">{new Date(n.created_at).toLocaleDateString('fa-IR-u-nu-latn')}</span>
-            <button onClick={() => deleteClinicalNote(n.id)} className="text-xs text-red-500 hover:text-red-700">حذف</button>
-           </div>
-          </div>
-          <div className="space-y-1.5">
-           {Object.entries(n.fields).filter(([, v]) => v).map(([key, value]) => (
-            <div key={key} className="text-sm text-ink">
-             <span className="text-xs text-soot block">{key === 'subjective' ? 'Subjective' : key === 'objective' ? 'Objective' : key === 'assessment' ? 'Assessment' : key === 'plan' ? 'Plan' : key === 'data' ? 'Data' : ''}</span>
-             {value}
-            </div>
-           ))}
-          </div>
+        {(newNoteFormat === 'soap'
+          ? [['subjective', 'Subjective — گفته‌ی مراجع'], ['objective', 'Objective — مشاهده‌ی دکتر'], ['assessment', 'Assessment — ارزیابی/تشخیص'], ['plan', 'Plan — برنامه‌ی ادامه']]
+          : newNoteFormat === 'dap'
+          ? [['data', 'Data — شرح جلسه'], ['assessment', 'Assessment — ارزیابی/تشخیص'], ['plan', 'Plan — برنامه‌ی ادامه']]
+          : [['note', 'یادداشت آزاد']]
+        ).map(([key, label]) => (
+         <div key={key}>
+          <label className="text-xs text-soot mb-1 block">{label}</label>
+          <textarea value={newNoteFields[key] || ''} onChange={e => setNewNoteFields(f => ({ ...f, [key]: e.target.value }))}
+           rows={key === 'note' ? 6 : 2}
+           className="w-full text-sm px-3 py-2 border border-sand rounded-lg focus:outline-none focus:border-ink resize-none" />
          </div>
         ))}
        </div>
+       <div className="flex gap-2 mt-4">
+        <button onClick={() => { setClinicalModal(null); setEditingNoteId(null) }}
+         className="flex-1 py-2.5 border border-sand text-soot rounded-xl text-sm">انصراف</button>
+        <button onClick={saveClinicalNote} disabled={savingNote}
+         className="flex-1 py-2.5 bg-ink text-white rounded-xl text-sm font-medium disabled:opacity-40">
+         {savingNote ? 'در حال ثبت...' : 'ثبت یادداشت'}
+        </button>
+       </div>
+       {editingNoteId && (
+        <button onClick={async () => { const id = editingNoteId; await deleteClinicalNote(id); setClinicalModal(null); setEditingNoteId(null) }}
+         className="w-full mt-2 py-2 text-xs text-red-500 hover:text-red-700">حذف این یادداشت</button>
+       )}
       </div>
      </div>
-    )
-   })()}
+   )}
 
    {/* ── Edit Session Modal ─────────────────────────────────────────── */}
    {editSession && (

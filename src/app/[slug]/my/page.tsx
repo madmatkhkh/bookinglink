@@ -453,10 +453,10 @@ export default function PatientPanel() {
            resourceId={booking.resource_id} caseNumber={booking.case_number} phone={phone} stageId={currentStage!.id}
            stageLabel={stageTitle(currentStage!)}
            sessionType={currentStage!.session_type || booking.session_type} officeLocation={booking.office_location}
-           onPaid={async (ref, discountCode) => {
+           onPaid={async (ref, discountCode, sessionType) => {
             const res = await fetch(`/api/t/${slug}/psy/pay`, {
              method: 'POST', headers: { 'Content-Type': 'application/json' },
-             body: JSON.stringify({ case_number: booking.case_number, phone, stage_id: currentStage!.id, payment_ref: ref, discount_code: discountCode })
+             body: JSON.stringify({ case_number: booking.case_number, phone, stage_id: currentStage!.id, payment_ref: ref, discount_code: discountCode, session_type: sessionType })
             })
             return res.ok
            }}
@@ -1604,7 +1604,7 @@ function StageInfo({ icon, title, desc, date, time, label, delayMinutes, meetCha
 // کارت پرداخت کارت‌به‌کارت — شماره کارت + کد رهگیری اختیاری + دکمه‌ی «پرداخت کردم»
 function StagePayment({ icon, title, desc, amount, onPaid, onDone, resourceId, caseNumber, phone, stageId, stageLabel, sessionType, officeLocation }: {
  icon: string; title: string; desc: string; amount: number
- onPaid: (ref: string, discountCode?: string) => Promise<boolean>; onDone: () => void
+ onPaid: (ref: string, discountCode?: string, sessionType?: 'online' | 'offline') => Promise<boolean>; onDone: () => void
  resourceId?: string | null; caseNumber: string; phone: string; stageId: string
  stageLabel: string; sessionType?: 'online' | 'offline'; officeLocation?: string
 }) {
@@ -1613,9 +1613,14 @@ function StagePayment({ icon, title, desc, amount, onPaid, onDone, resourceId, c
  const [showSlotPicker, setShowSlotPicker] = useState(false)
  const [discount, setDiscount] = useState<DiscountApplied | null>(null)
  const [termsAccepted, setTermsAccepted] = useState(false)
- const finalAmount = discount ? discount.discountedAmount : amount
  const { slug } = useParams<{ slug: string }>()
  const settings = usePublicClinic(slug)
+ const pricing = settings.doctors.find(d => d.id === resourceId)?.pricing
+ // نوع جلسه (آنلاین/حضوری) را خود مراجع همین‌جا انتخاب می‌کند و قیمت از روی
+ // همان محاسبه می‌شود؛ سرور دوباره اعتبارسنجی و ذخیره می‌کند.
+ const [mode, setMode] = useState<'online' | 'offline'>(sessionType || 'offline')
+ const baseAmount = pricing ? (mode === 'online' ? pricing.online : pricing.offline) : amount
+ const finalAmount = discount ? discount.discountedAmount : baseAmount
  const pm = settings.doctors.find(d => d.id === resourceId)?.payment_methods
  const onlineOn = !!pm?.online
  const cardOn = pm ? pm.card_to_card : false
@@ -1639,7 +1644,7 @@ function StagePayment({ icon, title, desc, amount, onPaid, onDone, resourceId, c
 
  async function submit() {
   setSubmitting(true)
-  const ok = await onPaid(ref.trim(), discount?.code)
+  const ok = await onPaid(ref.trim(), discount?.code, mode)
   setSubmitting(false)
   if (!ok) { uiAlert('ثبت پرداخت ناموفق بود. دوباره تلاش کنید.'); return }
   onDone()
@@ -1653,7 +1658,7 @@ function StagePayment({ icon, title, desc, amount, onPaid, onDone, resourceId, c
   try {
    const res = await fetch(`/api/t/${slug}/psy/pay-online`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ case_number: caseNumber, phone, purpose: 'stage', ref_id: stageId, session_date: date, session_time: time, discount_code: discount?.code }),
+    body: JSON.stringify({ case_number: caseNumber, phone, purpose: 'stage', ref_id: stageId, session_date: date, session_time: time, discount_code: discount?.code, session_type: mode }),
    })
    const data = await res.json().catch(() => ({}))
    if (!res.ok || !data.url) return { ok: false, error: data.error || 'خطا در اتصال به درگاه' }
@@ -1673,17 +1678,33 @@ function StagePayment({ icon, title, desc, amount, onPaid, onDone, resourceId, c
     <p className="text-sm text-soot mb-4">{desc}</p>
    </div>
 
+   {pricing && (
+    <div className="mb-3">
+     <div className="text-xs text-soot mb-1.5 text-center">نوع این جلسه را انتخاب کنید</div>
+     <div className="grid grid-cols-2 gap-2 p-1 bg-gray-100 rounded-xl">
+      <button onClick={() => { setMode('offline'); setDiscount(null) }}
+       className={`py-2 rounded-lg text-xs font-medium transition-colors ${mode === 'offline' ? 'bg-white shadow-sm text-ink' : 'text-soot'}`}>
+       🏥 حضوری{officeLocation ? ` — ${officeLocation}` : ''}
+      </button>
+      <button onClick={() => { setMode('online'); setDiscount(null) }}
+       className={`py-2 rounded-lg text-xs font-medium transition-colors ${mode === 'online' ? 'bg-white shadow-sm text-ink' : 'text-soot'}`}>
+       🎥 آنلاین
+      </button>
+     </div>
+    </div>
+   )}
+
    <div className="bg-sand border border-sand rounded-xl p-4 mb-3">
     <div className="flex items-center justify-between">
      <span className="text-xs text-soot">مبلغ قابل پرداخت</span>
      <span className="text-base font-bold text-ink">
-      {discount && <span className="text-soot line-through text-xs ml-1.5">{amount.toLocaleString()}</span>}
+      {discount && <span className="text-soot line-through text-xs ml-1.5">{baseAmount.toLocaleString()}</span>}
       {finalAmount.toLocaleString()} تومان
      </span>
     </div>
    </div>
 
-   <DiscountCodeField slug={slug} resourceId={resourceId} amount={amount} onApplied={setDiscount} />
+   <DiscountCodeField slug={slug} resourceId={resourceId} amount={baseAmount} onApplied={setDiscount} />
    <TermsGate doctor={settings.doctors.find(d => d.id === resourceId)} accepted={termsAccepted} onAcceptedChange={setTermsAccepted} />
 
    {/* تا وقتی روش‌های پرداخت این متخصص نرسیده، هیچ روشی نشان نمی‌دهیم — نشان‌دادن

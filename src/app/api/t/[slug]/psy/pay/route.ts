@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { sb } from '@/lib/supabase'
 import { getActiveTenant } from '@/lib/tenant'
-import { getPaymentMethods, effectivePaymentMethods, isCardToCardAllowed, checkDiscountCode } from '@/lib/psy'
+import { getPaymentMethods, effectivePaymentMethods, isCardToCardAllowed, checkDiscountCode, getResourcePricing, resolvePrice } from '@/lib/psy'
 import { getClientPhone, getPayCase, matchesClientIdentity } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
@@ -10,7 +10,7 @@ export const revalidate = 0
 export async function POST(req: NextRequest, { params }: { params: { slug: string } }) {
   const t = await getActiveTenant(params.slug)
   if (!t) return NextResponse.json({ error: 'یافت نشد' }, { status: 404 })
-  const { package_id, session_id, stage_id, extra_charge_id, case_number, payment_ref, discount_code } = await req.json()
+  const { package_id, session_id, stage_id, extra_charge_id, case_number, payment_ref, discount_code, session_type } = await req.json()
   // auth با کوکی امضاشده — نه شماره‌ای که کلاینت در body می‌فرستد. دو راه مجاز:
   // 1) کوکی مراجع OTPشده که شماره‌اش روی پرونده باشد (پنل /my)
   // 2) کوکی مجوز پرداخت همین پرونده (فلو مصاحبه‌ی اولیه، درست بعد از ثبت فرم)
@@ -49,9 +49,16 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
 
   if (stage_id) {
     if (booking.current_stage_id !== stage_id) return NextResponse.json({ error: 'این مرحله در دسترس نیست' }, { status: 400 })
-    const { data: stage } = await sb().from('psy_stages').select('price').eq('id', stage_id).eq('tenant_id', t.id).maybeSingle()
+    const { data: stage } = await sb().from('psy_stages').select('price, session_type').eq('id', stage_id).eq('tenant_id', t.id).maybeSingle()
     if (stage) {
-      const dcErr = await applyDiscount('psy_stages', stage_id, stage.price || 0)
+      // نوع (آنلاین/حضوری) را مراجع انتخاب می‌کند و قیمت از روی همان تعیین
+      // می‌شود؛ سپس تخفیف روی همان قیمت اعمال می‌شود.
+      let basePrice = stage.price || 0
+      if ((session_type === 'online' || session_type === 'offline') && booking.resource_id) {
+        basePrice = resolvePrice(session_type, await getResourcePricing(booking.resource_id))
+        await sb().from('psy_stages').update({ session_type, price: basePrice }).eq('id', stage_id).eq('tenant_id', t.id)
+      }
+      const dcErr = await applyDiscount('psy_stages', stage_id, basePrice)
       if (dcErr) return NextResponse.json({ error: dcErr }, { status: 400 })
     }
     await sb().from('psy_stages').update({ payment_submitted: true, payment_ref: payment_ref || null, status: 'payment_submitted' })
