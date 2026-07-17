@@ -577,19 +577,38 @@ export default function PatientPanel() {
          ) : (
           <div className="text-center py-2 text-xs text-emerald-600 bg-emerald-500/10 rounded-xl border border-emerald-500/20">✓ همه‌ی جلسات انتخاب شد</div>
          )}
+
+         {/* جلسات این پروتکل — با وضعیت برگزاری و اقدامات هر جلسه */}
+         {pkgSessions(pkg.id).length > 0 && (
+          <div className="mt-3 pt-3 border-t border-sand space-y-2">
+           <div className="text-xs text-soot">جلسات این پروتکل</div>
+           {(() => {
+            const sorted = [...pkgSessions(pkg.id)].sort((a, b) => (a.session_number || 0) - (b.session_number || 0))
+            let n = 0
+            return sorted.map((s) => {
+             const active = s.status !== 'forfeited' && s.status !== 'replaced' && s.status !== 'cancelled'
+             const num = active ? ++n : null
+             return <SessionCard key={s.id} session={s} num={num} phone={phone} caseNumber={booking.case_number} onUpdate={() => loadData(booking.case_number)} />
+            })
+           })()}
+          </div>
+         )}
         </div>
        )
       })}
      </div>
     )}
 
-    {/* SESSIONS TAB — جلسات تکی: مراحل (مصاحبه/ارزیابی/دلخواه) + جلسات psy_sessions */}
-    {activeTab === 'sessions' && (
+    {/* SESSIONS TAB — جلسات تکی: مراحل (مصاحبه/ارزیابی/دلخواه) + جلسات مستقل (غیرپروتکلی) */}
+    {activeTab === 'sessions' && (() => {
+     const singles = sessions.filter(s => !s.package_id)
+     return (
      <div className="space-y-3">
-      {stages.length === 0 && sessions.length === 0 ? (
+      {stages.length === 0 && singles.length === 0 ? (
        <div className="text-center py-12 bg-white rounded-xl border border-sand text-soot">
         <div className="text-3xl mb-2">🗓</div>
         <p className="text-sm">هنوز جلسه‌ای ثبت نشده</p>
+        <p className="text-xs mt-1">جلسات پروتکل درمان در تب «پروتکل‌های درمان» نمایش داده می‌شوند.</p>
        </div>
       ) : (
        <>
@@ -600,7 +619,7 @@ export default function PatientPanel() {
            <StageSessionRow key={st.id} stage={st} sessionType={booking.session_type} />
           ))}
         {(() => {
-         const sorted = [...sessions].sort((a, b) => (a.session_number || 0) - (b.session_number || 0))
+         const sorted = [...singles].sort((a, b) => (a.session_number || 0) - (b.session_number || 0))
          let n = 0
          return sorted.map((s) => {
           const active = s.status !== 'forfeited' && s.status !== 'replaced' && s.status !== 'cancelled'
@@ -611,7 +630,8 @@ export default function PatientPanel() {
        </>
       )}
      </div>
-    )}
+     )
+    })()}
 
     {/* PAYMENTS TAB — تمام پرداخت‌ها و بازپرداخت‌ها با جزئیات (منبع: دفتر حساب) */}
     {activeTab === 'payments' && <PaymentsView ledger={ledger} />}
