@@ -33,7 +33,7 @@ async function withRecordsCount<T extends { id: string; niche_key: string }>(ten
 export async function GET(req: NextRequest) {
   if (!isSuperAuthed(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const { data } = await sb().from('tenants')
-    .select('id, slug, status, plan, niche_key, owner_phone, custom_domain, domain_verified, created_at, tenant_profiles(display_name)')
+    .select('id, slug, status, plan, niche_key, owner_phone, custom_domain, domain_verified, created_at, is_test, tenant_profiles(display_name)')
     .order('created_at', { ascending: false })
   const tenants = await withRecordsCount(data || [])
 
@@ -80,7 +80,7 @@ export async function POST(req: NextRequest) {
   if (!niche) return NextResponse.json({ error: 'نیچ نامعتبر است' }, { status: 400 })
 
   const { data: tenant, error } = await sb().from('tenants')
-    .insert({ slug, owner_phone: phone, niche_key: nicheKey }).select().single()
+    .insert({ slug, owner_phone: phone, niche_key: nicheKey, is_test: b.is_test === true }).select().single()
   if (error) {
     if (error.code === '23505') return NextResponse.json({ error: 'این slug قبلا گرفته شده' }, { status: 409 })
     return NextResponse.json({ error: error.message }, { status: 500 })
@@ -157,6 +157,7 @@ export async function PATCH(req: NextRequest) {
     patch.domain_verified = false // با تغییر دامنه، تایید صفر می‌شود
   }
   if (b.domain_verified !== undefined) patch.domain_verified = !!b.domain_verified
+  if (b.is_test !== undefined) patch.is_test = !!b.is_test
   if (Object.keys(patch).length === 0) return NextResponse.json({ error: 'چیزی برای تغییر نیست' }, { status: 400 })
 
   const { error } = await sb().from('tenants').update(patch).eq('id', b.id)

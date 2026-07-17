@@ -5,6 +5,7 @@ import { verifyZibalPayment } from '@/lib/zibal'
 import { recordLedgerEntry, LedgerPurpose } from '@/lib/ledger'
 import { redeemDiscountCode } from '@/lib/psy'
 import { activatePendingLocks, releaseLockBySlot, releaseLocks } from '@/lib/slotLocks'
+import { PAYMENT_TEST_MODE } from '@/lib/config'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -29,16 +30,23 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
   // (تاریخچه‌ی مرورگر/لاگ‌ها) نشت می‌کرد
   const redirectBase = base
 
-  // trackId باید مال همین intent باشد — وگرنه می‌شد با رسید یک پرداخت
-  // ارزان دیگر (که واقعا paid است)، یک intent گران را نهایی کرد.
-  // اگر authority اصلا ثبت نشده (update بعد request شکست خورده)، دیگر «رد شدن
-  // از چک» مجاز نیست — intent بدون authority هرگز finalize نمی‌شود.
-  if (!intent.authority || !trackId || String(intent.authority) !== String(trackId)) {
-    if (success !== '1' || !trackId) {
-      await sb().from('psy_payment_intents').update({ status: 'failed' }).eq('id', intentId)
-      return NextResponse.redirect(`${redirectBase}?payment=cancelled`)
+  // ── حالت تست: intent با authority تستی ──────────────────────────────────
+  // مجاز است اگر: (فلگ سراسری روشن) یا (خود مجموعه تستی است) — و authority هم
+  // با TEST- شروع شود. روی مجموعه‌ی واقعی با فلگ خاموش، این مسیر کاملا بسته است.
+  const isTestIntent = (PAYMENT_TEST_MODE || t.is_test) && typeof intent.authority === 'string' && intent.authority.startsWith('TEST-')
+
+  if (!isTestIntent) {
+    // trackId باید مال همین intent باشد — وگرنه می‌شد با رسید یک پرداخت
+    // ارزان دیگر (که واقعا paid است)، یک intent گران را نهایی کرد.
+    // اگر authority اصلا ثبت نشده (update بعد request شکست خورده)، دیگر «رد شدن
+    // از چک» مجاز نیست — intent بدون authority هرگز finalize نمی‌شود.
+    if (!intent.authority || !trackId || String(intent.authority) !== String(trackId)) {
+      if (success !== '1' || !trackId) {
+        await sb().from('psy_payment_intents').update({ status: 'failed' }).eq('id', intentId)
+        return NextResponse.redirect(`${redirectBase}?payment=cancelled`)
+      }
+      return NextResponse.redirect(`${redirectBase}?payment=error`)
     }
-    return NextResponse.redirect(`${redirectBase}?payment=error`)
   }
 
   if (success !== '1') {
@@ -50,20 +58,26 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
     return NextResponse.redirect(`${redirectBase}?payment=success`)
   }
 
-  const verify = await verifyZibalPayment(trackId)
-  if (!verify.ok) {
-    await sb().from('psy_payment_intents').update({ status: 'failed' }).eq('id', intentId)
-    return NextResponse.redirect(`${redirectBase}?payment=failed`)
-  }
-  // دفاع دوم: مبلغ verifyشده‌ی زیبال (ریال) باید دقیقا همان مبلغ intent باشد
-  // (پروژه تومان نگه می‌دارد → ×۱۰). اگر زیبال amount برنگرداند، به چک authority
-  // بالا تکیه می‌کنیم؛ اگر برگرداند و نخواند، finalize نمی‌کنیم.
-  if (verify.amountRial !== null && verify.amountRial !== Math.round((intent.amount || 0) * 10)) {
-    console.error('zibal amount mismatch:', { intentId, expected: (intent.amount || 0) * 10, got: verify.amountRial })
-    return NextResponse.redirect(`${redirectBase}?payment=error`)
+  let bankRef: string | null
+  if (isTestIntent) {
+    // شبیه‌سازی: verify واقعی زیبال را رد می‌کنیم، یک مرجع بانکی تستی می‌سازیم.
+    bankRef = `TEST-${Date.now()}`
+  } else {
+    const verify = await verifyZibalPayment(trackId!)
+    if (!verify.ok) {
+      await sb().from('psy_payment_intents').update({ status: 'failed' }).eq('id', intentId)
+      return NextResponse.redirect(`${redirectBase}?payment=failed`)
+    }
+    // دفاع دوم: مبلغ verifyشده‌ی زیبال (ریال) باید دقیقا همان مبلغ intent باشد
+    // (پروژه تومان نگه می‌دارد → ×۱۰). اگر زیبال amount برنگرداند، به چک authority
+    // بالا تکیه می‌کنیم؛ اگر برگرداند و نخواند، finalize نمی‌کنیم.
+    if (verify.amountRial !== null && verify.amountRial !== Math.round((intent.amount || 0) * 10)) {
+      console.error('zibal amount mismatch:', { intentId, expected: (intent.amount || 0) * 10, got: verify.amountRial })
+      return NextResponse.redirect(`${redirectBase}?payment=error`)
+    }
+    bankRef = verify.refNumber != null ? String(verify.refNumber) : null
   }
 
-  const bankRef = verify.refNumber != null ? String(verify.refNumber) : null
   await sb().from('psy_payment_intents').update({ status: 'paid', bank_ref_number: bankRef }).eq('id', intentId)
 
   // ثبت در دفتر حساب — منبع حقیقت حسابداری. purpose از خود intent می‌آید؛

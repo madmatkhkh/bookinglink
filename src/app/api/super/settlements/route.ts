@@ -29,7 +29,10 @@ export async function GET(req: NextRequest) {
     const p = Array.isArray(t.tenant_profiles) ? t.tenant_profiles[0] : t.tenant_profiles
     tenantName.set(t.id, { slug: t.slug, name: (p as any)?.display_name || null })
   }
-  const resourceInfo = new Map((resources || []).map(r => [r.id, r]))
+  // مجموعه‌های تستی از تسویه هم کنار گذاشته می‌شوند (پرداختشان واقعی نبوده).
+  const { data: testT } = await sb().from('tenants').select('id').eq('is_test', true)
+  const testTenantIds = new Set((testT || []).map(t => t.id))
+  const resourceInfo = new Map((resources || []).filter(r => !testTenantIds.has(r.tenant_id)).map(r => [r.id, r]))
   const shebaByResource = new Map((profiles || []).map(p => [p.resource_id, p]))
   // تراکنش‌هایی که قبلا در یک تسویه حساب شده‌اند — برای این‌که دوباره پیشنهاد نشوند
   const settledEntryIds = new Set((settlementItems || []).map(i => i.ledger_entry_id))
@@ -40,6 +43,7 @@ export async function GET(req: NextRequest) {
   const unsettledByResource = new Map<string, any[]>()
   for (const e of entries || []) {
     if (!e.resource_id || e.direction === 'outflow') continue
+    if (testTenantIds.has(e.tenant_id)) continue  // مجموعه‌ی تستی → کنار
     if (e.split_applied) {
       autoByResource.set(e.resource_id, (autoByResource.get(e.resource_id) || 0) + (e.doctor_amount || 0))
     } else {

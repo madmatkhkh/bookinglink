@@ -34,12 +34,18 @@ export async function GET(req: NextRequest) {
     return x
   }
 
-  const [{ data: entries }, { data: aggRows }] = await Promise.all([
+  const [{ data: rawEntries }, { data: rawAggRows }] = await Promise.all([
     applyFilters(sb().from('ledger_entries').select('*').order('created_at', { ascending: false })).limit(limit),
     // ردیف سبک، بدون سقف نمایش — پایه‌ی محاسبه‌ی «بر اساس متخصص» تا با محدودیت
     // لیست نمایشی قاطی نشود و همیشه دقیق بماند
     applyFilters(sb().from('ledger_entries').select('resource_id, tenant_id, method, direction, amount, commission_amount, doctor_amount')),
   ])
+
+  // مجموعه‌های تستی از همه‌ی محاسبات مالی واقعی کنار گذاشته می‌شوند.
+  const { data: testTenants } = await sb().from('tenants').select('id').eq('is_test', true)
+  const testTenantIds = new Set((testTenants || []).map(t => t.id))
+  const entries = (rawEntries || []).filter(e => !testTenantIds.has(e.tenant_id))
+  const aggRows = (rawAggRows || []).filter(e => !testTenantIds.has(e.tenant_id))
 
   // نام‌های tenant و resource برای نمایش
   const [{ data: tenants }, { data: resources }, { data: profiles }] = await Promise.all([

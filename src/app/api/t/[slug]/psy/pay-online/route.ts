@@ -6,6 +6,7 @@ import { acquirePendingLocksAtomic, sweepExpiredLocks } from '@/lib/slotLocks'
 import { stageTitle } from '@/lib/flow'
 import { requestZibalPayment, MULTIPLEXING_ENABLED } from '@/lib/zibal'
 import { resolveCommissionPercent } from '@/lib/commission'
+import { PAYMENT_TEST_MODE } from '@/lib/config'
 import { getClientPhone, getPayCase, matchesClientIdentity } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
@@ -143,6 +144,19 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   if (intentErr || !intent) return NextResponse.json({ error: 'خطا در ایجاد پرداخت' }, { status: 500 })
 
   const callbackUrl = `${req.nextUrl.origin}/api/t/${params.slug}/psy/pay-online/callback?intent=${intent.id}`
+
+  // ── حالت تست: بدون درگاه واقعی ──────────────────────────────────────────
+  // یا فلگ سراسری (PAYMENT_TEST_MODE) روشن است، یا خود این مجموعه تستی است
+  // (t.is_test) — یعنی مجموعه‌ی دمو. همه‌ی مراحل بالا (ساخت intent، کمیسیون،
+  // تخفیف) عینا مثل پروداکشن اجرا شد؛ فقط به‌جای زیبال، authority تستی می‌گذاریم
+  // و کاربر را به صفحه‌ی شبیه‌سازی می‌فرستیم.
+  if (PAYMENT_TEST_MODE || t.is_test) {
+    const testAuthority = `TEST-${intent.id}`
+    await sb().from('psy_payment_intents').update({ authority: testAuthority, split_applied: false }).eq('id', intent.id)
+    const simUrl = `${req.nextUrl.origin}/${params.slug}/pay-sim?intent=${intent.id}&amount=${amount}`
+    return NextResponse.json({ success: true, url: simUrl, test_mode: true })
+  }
+
   const willSplit = MULTIPLEXING_ENABLED && shebaOk && doctorAmount > 0
   const result = await requestZibalPayment(
     amount, description, callbackUrl, phone,

@@ -15,6 +15,7 @@ type Tenant = {
   created_at: string
   records_count: number
   clinic_mode_requested?: boolean
+  is_test?: boolean
   tenant_profiles: { display_name: string | null }[] | { display_name: string | null } | null
 }
 
@@ -62,6 +63,7 @@ function SuperInner() {
   const [phone, setPhone] = useState('')
   const [name, setName] = useState('')
   const [nicheKey, setNicheKey] = useState('psychology')
+  const [isTest, setIsTest] = useState(false)
   const [niches, setNiches] = useState<{ key: string; display_name: string }[]>([])
   const [creating, setCreating] = useState(false)
 
@@ -124,7 +126,7 @@ function SuperInner() {
     const res = await fetch('/api/super/tenants', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ slug: slug.trim(), owner_phone: phone.trim(), display_name: name.trim(), niche_key: nicheKey }),
+      body: JSON.stringify({ slug: slug.trim(), owner_phone: phone.trim(), display_name: name.trim(), niche_key: nicheKey, is_test: isTest }),
     })
     const d = await res.json().catch(() => ({}))
     setCreating(false)
@@ -132,7 +134,7 @@ function SuperInner() {
       await dialog.uiAlert(d.error || 'ساخت tenant ناموفق بود')
       return
     }
-    setSlug(''); setPhone(''); setName('')
+    setSlug(''); setPhone(''); setName(''); setIsTest(false)
     load()
   }
 
@@ -277,6 +279,10 @@ function SuperInner() {
             {niches.map(n => <option key={n.key} value={n.key}>{n.display_name}</option>)}
           </select>
         </div>
+        <label className="flex items-center gap-2 mb-3 cursor-pointer">
+          <input type="checkbox" checked={isTest} onChange={e => setIsTest(e.target.checked)} className="w-4 h-4" />
+          <span className="text-sm text-ink">مجموعه‌ی تستی (دمو) — پرداخت آنلاین شبیه‌سازی می‌شود و از آمار مالی واقعی کنار می‌ماند</span>
+        </label>
         <button
           onClick={createTenant}
           disabled={creating}
@@ -318,6 +324,9 @@ function SuperInner() {
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="font-bold text-ink">{displayName(t)}</span>
+                {t.is_test && (
+                  <span className="text-[11px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-semibold">🧪 تستی</span>
+                )}
                 <a href={`/${t.slug}`} target="_blank" dir="ltr" className="text-xs text-soot underline">
                   /{t.slug}
                 </a>
