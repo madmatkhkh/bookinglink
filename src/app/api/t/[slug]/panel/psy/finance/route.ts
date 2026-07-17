@@ -152,6 +152,51 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
     const k = startOfToday - i * 86400000
     daily.push({ date: new Date(k).toISOString(), amount: amountByDay.get(k) || 0 })
   }
+  // سری ۱۲ هفته‌ی اخیر (هر ستون = یک هفته، از شنبه)
+  const weekly: { date: string; amount: number }[] = []
+  for (let i = 11; i >= 0; i--) {
+    const ws = startOfWeek - i * 7 * 86400000
+    const we = ws + 7 * 86400000
+    let sum = 0
+    amountByDay.forEach((amt, k) => { if (k >= ws && k < we) sum += amt })
+    weekly.push({ date: new Date(ws).toISOString(), amount: sum })
+  }
+  // سری ۱۲ ماه اخیر
+  const monthlyChart: { date: string; amount: number }[] = []
+  for (let i = 11; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+    const ms = d.getTime()
+    const me = new Date(now.getFullYear(), now.getMonth() - i + 1, 1).getTime()
+    let sum = 0
+    amountByDay.forEach((amt, k) => { if (k >= ms && k < me) sum += amt })
+    monthlyChart.push({ date: d.toISOString(), amount: sum })
+  }
+
+  // ── فهرست تک‌تک تراکنش‌ها (برای جدول جزئیات) ─────────────────────────────
+  // منبع: ledger_entries (منبع حقیقت مالی — روش پرداخت، مبلغ، کمیسیون را دارد).
+  // فقط ورودی‌ها (inflow) در بازه‌ی گزارش انتخابی.
+  let txnQ = sb().from('ledger_entries')
+    .select('purpose, method, amount, commission_amount, doctor_amount, bank_ref_number, case_number, created_at')
+    .eq('tenant_id', t.id).eq('direction', 'inflow')
+    .order('created_at', { ascending: false })
+  if (resourceFilter) txnQ = txnQ.eq('resource_id', resourceFilter)
+  if (from) txnQ = txnQ.gte('created_at', from)
+  if (to) txnQ = txnQ.lte('created_at', to)
+  const { data: txnRows } = await txnQ
+  const PURPOSE_FA: Record<string, string> = {
+    interview: 'مصاحبه', assessment: 'ارزیابی', package: 'پروتکل درمان', session: 'جلسه', extra_charge: 'شارژ اضافه',
+  }
+  const transactions = (txnRows || []).map(r => ({
+    type: PURPOSE_FA[r.purpose] || r.purpose,
+    method: r.method as 'online' | 'card_to_card',
+    amount: r.amount || 0,
+    commission: r.commission_amount || 0,
+    doctorAmount: r.doctor_amount || 0,
+    bankRef: r.bank_ref_number || null,
+    date: r.created_at,
+    case_number: r.case_number || '',
+    name: '',
+  }))
 
   const perCase: Record<string, number> = {}
   const bump = (cn: string, amt: number) => { if (cn) perCase[cn] = (perCase[cn] || 0) + amt }
@@ -163,6 +208,7 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
   const topCases = Object.entries(perCase).sort((a, b) => b[1] - a[1]).slice(0, 8)
     .map(([case_number, amount]) => ({ case_number, name: nameByCase[case_number] || case_number, amount }))
   for (const r of refundsList) r.name = nameByCase[r.case_number] || r.case_number
+  for (const tr of transactions) tr.name = nameByCase[tr.case_number] || tr.case_number
   refundsList.sort((a, b) => (a.date < b.date ? 1 : -1))
 
   // تسویه‌ی پرداخت آنلاین — چقدر پول از تراکنش‌های آنلاین (که همه‌شان اول به
@@ -200,7 +246,7 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
 
   return NextResponse.json({
     totalPaid, totalPending, refundsTotal, refundsCount, netPaid, refundsList,
-    todayTotal, weekTotal, daily,
+    todayTotal, weekTotal, daily, weekly, monthlyChart, transactions,
     paid, paidCount, pending, pendingCount, split, monthly: monthlySorted, topCases, settlement: settlementWithManual,
   }, { headers: NO_STORE })
 }

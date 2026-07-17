@@ -21,6 +21,9 @@ export type FinanceData = {
  todayTotal: number
  weekTotal: number
  daily: { date: string; amount: number }[]
+ weekly: { date: string; amount: number }[]
+ monthlyChart: { date: string; amount: number }[]
+ transactions: { type: string; method: 'online' | 'card_to_card'; amount: number; commission: number; doctorAmount: number; bankRef: string | null; date: string; case_number: string; name: string }[]
  paid: FinanceCats
  paidCount: FinanceCats
  pending: FinanceCats
@@ -56,6 +59,8 @@ export default function FinanceTab({ api, onUnauthorized }: {
  const [financeToIso, setFinanceToIso] = useState('')
  const [financeCustomOpen, setFinanceCustomOpen] = useState(false)
  const [detailsOpen, setDetailsOpen] = useState(false)
+ const [chartPeriod, setChartPeriod] = useState<'daily' | 'weekly' | 'monthly'>('daily')
+ const [showAllTxns, setShowAllTxns] = useState(false)
  const [fromJ, setFromJ] = useState(() => { const t = getCurrentJalali(); return { y: t.year, m: t.month + 1, d: 1 } })
  const [toJ, setToJ] = useState(() => { const t = getCurrentJalali(); return { y: t.year, m: t.month + 1, d: t.day } })
 
@@ -116,7 +121,6 @@ export default function FinanceTab({ api, onUnauthorized }: {
        ]
        const maxCat = Math.max(1, ...cats.map(c => c.amount))
        const maxMonth = Math.max(1, ...f.monthly.map(m => m.amount))
-       const maxDay = Math.max(1, ...(f.daily || []).map(d => d.amount))
        const splitTotal = Math.max(1, f.split.online + f.split.offline)
        const pendCats = [
         { label: 'مصاحبه', amount: f.pending.interview, count: f.pendingCount.interview },
@@ -134,51 +138,86 @@ export default function FinanceTab({ api, onUnauthorized }: {
         <>
          {/* ═══ نمای سریع Shopify-style: امروز / این هفته / این ماه ═══ */}
          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <div className="bg-ink text-white rounded-2xl p-5">
-           <div className="text-xs opacity-70 mb-1">درآمد امروز</div>
+          <div className="rounded-2xl p-5 text-white" style={{ background: 'linear-gradient(135deg, #059669, #047857)' }}>
+           <div className="text-xs opacity-90 mb-1">درآمد امروز</div>
            <div className="text-3xl font-bold tnum">{moneyShort(f.todayTotal || 0)}</div>
-           <div className="text-[11px] opacity-70 mt-1">تومان</div>
+           <div className="text-[11px] opacity-80 mt-1">تومان</div>
           </div>
-          <div className="bg-white rounded-2xl border border-sand p-5">
-           <div className="text-xs text-soot mb-1">این هفته</div>
-           <div className="text-3xl font-bold text-ink tnum">{moneyShort(f.weekTotal || 0)}</div>
-           <div className="text-[11px] text-soot mt-1">تومان</div>
+          <div className="bg-emerald-50 rounded-2xl border border-emerald-200 p-5">
+           <div className="text-xs text-emerald-700 mb-1">این هفته</div>
+           <div className="text-3xl font-bold text-emerald-800 tnum">{moneyShort(f.weekTotal || 0)}</div>
+           <div className="text-[11px] text-emerald-600 mt-1">تومان</div>
           </div>
-          <div className="bg-white rounded-2xl border border-sand p-5">
-           <div className="text-xs text-soot mb-1">این ماه</div>
-           <div className="text-3xl font-bold text-ink tnum">{moneyShort(thisMonthTotal)}</div>
-           <div className="text-[11px] text-soot mt-1">تومان</div>
+          <div className="bg-emerald-50 rounded-2xl border border-emerald-200 p-5">
+           <div className="text-xs text-emerald-700 mb-1">این ماه</div>
+           <div className="text-3xl font-bold text-emerald-800 tnum">{moneyShort(thisMonthTotal)}</div>
+           <div className="text-[11px] text-emerald-600 mt-1">تومان</div>
           </div>
          </div>
 
-         {/* نمودار میله‌ای ۳۰ روز اخیر */}
+         {/* نمودار درآمد — روزانه / هفتگی / ماهانه با خط میانگین */}
          <div className="bg-white rounded-2xl border border-sand p-5">
-          <div className="flex items-center justify-between mb-4">
-           <h2 className="text-sm font-display font-semibold text-ink">درآمد ۳۰ روز اخیر</h2>
-           <button onClick={() => { setFinanceLoaded(false); loadFinance() }}
-            className="text-xs px-2.5 py-1 border border-sand rounded-lg text-soot hover:bg-gray-50">↻</button>
-          </div>
-          {(f.daily || []).every(d => d.amount === 0) ? (
-           <p className="text-xs text-soot text-center py-8">در ۳۰ روز اخیر درآمدی ثبت نشده.</p>
-          ) : (
-           <div className="flex items-end gap-[3px] h-32">
-            {(f.daily || []).map((d, i) => {
-             const dt = new Date(d.date)
-             const isToday = i === (f.daily.length - 1)
-             return (
-              <div key={i} className="flex-1 flex flex-col items-center justify-end h-full group relative">
-               <div className={`w-full rounded-t transition-all ${isToday ? 'bg-ink' : 'bg-gray-200 group-hover:bg-gray-300'}`}
-                style={{ height: `${Math.max(d.amount > 0 ? 4 : 0, (d.amount / maxDay) * 100)}%` }} />
-               {d.amount > 0 && (
-                <div className="absolute bottom-full mb-1 hidden group-hover:block bg-ink text-white text-[10px] px-2 py-1 rounded whitespace-nowrap z-10 tnum">
-                 {dt.toLocaleDateString('fa-IR', { month: 'short', day: 'numeric' })}: {moneyShort(d.amount)}
-                </div>
-               )}
-              </div>
-             )
-            })}
+          <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
+           <h2 className="text-sm font-display font-semibold text-ink">نمودار درآمد</h2>
+           <div className="flex items-center gap-2">
+            <div className="flex bg-gray-50 rounded-lg border border-sand p-0.5 gap-0.5">
+             {([['daily', 'روزانه'], ['weekly', 'هفتگی'], ['monthly', 'ماهانه']] as const).map(([k, lbl]) => (
+              <button key={k} onClick={() => setChartPeriod(k)}
+               className={`text-[11px] px-2.5 py-1 rounded-md font-medium transition-all ${chartPeriod === k ? 'bg-emerald-600 text-white' : 'text-soot hover:bg-white'}`}>
+               {lbl}
+              </button>
+             ))}
+            </div>
+            <button onClick={() => { setFinanceLoaded(false); loadFinance() }}
+             className="text-xs px-2.5 py-1 border border-sand rounded-lg text-soot hover:bg-gray-50">↻</button>
            </div>
-          )}
+          </div>
+          {(() => {
+           const series = chartPeriod === 'daily' ? (f.daily || []) : chartPeriod === 'weekly' ? (f.weekly || []) : (f.monthlyChart || [])
+           const maxV = Math.max(1, ...series.map(d => d.amount))
+           const nonZero = series.filter(d => d.amount > 0)
+           const avg = nonZero.length ? Math.round(nonZero.reduce((s, d) => s + d.amount, 0) / nonZero.length) : 0
+           const avgPct = avg > 0 ? (avg / maxV) * 100 : 0
+           const fmtLabel = (iso: string) => {
+            const dt = new Date(iso)
+            if (chartPeriod === 'monthly') return dt.toLocaleDateString('fa-IR', { month: 'short' })
+            return dt.toLocaleDateString('fa-IR', { month: 'short', day: 'numeric' })
+           }
+           if (series.every(d => d.amount === 0)) return <p className="text-xs text-soot text-center py-8">در این بازه درآمدی ثبت نشده.</p>
+           return (
+            <>
+             <div className="relative h-36">
+              {/* خط میانگین */}
+              {avg > 0 && (
+               <div className="absolute left-0 right-0 border-t border-dashed border-emerald-400 z-10 flex justify-end"
+                style={{ bottom: `${avgPct}%` }}>
+                <span className="text-[9px] text-emerald-600 bg-white px-1 -mt-2 tnum">میانگین {moneyShort(avg)}</span>
+               </div>
+              )}
+              <div className="flex items-end gap-[3px] h-full">
+               {series.map((d, i) => {
+                const isLast = i === series.length - 1
+                return (
+                 <div key={i} className="flex-1 flex flex-col items-center justify-end h-full group relative">
+                  <div className={`w-full rounded-t transition-all ${isLast ? 'bg-emerald-600' : 'bg-emerald-200 group-hover:bg-emerald-300'}`}
+                   style={{ height: `${Math.max(d.amount > 0 ? 4 : 0, (d.amount / maxV) * 100)}%` }} />
+                  {d.amount > 0 && (
+                   <div className="absolute bottom-full mb-1 hidden group-hover:block bg-ink text-white text-[10px] px-2 py-1 rounded whitespace-nowrap z-20 tnum">
+                    {fmtLabel(d.date)}: {moneyShort(d.amount)}
+                   </div>
+                  )}
+                 </div>
+                )
+               })}
+              </div>
+             </div>
+             <div className="flex justify-between text-[10px] text-soot mt-2 tnum">
+              <span>{fmtLabel(series[0].date)}</span>
+              <span>{fmtLabel(series[series.length - 1].date)}</span>
+             </div>
+            </>
+           )
+          })()}
          </div>
 
          {/* ═══ جزئیات بیشتر — جمع‌وجورتر، با بازه‌ی انتخابی ═══ */}
@@ -223,6 +262,48 @@ export default function FinanceTab({ api, onUnauthorized }: {
             </div>
 
             <p className="text-[11px] text-soot">ارقام زیر از پرداخت‌های تأییدشده در بازه‌ی انتخابی محاسبه شده‌اند.</p>
+
+            {/* جدول تراکنش‌ها */}
+            <div className="rounded-xl border border-sand overflow-hidden">
+             <div className="flex items-center justify-between p-3 bg-gray-50 border-b border-sand">
+              <h3 className="text-xs font-semibold text-ink">تراکنش‌ها ({toFarsiNum((f.transactions || []).length)})</h3>
+             </div>
+             {(f.transactions || []).length === 0 ? (
+              <p className="text-xs text-soot text-center py-6">در این بازه تراکنشی نیست.</p>
+             ) : (
+              <div className="divide-y divide-sand">
+               {(showAllTxns ? f.transactions : f.transactions.slice(0, 15)).map((tr, i) => {
+                const dt = new Date(tr.date)
+                return (
+                 <div key={i} className="flex items-center justify-between gap-2 p-3">
+                  <div className="min-w-0">
+                   <div className="flex items-center gap-1.5">
+                    <span className="text-sm text-ink truncate">{tr.name || tr.case_number}</span>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-soot shrink-0">{tr.type}</span>
+                   </div>
+                   <div className="text-[11px] text-soot mt-0.5 tnum">
+                    {dt.toLocaleDateString('fa-IR')} · {dt.toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' })}
+                    {' · '}{tr.method === 'online' ? 'آنلاین' : 'کارت‌به‌کارت'}
+                   </div>
+                  </div>
+                  <div className="text-left shrink-0">
+                   <div className="text-sm font-medium text-emerald-700 tnum">{moneyShort(tr.amount)}</div>
+                   {tr.method === 'online' && tr.commission > 0 && (
+                    <div className="text-[10px] text-soot tnum">سهم شما {moneyShort(tr.doctorAmount)}</div>
+                   )}
+                  </div>
+                 </div>
+                )
+               })}
+               {f.transactions.length > 15 && (
+                <button onClick={() => setShowAllTxns(v => !v)}
+                 className="w-full py-2.5 text-xs text-soot hover:bg-gray-50">
+                 {showAllTxns ? 'نمایش کمتر' : `نمایش همه (${toFarsiNum(f.transactions.length)})`}
+                </button>
+               )}
+              </div>
+             )}
+            </div>
 
             {/* خلاصه‌ی بازه */}
             <div className="grid grid-cols-3 gap-2">
