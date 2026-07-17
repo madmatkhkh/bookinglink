@@ -27,7 +27,7 @@ function parseCustomTime(raw: string): string | null {
 
 export type SchedAppt = {
  time: string; name: string; type: string; mode?: string; loc?: string; color: string
- kind: 'interview' | 'assessment' | 'custom' | 'session'; id: string; caseNumber: string; delayMinutes?: number | null
+ kind: 'stage' | 'session'; id: string; caseNumber: string; delayMinutes?: number | null
 }
 export type SchedJump = { day: number; month: number; year: number }
 

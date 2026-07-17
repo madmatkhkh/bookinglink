@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { sb } from '@/lib/supabase'
 import { requirePanelAuth, isPanelAuthResponse } from '@/lib/tenant'
-import { STAGE_TYPES, STAGE_STATUS } from '@/lib/flow'
+import { STAGE_STATUS } from '@/lib/flow'
 import { getResourcePricing, resolvePrice } from '@/lib/psy'
 
 export const dynamic = 'force-dynamic'
@@ -61,11 +61,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { slug: stri
     return NextResponse.json({ success: true })
   }
 
-  // approve — یک مرحله می‌سازد. نوع پیش‌فرض: مصاحبه (interview)، مگر دکتر چیز دیگری بدهد.
-  const stage_type = (STAGE_TYPES as readonly string[]).includes(b.stage_type) ? b.stage_type : 'interview'
+  // approve — یک مرحله می‌سازد. عنوانش را دکتر می‌دهد (title)؛ نوع دیگر معنا ندارد.
   const title = String(b.title || '').trim().slice(0, 60)
-  if (stage_type === 'custom' && !title)
-    return NextResponse.json({ error: 'برای جلسه‌ی دلخواه، عنوان لازم است' }, { status: 400 })
+  if (!title)
+    return NextResponse.json({ error: 'عنوان جلسه لازم است' }, { status: 400 })
 
   const { data: c } = await sb().from('psy_cases')
     .select('id, resource_id, current_stage_id, session_type')
@@ -78,9 +77,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { slug: stri
     : resolvePrice(c.session_type, await getResourcePricing(c.resource_id))
 
   const { data: stage, error } = await sb().from('psy_stages').insert({
-    tenant_id: a.tenant.id, resource_id: c.resource_id, case_number: request.case_number, stage_type,
-    title: stage_type === 'custom' ? title : null,
-    price, status: STAGE_STATUS.AWAITING_PAYMENT,
+    tenant_id: a.tenant.id, resource_id: c.resource_id, case_number: request.case_number, stage_type: 'custom',
+    title, price, status: STAGE_STATUS.AWAITING_PAYMENT,
   }).select().single()
   if (error || !stage) {
     console.error('appointment-request approve → stage error:', error)

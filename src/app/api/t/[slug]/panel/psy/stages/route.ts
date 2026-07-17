@@ -128,7 +128,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { slug: stri
       tenantId: a.tenant.id,
       resourceId: stage.resource_id || null,
       caseNumber: stage.case_number,
-      purpose: stage.stage_type === 'assessment' ? 'assessment' : 'interview',
+      purpose: 'stage',
       method: 'card_to_card',
       amount: stage.price || 0,
       commissionAmount: 0,

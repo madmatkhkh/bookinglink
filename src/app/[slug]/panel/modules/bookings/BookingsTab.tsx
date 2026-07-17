@@ -122,11 +122,6 @@ export default function BookingsTab({
       {/* صندوق تأیید پرداخت‌ها — سه بخش */}
       {(() => {
        // childOf از props (clientNameOf) می‌آید — والد از روی state پرونده‌ها می‌سازد
-       const interviewPending = pendingStages.filter(s => s.stage_type === 'interview')
-       const assessmentPending = pendingStages.filter(s => s.stage_type === 'assessment')
-       // هر چیزی که نه مصاحبه است نه ارزیابی (یعنی جلسه‌ی دلخواه) — بدون این،
-       // کارت پرداختش اصلا رندر نمی‌شد و فقط شمارنده بالا می‌رفت.
-       const customPending = pendingStages.filter(s => s.stage_type !== 'interview' && s.stage_type !== 'assessment')
        const pkgAmount = (p: Package) =>
         p.price || ((p.primary_sessions * (p.primary_session_type === 'online' ? PRICING.online : PRICING.offline)) +
         (p.secondary_sessions * (p.secondary_session_type === 'online' ? PRICING.online : PRICING.offline)))
@@ -175,39 +170,9 @@ export default function BookingsTab({
           </PendingSection>
          )}
 
-         {/* بخش 1: مصاحبه */}
-         <PendingSection title="مصاحبه‌ی اولیه" icon="🩺" count={interviewPending.length}>
-          {interviewPending.map(s => (
-           <PendingPayCard key={s.id} name={childOf(s.case_number)} caseNumber={s.case_number}
-            amount={s.price || (sessionTypeOf(s.case_number) === 'online' ? PRICING.online : PRICING.offline)} receipt={s.payment_ref}>
-            <div className="flex gap-2">
-             <button onClick={() => confirmStagePayment(s.id, stageTitle(s))}
-              className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm">تأیید پرداخت</button>
-             <button onClick={() => rejectStagePayment(s.id)}
-              className="flex-1 py-2 border border-red-500/30 text-red-600 hover:bg-red-500/5 rounded-lg text-sm">رد</button>
-            </div>
-           </PendingPayCard>
-          ))}
-         </PendingSection>
-
-         {/* بخش 2: ارزیابی */}
-         <PendingSection title="ارزیابی" icon="🧩" count={assessmentPending.length}>
-          {assessmentPending.map(s => (
-           <PendingPayCard key={s.id} name={childOf(s.case_number)} caseNumber={s.case_number}
-            amount={s.price || (sessionTypeOf(s.case_number) === 'online' ? PRICING.online : PRICING.offline)} receipt={s.payment_ref}>
-            <div className="flex gap-2">
-             <button onClick={() => confirmStagePayment(s.id, stageTitle(s))}
-              className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm">تأیید پرداخت</button>
-             <button onClick={() => rejectStagePayment(s.id)}
-              className="flex-1 py-2 border border-red-500/30 text-red-600 hover:bg-red-500/5 rounded-lg text-sm">رد</button>
-            </div>
-           </PendingPayCard>
-          ))}
-         </PendingSection>
-
-         {/* جلسه‌های دلخواه (stage_type = custom) — عنوانشان را خود دکتر گذاشته */}
-         <PendingSection title="جلسه‌ی دلخواه" icon="📝" count={customPending.length}>
-          {customPending.map(s => (
+         {/* جلسات منتظر تأیید — همه با هم، هرکدام با عنوان خودش (دیگر نوع ثابت نیست) */}
+         <PendingSection title="جلسات" icon="📝" count={pendingStages.length}>
+          {pendingStages.map(s => (
            <PendingPayCard key={s.id} name={childOf(s.case_number)} caseNumber={s.case_number}
             amount={s.price || (sessionTypeOf(s.case_number) === 'online' ? PRICING.online : PRICING.offline)} receipt={s.payment_ref}
             sub={stageTitle(s)}>

@@ -15,7 +15,7 @@ import SlotPicker, { SlotConfirmResult } from '@/components/SlotPicker'
 
 type CaseStage = {
  id: string; case_number: string
- stage_type: 'interview' | 'assessment' | 'custom'
+ stage_type: string
  title?: string | null
  status: 'awaiting_payment' | 'payment_submitted' | 'awaiting_booking' | 'booked'
  price: number; paid: boolean; payment_submitted?: boolean; payment_ref?: string
@@ -1717,12 +1717,15 @@ function StagePayment({ icon, title, desc, amount, onPaid, onDone, resourceId, c
 // نوار پیشرفت مراحل — حالا طولش متغیر است (هر تعداد مصاحبه/ارزیابی که واقعا وجود دارد) + درمان در انتها
 function StageProgress({ stages, inTreatment }: { stages: CaseStage[]; inTreatment: boolean }) {
  const items = stages.map(s => ({
-  icon: s.stage_type === 'assessment' ? '🧩' : s.stage_type === 'custom' ? '📝' : '🩺',
+  icon: '●',
   label: stageTitle(s),
   done: s.status === 'booked' && !!s.held,
   current: !(s.status === 'booked' && !!s.held),
  }))
- items.push({ icon: '💊', label: 'درمان', done: inTreatment, current: false })
+ // فقط اگر مراجع واقعا وارد فاز پروتکل درمان شده، آن را به‌عنوان مرحله‌ی آخر
+ // نشان بده — نه به‌عنوان یک مقصد تحمیلی برای هر پرونده‌ای.
+ if (inTreatment) items.push({ icon: '💊', label: 'پروتکل درمان', done: true, current: false })
+ if (items.length === 0) return null
  return (
   <div className="bg-white rounded-2xl border border-sand p-3 flex items-center justify-between overflow-x-auto">
    {items.map((it, i) => (

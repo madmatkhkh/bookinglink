@@ -24,10 +24,9 @@ export type FinanceData = {
  weekly: { date: string; amount: number }[]
  monthlyChart: { date: string; amount: number }[]
  transactions: { type: string; method: 'online' | 'card_to_card'; amount: number; commission: number; doctorAmount: number; bankRef: string | null; date: string; case_number: string; name: string }[]
- paid: FinanceCats
- paidCount: FinanceCats
- pending: FinanceCats
- pendingCount: FinanceCats
+ stageBreakdown: { title: string; paid: number; paidCount: number; pending: number; pendingCount: number }[]
+ paid: { stages: number; packages: number; sessions: number }
+ pending: { stages: number; packages: number; sessions: number }
  split: { online: number; offline: number }
  monthly: { month: string; amount: number }[]
  topCases: { case_number: string; name: string; amount: number }[]
@@ -114,19 +113,17 @@ export default function FinanceTab({ api, onUnauthorized }: {
        const money = (n: number) => n.toLocaleString('en-US') + ' تومان'
        const moneyShort = (n: number) => n.toLocaleString('en-US')
        const cats = [
-        { key: 'interview', label: 'مصاحبه‌ی اولیه', icon: '🩺', amount: f.paid.interview, count: f.paidCount.interview },
-        { key: 'assessment', label: 'ارزیابی', icon: '🧩', amount: f.paid.assessment, count: f.paidCount.assessment },
-        { key: 'packages', label: 'پروتکل درمان', icon: '📦', amount: f.paid.packages, count: f.paidCount.packages },
-        { key: 'sessions', label: 'جلسه‌ی جداگانه', icon: '📅', amount: f.paid.sessions, count: f.paidCount.sessions },
-       ]
+        ...f.stageBreakdown.map(s => ({ key: s.title, label: s.title, icon: '●', amount: s.paid, count: s.paidCount })),
+        { key: 'packages', label: 'پروتکل درمان', icon: '📦', amount: f.paid.packages, count: 0 },
+        { key: 'sessions', label: 'جلسه‌ی جداگانه', icon: '📅', amount: f.paid.sessions, count: 0 },
+       ].filter(c => c.amount > 0)
        const maxCat = Math.max(1, ...cats.map(c => c.amount))
        const maxMonth = Math.max(1, ...f.monthly.map(m => m.amount))
        const splitTotal = Math.max(1, f.split.online + f.split.offline)
        const pendCats = [
-        { label: 'مصاحبه', amount: f.pending.interview, count: f.pendingCount.interview },
-        { label: 'ارزیابی', amount: f.pending.assessment, count: f.pendingCount.assessment },
-        { label: 'پروتکل درمان', amount: f.pending.packages, count: f.pendingCount.packages },
-        { label: 'جلسه‌ی جداگانه', amount: f.pending.sessions, count: f.pendingCount.sessions },
+        ...f.stageBreakdown.filter(s => s.pending > 0).map(s => ({ label: s.title, amount: s.pending, count: s.pendingCount })),
+        { label: 'پروتکل درمان', amount: f.pending.packages, count: 0 },
+        { label: 'جلسه‌ی جداگانه', amount: f.pending.sessions, count: 0 },
        ].filter(c => c.amount > 0)
        // درآمد این ماه از سری روزانه‌ی همین ماه (مطلق، مستقل از بازه‌ی گزارش)
        const thisMonthTotal = (f.daily || []).reduce((sum, d) => {
@@ -345,7 +342,7 @@ export default function FinanceTab({ api, onUnauthorized }: {
               {cats.map(c => (
                <div key={c.key}>
                 <div className="flex items-center justify-between text-xs mb-1">
-                 <span className="text-ink">{c.icon} {c.label} <span className="text-soot">({toFarsiNum(c.count)})</span></span>
+                 <span className="text-ink">{c.icon} {c.label} {c.count > 0 && <span className="text-soot">({toFarsiNum(c.count)})</span>}</span>
                  <span className="font-medium text-ink tnum">{moneyShort(c.amount)}</span>
                 </div>
                 <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
@@ -410,7 +407,7 @@ export default function FinanceTab({ api, onUnauthorized }: {
               <div className="space-y-2">
                {pendCats.map(c => (
                 <div key={c.label} className="flex items-center justify-between text-xs">
-                 <span className="text-ink">{c.label} <span className="text-soot">({toFarsiNum(c.count)})</span></span>
+                 <span className="text-ink">{c.label} {c.count > 0 && <span className="text-soot">({toFarsiNum(c.count)})</span>}</span>
                  <span className="font-medium text-soot tnum">{moneyShort(c.amount)}</span>
                 </div>
                ))}

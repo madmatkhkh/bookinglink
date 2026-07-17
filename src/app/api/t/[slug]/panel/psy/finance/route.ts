@@ -63,43 +63,53 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
   const pricingMap = new Map<string, Pricing>(pricingEntries)
   const pricingFor = (resourceId: string | null | undefined): Pricing => (resourceId && pricingMap.get(resourceId)) || DEFAULT_PRICING
 
-  const paid = { interview: 0, assessment: 0, packages: 0, sessions: 0 }
-  const paidCount = { interview: 0, assessment: 0, packages: 0, sessions: 0 }
-  const pending = { interview: 0, assessment: 0, packages: 0, sessions: 0 }
-  const pendingCount = { interview: 0, assessment: 0, packages: 0, sessions: 0 }
+  // تفکیک بر اساس عنوان مرحله (نه نوع ثابت). هر عنوان دلخواه دکتر یک ردیف.
+  const byTitle: Record<string, { paid: number; paidCount: number; pending: number; pendingCount: number }> = {}
+  const bumpTitle = (title: string, field: 'paid' | 'pending', amount: number) => {
+    if (!byTitle[title]) byTitle[title] = { paid: 0, paidCount: 0, pending: 0, pendingCount: 0 }
+    byTitle[title][field] += amount
+    byTitle[title][field === 'paid' ? 'paidCount' : 'pendingCount']++
+  }
+  const paid = { stages: 0, packages: 0, sessions: 0 }
+  const pending = { stages: 0, packages: 0, sessions: 0 }
   const split = { online: 0, offline: 0 }
   const monthly: Record<string, number> = {}
   const addMonthly = (iso: string | undefined, amount: number) => {
     const k = jalaliMonthKey(iso); if (k) monthly[k] = (monthly[k] || 0) + amount
   }
 
-  // مصاحبه/ارزیابی حالا از psy_stages می‌آید (هر مرحله یک ردیف مستقل، هر تعداد ممکن)
+  // هر مرحله از psy_stages — بر اساس عنوان خودش گروه می‌شود.
   for (const st of St) {
-    const bucket = st.stage_type === 'assessment' ? 'assessment' : 'interview'
-    if (st.paid) { paid[bucket] += st.price || 0; paidCount[bucket]++; addMonthly(st.created_at, st.price || 0) }
-    else if (st.payment_submitted) { pending[bucket] += st.price || 0; pendingCount[bucket]++ }
+    const title = (st.title || '').trim() || 'جلسه'
+    if (st.paid) { paid.stages += st.price || 0; bumpTitle(title, 'paid', st.price || 0); addMonthly(st.created_at, st.price || 0) }
+    else if (st.payment_submitted) { pending.stages += st.price || 0; bumpTitle(title, 'pending', st.price || 0) }
   }
   for (const p of P) {
     const pricing = pricingFor(p.resource_id)
     const total = pkgTotal(p, pricing)
     if (p.paid) {
-      paid.packages += total; paidCount.packages++; addMonthly(p.created_at, total)
+      paid.packages += total; addMonthly(p.created_at, total)
       split.online += (p.primary_sessions || 0) * (p.primary_session_type === 'online' ? pricing.online : 0)
         + (p.secondary_sessions || 0) * (p.secondary_session_type === 'online' ? pricing.online : 0)
       split.offline += (p.primary_sessions || 0) * (p.primary_session_type !== 'online' ? pricing.offline : 0)
         + (p.secondary_sessions || 0) * (p.secondary_session_type !== 'online' ? pricing.offline : 0)
-    } else if (p.payment_submitted) { pending.packages += total; pendingCount.packages++ }
+    } else if (p.payment_submitted) { pending.packages += total }
   }
   for (const s of S) {
     const price = sessPrice(s, pricingFor(s.resource_id))
     if (s.paid) {
-      paid.sessions += price; paidCount.sessions++; addMonthly(s.created_at, price)
+      paid.sessions += price; addMonthly(s.created_at, price)
       if (s.session_type === 'online') split.online += price; else split.offline += price
-    } else if (s.payment_submitted) { pending.sessions += price; pendingCount.sessions++ }
+    } else if (s.payment_submitted) { pending.sessions += price }
   }
 
-  const totalPaid = paid.interview + paid.assessment + paid.packages + paid.sessions
-  const totalPending = pending.interview + pending.assessment + pending.packages + pending.sessions
+  // تبدیل byTitle به آرایه‌ی مرتب (بیشترین درآمد اول) برای نمایش
+  const stageBreakdown = Object.entries(byTitle)
+    .map(([title, v]) => ({ title, ...v }))
+    .sort((a, b) => b.paid - a.paid)
+
+  const totalPaid = paid.stages + paid.packages + paid.sessions
+  const totalPending = pending.stages + pending.packages + pending.sessions
 
   let refundsTotal = 0, refundsCount = 0
   const refundsList: { case_number: string; name: string; amount: number; percent: number; date: string; card: string | null }[] = []
@@ -184,7 +194,7 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
   if (to) txnQ = txnQ.lte('created_at', to)
   const { data: txnRows } = await txnQ
   const PURPOSE_FA: Record<string, string> = {
-    interview: 'مصاحبه', assessment: 'ارزیابی', package: 'پروتکل درمان', session: 'جلسه', extra_charge: 'شارژ اضافه',
+    stage: 'جلسه', interview: 'مصاحبه', assessment: 'ارزیابی', package: 'پروتکل درمان', session: 'جلسه', extra_charge: 'شارژ اضافه',
   }
   const transactions = (txnRows || []).map(r => ({
     type: PURPOSE_FA[r.purpose] || r.purpose,
@@ -247,6 +257,6 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
   return NextResponse.json({
     totalPaid, totalPending, refundsTotal, refundsCount, netPaid, refundsList,
     todayTotal, weekTotal, daily, weekly, monthlyChart, transactions,
-    paid, paidCount, pending, pendingCount, split, monthly: monthlySorted, topCases, settlement: settlementWithManual,
+    stageBreakdown, paid, pending, split, monthly: monthlySorted, topCases, settlement: settlementWithManual,
   }, { headers: NO_STORE })
 }

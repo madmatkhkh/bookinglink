@@ -21,7 +21,7 @@ import { PageHeader, EmptyState, SkeletonRows, enTime, Field, SelectField, Texta
 import type { Session, Package, CaseStage, Patient, Booking } from '../../PsychologyAdmin'
 
 // فقط دو فیلدی که این تب از پروفایل مصرف می‌کند (برچسب همراه + قیمت‌ها)
-type ProfileBits = { companion_label?: string | null; pricing: Pricing }
+type ProfileBits = { companion_label?: string | null; pricing: Pricing; stage_presets?: string[] }
 type ExtraCharge = {
  id: string; case_number: string; title: string; amount: number
  status: 'awaiting_payment' | 'payment_submitted' | 'paid'
@@ -69,7 +69,7 @@ function StageSessionCard({ stage, index, onSave }: {
  const [val, setVal] = useState(stage.notes || '')
  const [saving, setSaving] = useState(false)
  const label = stageTitle(stage) + (index && index > 1 ? ` #${index}` : '')
- const icon = stage.stage_type === 'interview' ? '🩺' : stage.stage_type === 'assessment' ? '🧩' : '📝'
+ const icon = stage.is_first ? '🎯' : '📝'
  const held = !!stage.held
  const canHold = stage.status === 'booked' && !held
  return (
@@ -140,6 +140,7 @@ export default function PatientsTab({
  onAppointmentsChanged: () => void
 }) {
  // ── Patients state ── (خود لیست patients از props می‌آید)
+ const stagePresets = Array.isArray(profile.stage_presets) ? profile.stage_presets.filter(Boolean) : []
  const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null)
  const [patientView, setPatientView] = useState<'list' | 'detail' | 'edit'>('list')
  const [patientTab, setPatientTab] = useState<'info' | 'payment' | 'packages' | 'sessions' | 'clinical'>('info')
@@ -163,7 +164,6 @@ export default function PatientsTab({
  const [patientSearch, setPatientSearch] = useState('')
  const [showNewPackage, setShowNewPackage] = useState(false)
  const [showNewStage, setShowNewStage] = useState(false)
- const [newStageType, setNewStageType] = useState<'interview' | 'assessment' | 'custom'>('assessment')
  const [newStageTitle, setNewStageTitle] = useState('')
  const [newStageSaving, setNewStageSaving] = useState(false)
  const [showAddPatient, setShowAddPatient] = useState(false)
@@ -431,18 +431,18 @@ export default function PatientsTab({
  // تأیید پرداخت کارت‌به‌کارت پروتکل درمان → مراجع می‌تواند روزهای جلسات را انتخاب کند
  async function createStage() {
   if (!selectedPatient) return
-  const title = newStageType === 'custom' ? newStageTitle.trim() : ''
-  if (newStageType === 'custom' && !title) { uiAlert('عنوان جلسه‌ی دلخواه را بنویسید.'); return }
+  const title = newStageTitle.trim()
+  if (!title) { uiAlert('عنوان جلسه را بنویسید.'); return }
   setNewStageSaving(true)
   const res = await fetch(api('/stages'), {
    method: 'POST', headers: { 'Content-Type': 'application/json' },
-   body: JSON.stringify({ case_number: selectedPatient.case_number, stage_type: newStageType, title }),
+   body: JSON.stringify({ case_number: selectedPatient.case_number, stage_type: 'custom', title }),
   })
   const data = await res.json().catch(() => ({}))
   setNewStageSaving(false)
   if (!res.ok) { uiAlert(data.error || 'ثبت جلسه ناموفق بود'); return }
   setShowNewStage(false)
-  setNewStageType('assessment')
+  setNewStageTitle('')
   setNewStageTitle('')
   await loadPatientData(selectedPatient.case_number)
   await fetchAll() // current_stage_id در لیست پرونده‌ها هم به‌روز شود
@@ -819,7 +819,7 @@ export default function PatientsTab({
           awaiting_payment: '—', payment_submitted: 'منتظر تأیید', paid: 'پرداخت‌شده',
          }
          const PURPOSE_LABEL: Record<string, string> = {
-          interview: 'مصاحبه', assessment: 'ارزیابی', package: 'پروتکل درمان', session: 'جلسه', extra_charge: 'شارژ اضافه', refund: 'بازپرداخت',
+          stage: 'جلسه', interview: 'مصاحبه', assessment: 'ارزیابی', package: 'پروتکل درمان', session: 'جلسه', extra_charge: 'شارژ اضافه', refund: 'بازپرداخت',
          }
          const money = (n: number) => n.toLocaleString('en-US')
          // فقط تراکنش‌های ورودی (پرداخت مراجع) — بازپرداخت‌ها (outflow) بخش خودشان را دارند
@@ -1150,22 +1150,22 @@ export default function PatientsTab({
           هر نوع جلسه‌ای که لازم می‌دانید. مراجع در پنل خودش این جلسه را می‌بیند: اول هزینه‌اش را پرداخت می‌کند، بعد وقتش را انتخاب می‌کند.
          </p>
          <label className="text-xs text-soot mb-1 block">عنوان جلسه</label>
-         <div className="flex bg-gray-100 rounded-xl p-1 gap-1 mb-3">
-          {(['interview', 'assessment', 'custom'] as const).map(t => (
-           <button key={t} onClick={() => setNewStageType(t)}
-            className={`flex-1 text-xs py-2 rounded-lg font-medium transition-all ${newStageType === t ? 'bg-white text-ink shadow-sm' : 'text-soot'}`}>
-            {t === 'custom' ? 'دلخواه' : STAGE_TYPE_LABEL[t]}
-           </button>
-          ))}
-         </div>
-         {newStageType === 'custom' && (
-          <input value={newStageTitle} onChange={e => setNewStageTitle(e.target.value)}
-           placeholder="مثلا: جلسه‌ی مشاوره‌ی خانواده"
-           className="w-full text-sm px-3 py-2 border border-sand rounded-lg mb-3 focus:outline-none focus:border-ink" />
+         {stagePresets.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mb-2">
+           {stagePresets.map((p, i) => (
+            <button key={i} onClick={() => setNewStageTitle(p)}
+             className={`text-xs px-2.5 py-1.5 rounded-lg border transition-colors ${newStageTitle === p ? 'bg-ink text-white border-ink' : 'border-sand text-ink hover:bg-sand'}`}>
+             {p}
+            </button>
+           ))}
+          </div>
          )}
+         <input value={newStageTitle} onChange={e => setNewStageTitle(e.target.value)} autoFocus
+          placeholder="مثلا: جلسه‌ی مشاوره، ارزیابی، پیگیری..."
+          className="w-full text-sm px-3 py-2 border border-sand rounded-lg mb-3 focus:outline-none focus:border-ink" />
          <div className="flex gap-2">
           <button onClick={() => setShowNewStage(false)} className="flex-1 py-2.5 border border-sand text-soot rounded-xl text-sm">انصراف</button>
-          <button onClick={createStage} disabled={newStageSaving || (newStageType === 'custom' && !newStageTitle.trim())}
+          <button onClick={createStage} disabled={newStageSaving || !newStageTitle.trim()}
            className="flex-1 py-2.5 bg-ink text-white rounded-xl text-sm font-medium disabled:opacity-40">
            {newStageSaving ? 'در حال ثبت...' : 'ثبت'}
           </button>

@@ -1,14 +1,19 @@
 // ───────────────────────────────────────────────────────────────
-// مراحل پرونده (جدول psy_stages) — دیگر فلوی هاردکد «مصاحبه یک‌بار →
-// ارزیابی یک‌بار» نیست. هر پرونده هر تعداد مرحله از هر نوع می‌تواند داشته
-// باشد. هر مرحله این چرخه را طی می‌کند:
-//   awaiting_payment → payment_submitted → awaiting_booking → booked
-// و بعد از برگزاری (held=true)، دکتر تصمیم می‌گیرد جلسه‌ی بعدی چیست.
+// مراحل پرونده (جدول psy_stages) — کاملا عنوان‌محور. هیچ نوع اسم‌دار خاصی
+// («مصاحبه»/«ارزیابی») وجود ندارد؛ هر مرحله فقط یک عنوان دلخواه دارد که خود
+// متخصص می‌گذارد. این باعث می‌شود سیستم روی هر نیچی (روانشناس، مشاور، وکیل،
+// مربی) بدون فرض روال کار بنشیند.
 //
-// این تنها مسیر «دادن یک جلسه به مراجع» است. قبلا یک مسیر دوم موازی هم بود
-// (جلسه‌ی تکی روی psy_sessions) که همان کار را با رفتار متفاوت انجام می‌داد و
-// مدام با این اشتباه گرفته می‌شد؛ حذف شد و انعطافش (عنوان دلخواه) به همین‌جا
-// منتقل شد: stage_type = 'custom' + عنوان در ستون title.
+// نقش فنی «اولین تماس» با فلگ is_first حفظ می‌شود (نه با یک نام ثابت): فرم
+// اولیه پرونده را می‌سازد و آن مرحله is_first=true می‌گیرد، ولی عنوانش را خود
+// متخصص تعیین می‌کند (first_stage_label در پروفایل).
+//
+// هر مرحله این چرخه را طی می‌کند:
+//   awaiting_payment → payment_submitted → awaiting_booking → booked
+// و بعد از برگزاری (held=true)، متخصص تصمیم می‌گیرد مرحله‌ی بعدی چیست.
+//
+// stage_type هنوز در دیتابیس هست (ستون قدیمی) ولی دیگر شاخه‌ساز نیست — همه‌ی
+// مرحله‌های تازه 'custom' ذخیره می‌شوند و عنوان واقعی در title است.
 // ───────────────────────────────────────────────────────────────
 
 export const STAGE_TYPES = ['interview', 'assessment', 'custom'] as const
@@ -22,19 +27,20 @@ export const STAGE_STATUS = {
 } as const
 export type StageStatus = typeof STAGE_STATUS[keyof typeof STAGE_STATUS]
 
+// برچسب پیش‌فرض فقط برای مرحله‌های قدیمی که هنوز عنوان ندارند (سازگاری قهقرایی).
+// مرحله‌های تازه همیشه title دارند، پس این جدول عملا فقط fallback است.
 export const STAGE_TYPE_LABEL: Record<string, string> = {
   interview: 'مصاحبه',
   assessment: 'ارزیابی',
   custom: 'جلسه',
 }
 
-// عنوان قابل نمایش یک مرحله — همه‌جا (پنل دکتر و پنل مراجع) باید از این رد شود،
-// نه مستقیم از STAGE_TYPE_LABEL؛ وگرنه مرحله‌ی دلخواه به‌جای عنوان خودش برچسب
-// عمومی «جلسه» می‌گیرد.
-export function stageTitle(stage: { stage_type: string; title?: string | null }): string {
+// عنوان قابل نمایش یک مرحله — همیشه از title می‌آید. اگر title نبود (داده‌ی
+// خیلی قدیمی)، به برچسب نوع برمی‌گردد. همه‌جا (پنل دکتر و مراجع) باید از این رد شود.
+export function stageTitle(stage: { stage_type?: string; title?: string | null }): string {
   const custom = (stage.title || '').trim()
   if (custom) return custom
-  return STAGE_TYPE_LABEL[stage.stage_type] || stage.stage_type
+  return STAGE_TYPE_LABEL[stage.stage_type || 'custom'] || 'جلسه'
 }
 
 export const STAGE_STATUS_LABEL: Record<string, string> = {

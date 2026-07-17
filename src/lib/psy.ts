@@ -69,6 +69,19 @@ export async function getResourcePricing(resourceId: string | null | undefined):
   }
 }
 
+// عنوان اولین مرحله‌ی این متخصص (مثلا «ویزیت اول»/«جلسه‌ی مشاوره»). fail-safe
+// به «مصاحبه» تا اگر ستون هنوز نبود چیزی نشکند.
+export async function getFirstStageLabel(resourceId: string | null | undefined): Promise<string> {
+  if (!resourceId) return 'مصاحبه'
+  try {
+    const { data } = await sb().from('psy_resource_profiles').select('first_stage_label').eq('resource_id', resourceId).maybeSingle()
+    const v = (data?.first_stage_label || '').trim()
+    return v || 'مصاحبه'
+  } catch {
+    return 'مصاحبه'
+  }
+}
+
 // مبلغ کل یک پروتکل درمان از روی ترکیب جلسات کودک/والدین + قیمت داده‌شده
 export function packageAmount(p: { primary_sessions: number; primary_session_type: string; secondary_sessions: number; secondary_session_type: string }, pricing: Pricing = DEFAULT_PRICING): number {
   return (p.primary_sessions * resolvePrice(p.primary_session_type, pricing))
@@ -330,6 +343,8 @@ export type ResourceProfile = {
   settlement_sheba_holder_name: string
   pricing: Pricing
   terms: TermsSettings
+  first_stage_label: string
+  stage_presets: string[]
   // override اختیاری کمیسیون این متخصص. null = از درصد سراسری پلتفرم تبعیت کن.
   // super-admin تنظیمش می‌کند؛ متخصص خودش نمی‌بیند/تغییر نمی‌دهد.
   commission_percent_override: number | null
@@ -357,6 +372,8 @@ export const DEFAULT_RESOURCE_PROFILE: Omit<ResourceProfile, 'resource_id'> = {
   settlement_sheba_holder_name: '',
   pricing: DEFAULT_PRICING,
   terms: DEFAULT_TERMS,
+  first_stage_label: 'مصاحبه',
+  stage_presets: [],
   commission_percent_override: null,
   companion_label: '',
   meet_link: '',
@@ -378,6 +395,15 @@ export function mergeResourceProfile(resourceId: string, raw: Partial<ResourcePr
     settlement_sheba_holder_name: typeof raw?.settlement_sheba_holder_name === 'string' ? raw.settlement_sheba_holder_name : '',
     pricing: mergePricing(raw?.pricing),
     terms: mergeTerms((raw as any)?.terms),
+    first_stage_label: (() => {
+      const v = ((raw as any)?.first_stage_label || '').toString().trim()
+      return v ? v.slice(0, 40) : 'مصاحبه'
+    })(),
+    stage_presets: (() => {
+      const v = (raw as any)?.stage_presets
+      if (!Array.isArray(v)) return []
+      return v.map((x: any) => String(x || '').trim()).filter(Boolean).slice(0, 20)
+    })(),
     commission_percent_override: (() => {
       const v = (raw as any)?.commission_percent_override
       return typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= 100 ? v : null

@@ -35,7 +35,7 @@ type SettlementSummary = {
 type SettlementRow = { id: string; resource_name: string | null; tenant_slug: string | null; amount: number; reference: string | null; bank_ref_number: string | null; paid_at: string | null; note: string | null; created_at: string }
 
 const PURPOSE_LABEL: Record<string, string> = {
-  interview: 'مصاحبه', assessment: 'ارزیابی', package: 'پروتکل', session: 'جلسه', refund: 'بازپرداخت', extra_charge: 'شارژ اضافه',
+  stage: 'جلسه', interview: 'مصاحبه', assessment: 'ارزیابی', package: 'پروتکل', session: 'جلسه', refund: 'بازپرداخت', extra_charge: 'شارژ اضافه',
 }
 const money = (n: number) => n.toLocaleString('en-US')
 

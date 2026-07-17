@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { sb } from '@/lib/supabase'
 import { getActiveTenant } from '@/lib/tenant'
-import { getDefaultResourceId, getIntakeForm, missingIntakeFields, INTAKE_KNOWN_COLUMNS, getResourcePricing, resolvePrice } from '@/lib/psy'
+import { getDefaultResourceId, getIntakeForm, missingIntakeFields, INTAKE_KNOWN_COLUMNS, getResourcePricing, resolvePrice, getFirstStageLabel } from '@/lib/psy'
 import { isDraftCase } from '@/lib/flow'
 import { setPayCookie, normalizePhone, isValidEmail } from '@/lib/auth'
 import { randomInt } from 'crypto'
@@ -125,19 +125,19 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
     }, { status: 500 })
   }
 
-  // مرحله‌ی اول پرونده همیشه «مصاحبه» است — خود ثبت فرم همین مرحله را می‌سازد.
-  // قیمت بر اساس نوع حضور انتخابی مراجع (آنلاین/حضوری) و تنظیمات خود همین
-  // متخصص است — نه یک قیمت ثابت جدا برای «مصاحبه» (تصمیم صریح صاحب پروژه:
-  // فقط دو قیمت در کل، بر اساس حضوری/آنلاین بودن).
-  const interviewPrice = resolvePrice(sessionType, await getResourcePricing(finalResourceId))
+  // اولین مرحله‌ی پرونده — همان که فرم ثبت می‌سازد. دیگر نوع ثابت «مصاحبه»
+  // نیست؛ عنوانش را خود متخصص تعیین کرده (first_stage_label)، و فقط با فلگ
+  // is_first مشخص می‌شود که این «اولین تماس» است. قیمت بر اساس آنلاین/حضوری.
+  const firstPrice = resolvePrice(sessionType, await getResourcePricing(finalResourceId))
+  const firstLabel = await getFirstStageLabel(finalResourceId)
   const { data: stage, error: stageErr } = await sb().from('psy_stages').insert({
     tenant_id: t.id, resource_id: finalResourceId, case_number: caseNumber,
-    stage_type: 'interview', price: interviewPrice, status: 'awaiting_payment',
+    stage_type: 'custom', title: firstLabel, is_first: true, price: firstPrice, status: 'awaiting_payment',
   }).select().single()
   if (stageErr || !stage) {
     console.error('psy/book stage insert error:', stageErr)
     return NextResponse.json({
-      error: 'مشکلی در ایجاد مرحله‌ی مصاحبه پیش آمد. لطفا دوباره تلاش کنید.',
+      error: 'مشکلی در ایجاد اولین مرحله پیش آمد. لطفا دوباره تلاش کنید.',
       detail: `${stageErr?.code || ''} ${stageErr?.message || ''}`.trim(),
     }, { status: 500 })
   }

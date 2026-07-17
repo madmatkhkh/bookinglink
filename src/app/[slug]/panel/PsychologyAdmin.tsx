@@ -113,8 +113,9 @@ export type Patient = {
 export type CaseStage = {
  id: string
  case_number: string
- stage_type: 'interview' | 'assessment' | 'custom'
+ stage_type: string
  title?: string | null
+ is_first?: boolean
  status: 'awaiting_payment' | 'payment_submitted' | 'awaiting_booking' | 'booked'
  price: number
  paid: boolean
@@ -218,6 +219,8 @@ type ResourceProfileView = {
  companion_label: string
  meet_channels: MeetChannel[]
  terms: TermsSettings
+ first_stage_label: string
+ stage_presets: string[]
 }
 
 const ALL_TIMES = ['8:00','9:00','10:00','11:00','12:00','13:00','14:00','15:00','16:00','17:00','18:00']
@@ -232,6 +235,8 @@ const DEFAULT_PROFILE: ResourceProfileView = {
  companion_label: '',
  meet_channels: [],
  terms: DEFAULT_TERMS,
+ first_stage_label: 'مصاحبه',
+ stage_presets: [],
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -637,10 +642,12 @@ export function PsychologyAdmin() {
 
  // ثبت بازپرداخت کنسلی به‌همراه فیش واریز
  async function approveApptRequest(id: string, clientName: string) {
-  if (!await uiConfirm(`درخواست نوبت ${clientName} تأیید شود؟ یک مرحله‌ی مصاحبه برای این پرونده باز می‌شود و مراجع می‌تواند پرداخت کند.`)) return
+  const title = await uiPrompt(`عنوان جلسه‌ای که برای ${clientName} باز می‌شود:`, { defaultValue: profile.first_stage_label || 'مصاحبه', required: true })
+  if (title === null) return
+  if (!title.trim()) { uiAlert('عنوان لازم است'); return }
   const res = await fetch(api('/appointment-requests'), {
    method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-   body: JSON.stringify({ id, action: 'approve', stage_type: 'interview' }),
+   body: JSON.stringify({ id, action: 'approve', stage_type: 'custom', title: title.trim() }),
   })
   if (!res.ok) { const d = await res.json().catch(() => ({})); uiAlert(d.error || 'خطا در تأیید'); return }
   await loadPendingPayments(); fetchAll()
@@ -729,7 +736,7 @@ export function PsychologyAdmin() {
  // renderSessionList به PatientsTab.tsx منتقل شد (فاز 4).
  // همه‌ی نوبت‌های یک تاریخ (مصاحبه + ارزیابی + جلسه) مرتب‌شده بر اساس ساعت
  function apptsForDate(dateStr: string) {
-  const out: { time: string; name: string; type: string; mode?: string; loc?: string; color: string; kind: 'interview' | 'assessment' | 'custom' | 'session'; id: string; caseNumber: string; delayMinutes?: number | null }[] = []
+  const out: { time: string; name: string; type: string; mode?: string; loc?: string; color: string; kind: 'stage' | 'session'; id: string; caseNumber: string; delayMinutes?: number | null }[] = []
   const bookingByCase = new Map(bookings.map(b => [b.case_number, b]))
   for (const s of allStages) {
    if (s.session_date === dateStr && s.session_time && s.status === 'booked') {
@@ -738,10 +745,9 @@ export function PsychologyAdmin() {
      time: s.session_time, name: childNameOf(s.case_number),
      type: stageTitle(s),
      mode: b?.session_type, loc: b?.office_location,
-     color: s.stage_type === 'assessment' ? 'bg-violet-500/10 text-violet-600 border-violet-500/20'
-      : s.stage_type === 'custom' ? 'bg-amber-500/10 text-amber-600 border-amber-500/20'
-      : 'bg-sky-500/10 text-sky-600 border-sky-500/20',
-     kind: s.stage_type, id: s.id, caseNumber: s.case_number, delayMinutes: s.delay_minutes,
+     color: s.is_first ? 'bg-sky-500/10 text-sky-600 border-sky-500/20'
+      : 'bg-violet-500/10 text-violet-600 border-violet-500/20',
+     kind: 'stage', id: s.id, caseNumber: s.case_number, delayMinutes: s.delay_minutes,
     })
    }
   }
@@ -753,7 +759,7 @@ export function PsychologyAdmin() {
  }
 
  // اعلام تاخیر برای یک نوبت رزروشده — مراجع در پنل خودش می‌بیند
- async function announceDelay(appt: { kind: 'interview' | 'assessment' | 'custom' | 'session'; id: string; name: string; delayMinutes?: number | null }) {
+ async function announceDelay(appt: { kind: 'stage' | 'session'; id: string; name: string; delayMinutes?: number | null }) {
   const r = await uiPrompt(`تاخیر نوبت «${appt.name}» به دقیقه (برای پاک‌کردن تاخیر قبلی، عدد 0 بزن):`,
    { defaultValue: appt.delayMinutes ? String(appt.delayMinutes) : '' })
   if (r === null) return
@@ -775,7 +781,7 @@ export function PsychologyAdmin() {
  }
 
  // لغو یک نوبت توسط مطب → کاربر بدون پرداخت اضافه دوباره وقت می‌گیرد
- async function cancelAppointment(appt: { kind: 'interview' | 'assessment' | 'custom' | 'session'; id: string; name: string }) {
+ async function cancelAppointment(appt: { kind: 'stage' | 'session'; id: string; name: string }) {
   const notice = await uiPrompt(`لغو نوبت «${appt.name}». پیامی برای مراجع بنویسید (اختیاری):`,
    { defaultValue: 'نوبت شما توسط مطب لغو شد. لطفا بدون پرداخت اضافه، زمان جدیدی انتخاب کنید.' })
   if (notice === null) return
@@ -795,7 +801,7 @@ export function PsychologyAdmin() {
  }
 
  // لغو همه‌ی نوبت‌های یک روز
- async function cancelDay(dateStr: string, appts: { kind: 'interview' | 'assessment' | 'custom' | 'session'; id: string; name: string }[]) {
+ async function cancelDay(dateStr: string, appts: { kind: 'stage' | 'session'; id: string; name: string }[]) {
   if (appts.length === 0) return
   if (!await uiConfirm(`همه‌ی ${appts.length} نوبت این روز لغو شود؟ به همه‌ی مراجعان اطلاع داده می‌شود تا دوباره وقت بگیرند.`)) return
   const msg = 'نوبت شما توسط مطب لغو شد. لطفا بدون پرداخت اضافه، زمان جدیدی انتخاب کنید.'
@@ -2032,6 +2038,47 @@ export function PsychologyAdmin() {
        {/* جلسه‌ی آنلاین — متخصص می‌تواند «چند روش» را هم‌زمان فعال کند (مثلا هم
            واتساپ هم تماس تلفنی)؛ مراجع در زمان جلسه هرکدام را خواست می‌زند.
            هیچ‌کدام نیاز به OAuth ندارند: فقط لینک ثابت یا شماره. */}
+       {/* روند جلسات — عنوان اولین جلسه + عنوان‌های آماده. این همان چیزی است که
+           سیستم را از فلوی ثابت «مصاحبه/ارزیابی» آزاد می‌کند: هر متخصص روند و
+           نام‌گذاری خودش را تعریف می‌کند. */}
+       {settingsSubTab === 'profile' && (
+       <section className="bg-white rounded-2xl border border-sand p-5">
+        <h2 className="text-sm font-display font-semibold text-ink mb-1">روند جلسات</h2>
+        <p className="text-xs text-soot mb-4">
+         سیستم هیچ روند ثابتی به شما تحمیل نمی‌کند. نام اولین جلسه‌ی مراجع جدید و عنوان‌های آماده‌ی جلسات بعدی را خودتان تعیین کنید.
+        </p>
+
+        <label className="text-xs text-soot mb-1 block">عنوان اولین جلسه‌ی مراجع جدید</label>
+        <p className="text-[11px] text-soot mb-2">وقتی مراجع تازه‌ای فرم را پر می‌کند، اولین جلسه‌اش این عنوان را می‌گیرد (مثلا «مصاحبه»، «ویزیت اول»، «جلسه‌ی آشنایی»).</p>
+        <input value={profile.first_stage_label} maxLength={40}
+         onChange={e => patchProfile({ first_stage_label: e.target.value })}
+         placeholder="مصاحبه"
+         className="w-full text-sm px-3 py-2 border border-sand rounded-lg mb-4 focus:outline-none focus:border-ink" />
+
+        <label className="text-xs text-soot mb-1 block">عنوان‌های آماده‌ی جلسات (اختیاری)</label>
+        <p className="text-[11px] text-soot mb-2">این‌ها موقع «افزودن جلسه‌ی جدید» برای یک مراجع به‌صورت دکمه‌ی سریع نشان داده می‌شوند تا هر بار تایپ نکنید. هر عنوان یک خط.</p>
+        <div className="space-y-2">
+         {profile.stage_presets.map((p, i) => (
+          <div key={i} className="flex items-center gap-2">
+           <input value={p} maxLength={40}
+            onChange={e => {
+             const next = [...profile.stage_presets]; next[i] = e.target.value
+             patchProfile({ stage_presets: next })
+            }}
+            placeholder="مثلا: جلسه‌ی پیگیری"
+            className="flex-1 text-sm px-3 py-2 border border-sand rounded-lg focus:outline-none focus:border-ink" />
+           <button onClick={() => patchProfile({ stage_presets: profile.stage_presets.filter((_, j) => j !== i) })}
+            className="text-xs px-2.5 py-2 border border-red-500/30 text-red-600 rounded-lg shrink-0 hover:bg-red-500/5">حذف</button>
+          </div>
+         ))}
+        </div>
+        {profile.stage_presets.length < 20 && (
+         <button onClick={() => patchProfile({ stage_presets: [...profile.stage_presets, ''] })}
+          className="mt-2 text-xs px-3 py-1.5 border border-sand text-ink rounded-lg hover:bg-sand">+ افزودن عنوان</button>
+        )}
+       </section>
+       )}
+
        {settingsSubTab === 'profile' && profile.session_modes !== 'offline' && (
        <section className="bg-white rounded-2xl border border-sand p-5">
         <h2 className="text-sm font-display font-semibold text-ink mb-1">جلسه‌ی آنلاین</h2>

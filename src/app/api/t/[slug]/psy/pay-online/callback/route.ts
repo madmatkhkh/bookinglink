@@ -85,9 +85,9 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
   let ledgerPurpose: LedgerPurpose = 'session'
   let stageCase: string | null = null
   if (intent.purpose === 'stage' && intent.ref_id) {
-    const { data: st } = await sb().from('psy_stages').select('case_number, stage_type').eq('id', intent.ref_id).maybeSingle()
+    const { data: st } = await sb().from('psy_stages').select('case_number').eq('id', intent.ref_id).maybeSingle()
     stageCase = st?.case_number || null
-    ledgerPurpose = st?.stage_type === 'assessment' ? 'assessment' : 'interview'
+    ledgerPurpose = 'stage'
   } else if (intent.purpose === 'package') ledgerPurpose = 'package'
   else if (intent.purpose === 'session') ledgerPurpose = 'session'
   else if (intent.purpose === 'extra_charge') ledgerPurpose = 'extra_charge'

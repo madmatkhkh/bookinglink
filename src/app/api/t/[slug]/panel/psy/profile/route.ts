@@ -43,7 +43,8 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
       payment_methods: effectivePaymentMethods(prof.payment_methods, cardToCardAllowed),
       quick_times: prof.quick_times,
       settlement_sheba: prof.settlement_sheba, settlement_sheba_holder_name: prof.settlement_sheba_holder_name,
-      pricing: prof.pricing, companion_label: prof.companion_label, meet_channels: prof.meet_channels, terms: prof.terms },
+      pricing: prof.pricing, companion_label: prof.companion_label, meet_channels: prof.meet_channels, terms: prof.terms,
+      first_stage_label: prof.first_stage_label, stage_presets: prof.stage_presets },
     plan: a.tenant.plan,
     card_to_card_allowed: cardToCardAllowed,
   }, { headers: NO_STORE })
@@ -93,6 +94,10 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   if ('settlement_sheba_holder_name' in body) profilePatch.settlement_sheba_holder_name = String(body.settlement_sheba_holder_name || '').trim().slice(0, 80)
   if ('pricing' in body) profilePatch.pricing = mergePricing(body.pricing)
   if ('terms' in body) profilePatch.terms = mergeTerms(body.terms)
+  if ('first_stage_label' in body) profilePatch.first_stage_label = String(body.first_stage_label || '').trim().slice(0, 40) || 'مصاحبه'
+  if ('stage_presets' in body) profilePatch.stage_presets = Array.isArray(body.stage_presets)
+    ? body.stage_presets.map((x: any) => String(x || '').trim()).filter(Boolean).slice(0, 20)
+    : []
   if ('companion_label' in body) profilePatch.companion_label = String(body.companion_label || '').trim().slice(0, 20)
   // روش جلسه‌ی آنلاین و مقدارش با هم اعتبارسنجی می‌شوند — چون قاعده‌ی معتبربودن
   // به روش وابسته است (لینک برای گوگل‌میت/زوم، شماره‌ی موبایل برای واتساپ/بله/تلفن).
