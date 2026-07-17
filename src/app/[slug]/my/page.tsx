@@ -22,6 +22,7 @@ type CaseStage = {
  session_date?: string; session_time?: string; held?: boolean
  cancel_notice?: string; payment_reject_reason?: string; meet_link?: string; resource_id?: string | null; created_at: string
  delay_minutes?: number | null
+ session_type?: 'online' | 'offline' | null
 }
 
 type Booking = {
@@ -448,10 +449,10 @@ export default function PatientPanel() {
            icon="💳"
            title={`هزینه‌ی ${stageTitle(currentStage!)}`}
            desc="برای ادامه، هزینه‌ی این جلسه را پرداخت کنید."
-           amount={currentStage!.price || (booking.session_type === 'online' ? PRICING.online : PRICING.offline)}
+           amount={currentStage!.price || ((currentStage!.session_type || booking.session_type) === 'online' ? PRICING.online : PRICING.offline)}
            resourceId={booking.resource_id} caseNumber={booking.case_number} phone={phone} stageId={currentStage!.id}
            stageLabel={stageTitle(currentStage!)}
-           sessionType={booking.session_type} officeLocation={booking.office_location}
+           sessionType={currentStage!.session_type || booking.session_type} officeLocation={booking.office_location}
            onPaid={async (ref, discountCode) => {
             const res = await fetch(`/api/t/${slug}/psy/pay`, {
              method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -483,7 +484,7 @@ export default function PatientPanel() {
           date={currentStage!.session_date} time={currentStage!.session_time}
           label={`وقت ${stageTitle(currentStage!)}`}
           delayMinutes={currentStage!.delay_minutes}
-          isOnline={booking.session_type === 'online'}
+          isOnline={(currentStage!.session_type || booking.session_type) === 'online'}
           meetChannels={mergeMeetChannels(
            settings.doctors.find(d => d.id === booking.resource_id)?.meet_channels,
            currentStage!.meet_link || settings.doctors.find(d => d.id === booking.resource_id)?.meet_link,
@@ -616,7 +617,7 @@ export default function PatientPanel() {
         {[...stages]
           .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
           .map(st => (
-           <StageSessionRow key={st.id} stage={st} sessionType={booking.session_type} />
+           <StageSessionRow key={st.id} stage={st} sessionType={st.session_type || booking.session_type} />
           ))}
         {(() => {
          const sorted = [...singles].sort((a, b) => (a.session_number || 0) - (b.session_number || 0))

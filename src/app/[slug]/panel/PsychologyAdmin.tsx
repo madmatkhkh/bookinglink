@@ -129,6 +129,7 @@ export type CaseStage = {
  payment_reject_reason?: string
  delay_minutes?: number | null
  resource_id?: string | null
+ session_type?: 'online' | 'offline' | null
  created_at: string
 }
 

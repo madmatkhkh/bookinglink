@@ -65,10 +65,16 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   if (!c) return NextResponse.json({ error: 'پرونده یافت نشد یا دسترسی ندارید' }, { status: 404 })
   if (c.current_stage_id) return NextResponse.json({ error: 'این پرونده الان یک جلسه‌ی باز دیگر دارد — اول آن را تمام کنید' }, { status: 400 })
 
+  // نوع این جلسه (آنلاین/حضوری) می‌تواند مستقل از نوع کلی پرونده باشد؛ اگر
+  // فرستاده نشود، از نوع پرونده ارث می‌برد.
+  const stSessionType = body.session_type === 'online' || body.session_type === 'offline' ? body.session_type : null
+  const effectiveType = stSessionType || c.session_type
+
   const { data: stage, error } = await sb().from('psy_stages').insert({
     tenant_id: a.tenant.id, resource_id: c.resource_id, case_number, stage_type,
     title: stage_type === 'custom' ? title : null,
-    price: typeof price === 'number' && price >= 0 ? price : resolvePrice(c.session_type, await getResourcePricing(c.resource_id)),
+    session_type: stSessionType,
+    price: typeof price === 'number' && price >= 0 ? price : resolvePrice(effectiveType, await getResourcePricing(c.resource_id)),
     status: STAGE_STATUS.AWAITING_PAYMENT,
   }).select().single()
   if (error || !stage) {

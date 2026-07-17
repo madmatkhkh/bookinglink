@@ -453,7 +453,8 @@ CREATE TABLE public.psy_stages (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     reminder_sent boolean DEFAULT false NOT NULL,
     payment_reject_reason text,
-    meet_link text
+    meet_link text,
+    session_type text
 );
 
 -- Name: psy_waitlist; Type: TABLE; Schema: public; Owner: -

@@ -68,7 +68,6 @@ function StageSessionCard({ stage, index, onSave, onClinical, noteCount = 0 }: {
  onClinical?: () => void
  noteCount?: number
 }) {
- const [val, setVal] = useState(stage.notes || '')
  const [saving, setSaving] = useState(false)
  const label = stageTitle(stage) + (index && index > 1 ? ` #${index}` : '')
  const icon = stage.is_first ? '🎯' : '📝'
@@ -81,23 +80,20 @@ function StageSessionCard({ stage, index, onSave, onClinical, noteCount = 0 }: {
      <Glyph icon={icon} className="w-5 h-5 shrink-0 text-ink" />
      <div>
       <div className="text-sm font-medium text-ink">{label}</div>
-      <div className="text-xs text-soot">{stage.session_date ? `${enTime(stage.session_date)} — ${enTime(stage.session_time)}` : 'زمان ثبت نشده'}</div>
+      <div className="text-xs text-soot">
+       {stage.session_date ? `${enTime(stage.session_date)} — ${enTime(stage.session_time)}` : 'زمان ثبت نشده'}
+       {stage.session_type && ` · ${stage.session_type === 'online' ? 'آنلاین' : 'حضوری'}`}
+      </div>
      </div>
     </div>
     <span className={`text-xs px-2 py-0.5 rounded-full ${held ? 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20' : 'bg-amber-500/10 text-amber-600 border border-amber-500/20'}`}>
      {held ? '✅ برگزار شد' : 'برگزار نشده'}
     </span>
    </div>
-   <textarea value={val} onChange={e => setVal(e.target.value)} rows={2} placeholder="مطالب و یادداشت این جلسه..."
-    className="w-full text-sm px-3 py-2 border border-sand rounded-lg resize-none focus:outline-none focus:border-ink mb-2" />
-   <div className="flex gap-2">
-    <button onClick={async () => { setSaving(true); await onSave(stage.id, val, false); setSaving(false) }} disabled={saving}
-     className="flex-1 py-2 border border-sand text-soot rounded-lg text-sm disabled:opacity-40">ذخیره یادداشت</button>
-    {!held && canHold && (
-     <button onClick={async () => { if (!await uiConfirm('تأیید برگزاری این جلسه؟ پرونده برای تعیین مرحله‌ی بعد آزاد می‌شود.')) return; setSaving(true); await onSave(stage.id, val, true); setSaving(false) }} disabled={saving}
-      className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm disabled:opacity-40">✅ تایید برگزاری</button>
-    )}
-   </div>
+   {!held && canHold && (
+    <button onClick={async () => { if (!await uiConfirm('تأیید برگزاری این جلسه؟ پرونده برای تعیین مرحله‌ی بعد آزاد می‌شود.')) return; setSaving(true); await onSave(stage.id, '', true); setSaving(false) }} disabled={saving}
+     className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm disabled:opacity-40">✅ تایید برگزاری</button>
+   )}
    {onClinical && (
     <button onClick={onClinical}
      className="w-full mt-2 py-2 border border-sand text-ink rounded-lg text-sm hover:bg-sand transition-all">
@@ -181,6 +177,7 @@ export default function PatientsTab({
  const [showNewPackage, setShowNewPackage] = useState(false)
  const [showNewStage, setShowNewStage] = useState(false)
  const [newStageTitle, setNewStageTitle] = useState('')
+ const [newStageType, setNewStageType] = useState<'online' | 'offline'>('offline')
  const [newStageSaving, setNewStageSaving] = useState(false)
  const [showAddPatient, setShowAddPatient] = useState(false)
  const [addPatientSaving, setAddPatientSaving] = useState(false)
@@ -195,7 +192,7 @@ export default function PatientsTab({
   const t = getCurrentJalali()
   return {
    month: String(t.month + 1), year: String(t.year),
-   primary_sessions: 8, secondary_sessions: 2,
+   primary_sessions: 8, secondary_sessions: 0,
    primary_session_type: 'offline', secondary_session_type: 'offline', notes: '',
   }
  })
@@ -452,14 +449,14 @@ export default function PatientsTab({
   setNewStageSaving(true)
   const res = await fetch(api('/stages'), {
    method: 'POST', headers: { 'Content-Type': 'application/json' },
-   body: JSON.stringify({ case_number: selectedPatient.case_number, stage_type: 'custom', title }),
+   body: JSON.stringify({ case_number: selectedPatient.case_number, stage_type: 'custom', title, session_type: newStageType }),
   })
   const data = await res.json().catch(() => ({}))
   setNewStageSaving(false)
   if (!res.ok) { uiAlert(data.error || 'ثبت جلسه ناموفق بود'); return }
   setShowNewStage(false)
   setNewStageTitle('')
-  setNewStageTitle('')
+  setNewStageType('offline')
   await loadPatientData(selectedPatient.case_number)
   await fetchAll() // current_stage_id در لیست پرونده‌ها هم به‌روز شود
  }
@@ -556,7 +553,8 @@ export default function PatientsTab({
  // ذخیره‌ی یادداشت و/یا تأیید برگزاری یک مرحله — بعد از این، پرونده آزاد می‌شود
  // تا دکتر مرحله‌ی بعد را (اگر خواست) مشخص کند
  async function saveStageSession(stageId: string, notes: string, markHeld: boolean) {
-  const patch: Record<string, any> = { id: stageId, notes }
+  const patch: Record<string, any> = { id: stageId }
+  if (notes) patch.notes = notes
   if (markHeld) patch.mark_held = true
   const res = await fetch(api('/stages'), {
    method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch),
@@ -1209,6 +1207,15 @@ export default function PatientsTab({
          <input value={newStageTitle} onChange={e => setNewStageTitle(e.target.value)} autoFocus
           placeholder="مثلا: جلسه‌ی مشاوره، ارزیابی، پیگیری..."
           className="w-full text-sm px-3 py-2 border border-sand rounded-lg mb-3 focus:outline-none focus:border-ink" />
+         <label className="text-xs text-soot mb-1 block">نوع این جلسه</label>
+         <div className="flex bg-gray-100 rounded-xl p-1 gap-1 mb-3">
+          {([['offline', '🏥 حضوری'], ['online', '🎥 آنلاین']] as const).map(([v, label]) => (
+           <button key={v} onClick={() => setNewStageType(v)}
+            className={`flex-1 text-xs py-2 rounded-lg font-medium transition-all ${newStageType === v ? 'bg-white text-ink shadow-sm' : 'text-soot'}`}>
+            {label}
+           </button>
+          ))}
+         </div>
          <div className="flex gap-2">
           <button onClick={() => setShowNewStage(false)} className="flex-1 py-2.5 border border-sand text-soot rounded-xl text-sm">انصراف</button>
           <button onClick={createStage} disabled={newStageSaving || !newStageTitle.trim()}
@@ -1331,7 +1338,7 @@ export default function PatientsTab({
        <div className="grid grid-cols-2 gap-3">
         <div>
          <label className="text-xs text-soot mb-1 block">تعداد جلسه‌ی مراجع</label>
-         <input type="number" value={newPkg.primary_sessions} onChange={e => setNewPkg({...newPkg, primary_sessions: parseInt(e.target.value)})}
+         <input type="number" value={newPkg.primary_sessions} onChange={e => setNewPkg({...newPkg, primary_sessions: parseInt(e.target.value) || 0})}
           className="w-full text-sm px-3 py-2 border border-sand rounded-lg" />
         </div>
         <div>
@@ -1343,11 +1350,18 @@ export default function PatientsTab({
          </select>
         </div>
        </div>
-       {(newPkg.secondary_sessions > 0 || profile.companion_label) && (
+       {profile.companion_label && (
+        <label className="flex items-center gap-2 text-sm text-ink cursor-pointer select-none">
+         <input type="checkbox" checked={newPkg.secondary_sessions > 0}
+          onChange={e => setNewPkg({ ...newPkg, secondary_sessions: e.target.checked ? 2 : 0 })} />
+         این پروتکل جلسه‌ی {profile.companion_label} هم دارد
+        </label>
+       )}
+       {newPkg.secondary_sessions > 0 && (
        <div className="grid grid-cols-2 gap-3">
         <div>
          <label className="text-xs text-soot mb-1 block">تعداد جلسه‌ی {profile.companion_label || 'همراه'}</label>
-         <input type="number" value={newPkg.secondary_sessions} onChange={e => setNewPkg({...newPkg, secondary_sessions: parseInt(e.target.value)})}
+         <input type="number" value={newPkg.secondary_sessions} onChange={e => setNewPkg({...newPkg, secondary_sessions: parseInt(e.target.value) || 0})}
           className="w-full text-sm px-3 py-2 border border-sand rounded-lg" />
         </div>
         <div>
@@ -1459,7 +1473,7 @@ export default function PatientsTab({
     const notes = clinicalNotes.filter(n => clinicalModal.scope === 'stage' ? n.stage_id === clinicalModal.id : n.session_id === clinicalModal.id)
     return (
      <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50" onClick={() => setClinicalModal(null)}>
-      <div className="bg-white rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto p-6 shadow-xl" dir="rtl" onClick={e => e.stopPropagation()}>
+      <div className="bg-white rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto p-6 shadow-xl" dir="rtl" onClick={e => e.stopPropagation()}>
        <div className="flex items-center justify-between mb-1">
         <h3 className="font-semibold text-ink">یادداشت بالینی</h3>
         <button onClick={() => setClinicalModal(null)} className="text-soot hover:text-ink text-xl leading-none">×</button>
