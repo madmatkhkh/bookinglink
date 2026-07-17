@@ -53,6 +53,7 @@ type Session = {
 }
 
 type ManualRefund = { id: string; amount: number; note?: string | null; bank_ref_number?: string | null; created_at: string }
+type ApptRequest = { id: string; note?: string | null; status: 'pending' | 'approved' | 'rejected'; reject_reason?: string | null; created_at: string }
 
 type ExtraCharge = {
  id: string; case_number: string; title: string; amount: number
@@ -84,10 +85,11 @@ export default function PatientPanel() {
  const [stages, setStages] = useState<CaseStage[]>([])
  const [extraCharges, setExtraCharges] = useState<ExtraCharge[]>([])
  const [manualRefunds, setManualRefunds] = useState<ManualRefund[]>([])
- type ClientTab = 'packages' | 'sessions' | 'info'
- const VALID_CLIENT_TABS: ClientTab[] = ['packages', 'sessions', 'info']
- const initialSection = (searchParams.get('section') as ClientTab) || 'packages'
- const [activeTab, setActiveTab] = useState<ClientTab>(VALID_CLIENT_TABS.includes(initialSection) ? initialSection : 'packages')
+ const [apptRequests, setApptRequests] = useState<ApptRequest[]>([])
+ type ClientTab = 'status' | 'packages' | 'sessions' | 'info'
+ const VALID_CLIENT_TABS: ClientTab[] = ['status', 'packages', 'sessions', 'info']
+ const initialSection = (searchParams.get('section') as ClientTab) || 'status'
+ const [activeTab, setActiveTab] = useState<ClientTab>(VALID_CLIENT_TABS.includes(initialSection) ? initialSection : 'status')
  const [selectedPkg, setSelectedPkg] = useState<Package | null>(null)
  const [scheduleView, setScheduleView] = useState(false)
  const [prepayView, setPrepayView] = useState(false)
@@ -143,6 +145,7 @@ export default function PatientPanel() {
       setStages(data.stages || [])
       setExtraCharges(data.extra_charges || [])
       setManualRefunds(data.refunds || [])
+      setApptRequests(data.appointment_requests || [])
       setStep('panel')
      }
     } finally {
@@ -222,6 +225,7 @@ export default function PatientPanel() {
   setStages(data.stages || [])
   setExtraCharges(data.extra_charges || [])
   setManualRefunds(data.refunds || [])
+  setApptRequests(data.appointment_requests || [])
  }
 
  const pkgPrice = (p: Package) =>
@@ -331,8 +335,12 @@ export default function PatientPanel() {
  const currentStage = stages.find(s => s.id === booking.current_stage_id) || null
  const isRejected = booking.status === 'cancelled' && !!booking.reject_reason
  const inTreatment = !currentStage && packages.length > 0
+ const pendingRequest = apptRequests.find(r => r.status === 'pending') || null
+ // مراجع می‌تواند درخواست نوبت جدید بدهد وقتی هیچ مرحله‌ی بازی ندارد و درخواست
+ // در انتظاری هم ندارد (چه تازه‌کار چه بازگشتی که درمانش تمام شده).
+ const canRequestAppointment = !currentStage && !pendingRequest && !isRejected
 
- if (!inTreatment) return (
+ return (
   <div className="min-h-screen bg-canvas" dir="rtl">
    <DialogHost />
    <div className="bg-white border-b border-sand px-4 py-3 sticky top-0 z-10">
@@ -354,113 +362,6 @@ export default function PatientPanel() {
     </div>
    </div>
 
-   <div className="max-w-lg mx-auto p-4 space-y-3">
-    {/* نوار پیشرفت مراحل */}
-    <StageProgress stages={stages} inTreatment={inTreatment} />
-
-    <div className="bg-white rounded-2xl border border-sand p-6 text-center">
-     {isRejected ? (
-      <>
-       <StageHero icon="❌" title="تأیید نشد" desc="متأسفانه پس از بررسی، امکان ادامه‌ی فرایند درمان فراهم نشد." red />
-       <div className="bg-gray-100 border border-sand rounded-xl p-3 text-sm text-ink text-right">
-        <span className="font-medium">دلیل: </span>{booking.reject_reason}
-       </div>
-      </>
-     ) : !currentStage ? (
-      <StageWaiting title="منتظر تعیین مرحله‌ی بعد" desc="دکتر به‌زودی مرحله‌ی بعد روند درمان را برای شما مشخص می‌کند." />
-     ) : currentStage.status === 'awaiting_payment' ? (
-      <>
-       {currentStage.payment_reject_reason && (
-        <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 text-sm text-red-700 text-right mb-3">
-         <span className="font-medium">پرداخت قبلی تأیید نشد — </span>{currentStage.payment_reject_reason}
-        </div>
-       )}
-       <StagePayment
-        icon="💳"
-        title={`هزینه‌ی ${stageTitle(currentStage)}`}
-        desc="برای ادامه، هزینه‌ی این جلسه را پرداخت کنید."
-        amount={currentStage.price || (booking.session_type === 'online' ? PRICING.online : PRICING.offline)}
-        resourceId={booking.resource_id} caseNumber={booking.case_number} phone={phone} stageId={currentStage.id}
-        stageLabel={stageTitle(currentStage)}
-        sessionType={booking.session_type} officeLocation={booking.office_location}
-        onPaid={async (ref, discountCode) => {
-         const res = await fetch(`/api/t/${slug}/psy/pay`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ case_number: booking.case_number, phone, stage_id: currentStage.id, payment_ref: ref, discount_code: discountCode })
-         })
-         return res.ok
-        }}
-        onDone={() => loadData(booking.case_number)} />
-      </>
-     ) : currentStage.status === 'payment_submitted' ? (
-      <StageWaiting title="در انتظار تأیید پرداخت" desc="پرداخت شما ثبت شد و در حال بررسی است. پس از تأیید، اینجا می‌توانید وقت بگیرید." />
-     ) : currentStage.status === 'awaiting_booking' ? (
-      <>
-       {currentStage.cancel_notice && (
-        <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 text-sm text-amber-700 text-right mb-3">
-         ⚠️ {currentStage.cancel_notice}
-        </div>
-       )}
-       <StageHero icon={currentStage.cancel_notice ? '🗓' : '✅'} title={currentStage.cancel_notice ? 'انتخاب زمان جدید' : 'پرداخت تأیید شد!'}
-        desc={`می‌توانید وقت ${stageTitle(currentStage)} را انتخاب کنید.`} />
-       <button onClick={() => setShowSlotPicker(true)}
-        className="w-full py-3 bg-accent text-white rounded-xl text-sm font-medium hover:bg-accent/90">
-        گرفتن وقت
-       </button>
-      </>
-     ) : (
-      <StageInfo icon="📅" title="وقت ثبت شد"
-       desc="منتظر برگزاری باشید. پس از آن، دکتر مرحله‌ی بعد را مشخص می‌کند."
-       date={currentStage.session_date} time={currentStage.session_time}
-       label={`وقت ${stageTitle(currentStage)}`}
-       delayMinutes={currentStage.delay_minutes}
-       isOnline={booking.session_type === 'online'}
-       meetChannels={mergeMeetChannels(
-        settings.doctors.find(d => d.id === booking.resource_id)?.meet_channels,
-        currentStage.meet_link || settings.doctors.find(d => d.id === booking.resource_id)?.meet_link,
-       )} />
-     )}
-
-     <button onClick={() => loadData(booking.case_number)}
-      className="mt-5 text-xs text-ink border border-sand rounded-lg px-4 py-2">بررسی مجدد وضعیت</button>
-    </div>
-   </div>
-
-   {showSlotPicker && currentStage && (
-    <SlotPicker phone={phone} caseNumber={booking.case_number}
-     title={`انتخاب وقت ${stageTitle(currentStage)}`} resourceId={booking.resource_id}
-     sessionType={booking.session_type} officeLocation={booking.office_location}
-     onClose={() => setShowSlotPicker(false)}
-     onDone={() => { setShowSlotPicker(false); loadData(booking.case_number) }}
-     onConfirm={async (date: string, time: string) => {
-      const res = await fetch(`/api/t/${slug}/psy/stage-book`, {
-       method: 'POST', headers: { 'Content-Type': 'application/json' },
-       body: JSON.stringify({ case_number: booking.case_number, phone, stage_id: currentStage.id, session_date: date, session_time: time })
-      })
-      const d = await res.json().catch(() => ({}))
-      return { ok: res.ok, error: d.error as string | undefined }
-     }} />
-   )}
-  </div>
- )
-
- return (
-  <div className="min-h-screen bg-canvas" dir="rtl">
-   <DialogHost />
-   <div className="bg-white border-b border-sand px-4 py-3 sticky top-0 z-10">
-    <div className="max-w-lg mx-auto flex items-center justify-between">
-     <div>
-      <h1 className="text-sm font-display font-semibold text-ink">{booking.client_name}</h1>
-      <div className="flex items-center gap-2">
-       <span className="text-xs text-soot">پرونده:</span>
-       <span className="text-xs font-mono text-ink bg-sand px-2 py-0.5 rounded">{booking.case_number}</span>
-      </div>
-     </div>
-     <button onClick={logout}
-      className="text-xs text-soot border border-sand rounded-lg px-3 py-1.5">خروج</button>
-    </div>
-   </div>
-
    <div className="max-w-lg mx-auto p-4">
     {extraCharges.filter(c => c.status !== 'paid').length > 0 && (
      <div className="space-y-3 mb-4">
@@ -471,13 +372,128 @@ export default function PatientPanel() {
     )}
 
     <div className="flex bg-white rounded-xl border border-sand p-1 mb-4">
-     {(['packages', 'sessions', 'info'] as const).map(t => (
-      <button key={t} onClick={() => navigateSection(t)}
-       className={`flex-1 text-xs py-2 rounded-lg font-medium transition-all ${activeTab === t ? 'bg-accent text-white' : 'text-soot'}`}>
-       {t === 'packages' ? 'پروتکل‌های درمان' : t === 'sessions' ? 'جلسات' : 'اطلاعات'}
-      </button>
-     ))}
+     {(['status', 'packages', 'sessions', 'info'] as const).map(t => {
+      const needsAttention = t === 'status' && !!currentStage && (currentStage.status === 'awaiting_payment' || currentStage.status === 'awaiting_booking')
+      return (
+       <button key={t} onClick={() => navigateSection(t)}
+        className={`flex-1 text-xs py-2 rounded-lg font-medium transition-all relative ${activeTab === t ? 'bg-accent text-white' : 'text-soot'}`}>
+        {t === 'status' ? 'وضعیت' : t === 'packages' ? 'پروتکل‌های درمان' : t === 'sessions' ? 'جلسات' : 'اطلاعات'}
+        {needsAttention && <span className={`absolute top-1 ${activeTab === t ? 'left-1.5' : 'left-1.5'} w-1.5 h-1.5 rounded-full ${activeTab === t ? 'bg-white' : 'bg-red-500'}`} />}
+       </button>
+      )
+     })}
     </div>
+
+    {/* STATUS TAB — مرحله‌ی جاری یا درخواست نوبت جدید */}
+    {activeTab === 'status' && (
+     <div className="space-y-3">
+      <StageProgress stages={stages} inTreatment={inTreatment} />
+
+      {/* درخواست در انتظار بررسی */}
+      {pendingRequest && (
+       <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 text-center">
+        <div className="text-3xl mb-2">⏳</div>
+        <h3 className="text-sm font-semibold text-amber-900 mb-1">درخواست نوبت شما ثبت شد</h3>
+        <p className="text-xs text-amber-700">در انتظار بررسی و تأیید توسط پزشک. پس از تأیید، همین‌جا می‌توانید پرداخت کنید و وقت بگیرید.</p>
+        {pendingRequest.note && (
+         <div className="bg-white/60 border border-amber-200 rounded-xl p-2.5 text-xs text-amber-900 text-right mt-3">
+          <span className="font-medium">توضیح شما: </span>{pendingRequest.note}
+         </div>
+        )}
+       </div>
+      )}
+
+      {/* آخرین درخواست ردشده (اگر بازخورد داشت) */}
+      {!pendingRequest && !currentStage && apptRequests[0]?.status === 'rejected' && apptRequests[0].reject_reason && (
+       <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 text-sm text-red-700 text-right">
+        <span className="font-medium">درخواست قبلی تأیید نشد — </span>{apptRequests[0].reject_reason}
+       </div>
+      )}
+
+      {/* کارت وضعیت مرحله‌ی جاری */}
+      {currentStage || isRejected ? (
+       <div className="bg-white rounded-2xl border border-sand p-6 text-center">
+        {isRejected ? (
+         <>
+          <StageHero icon="❌" title="تأیید نشد" desc="متأسفانه پس از بررسی، امکان ادامه‌ی فرایند درمان فراهم نشد." red />
+          <div className="bg-gray-100 border border-sand rounded-xl p-3 text-sm text-ink text-right">
+           <span className="font-medium">دلیل: </span>{booking.reject_reason}
+          </div>
+         </>
+        ) : currentStage!.status === 'awaiting_payment' ? (
+         <>
+          {currentStage!.payment_reject_reason && (
+           <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 text-sm text-red-700 text-right mb-3">
+            <span className="font-medium">پرداخت قبلی تأیید نشد — </span>{currentStage!.payment_reject_reason}
+           </div>
+          )}
+          <StagePayment
+           icon="💳"
+           title={`هزینه‌ی ${stageTitle(currentStage!)}`}
+           desc="برای ادامه، هزینه‌ی این جلسه را پرداخت کنید."
+           amount={currentStage!.price || (booking.session_type === 'online' ? PRICING.online : PRICING.offline)}
+           resourceId={booking.resource_id} caseNumber={booking.case_number} phone={phone} stageId={currentStage!.id}
+           stageLabel={stageTitle(currentStage!)}
+           sessionType={booking.session_type} officeLocation={booking.office_location}
+           onPaid={async (ref, discountCode) => {
+            const res = await fetch(`/api/t/${slug}/psy/pay`, {
+             method: 'POST', headers: { 'Content-Type': 'application/json' },
+             body: JSON.stringify({ case_number: booking.case_number, phone, stage_id: currentStage!.id, payment_ref: ref, discount_code: discountCode })
+            })
+            return res.ok
+           }}
+           onDone={() => loadData(booking.case_number)} />
+         </>
+        ) : currentStage!.status === 'payment_submitted' ? (
+         <StageWaiting title="در انتظار تأیید پرداخت" desc="پرداخت شما ثبت شد و در حال بررسی است. پس از تأیید، اینجا می‌توانید وقت بگیرید." />
+        ) : currentStage!.status === 'awaiting_booking' ? (
+         <>
+          {currentStage!.cancel_notice && (
+           <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 text-sm text-amber-700 text-right mb-3">
+            ⚠️ {currentStage!.cancel_notice}
+           </div>
+          )}
+          <StageHero icon={currentStage!.cancel_notice ? '🗓' : '✅'} title={currentStage!.cancel_notice ? 'انتخاب زمان جدید' : 'پرداخت تأیید شد!'}
+           desc={`می‌توانید وقت ${stageTitle(currentStage!)} را انتخاب کنید.`} />
+          <button onClick={() => setShowSlotPicker(true)}
+           className="w-full py-3 bg-accent text-white rounded-xl text-sm font-medium hover:bg-accent/90">
+           گرفتن وقت
+          </button>
+         </>
+        ) : (
+         <StageInfo icon="📅" title="وقت ثبت شد"
+          desc="منتظر برگزاری باشید. پس از آن، دکتر مرحله‌ی بعد را مشخص می‌کند."
+          date={currentStage!.session_date} time={currentStage!.session_time}
+          label={`وقت ${stageTitle(currentStage!)}`}
+          delayMinutes={currentStage!.delay_minutes}
+          isOnline={booking.session_type === 'online'}
+          meetChannels={mergeMeetChannels(
+           settings.doctors.find(d => d.id === booking.resource_id)?.meet_channels,
+           currentStage!.meet_link || settings.doctors.find(d => d.id === booking.resource_id)?.meet_link,
+          )} />
+        )}
+        <button onClick={() => loadData(booking.case_number)}
+         className="mt-5 text-xs text-ink border border-sand rounded-lg px-4 py-2">بررسی مجدد وضعیت</button>
+       </div>
+      ) : !pendingRequest && !inTreatment ? (
+       // نه مرحله‌ی باز، نه درخواست در انتظار، نه در درمان → منتظر تعیین مرحله
+       <div className="bg-white rounded-2xl border border-sand p-6 text-center">
+        <StageWaiting title="منتظر تعیین مرحله‌ی بعد" desc="پزشک به‌زودی مرحله‌ی بعد را مشخص می‌کند، یا می‌توانید درخواست نوبت جدید ثبت کنید." />
+       </div>
+      ) : inTreatment ? (
+       <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-5 text-center">
+        <div className="text-3xl mb-2">💊</div>
+        <h3 className="text-sm font-semibold text-emerald-900 mb-1">در حال درمان</h3>
+        <p className="text-xs text-emerald-700">پروتکل‌های درمان شما در تب «پروتکل‌های درمان» است.</p>
+       </div>
+      ) : null}
+
+      {/* دکمه‌ی درخواست نوبت جدید */}
+      {canRequestAppointment && (
+       <RequestAppointmentCard slug={slug} caseNumber={booking.case_number} onDone={() => loadData(booking.case_number)} />
+      )}
+     </div>
+    )}
 
     {/* PACKAGES TAB */}
     {activeTab === 'packages' && (
@@ -640,6 +656,68 @@ export default function PatientPanel() {
      onDone={() => { setPrepayView(false); loadData(booking.case_number) }}
     />
    )}
+
+   {/* انتخاب وقت برای مرحله‌ی جاری (مصاحبه/ارزیابی/دلخواه) */}
+   {showSlotPicker && currentStage && (
+    <SlotPicker phone={phone} caseNumber={booking.case_number}
+     title={`انتخاب وقت ${stageTitle(currentStage)}`} resourceId={booking.resource_id}
+     sessionType={booking.session_type} officeLocation={booking.office_location}
+     onClose={() => setShowSlotPicker(false)}
+     onDone={() => { setShowSlotPicker(false); loadData(booking.case_number) }}
+     onConfirm={async (date: string, time: string) => {
+      const res = await fetch(`/api/t/${slug}/psy/stage-book`, {
+       method: 'POST', headers: { 'Content-Type': 'application/json' },
+       body: JSON.stringify({ case_number: booking.case_number, phone, stage_id: currentStage.id, session_date: date, session_time: time })
+      })
+      const d = await res.json().catch(() => ({}))
+      return { ok: res.ok, error: d.error as string | undefined }
+     }} />
+   )}
+  </div>
+ )
+}
+
+// ==================== REQUEST NEW APPOINTMENT ====================
+function RequestAppointmentCard({ slug, caseNumber, onDone }: { slug: string; caseNumber: string; onDone: () => void }) {
+ const [open, setOpen] = useState(false)
+ const [note, setNote] = useState('')
+ const [saving, setSaving] = useState(false)
+
+ async function submit() {
+  if (!note.trim()) { uiAlert('لطفا توضیح کوتاهی درباره‌ی درخواست‌تان بنویسید.'); return }
+  setSaving(true)
+  const res = await fetch(`/api/t/${slug}/psy/appointment-request`, {
+   method: 'POST', headers: { 'Content-Type': 'application/json' },
+   body: JSON.stringify({ case_number: caseNumber, note: note.trim() }),
+  })
+  const d = await res.json().catch(() => ({}))
+  setSaving(false)
+  if (!res.ok) { uiAlert(d.error || 'ثبت درخواست ناموفق بود'); return }
+  setNote(''); setOpen(false); onDone()
+ }
+
+ if (!open) return (
+  <button onClick={() => setOpen(true)}
+   className="w-full py-3.5 bg-accent text-white rounded-2xl text-sm font-medium hover:bg-accent/90 flex items-center justify-center gap-2">
+   <span className="text-lg">＋</span> درخواست نوبت جدید
+  </button>
+ )
+
+ return (
+  <div className="bg-white rounded-2xl border border-sand p-5">
+   <h3 className="text-sm font-semibold text-ink mb-1">درخواست نوبت جدید</h3>
+   <p className="text-xs text-soot mb-3">توضیح کوتاهی بنویسید که چرا می‌خواهید وقت بگیرید. پزشک آن را بررسی و در صورت تأیید، نوبت را برایتان باز می‌کند.</p>
+   <textarea value={note} onChange={e => setNote(e.target.value)} rows={4} maxLength={500} autoFocus
+    placeholder="مثلا: می‌خواهم برای پیگیری وضعیت قبلی‌ام یک جلسه‌ی جدید داشته باشم..."
+    className="w-full text-sm px-3 py-2.5 border border-sand rounded-xl focus:outline-none focus:border-ink resize-none mb-3" />
+   <div className="flex gap-2">
+    <button onClick={() => { setOpen(false); setNote('') }}
+     className="flex-1 py-2.5 border border-sand text-soot rounded-xl text-sm">انصراف</button>
+    <button onClick={submit} disabled={saving || !note.trim()}
+     className="flex-1 py-2.5 bg-accent text-white rounded-xl text-sm font-medium disabled:opacity-40">
+     {saving ? 'در حال ثبت...' : 'ثبت درخواست'}
+    </button>
+   </div>
   </div>
  )
 }

@@ -367,6 +367,7 @@ export function PsychologyAdmin() {
  const [waitlist, setWaitlist] = useState<WaitlistEntry[]>([])
  const waitlistCount = waitlist.length
  const [pendingStages, setPendingStages] = useState<CaseStage[]>([])
+ const [pendingApptRequests, setPendingApptRequests] = useState<{ id: string; case_number: string; note?: string | null; client_name?: string; created_at: string }[]>([])
 
  // ── Schedule state ─────────────────────────────────────────────
  // state تب «روزهای کاری» به ScheduleTab.tsx منتقل شد (فاز 4). این‌جا فقط
@@ -569,20 +570,23 @@ export function PsychologyAdmin() {
  // پرداخت‌های منتظر تأیید (پروتکل‌های درمان و جلسه‌های جایگزین) در همه‌ی پرونده‌ها
  async function loadPendingPayments() {
   try {
-   const [pkgRes, sessRes, refundRes, stageRes] = await Promise.all([
+   const [pkgRes, sessRes, refundRes, stageRes, apptRes] = await Promise.all([
     fetch(api('/packages?pending=1'), { cache: 'no-store' }),
     fetch(api('/sessions?pending=1'), { cache: 'no-store' }),
     fetch(api('/sessions?refunds=1'), { cache: 'no-store' }),
     fetch(api('/stages?pending=1'), { cache: 'no-store' }),
+    fetch(api('/appointment-requests?pending=true'), { cache: 'no-store' }),
    ])
    const pkg = await pkgRes.json().catch(() => ({}))
    const sess = await sessRes.json().catch(() => ({}))
    const refunds = await refundRes.json().catch(() => ({}))
    const stg = await stageRes.json().catch(() => ({}))
+   const appt = await apptRes.json().catch(() => ({}))
    setPendingPkgs(pkg.packages || [])
    setPendingSess(sess.sessions || [])
    setPendingRefunds(refunds.sessions || [])
    setPendingStages(stg.stages || [])
+   setPendingApptRequests(appt.requests || [])
   } catch {}
  }
 
@@ -632,6 +636,27 @@ export function PsychologyAdmin() {
  }
 
  // ثبت بازپرداخت کنسلی به‌همراه فیش واریز
+ async function approveApptRequest(id: string, clientName: string) {
+  if (!await uiConfirm(`درخواست نوبت ${clientName} تأیید شود؟ یک مرحله‌ی مصاحبه برای این پرونده باز می‌شود و مراجع می‌تواند پرداخت کند.`)) return
+  const res = await fetch(api('/appointment-requests'), {
+   method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+   body: JSON.stringify({ id, action: 'approve', stage_type: 'interview' }),
+  })
+  if (!res.ok) { const d = await res.json().catch(() => ({})); uiAlert(d.error || 'خطا در تأیید'); return }
+  await loadPendingPayments(); fetchAll()
+ }
+
+ async function rejectApptRequest(id: string) {
+  const r = await uiPrompt('دلیل رد درخواست (اختیاری، برای مراجع نمایش داده می‌شود):', {})
+  if (r === null) return
+  const res = await fetch(api('/appointment-requests'), {
+   method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+   body: JSON.stringify({ id, action: 'reject', reject_reason: r.trim() || undefined }),
+  })
+  if (!res.ok) { uiAlert('خطا در ثبت'); return }
+  await loadPendingPayments()
+ }
+
  async function markRefunded(sessionId: string, refundRef: string) {
   await fetch(api('/sessions'), {
    method: 'PATCH', headers: { 'Content-Type': 'application/json' },
@@ -1376,7 +1401,7 @@ export function PsychologyAdmin() {
   </div>
  )
 
- const pendingActionCount = pendingStages.length + pendingPkgs.length + pendingSess.length + pendingRefunds.length
+ const pendingActionCount = pendingStages.length + pendingPkgs.length + pendingSess.length + pendingRefunds.length + pendingApptRequests.length
 
  // تب «تأیید پرداخت‌ها» فقط وقتی به‌دردبخور است که کارت‌به‌کارت واقعا استفاده می‌شود
  // (وگرنه پرداخت‌ها آنلاین و خودکار تایید می‌شوند) — مگر این‌که از قبل چیزی منتظر
@@ -1865,6 +1890,8 @@ export function PsychologyAdmin() {
     {mainTab === 'bookings' && (
      <BookingsTab loading={loading}
       pendingStages={pendingStages} pendingPkgs={pendingPkgs} pendingSess={pendingSess} pendingRefunds={pendingRefunds}
+      pendingApptRequests={pendingApptRequests}
+      approveApptRequest={approveApptRequest} rejectApptRequest={rejectApptRequest}
       clientNameOf={(cn) => bookings.find(b => b.case_number === cn)?.client_name || cn}
       sessionTypeOf={(cn) => bookings.find(b => b.case_number === cn)?.session_type}
       confirmStagePayment={confirmStagePayment} rejectStagePayment={rejectStagePayment}

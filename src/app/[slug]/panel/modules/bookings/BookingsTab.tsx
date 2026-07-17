@@ -92,6 +92,7 @@ function RefundPendingCard({ name, caseNumber, card, amount, onDone }: {
 
 export default function BookingsTab({
  loading, pendingStages, pendingPkgs, pendingSess, pendingRefunds, clientNameOf, sessionTypeOf,
+ pendingApptRequests, approveApptRequest, rejectApptRequest,
  confirmStagePayment, rejectStagePayment, confirmPackagePayment, rejectPackagePayment,
  confirmSessionPayment, rejectSessionPayment, markRefunded,
 }: {
@@ -100,6 +101,9 @@ export default function BookingsTab({
  pendingPkgs: Package[]
  pendingSess: Session[]
  pendingRefunds: Session[]
+ pendingApptRequests: { id: string; case_number: string; note?: string | null; client_name?: string; created_at: string }[]
+ approveApptRequest: (id: string, clientName: string) => void
+ rejectApptRequest: (id: string) => void
  clientNameOf: (caseNumber: string) => string
  sessionTypeOf: (caseNumber: string) => string | undefined
  confirmStagePayment: (stageId: string, label: string) => void
@@ -126,7 +130,7 @@ export default function BookingsTab({
        const pkgAmount = (p: Package) =>
         p.price || ((p.primary_sessions * (p.primary_session_type === 'online' ? PRICING.online : PRICING.offline)) +
         (p.secondary_sessions * (p.secondary_session_type === 'online' ? PRICING.online : PRICING.offline)))
-       const totalPending = pendingStages.length + pendingPkgs.length + pendingSess.length + pendingRefunds.length
+       const totalPending = pendingStages.length + pendingPkgs.length + pendingSess.length + pendingRefunds.length + pendingApptRequests.length
        const refundAmt = (s: Session) => {
         const full = s.price || (s.session_type === 'online' ? PRICING.online : PRICING.offline)
         return Math.round(full * (s.refund_percent || 50) / 100)
@@ -139,6 +143,37 @@ export default function BookingsTab({
          <p className={`text-sm ${totalPending === 0 ? 'text-soot' : 'text-amber-600 font-medium'}`}>
           {totalPending === 0 ? 'مورد منتظر اقدامی وجود ندارد.' : `${toFarsiNum(totalPending)} مورد منتظر اقدام است.`}
          </p>
+
+         {/* بخش ۰: درخواست‌های نوبت جدید — بالاتر از همه چون آغاز یک فلوی جدیدند */}
+         {pendingApptRequests.length > 0 && (
+          <PendingSection title="درخواست‌های نوبت جدید" icon="🗓" count={pendingApptRequests.length}>
+           {pendingApptRequests.map(r => (
+            <div key={r.id} className="bg-white rounded-xl border border-sand p-4">
+             <div className="flex items-center gap-2 mb-2">
+              <span className="font-medium text-ink text-sm">{r.client_name || r.case_number}</span>
+              <span className="text-xs px-2 py-0.5 bg-gray-100 text-soot rounded-md font-mono">{r.case_number}</span>
+              <span className="text-[11px] text-soot mr-auto tnum">{new Date(r.created_at).toLocaleDateString('fa-IR')}</span>
+             </div>
+             {r.note && (
+              <div className="bg-gray-50 rounded-lg p-2.5 border border-sand mb-3">
+               <p className="text-xs text-soot mb-0.5">توضیح مراجع:</p>
+               <p className="text-xs text-ink whitespace-pre-wrap break-words">{r.note}</p>
+              </div>
+             )}
+             <div className="flex gap-2">
+              <button onClick={() => approveApptRequest(r.id, r.client_name || r.case_number)}
+               className="flex-1 py-2 bg-ink text-white rounded-lg text-xs font-medium hover:bg-ink/90">
+               تأیید و باز کردن نوبت
+              </button>
+              <button onClick={() => rejectApptRequest(r.id)}
+               className="px-4 py-2 border border-red-500/30 text-red-600 rounded-lg text-xs hover:bg-red-500/5">
+               رد
+              </button>
+             </div>
+            </div>
+           ))}
+          </PendingSection>
+         )}
 
          {/* بخش 1: مصاحبه */}
          <PendingSection title="مصاحبه‌ی اولیه" icon="🩺" count={interviewPending.length}>
