@@ -52,7 +52,6 @@ type Session = {
  delay_minutes?: number | null
 }
 
-type ManualRefund = { id: string; amount: number; note?: string | null; bank_ref_number?: string | null; created_at: string }
 type ApptRequest = { id: string; note?: string | null; status: 'pending' | 'approved' | 'rejected'; reject_reason?: string | null; created_at: string }
 
 type ExtraCharge = {
@@ -61,7 +60,21 @@ type ExtraCharge = {
  payment_ref?: string | null; payment_reject_reason?: string | null; resource_id?: string | null; created_at: string
 }
 
+// یک ردیف دفتر حساب — فقط فیلدهای ایمن برای مراجع (بدون کمیسیون/سهم متخصص)
+type LedgerEntry = {
+ id: string; purpose: string; method: string; direction: 'inflow' | 'outflow'
+ amount: number; bank_ref_number?: string | null; note?: string | null; created_at: string
+}
+// پیام متخصص برای مراجع (دارو/تجویز/توصیه/عمومی)
+type PatientMessage = { id: string; kind: string; body: string; created_at: string }
+
 type Step = 'login' | 'otp' | 'panel'
+
+// تاریخ جلالی با ارقام لاتین (طبق قرارداد پروژه: همه‌جای خروجی ارقام لاتین)
+const faDate = (ts: string) => {
+ try { return new Intl.DateTimeFormat('fa-IR-u-nu-latn', { year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(ts)) }
+ catch { return '' }
+}
 
 export default function PatientPanel() {
  const { slug } = useParams<{ slug: string }>()
@@ -84,10 +97,11 @@ export default function PatientPanel() {
  const [sessions, setSessions] = useState<Session[]>([])
  const [stages, setStages] = useState<CaseStage[]>([])
  const [extraCharges, setExtraCharges] = useState<ExtraCharge[]>([])
- const [manualRefunds, setManualRefunds] = useState<ManualRefund[]>([])
  const [apptRequests, setApptRequests] = useState<ApptRequest[]>([])
- type ClientTab = 'status' | 'packages' | 'sessions' | 'info'
- const VALID_CLIENT_TABS: ClientTab[] = ['status', 'packages', 'sessions', 'info']
+ const [ledger, setLedger] = useState<LedgerEntry[]>([])
+ const [messages, setMessages] = useState<PatientMessage[]>([])
+ type ClientTab = 'status' | 'packages' | 'sessions' | 'payments' | 'messages' | 'info'
+ const VALID_CLIENT_TABS: ClientTab[] = ['status', 'packages', 'sessions', 'payments', 'messages', 'info']
  const initialSection = (searchParams.get('section') as ClientTab) || 'status'
  const [activeTab, setActiveTab] = useState<ClientTab>(VALID_CLIENT_TABS.includes(initialSection) ? initialSection : 'status')
  const [selectedPkg, setSelectedPkg] = useState<Package | null>(null)
@@ -144,7 +158,8 @@ export default function PatientPanel() {
       setSessions(data.sessions || [])
       setStages(data.stages || [])
       setExtraCharges(data.extra_charges || [])
-      setManualRefunds(data.refunds || [])
+      setLedger(data.ledger || [])
+      setMessages(data.messages || [])
       setApptRequests(data.appointment_requests || [])
       setStep('panel')
      }
@@ -224,8 +239,9 @@ export default function PatientPanel() {
   setSessions(data.sessions || [])
   setStages(data.stages || [])
   setExtraCharges(data.extra_charges || [])
-  setManualRefunds(data.refunds || [])
   setApptRequests(data.appointment_requests || [])
+  setLedger(data.ledger || [])
+  setMessages(data.messages || [])
  }
 
  const pkgPrice = (p: Package) =>
@@ -371,14 +387,15 @@ export default function PatientPanel() {
      </div>
     )}
 
-    <div className="flex bg-white rounded-xl border border-sand p-1 mb-4">
-     {(['status', 'packages', 'sessions', 'info'] as const).map(t => {
+    <div className="flex gap-1 bg-white rounded-xl border border-sand p-1 mb-4 overflow-x-auto">
+     {(['status', 'packages', 'sessions', 'payments', 'messages', 'info'] as const).map(t => {
       const needsAttention = t === 'status' && !!currentStage && (currentStage.status === 'awaiting_payment' || currentStage.status === 'awaiting_booking')
+      const label = t === 'status' ? 'وضعیت' : t === 'packages' ? 'پروتکل‌های درمان' : t === 'sessions' ? 'جلسات تکی' : t === 'payments' ? 'پرداخت‌ها' : t === 'messages' ? 'پیام‌ها' : 'اطلاعات'
       return (
        <button key={t} onClick={() => navigateSection(t)}
-        className={`flex-1 text-xs py-2 rounded-lg font-medium transition-all relative ${activeTab === t ? 'bg-accent text-white' : 'text-soot'}`}>
-        {t === 'status' ? 'وضعیت' : t === 'packages' ? 'پروتکل‌های درمان' : t === 'sessions' ? 'جلسات' : 'اطلاعات'}
-        {needsAttention && <span className={`absolute top-1 ${activeTab === t ? 'left-1.5' : 'left-1.5'} w-1.5 h-1.5 rounded-full ${activeTab === t ? 'bg-white' : 'bg-red-500'}`} />}
+        className={`shrink-0 text-xs px-3 py-2 rounded-lg font-medium transition-all relative ${activeTab === t ? 'bg-accent text-white' : 'text-soot'}`}>
+        {label}
+        {needsAttention && <span className={`absolute top-1 left-1.5 w-1.5 h-1.5 rounded-full ${activeTab === t ? 'bg-white' : 'bg-red-500'}`} />}
        </button>
       )
      })}
@@ -566,25 +583,41 @@ export default function PatientPanel() {
      </div>
     )}
 
-    {/* SESSIONS TAB */}
+    {/* SESSIONS TAB — جلسات تکی: مراحل (مصاحبه/ارزیابی/دلخواه) + جلسات psy_sessions */}
     {activeTab === 'sessions' && (
      <div className="space-y-3">
-      {sessions.length === 0 ? (
+      {stages.length === 0 && sessions.length === 0 ? (
        <div className="text-center py-12 bg-white rounded-xl border border-sand text-soot">
         <div className="text-3xl mb-2">🗓</div>
         <p className="text-sm">هنوز جلسه‌ای ثبت نشده</p>
        </div>
-      ) : (() => {
-       const sorted = [...sessions].sort((a, b) => (a.session_number || 0) - (b.session_number || 0))
-       let n = 0
-       return sorted.map((s) => {
-        const active = s.status !== 'forfeited' && s.status !== 'replaced' && s.status !== 'cancelled'
-        const num = active ? ++n : null
-        return <SessionCard key={s.id} session={s} num={num} phone={phone} caseNumber={booking.case_number} onUpdate={() => loadData(booking.case_number)} />
-       })
-      })()}
+      ) : (
+       <>
+        {/* هر مرحله = یک جلسه‌ی تکی؛ وضعیت برگزاری این‌جا شفاف مشخص است */}
+        {[...stages]
+          .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+          .map(st => (
+           <StageSessionRow key={st.id} stage={st} sessionType={booking.session_type} />
+          ))}
+        {(() => {
+         const sorted = [...sessions].sort((a, b) => (a.session_number || 0) - (b.session_number || 0))
+         let n = 0
+         return sorted.map((s) => {
+          const active = s.status !== 'forfeited' && s.status !== 'replaced' && s.status !== 'cancelled'
+          const num = active ? ++n : null
+          return <SessionCard key={s.id} session={s} num={num} phone={phone} caseNumber={booking.case_number} onUpdate={() => loadData(booking.case_number)} />
+         })
+        })()}
+       </>
+      )}
      </div>
     )}
+
+    {/* PAYMENTS TAB — تمام پرداخت‌ها و بازپرداخت‌ها با جزئیات (منبع: دفتر حساب) */}
+    {activeTab === 'payments' && <PaymentsView ledger={ledger} />}
+
+    {/* MESSAGES TAB — پیام‌های متخصص (دارو/تجویز/توصیه) */}
+    {activeTab === 'messages' && <MessagesView messages={messages} />}
 
     {/* INFO TAB */}
     {activeTab === 'info' && (
@@ -605,25 +638,6 @@ export default function PatientPanel() {
         </div>
        ) : null)}
       </div>
-      {manualRefunds.length > 0 && (
-       <div className="bg-white rounded-xl border border-sand p-4">
-        <h3 className="text-sm font-medium text-ink pb-2 mb-2 border-b border-sand">بازپرداخت‌های شما</h3>
-        <div className="space-y-2">
-         {manualRefunds.map(r => (
-          <div key={r.id} className="bg-emerald-500/5 border border-emerald-500/20 rounded-lg p-3">
-           <div className="flex items-center justify-between mb-1">
-            <span className="text-sm text-ink">{r.note || 'بازپرداخت'}</span>
-            <span className="text-sm font-bold text-emerald-700 tnum">{r.amount.toLocaleString()} تومان</span>
-           </div>
-           <div className="flex items-center justify-between text-[11px] text-soot">
-            <span className="tnum">{new Date(r.created_at).toLocaleDateString('fa-IR')}</span>
-            {r.bank_ref_number && <span dir="ltr" className="tnum">پیگیری بانکی: {r.bank_ref_number}</span>}
-           </div>
-          </div>
-         ))}
-        </div>
-       </div>
-      )}
       {booking.resource_id && <ReviewBox resourceId={booking.resource_id} caseNumber={booking.case_number} phone={phone} slug={slug} />}
      </div>
     )}
@@ -1710,6 +1724,143 @@ function StagePayment({ icon, title, desc, amount, onPaid, onDone, resourceId, c
      onDone={() => setShowSlotPicker(false)}
      onConfirm={payOnlineWithSlot} />
    )}
+  </div>
+ )
+}
+
+// ==================== STAGE SESSION ROW (جلسه‌ی تکی/مرحله‌ای — فقط‌خواندنی) ====================
+// هر مرحله (مصاحبه/ارزیابی/دلخواه) یک «جلسه‌ی تکی» است؛ این کارت وضعیت برگزاری‌اش
+// را شفاف نشان می‌دهد. اقدامات پرداخت/زمان‌بندی مرحله‌ی جاری در تب «وضعیت» است،
+// این‌جا فقط تاریخچه‌ی جلسات دیده می‌شود.
+function StageSessionRow({ stage, sessionType }: { stage: CaseStage; sessionType?: 'online' | 'offline' }) {
+ const held = stage.status === 'booked' && !!stage.held
+ const scheduled = stage.status === 'booked' && !held && !!stage.session_date
+ const badge = held
+  ? { text: '✅ برگزار شد', cls: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' }
+  : scheduled
+  ? { text: 'برگزار نشده', cls: 'bg-amber-500/10 text-amber-600 border-amber-500/20' }
+  : stage.status === 'awaiting_booking'
+  ? { text: 'در انتظار انتخاب زمان', cls: 'bg-amber-500/10 text-amber-600 border-amber-500/20' }
+  : stage.status === 'payment_submitted'
+  ? { text: 'در انتظار تأیید پرداخت', cls: 'bg-amber-500/10 text-amber-600 border-amber-500/20' }
+  : { text: 'در انتظار پرداخت', cls: 'bg-gray-100 text-soot border-sand' }
+ return (
+  <div className="bg-white rounded-xl border border-sand p-4">
+   <div className="flex items-center gap-2 flex-wrap">
+    <span className="font-medium text-sm text-ink">{stageTitle(stage)}</span>
+    <span className={`text-xs px-2 py-0.5 rounded border ${badge.cls}`}>{badge.text}</span>
+   </div>
+   <div className="text-xs text-soot mt-1">
+    {stage.session_date
+     ? <>{stage.session_date} — {stage.session_time}</>
+     : <span>هنوز زمانی ثبت نشده</span>}
+    {' | '}{sessionType === 'online' ? '🎥 آنلاین' : '🏥 حضوری'}
+   </div>
+   {!!stage.delay_minutes && scheduled && (
+    <div className="text-xs text-amber-600 bg-amber-500/10 border border-amber-500/20 rounded-lg px-2 py-1 mt-1.5 inline-block font-medium">
+     ⏱ این جلسه با {stage.delay_minutes} دقیقه تاخیر برگزار می‌شود.
+    </div>
+   )}
+  </div>
+ )
+}
+
+// ==================== PAYMENTS VIEW (تمام پرداخت‌ها و بازپرداخت‌ها) ====================
+// منبع واحد: دفتر حساب (ledger). تراکنش‌های نهایی‌شده — پرداخت‌های تأییدشده (inflow)
+// و بازپرداخت‌ها (outflow). پرداخت‌های در انتظار تأیید در کارت خود جلسه/پروتکل‌اند.
+function PaymentsView({ ledger }: { ledger: LedgerEntry[] }) {
+ const purposeLabel = (p: string) =>
+  ({ stage: 'جلسه', interview: 'جلسه', assessment: 'جلسه', session: 'جلسه', package: 'پروتکل درمان', extra_charge: 'هزینه‌ی اضافه', refund: 'بازپرداخت' } as Record<string, string>)[p] || 'پرداخت'
+ const methodLabel = (m: string) => (m === 'online' ? 'پرداخت آنلاین' : 'کارت‌به‌کارت')
+ const payments = ledger.filter(e => e.direction !== 'outflow')
+ const refunds = ledger.filter(e => e.direction === 'outflow')
+ const paidTotal = payments.reduce((s, e) => s + (e.amount || 0), 0)
+
+ if (ledger.length === 0) return (
+  <div className="text-center py-12 bg-white rounded-xl border border-sand text-soot">
+   <div className="text-3xl mb-2">🧾</div>
+   <p className="text-sm">هنوز پرداختی ثبت نشده</p>
+   <p className="text-xs mt-1">پس از اولین پرداخت تأییدشده، همه‌ی تراکنش‌ها این‌جا با جزئیات نمایش داده می‌شوند.</p>
+  </div>
+ )
+ return (
+  <div className="space-y-4">
+   {payments.length > 0 && (
+    <div className="bg-white rounded-xl border border-sand p-4">
+     <div className="flex items-center justify-between pb-2 mb-2 border-b border-sand">
+      <h3 className="text-sm font-medium text-ink">پرداخت‌های شما</h3>
+      <span className="text-xs text-soot">مجموع: <span className="font-bold text-ink">{paidTotal.toLocaleString()} تومان</span></span>
+     </div>
+     <div className="space-y-2">
+      {payments.map(e => (
+       <div key={e.id} className="border border-sand rounded-lg p-3">
+        <div className="flex items-center justify-between mb-1">
+         <span className="text-sm text-ink">{purposeLabel(e.purpose)}<span className="text-xs text-soot"> — {methodLabel(e.method)}</span></span>
+         <span className="text-sm font-bold text-ink">{(e.amount || 0).toLocaleString()} تومان</span>
+        </div>
+        <div className="flex items-center justify-between text-[11px] text-soot">
+         <span>{faDate(e.created_at)}</span>
+         {e.bank_ref_number && <span dir="ltr">پیگیری بانکی: {e.bank_ref_number}</span>}
+        </div>
+       </div>
+      ))}
+     </div>
+    </div>
+   )}
+   {refunds.length > 0 && (
+    <div className="bg-white rounded-xl border border-sand p-4">
+     <h3 className="text-sm font-medium text-ink pb-2 mb-2 border-b border-sand">بازپرداخت‌ها</h3>
+     <div className="space-y-2">
+      {refunds.map(e => (
+       <div key={e.id} className="bg-emerald-500/5 border border-emerald-500/20 rounded-lg p-3">
+        <div className="flex items-center justify-between mb-1">
+         <span className="text-sm text-ink">{e.note || 'بازپرداخت'}</span>
+         <span className="text-sm font-bold text-emerald-700">{(e.amount || 0).toLocaleString()} تومان</span>
+        </div>
+        <div className="flex items-center justify-between text-[11px] text-soot">
+         <span>{faDate(e.created_at)}</span>
+         {e.bank_ref_number && <span dir="ltr">پیگیری بانکی: {e.bank_ref_number}</span>}
+        </div>
+       </div>
+      ))}
+     </div>
+    </div>
+   )}
+  </div>
+ )
+}
+
+// ==================== MESSAGES VIEW (پیام‌های متخصص برای مراجع) ====================
+// دارو / تجویز / توصیه / عمومی — کانال یک‌طرفه‌ی متخصص→مراجع.
+function MessagesView({ messages }: { messages: PatientMessage[] }) {
+ const meta = (k: string) =>
+  ({
+   medication: { label: 'دارو', icon: '💊', cls: 'bg-sky-500/10 text-sky-700 border-sky-500/20' },
+   prescription: { label: 'نسخه', icon: '📋', cls: 'bg-amber-500/10 text-amber-700 border-amber-500/20' },
+   recommendation: { label: 'توصیه', icon: '📌', cls: 'bg-emerald-500/10 text-emerald-700 border-emerald-500/20' },
+   general: { label: 'پیام', icon: '💬', cls: 'bg-gray-100 text-soot border-sand' },
+  } as Record<string, { label: string; icon: string; cls: string }>)[k] || { label: 'پیام', icon: '💬', cls: 'bg-gray-100 text-soot border-sand' }
+ if (messages.length === 0) return (
+  <div className="text-center py-12 bg-white rounded-xl border border-sand text-soot">
+   <div className="text-3xl mb-2">💬</div>
+   <p className="text-sm">هنوز پیامی از طرف متخصص نیست</p>
+   <p className="text-xs mt-1">پیام‌ها، تجویزها و توصیه‌های متخصص این‌جا نمایش داده می‌شوند.</p>
+  </div>
+ )
+ return (
+  <div className="space-y-3">
+   {messages.map(m => {
+    const mt = meta(m.kind)
+    return (
+     <div key={m.id} className="bg-white rounded-xl border border-sand p-4">
+      <div className="flex items-center justify-between mb-2">
+       <span className={`text-xs px-2 py-0.5 rounded-full border ${mt.cls}`}>{mt.icon} {mt.label}</span>
+       <span className="text-[11px] text-soot">{faDate(m.created_at)}</span>
+      </div>
+      <p className="text-sm text-ink whitespace-pre-wrap leading-relaxed">{m.body}</p>
+     </div>
+    )
+   })}
   </div>
  )
 }

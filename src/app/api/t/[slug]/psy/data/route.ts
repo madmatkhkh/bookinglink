@@ -21,7 +21,7 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
   if (!booking || !matchesClientIdentity(booking, phone))
     return NextResponse.json({ error: 'دسترسی ندارید' }, { status: 403 })
 
-  const [{ data: packages }, { data: sessions }, { data: stages }, { data: extraCharges }, { data: refunds }, { data: apptRequests }] = await Promise.all([
+  const [{ data: packages }, { data: sessions }, { data: stages }, { data: extraCharges }, { data: refunds }, { data: apptRequests }, { data: ledger }, { data: messages }] = await Promise.all([
     sb().from('psy_packages').select('*').eq('tenant_id', t.id).eq('case_number', case_number).order('created_at', { ascending: false }),
     sb().from('psy_sessions').select('*').eq('tenant_id', t.id).eq('case_number', case_number).order('session_date', { ascending: true }),
     sb().from('psy_stages').select('*').eq('tenant_id', t.id).eq('case_number', case_number).order('created_at', { ascending: true }),
@@ -29,6 +29,11 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
     // بازپرداخت‌های دستی — فقط فیلدهایی که مراجع باید ببیند (مبلغ، شماره پیگیری، تاریخ)
     sb().from('psy_refunds').select('id, amount, note, bank_ref_number, created_at').eq('tenant_id', t.id).eq('case_number', case_number).order('created_at', { ascending: false }),
     sb().from('psy_appointment_requests').select('id, note, status, reject_reason, created_at').eq('tenant_id', t.id).eq('case_number', case_number).order('created_at', { ascending: false }),
+    // دفتر حساب — فقط فیلدهای ایمن برای مراجع (نه کمیسیون/سهم متخصص/تسهیم). منبع
+    // واحد «تمام پرداخت‌ها و بازپرداخت‌ها» در تب پرداخت‌های پنل مراجع.
+    sb().from('ledger_entries').select('id, purpose, method, direction, amount, bank_ref_number, note, created_at').eq('tenant_id', t.id).eq('case_number', case_number).order('created_at', { ascending: false }),
+    // پیام‌های متخصص برای مراجع (دارو/تجویز/توصیه/عمومی)
+    sb().from('psy_patient_messages').select('id, kind, body, created_at').eq('tenant_id', t.id).eq('case_number', case_number).order('created_at', { ascending: false }),
   ])
-  return NextResponse.json({ booking, packages: packages || [], sessions: sessions || [], stages: stages || [], extra_charges: extraCharges || [], refunds: refunds || [], appointment_requests: apptRequests || [] })
+  return NextResponse.json({ booking, packages: packages || [], sessions: sessions || [], stages: stages || [], extra_charges: extraCharges || [], refunds: refunds || [], appointment_requests: apptRequests || [], ledger: ledger || [], messages: messages || [] })
 }

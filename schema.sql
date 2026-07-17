@@ -309,6 +309,18 @@ CREATE TABLE public.psy_packages (
     payment_reject_reason text
 );
 
+-- Name: psy_patient_messages; Type: TABLE; Schema: public; Owner: -
+
+CREATE TABLE public.psy_patient_messages (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    tenant_id uuid NOT NULL,
+    resource_id uuid,
+    case_number text NOT NULL,
+    kind text DEFAULT 'general'::text NOT NULL,
+    body text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
 -- Name: psy_payment_intents; Type: TABLE; Schema: public; Owner: -
 
 CREATE TABLE public.psy_payment_intents (

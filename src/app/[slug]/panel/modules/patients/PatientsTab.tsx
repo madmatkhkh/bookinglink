@@ -143,7 +143,7 @@ export default function PatientsTab({
  const stagePresets = Array.isArray(profile.stage_presets) ? profile.stage_presets.filter(Boolean) : []
  const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null)
  const [patientView, setPatientView] = useState<'list' | 'detail' | 'edit'>('list')
- const [patientTab, setPatientTab] = useState<'info' | 'payment' | 'packages' | 'sessions' | 'clinical'>('info')
+ const [patientTab, setPatientTab] = useState<'info' | 'payment' | 'packages' | 'sessions' | 'clinical' | 'messages'>('info')
  const [packages, setPackages] = useState<Package[]>([])
  const [sessions, setSessions] = useState<Session[]>([])
  const [stages, setStages] = useState<CaseStage[]>([])
@@ -161,6 +161,11 @@ export default function PatientsTab({
  const [newNoteFormat, setNewNoteFormat] = useState<'soap' | 'dap' | 'freeform'>('soap')
  const [newNoteFields, setNewNoteFields] = useState<Record<string, string>>({})
  const [savingNote, setSavingNote] = useState(false)
+ // پیام‌های متخصص برای مراجع (دارو/تجویز/توصیه/عمومی) — در پنل مراجع دیده می‌شوند
+ const [patientMessages, setPatientMessages] = useState<{ id: string; kind: string; body: string; created_at: string }[]>([])
+ const [newMsgKind, setNewMsgKind] = useState<'general' | 'medication' | 'prescription' | 'recommendation'>('general')
+ const [newMsgBody, setNewMsgBody] = useState('')
+ const [savingMsg, setSavingMsg] = useState(false)
  const [patientSearch, setPatientSearch] = useState('')
  const [showNewPackage, setShowNewPackage] = useState(false)
  const [showNewStage, setShowNewStage] = useState(false)
@@ -309,7 +314,7 @@ export default function PatientsTab({
   setPatientView('detail')
   setPatientTab('info')
   setInfoOpenSection(null)
-  await Promise.all([loadPatientData(p.case_number), loadPatientIntakeForm((p as any).resource_id), loadClinicalNotes(p.case_number)])
+  await Promise.all([loadPatientData(p.case_number), loadPatientIntakeForm((p as any).resource_id), loadClinicalNotes(p.case_number), loadPatientMessages(p.case_number)])
  }
 
  function closePatientDetail() {
@@ -495,6 +500,36 @@ export default function PatientsTab({
   if (!await uiConfirm('این یادداشت بالینی برای همیشه حذف شود؟')) return
   await fetch(api('/clinical-notes'), { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) })
   await loadClinicalNotes(selectedPatient.case_number)
+ }
+
+ async function loadPatientMessages(case_number: string) {
+  try {
+   const res = await fetch(api(`/messages?case_number=${case_number}`), { cache: 'no-store' })
+   const data = await res.json()
+   setPatientMessages(data.messages || [])
+  } catch {}
+ }
+
+ async function savePatientMessage() {
+  if (!selectedPatient) return
+  if (!newMsgBody.trim()) { uiAlert('متن پیام را بنویسید.'); return }
+  setSavingMsg(true)
+  const res = await fetch(api('/messages'), {
+   method: 'POST', headers: { 'Content-Type': 'application/json' },
+   body: JSON.stringify({ case_number: selectedPatient.case_number, kind: newMsgKind, body: newMsgBody }),
+  })
+  setSavingMsg(false)
+  if (!res.ok) { uiAlert('ثبت پیام ناموفق بود'); return }
+  setNewMsgBody('')
+  setNewMsgKind('general')
+  await loadPatientMessages(selectedPatient.case_number)
+ }
+
+ async function deletePatientMessage(id: string) {
+  if (!selectedPatient) return
+  if (!await uiConfirm('این پیام برای مراجع حذف شود؟')) return
+  await fetch(api('/messages'), { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) })
+  await loadPatientMessages(selectedPatient.case_number)
  }
 
  // ذخیره‌ی یادداشت و/یا تأیید برگزاری یک مرحله — بعد از این، پرونده آزاد می‌شود
@@ -734,6 +769,7 @@ export default function PatientsTab({
           ['packages', '📦', 'پروتکل‌های درمان'],
           ['sessions', '🗓', 'جلسات تکی'],
           ['clinical', '📝', 'یادداشت بالینی'],
+          ['messages', '💬', 'پیام‌ها'],
          ] as const).map(([k, icon, label]) => (
           <button key={k} onClick={() => setPatientTab(k)}
            className={`px-3 py-1.5 text-xs font-medium rounded-lg whitespace-nowrap transition-all flex items-center gap-1.5 ${
@@ -1135,6 +1171,52 @@ export default function PatientsTab({
              </div>
             </div>
            ))}
+          </div>
+         </div>
+        )}
+
+        {patientTab === 'messages' && (
+         <div>
+          <div className="bg-sky-500/10 border border-sky-500/20 rounded-xl p-3 text-xs text-sky-700 mb-4">
+           💬 این پیام‌ها در پنل مراجع، تب «پیام‌ها» دیده می‌شوند — برای تجویز دارو، نسخه یا توصیه. (یادداشت بالینی جداست و هرگز به مراجع نشان داده نمی‌شود.)
+          </div>
+
+          <div className="bg-white rounded-xl border border-sand p-4 mb-4">
+           <div className="flex bg-gray-100 rounded-xl p-1 gap-1 mb-3">
+            {([['general', 'عمومی'], ['medication', 'دارو'], ['prescription', 'نسخه'], ['recommendation', 'توصیه']] as const).map(([k, label]) => (
+             <button key={k} onClick={() => setNewMsgKind(k)}
+              className={`flex-1 text-xs py-2 rounded-lg font-medium transition-all ${newMsgKind === k ? 'bg-white text-ink shadow-sm' : 'text-soot'}`}>
+              {label}
+             </button>
+            ))}
+           </div>
+           <textarea value={newMsgBody} onChange={e => setNewMsgBody(e.target.value)}
+            rows={4} placeholder="متن پیام، تجویز یا توصیه برای مراجع..."
+            className="w-full text-sm px-3 py-2 border border-sand rounded-lg focus:outline-none focus:border-ink resize-none" />
+           <button onClick={savePatientMessage} disabled={savingMsg}
+            className="w-full mt-3 py-2.5 bg-ink text-white rounded-xl text-sm font-medium disabled:opacity-40">
+            {savingMsg ? 'در حال ارسال...' : '+ ارسال پیام به مراجع'}
+           </button>
+          </div>
+
+          <div className="space-y-2">
+           {patientMessages.length === 0 ? (
+            <div className="text-center py-8 text-soot text-sm">هنوز پیامی ارسال نشده.</div>
+           ) : patientMessages.map(m => {
+            const label = m.kind === 'medication' ? '💊 دارو' : m.kind === 'prescription' ? '📋 نسخه' : m.kind === 'recommendation' ? '📌 توصیه' : '💬 پیام'
+            return (
+             <div key={m.id} className="bg-white rounded-xl border border-sand p-4">
+              <div className="flex items-center justify-between mb-2">
+               <span className="text-xs font-medium text-ink bg-gray-100 px-2 py-0.5 rounded">{label}</span>
+               <div className="flex items-center gap-2">
+                <span className="text-[11px] text-soot">{new Date(m.created_at).toLocaleDateString('fa-IR-u-nu-latn')}</span>
+                <button onClick={() => deletePatientMessage(m.id)} className="text-xs text-red-500 hover:text-red-700">حذف</button>
+               </div>
+              </div>
+              <p className="text-sm text-ink whitespace-pre-wrap leading-relaxed">{m.body}</p>
+             </div>
+            )
+           })}
           </div>
          </div>
         )}
