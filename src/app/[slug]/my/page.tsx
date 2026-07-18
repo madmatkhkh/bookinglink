@@ -698,7 +698,7 @@ export default function PatientPanel() {
    {showSlotPicker && currentStage && (
     <SlotPicker phone={phone} caseNumber={booking.case_number}
      title={`انتخاب وقت ${stageTitle(currentStage)}`} resourceId={booking.resource_id}
-     sessionType={booking.session_type} officeLocation={booking.office_location}
+     sessionType={currentStage.session_type || booking.session_type} officeLocation={booking.office_location}
      onClose={() => setShowSlotPicker(false)}
      onDone={() => { setShowSlotPicker(false); loadData(booking.case_number) }}
      onConfirm={async (date: string, time: string) => {
@@ -1790,7 +1790,7 @@ function StagePayment({ icon, title, desc, amount, onPaid, onDone, resourceId, c
    {showSlotPicker && (
     <SlotPicker phone={phone} caseNumber={caseNumber}
      title={`انتخاب وقت ${stageLabel}`} confirmLabel="ادامه و پرداخت" resourceId={resourceId}
-     sessionType={sessionType} officeLocation={officeLocation}
+     sessionType={mode} officeLocation={officeLocation}
      onClose={() => setShowSlotPicker(false)}
      onDone={() => setShowSlotPicker(false)}
      onConfirm={payOnlineWithSlot} />
