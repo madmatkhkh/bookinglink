@@ -122,6 +122,15 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
       refundsList.push({ case_number: s.case_number, name: '', amount: amt, percent: s.refund_percent, date: s.created_at, card: s.refund_card || null })
     }
   }
+  // بازپرداخت کنسلی جلسات تکی (مرحله‌ای) — هم‌فرمول با جلسات پروتکل
+  for (const st of St) {
+    if (st.paid && st.refund_percent && st.refund_percent > 0) {
+      const amt = Math.round((st.price || 0) * (100 - st.refund_percent) / 100)
+      refundsTotal += amt
+      refundsCount++
+      refundsList.push({ case_number: st.case_number, name: '', amount: amt, percent: st.refund_percent, date: st.created_at, card: st.refund_card || null })
+    }
+  }
   const netPaid = totalPaid - refundsTotal
 
   const monthlySorted = Object.entries(monthly).sort((a, b) => (a[0] < b[0] ? -1 : 1)).slice(-12)

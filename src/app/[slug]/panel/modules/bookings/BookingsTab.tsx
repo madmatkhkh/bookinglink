@@ -112,7 +112,7 @@ export default function BookingsTab({
  rejectPackagePayment: (pkgId: string) => void
  confirmSessionPayment: (sessionId: string) => void
  rejectSessionPayment: (sessionId: string) => void
- markRefunded: (sessionId: string, refundRef: string) => Promise<void> | void
+ markRefunded: (sessionId: string, refundRef: string, kind?: string) => Promise<void> | void
 }) {
  // نام مراجع از روی پرونده‌ها — همان childOf قبلی، حالا از والد می‌آید
  const childOf = clientNameOf
@@ -223,7 +223,7 @@ export default function BookingsTab({
           {pendingRefunds.map(s => (
            <RefundPendingCard key={s.id} name={childOf(s.case_number)} caseNumber={s.case_number}
             card={s.refund_card || ''} amount={refundAmt(s)}
-            onDone={(ref) => markRefunded(s.id, ref)} />
+            onDone={(ref) => markRefunded(s.id, ref, (s as { _kind?: string })._kind)} />
           ))}
          </PendingSection>
         </div>

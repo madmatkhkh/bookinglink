@@ -15,7 +15,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   if (!t) return NextResponse.json({ error: 'یافت نشد' }, { status: 404 })
   const gate = await requireModule(t.id, 'patient_self_cancel')
   if (gate) return gate
-  const { session_id, case_number, refund_card } = await req.json()
+  const { session_id, stage_id, case_number, refund_card } = await req.json()
   const phone = getClientPhone(req)
   if (!phone) return NextResponse.json({ error: 'ابتدا با کد یک‌بارمصرف وارد شوید' }, { status: 401 })
 
@@ -23,6 +23,51 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
     .eq('tenant_id', t.id).eq('case_number', case_number).single()
   if (!booking || !matchesClientIdentity(booking, phone))
     return NextResponse.json({ error: 'دسترسی ندارید' }, { status: 403 })
+
+  // ── کنسلی جلسه‌ی تکی (مرحله) — هم‌تراز با جلسه‌ی پروتکل ────────────────────
+  if (stage_id) {
+    const { data: stage } = await sb().from('psy_stages').select('*')
+      .eq('id', stage_id).eq('tenant_id', t.id).single()
+    if (!stage || stage.case_number !== case_number)
+      return NextResponse.json({ error: 'جلسه یافت نشد' }, { status: 404 })
+    if (stage.status !== 'booked' || !stage.session_date || !stage.session_time)
+      return NextResponse.json({ error: 'این جلسه قابل کنسل نیست' }, { status: 400 })
+
+    const stPolicy = stage.resource_id ? await getCancellationPolicy(stage.resource_id) : null
+    if (stPolicy && !stPolicy.enabled)
+      return NextResponse.json({ error: 'کنسلی خودکار برای این پرونده غیرفعال است — با دکتر هماهنگ کنید' }, { status: 403 })
+
+    const sts = jalaliDateTimeToTimestamp(stage.session_date, stage.session_time)
+    const stHours = sts === null ? null : (sts - Date.now()) / (1000 * 60 * 60)
+    if (stHours === null || stHours <= 0)
+      return NextResponse.json({ error: 'زمان این جلسه گذشته است' }, { status: 400 })
+
+    const stFreed = { session_date: stage.session_date, session_time: stage.session_time }
+    const releaseStageSlot = () => stage.resource_id
+      ? releaseLockBySlot(t.id, stage.resource_id, stFreed)
+      : Promise.resolve()
+
+    // پرداخت‌نشده: فقط زمان آزاد می‌شود و مرحله به حالت انتخاب زمان برمی‌گردد
+    if (!stage.paid) {
+      await sb().from('psy_stages').update({ session_date: '', session_time: '', status: 'awaiting_booking' }).eq('id', stage_id)
+      await releaseStageSlot()
+      return NextResponse.json({ success: true, outcome: 'unpaid_released' })
+    }
+
+    const stThreshold = stPolicy?.threshold_hours ?? 12
+    const stPercent = stHours >= stThreshold ? (stPolicy?.early_refund_percent ?? 50) : (stPolicy?.late_refund_percent ?? 0)
+    const stCard = (refund_card || '').toString().trim()
+    await sb().from('psy_stages').update({
+      session_date: '', session_time: '', status: 'cancelled',
+      refund_percent: stPercent,
+      refund_card: stPercent > 0 ? (stCard || null) : null,
+      refund_status: stPercent > 0 && stCard ? 'pending' : null,
+    }).eq('id', stage_id)
+    // مرحله بسته شد → پرونده آزاد می‌شود تا دکتر مرحله‌ی بعد را تعیین کند
+    await sb().from('psy_cases').update({ current_stage_id: null }).eq('tenant_id', t.id).eq('case_number', case_number).eq('current_stage_id', stage_id)
+    await releaseStageSlot()
+    return NextResponse.json({ success: true, outcome: stPercent > 0 ? 'partial_refund' : 'forfeited', refund_percent: stPercent })
+  }
 
   const { data: session } = await sb().from('psy_sessions').select('*')
     .eq('id', session_id).eq('tenant_id', t.id).single()

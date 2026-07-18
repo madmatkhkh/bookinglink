@@ -688,7 +688,7 @@ export default function PatientsTab({
               className="w-full flex items-center gap-3 p-2.5 rounded-xl border border-sand hover:border-ink/30 text-right transition-all disabled:opacity-60">
               <span className="text-sm font-bold tnum shrink-0 w-12 text-center">{enTime(a.time)}</span>
               <span className="text-sm text-ink flex-1 truncate">{a.name}</span>
-              <span className="text-[11px] text-soot shrink-0">{a.type} · {a.modeText}</span>
+              <span className="text-[11px] text-soot shrink-0">{a.type}{a.modeText ? ` · ${a.modeText}` : ''}</span>
              </button>
             )
            })}

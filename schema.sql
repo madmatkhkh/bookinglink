@@ -455,7 +455,11 @@ CREATE TABLE public.psy_stages (
     payment_reject_reason text,
     meet_link text,
     session_type text,
-    meet_channel text
+    meet_channel text,
+    refund_percent integer,
+    refund_status text,
+    refund_card text,
+    refund_ref text
 );
 
 -- Name: psy_waitlist; Type: TABLE; Schema: public; Owner: -

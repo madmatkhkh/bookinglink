@@ -577,21 +577,24 @@ export function PsychologyAdmin() {
  // پرداخت‌های منتظر تأیید (پروتکل‌های درمان و جلسه‌های جایگزین) در همه‌ی پرونده‌ها
  async function loadPendingPayments() {
   try {
-   const [pkgRes, sessRes, refundRes, stageRes, apptRes] = await Promise.all([
+   const [pkgRes, sessRes, refundRes, stageRes, stageRefundRes, apptRes] = await Promise.all([
     fetch(api('/packages?pending=1'), { cache: 'no-store' }),
     fetch(api('/sessions?pending=1'), { cache: 'no-store' }),
     fetch(api('/sessions?refunds=1'), { cache: 'no-store' }),
     fetch(api('/stages?pending=1'), { cache: 'no-store' }),
+    fetch(api('/stages?refunds=1'), { cache: 'no-store' }),
     fetch(api('/appointment-requests?pending=true'), { cache: 'no-store' }),
    ])
    const pkg = await pkgRes.json().catch(() => ({}))
    const sess = await sessRes.json().catch(() => ({}))
    const refunds = await refundRes.json().catch(() => ({}))
    const stg = await stageRes.json().catch(() => ({}))
+   const stgRefunds = await stageRefundRes.json().catch(() => ({}))
    const appt = await apptRes.json().catch(() => ({}))
    setPendingPkgs(pkg.packages || [])
    setPendingSess(sess.sessions || [])
-   setPendingRefunds(refunds.sessions || [])
+   // بازپرداخت‌های جلسه و مرحله در یک فهرست؛ مرحله‌ها با _kind مشخص‌اند
+   setPendingRefunds([...(refunds.sessions || []), ...(stgRefunds.stages || [])])
    setPendingStages(stg.stages || [])
    setPendingApptRequests(appt.requests || [])
   } catch {}
@@ -666,8 +669,8 @@ export function PsychologyAdmin() {
   await loadPendingPayments()
  }
 
- async function markRefunded(sessionId: string, refundRef: string) {
-  await fetch(api('/sessions'), {
+ async function markRefunded(sessionId: string, refundRef: string, kind?: string) {
+  await fetch(api(kind === 'stage' ? '/stages' : '/sessions'), {
    method: 'PATCH', headers: { 'Content-Type': 'application/json' },
    body: JSON.stringify({ id: sessionId, refund_status: 'done', refund_ref: refundRef.trim() }),
   })
@@ -744,7 +747,9 @@ export function PsychologyAdmin() {
   const modeTextOf = (mode?: string, loc?: string, channel?: string | null) =>
    mode === 'online'
     ? (channelLabel(channel) ? `آنلاین · ${channelLabel(channel)}` : 'آنلاین')
-    : (loc ? `حضوری · ${loc}` : 'حضوری')
+    : mode === 'offline'
+    ? (loc ? `حضوری · ${loc}` : 'حضوری')
+    : ''
   for (const s of allStages) {
    if (s.session_date === dateStr && s.session_time && s.status === 'booked') {
     const b = bookingByCase.get(s.case_number)
@@ -1854,7 +1859,7 @@ export function PsychologyAdmin() {
             <div key={a.id} className={`flex items-center gap-3 p-2.5 rounded-xl border ${a.color}`}>
              <span className="text-sm font-bold tnum shrink-0">{toFarsiNum(a.time)}</span>
              <span className="text-sm text-ink flex-1">{a.name}</span>
-             <span className="text-[11px] text-soot shrink-0">{a.type} · {a.modeText}</span>
+             <span className="text-[11px] text-soot shrink-0">{a.type}{a.modeText ? ` · ${a.modeText}` : ''}</span>
             </div>
            ))}
           </div>

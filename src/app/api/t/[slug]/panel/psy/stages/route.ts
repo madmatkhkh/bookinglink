@@ -25,11 +25,19 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
 
   if (q.get('all')) {
     let query = sb().from('psy_stages')
-      .select('id, case_number, stage_type, session_date, session_time, status, delay_minutes')
+      .select('id, case_number, stage_type, title, is_first, held, session_date, session_time, status, session_type, meet_channel, delay_minutes')
       .eq('tenant_id', a.tenant.id).neq('session_date', '').order('session_date', { ascending: true })
     if (!a.isOwner) query = query.eq('resource_id', a.resourceId)
     const { data } = await query
     return NextResponse.json({ stages: data || [] })
+  }
+
+  if (q.get('refunds')) {
+    let query = sb().from('psy_stages').select('*').eq('tenant_id', a.tenant.id)
+      .eq('refund_status', 'pending').order('created_at', { ascending: false })
+    if (!a.isOwner) query = query.eq('resource_id', a.resourceId)
+    const { data } = await query
+    return NextResponse.json({ stages: (data || []).map(s => ({ ...s, _kind: 'stage' })) })
   }
 
   const case_number = q.get('case_number')
@@ -99,7 +107,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { slug: stri
   const { data: stage } = await stageQ.maybeSingle()
   if (!stage) return NextResponse.json({ error: 'مرحله یافت نشد یا دسترسی ندارید' }, { status: 404 })
 
-  const ALLOWED = ['notes', 'session_date', 'session_time', 'cancel_notice', 'delay_minutes']
+  const ALLOWED = ['notes', 'session_date', 'session_time', 'cancel_notice', 'delay_minutes', 'refund_status', 'refund_ref']
   const patch: Record<string, any> = {}
   for (const k of ALLOWED) if (body[k] !== undefined) patch[k] = body[k]
 
@@ -153,6 +161,22 @@ export async function PATCH(req: NextRequest, { params }: { params: { slug: stri
   // وقتی مرحله برگزار شد (held)، پرونده آزاد می‌شود تا دکتر مرحله‌ی بعد را مشخص کند
   if (body.mark_held) {
     await sb().from('psy_cases').update({ current_stage_id: null }).eq('tenant_id', a.tenant.id).eq('case_number', stage.case_number).eq('current_stage_id', id)
+  }
+
+  // ثبت بازپرداخت کنسلی مرحله وقتی نهایی می‌شود → ردیف outflow (پول برگشتی به مراجع)
+  // هم‌فرمول با psy_sessions تا حساب‌ها یکدست بماند.
+  if (body.refund_status === 'done' && stage.refund_status !== 'done') {
+    const full = stage.price || 0
+    const refundAmount = Math.round(full * (100 - (stage.refund_percent || 0)) / 100)
+    if (refundAmount > 0) {
+      await recordLedgerEntry({
+        tenantId: a.tenant.id, resourceId: stage.resource_id || null, caseNumber: stage.case_number,
+        purpose: 'refund', method: 'card_to_card', direction: 'outflow', amount: refundAmount,
+        commissionAmount: 0, doctorAmount: refundAmount,
+        sourceTable: 'psy_stages', sourceId: stage.id, note: `بازپرداخت ${stage.refund_percent || 0}٪`,
+        recordedBy: a.isOwner ? 'owner' : 'staff',
+      })
+    }
   }
   return NextResponse.json({ success: true })
 }

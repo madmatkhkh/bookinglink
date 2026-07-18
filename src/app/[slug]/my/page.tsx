@@ -492,6 +492,9 @@ export default function PatientPanel() {
            currentStage!.meet_link || settings.doctors.find(d => d.id === booking.resource_id)?.meet_link,
           )} />
         )}
+        {currentStage!.status === 'booked' && !currentStage!.held && (
+         <StageCancel stage={currentStage!} phone={phone} caseNumber={booking.case_number} onDone={() => loadData(booking.case_number)} />
+        )}
         <button onClick={() => loadData(booking.case_number)}
          className="mt-5 text-xs text-ink border border-sand rounded-lg px-4 py-2">بررسی مجدد وضعیت</button>
        </div>
@@ -1605,6 +1608,75 @@ function StageInfo({ icon, title, desc, date, time, label, delayMinutes, meetCha
 }
 
 // کارت پرداخت کارت‌به‌کارت — شماره کارت + کد رهگیری اختیاری + دکمه‌ی «پرداخت کردم»
+function StageCancel({ stage, phone, caseNumber, onDone }: { stage: CaseStage; phone: string; caseNumber: string; onDone: () => void }) {
+ const { slug } = useParams<{ slug: string }>()
+ const settings = usePublicClinic(slug)
+ const [showConfirm, setShowConfirm] = useState(false)
+ const [refundCard, setRefundCard] = useState('')
+ const [cancelling, setCancelling] = useState(false)
+ const policy = settings.doctors.find(d => d.id === stage.resource_id)?.cancellation_policy || DEFAULT_CANCELLATION_POLICY
+ const ts = jalaliDateTimeToTimestamp(stage.session_date || '', stage.session_time || '')
+ const hours = ts === null ? null : (ts - Date.now()) / (1000 * 60 * 60)
+ const canCancel = policy.enabled && stage.status === 'booked' && !stage.held && hours !== null && hours > 0
+ if (!canCancel) return null
+ const isPartial = hours! >= policy.threshold_hours
+ const refundPercent = isPartial ? policy.early_refund_percent : policy.late_refund_percent
+ const refundAmount = Math.round((stage.price || 0) * refundPercent / 100)
+ const needsRefundCard = !!stage.paid && refundPercent > 0
+ async function cancelStage() {
+  if (needsRefundCard && refundCard.replace(/[^0-9]/g, '').length < 16) {
+   uiAlert(`برای بازگشت ${toFarsiNum(refundPercent)}٪ مبلغ، شماره کارت 16 رقمی را کامل وارد کنید.`); return
+  }
+  setCancelling(true)
+  const res = await fetch(`/api/t/${slug}/psy/cancel`, {
+   method: 'POST', headers: { 'Content-Type': 'application/json' },
+   body: JSON.stringify({ stage_id: stage.id, case_number: caseNumber, phone, refund_card: needsRefundCard ? refundCard.trim() : '' }),
+  })
+  const data = await res.json().catch(() => ({}))
+  setCancelling(false); setShowConfirm(false)
+  if (!res.ok) { uiAlert(data.error || 'کنسل انجام نشد'); return }
+  if (data.outcome === 'unpaid_released') uiAlert('جلسه کنسل شد. چون هنوز پرداخت نکرده بودید، مبلغی کسر نشد.')
+  else if (data.outcome === 'partial_refund') uiAlert(`جلسه کنسل شد. ${toFarsiNum(data.refund_percent ?? refundPercent)}٪ مبلغ (${refundAmount.toLocaleString()} تومان) پس از بررسی به کارت شما بازگردانده می‌شود.`)
+  else uiAlert('جلسه کنسل شد و کل مبلغ آن سوخت.')
+  onDone()
+ }
+ if (!showConfirm) return (
+  <button onClick={() => setShowConfirm(true)}
+   className="mt-3 w-full text-xs text-red-600 border border-red-200 rounded-lg px-4 py-2 hover:bg-red-50">کنسل این جلسه</button>
+ )
+ return (
+  <div className="mt-3 bg-gray-100 rounded-xl border border-sand p-3 text-right">
+   <p className="text-sm text-ink mb-1 font-medium">شرایط کنسل را بخوانید</p>
+   {!stage.paid ? (
+    <p className="text-xs text-soot mb-3">این جلسه هنوز پرداخت نشده؛ با کنسل‌کردن فقط زمانش آزاد می‌شود و مبلغی کسر نمی‌شود.</p>
+   ) : needsRefundCard ? (
+    <>
+     <p className="text-xs text-soot mb-3">
+      {isPartial ? <>بیشتر از {toFarsiNum(policy.threshold_hours)} ساعت تا جلسه مانده.</> : <>کمتر از {toFarsiNum(policy.threshold_hours)} ساعت تا جلسه مانده.</>} با کنسل‌کردن{' '}
+      <strong>{toFarsiNum(refundPercent)}٪ مبلغ ({refundAmount.toLocaleString()} تومان)</strong> پس از بررسی به کارت شما بازگردانده می‌شود.
+     </p>
+     <label className="text-xs text-soot mb-1 block">شماره کارت برای واریز بازپرداخت <span className="text-red-500">*</span></label>
+     <input value={refundCard} onChange={e => setRefundCard(e.target.value)} dir="ltr"
+      placeholder="6037-0000-0000-0000" inputMode="numeric"
+      className="w-full text-sm px-3 py-2 border border-sand rounded-lg font-mono tracking-wider focus:outline-none focus:border-ink mb-3" />
+    </>
+   ) : (
+    <p className="text-xs text-ink mb-3">
+     {isPartial ? <>بیشتر از {toFarsiNum(policy.threshold_hours)} ساعت تا جلسه مانده، ولی</> : <>چون کمتر از {toFarsiNum(policy.threshold_hours)} ساعت تا جلسه مانده،</>} با کنسل‌کردن{' '}
+     <strong>کل مبلغ این جلسه سوخت می‌شود</strong> و برنمی‌گردد. مطمئنید؟
+    </p>
+   )}
+   <div className="flex gap-2">
+    <button onClick={() => setShowConfirm(false)} className="flex-1 py-2 border border-sand rounded-lg text-xs text-soot">انصراف</button>
+    <button onClick={cancelStage} disabled={cancelling}
+     className="flex-1 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs disabled:opacity-40">
+     {cancelling ? 'در حال کنسل...' : !stage.paid ? 'تایید کنسل' : needsRefundCard ? `تایید و کنسل (${toFarsiNum(refundPercent)}٪ بازپرداخت)` : 'تایید و سوخت مبلغ'}
+    </button>
+   </div>
+  </div>
+ )
+}
+
 function StagePayment({ icon, title, desc, amount, onPaid, onDone, resourceId, caseNumber, phone, stageId, stageLabel, sessionType, officeLocation }: {
  icon: string; title: string; desc: string; amount: number
  onPaid: (ref: string, discountCode?: string, sessionType?: 'online' | 'offline', meetChannel?: string) => Promise<boolean>; onDone: () => void

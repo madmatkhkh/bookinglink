@@ -461,7 +461,7 @@ export default function ScheduleTab({
                   <span className={`flex-1 flex items-center justify-between px-3 py-1.5 rounded-lg border text-xs ${appt.color}`}>
                    <span className="font-medium">{appt.mode === 'online' ? '🎥 ' : appt.mode === 'offline' ? '🏥 ' : ''}{appt.name}</span>
                    <span className="flex items-center gap-2">
-                    <span className="opacity-75">{appt.type}{appt.modeText ? ` — ${appt.modeText}` : appt.loc ? ` — ${appt.loc}` : ''}</span>
+                    <span className="opacity-75">{appt.type}{appt.modeText ? ` — ${appt.modeText}` : ''}</span>
                     {!!appt.delayMinutes && (
                      <span className="px-1.5 py-0.5 bg-amber-500/10 text-amber-600 border border-amber-500/20 rounded font-medium">⏱ {toFarsiNum(appt.delayMinutes)} د تاخیر</span>
                     )}
