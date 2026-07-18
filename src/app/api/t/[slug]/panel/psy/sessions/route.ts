@@ -3,6 +3,7 @@ import { sb } from '@/lib/supabase'
 import { requirePanelAuth, isPanelAuthResponse } from '@/lib/tenant'
 import { redeemDiscountCodeByCode } from '@/lib/psy'
 import { recordLedgerEntry } from '@/lib/ledger'
+import { releaseLockBySlot } from '@/lib/slotLocks'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -57,10 +58,19 @@ export async function PATCH(req: NextRequest, { params }: { params: { slug: stri
 
   const { data: before } = await sb().from('psy_sessions').select('*').eq('id', id).eq('tenant_id', a.tenant.id).maybeSingle()
 
+  // لغو نوبت توسط دکتر = خالی‌کردن زمان؛ تاخیر نوبت قبلی هم باید پاک شود تا روی
+  // نوبت بعدی نماند.
+  if (updates.session_date === '' && (updates.delay_minutes === undefined)) updates.delay_minutes = null
+
   let q = sb().from('psy_sessions').update(updates).eq('id', id).eq('tenant_id', a.tenant.id)
   if (!a.isOwner) q = q.eq('resource_id', a.resourceId)
   const { data, error } = await q.select().single()
   if (error) { console.error('src/app/api/t/[slug]/panel/psy/sessions/route.ts error:', error); return NextResponse.json({ error: 'مشکلی پیش آمد. دوباره تلاش کنید.' }, { status: 500 }) }
+
+  // اسلات آزادشده از slot_locks حذف شود تا واقعا آزاد شود
+  if (updates.session_date === '' && before?.session_date && before?.session_time && before?.resource_id) {
+    await releaseLockBySlot(a.tenant.id, before.resource_id, { session_date: before.session_date, session_time: before.session_time })
+  }
 
   // گذار به paid (تایید کارت‌به‌کارت جلسه‌ی جایگزین) → دفتر حساب
   if (updates.paid === true && before && !before.paid && data) {

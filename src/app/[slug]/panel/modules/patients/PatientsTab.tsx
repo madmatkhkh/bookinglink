@@ -183,7 +183,7 @@ export default function PatientsTab({
  const [showAddPatient, setShowAddPatient] = useState(false)
  const [addPatientSaving, setAddPatientSaving] = useState(false)
  const [newPatientForm, setNewPatientForm] = useState({
-  client_name: '', birth_date: '', grade: '', reason: '',
+  client_name: '', birth_date: '', grade: '', reason: '', session_type: 'offline',
   contact_name: '', contact_phone: '', contact2_name: '', contact2_phone: '',
  })
  // ── Package / Session forms ────────────────────────────────────
@@ -438,7 +438,7 @@ export default function PatientsTab({
    setAddPatientSaving(false)
    if (!res.ok) { uiAlert((data.error || 'ثبت پرونده ناموفق بود') + (data.detail ? `\n\n(جزئیات فنی: ${data.detail})` : '')); return }
    setShowAddPatient(false)
-   setNewPatientForm({ client_name: '', birth_date: '', grade: '', reason: '', contact_name: '', contact_phone: '', contact2_name: '', contact2_phone: '' })
+   setNewPatientForm({ client_name: '', birth_date: '', grade: '', reason: '', session_type: 'offline', contact_name: '', contact_phone: '', contact2_name: '', contact2_phone: '' })
    await fetchAll()
    if (data.booking) { setSelectedPatient(data.booking); await Promise.all([loadPatientData(data.booking.case_number), loadPatientIntakeForm(data.booking.resource_id)]); setPatientView('detail') }
   } catch (e: any) {
@@ -1490,6 +1490,18 @@ export default function PatientsTab({
         <label className="text-xs text-soot mb-1 block">شکایت / علت مراجعه</label>
         <textarea value={newPatientForm.reason} onChange={e => setNewPatientForm({ ...newPatientForm, reason: e.target.value })}
          rows={2} className="w-full text-sm px-3 py-2 border border-sand rounded-lg resize-none" />
+       </div>
+       <div>
+        <label className="text-xs text-soot mb-1 block">نوع پیش‌فرض جلسه</label>
+        <div className="flex bg-gray-100 rounded-xl p-1 gap-1">
+         {([['offline', '🏥 حضوری'], ['online', '🎥 آنلاین']] as const).map(([v, label]) => (
+          <button key={v} type="button" onClick={() => setNewPatientForm({ ...newPatientForm, session_type: v })}
+           className={`flex-1 text-xs py-2 rounded-lg font-medium transition-all ${newPatientForm.session_type === v ? 'bg-white text-ink shadow-sm' : 'text-soot'}`}>
+           {label}
+          </button>
+         ))}
+        </div>
+        <p className="text-[11px] text-soot mt-1">مراجع هنگام پرداخت هر جلسه می‌تواند نوع را تغییر دهد؛ این فقط پیش‌فرض است.</p>
        </div>
        <p className="text-[11px] text-soot">حداقل یکی از شماره‌های تماس لازم است تا مراجع بتواند وارد پنل شود.</p>
       </div>
