@@ -248,6 +248,11 @@ export default function PatientsTab({
   setExtraCharges(chargeData.extra_charges || [])
   setRefunds(refundData.refunds || [])
   setCaseLedger(ledgerData.entries || [])
+  // current_stage_id را از روی مراحل تازه بازمحاسبه می‌کنیم تا دکمه‌ی «افزودن
+  // جلسه» بلافاصله بعد از تأیید برگزاری/افزودن جلسه به‌روز شود (بدون ریلود).
+  const openStage = (stageData.stages || []).find((s: CaseStage) =>
+   s.status === 'awaiting_payment' || s.status === 'payment_submitted' || s.status === 'awaiting_booking' || (s.status === 'booked' && !s.held))
+  setSelectedPatient(p => (p && p.case_number === case_number ? { ...p, current_stage_id: openStage ? openStage.id : null } : p))
  }
 
  async function createExtraCharge(case_number: string) {
@@ -910,34 +915,29 @@ export default function PatientsTab({
             <Section title="پرداختی‌های مراجع" icon="💳">
              {!hasAny && <p className="text-xs text-soot text-center py-3">هنوز پرداختی ثبت نشده.</p>}
 
-             {/* تراکنش‌های نهایی‌شده — اطلاعات کامل از دفتر حساب */}
+             {/* تراکنش‌های نهایی‌شده — کارت تمیز و اسکن‌پذیر */}
              {inflows.map(e => (
-              <div key={e.id} className="border border-sand rounded-xl p-3 mb-2 bg-gray-50">
-               <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium text-ink">{PURPOSE_LABEL[e.purpose] || e.purpose}</span>
-                <span className="text-sm font-bold text-ink tnum">{money(e.amount)} ت</span>
+              <div key={e.id} className="border border-sand rounded-xl p-3 mb-2">
+               <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 min-w-0">
+                 <span className="text-sm font-medium text-ink">{PURPOSE_LABEL[e.purpose] || e.purpose}</span>
+                 <span className="text-[11px] px-1.5 py-0.5 rounded bg-gray-100 text-soot shrink-0">{e.method === 'online' ? 'آنلاین' : 'کارت‌به‌کارت'}</span>
+                </div>
+                <span className="text-sm font-bold text-ink tnum shrink-0">{money(e.amount)} ت</span>
                </div>
-               <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px]">
-                <div className="flex justify-between"><span className="text-soot">روش</span><span className="text-ink">{e.method === 'online' ? 'آنلاین' : 'کارت‌به‌کارت'}</span></div>
-                <div className="flex justify-between"><span className="text-soot">تاریخ</span><span className="text-ink tnum">{new Date(e.created_at).toLocaleDateString('fa-IR')}</span></div>
-                {e.method === 'online' && (
-                 <>
-                  <div className="flex justify-between"><span className="text-soot">سهم شما</span><span className="text-emerald-700 tnum">{money(e.doctor_amount)} ت</span></div>
-                  <div className="flex justify-between"><span className="text-soot">کارمزد پلتفرم</span><span className="text-soot tnum">{money(e.commission_amount)} ت</span></div>
-                 </>
-                )}
-                {e.bank_ref_number && (
-                 <div className="col-span-2 flex justify-between pt-1 border-t border-sand mt-1">
-                  <span className="text-soot">پیگیری بانکی</span><span dir="ltr" className="text-ink tnum">{e.bank_ref_number}</span>
-                 </div>
-                )}
-                {e.method === 'online' && (
-                 <div className="col-span-2 flex justify-between">
-                  <span className="text-soot">تسویه‌ی سهم شما</span>
-                  <span className={e.split_applied ? 'text-emerald-700' : 'text-amber-700'}>{e.split_applied ? 'خودکار واریز شد' : 'در تسویه با پلتفرم'}</span>
-                 </div>
-                )}
-               </div>
+               <div className="text-[11px] text-soot mt-0.5 tnum">{new Date(e.created_at).toLocaleDateString('fa-IR-u-nu-latn')}</div>
+               {e.method === 'online' && (
+                <div className="mt-2 pt-2 border-t border-sand flex items-center justify-between text-xs">
+                 <span className="text-soot">سهم شما</span>
+                 <span className="text-emerald-700 font-medium tnum">{money(e.doctor_amount)} ت <span className="text-soot font-normal">(کارمزد {money(e.commission_amount)})</span></span>
+                </div>
+               )}
+               {(e.bank_ref_number || e.method === 'online') && (
+                <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-0.5 text-[11px] text-soot">
+                 {e.bank_ref_number && <span dir="ltr" className="tnum">پیگیری بانکی: {e.bank_ref_number}</span>}
+                 {e.method === 'online' && <span className={e.split_applied ? 'text-emerald-700' : 'text-amber-700'}>{e.split_applied ? 'سهم شما واریز شد' : 'در تسویه با پلتفرم'}</span>}
+                </div>
+               )}
               </div>
              ))}
 

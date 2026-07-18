@@ -174,23 +174,20 @@ export default function FinanceTab({ api, onUnauthorized }: {
            const maxV = Math.max(1, ...series.map(d => d.amount))
            const nonZero = series.filter(d => d.amount > 0)
            const avg = nonZero.length ? Math.round(nonZero.reduce((s, d) => s + d.amount, 0) / nonZero.length) : 0
-           const avgPct = avg > 0 ? (avg / maxV) * 100 : 0
+           const WEEKDAYS_FA = ['یکشنبه', 'دوشنبه', 'سه‌شنبه', 'چهارشنبه', 'پنجشنبه', 'جمعه', 'شنبه']
            const fmtLabel = (iso: string) => {
             const dt = new Date(iso)
-            if (chartPeriod === 'monthly') return dt.toLocaleDateString('fa-IR', { month: 'short' })
-            return dt.toLocaleDateString('fa-IR', { month: 'short', day: 'numeric' })
+            if (chartPeriod === 'daily') return WEEKDAYS_FA[dt.getDay()]
+            if (chartPeriod === 'monthly') return dt.toLocaleDateString('fa-IR-u-nu-latn', { month: 'short' })
+            return dt.toLocaleDateString('fa-IR-u-nu-latn', { month: 'short', day: 'numeric' })
            }
            if (series.every(d => d.amount === 0)) return <p className="text-xs text-soot text-center py-8">در این بازه درآمدی ثبت نشده.</p>
            return (
             <>
+             {avg > 0 && (
+              <div className="text-[11px] text-soot mb-2">میانگین {chartPeriod === 'daily' ? 'روزانه' : chartPeriod === 'weekly' ? 'هفتگی' : 'ماهانه'}: <span className="text-emerald-700 font-medium tnum">{moneyShort(avg)} تومان</span></div>
+             )}
              <div className="relative h-36">
-              {/* خط میانگین */}
-              {avg > 0 && (
-               <div className="absolute left-0 right-0 border-t border-dashed border-emerald-400 z-10 flex justify-end"
-                style={{ bottom: `${avgPct}%` }}>
-                <span className="text-[9px] text-emerald-600 bg-white px-1 -mt-2 tnum">میانگین {moneyShort(avg)}</span>
-               </div>
-              )}
               <div className="flex items-end gap-[3px] h-full">
                {series.map((d, i) => {
                 const isLast = i === series.length - 1
@@ -208,9 +205,10 @@ export default function FinanceTab({ api, onUnauthorized }: {
                })}
               </div>
              </div>
-             <div className="flex justify-between text-[10px] text-soot mt-2 tnum">
-              <span>{fmtLabel(series[0].date)}</span>
-              <span>{fmtLabel(series[series.length - 1].date)}</span>
+             <div className="flex text-[10px] text-soot mt-2 tnum">
+              {series.map((d, i) => (
+               <span key={i} className="flex-1 text-center truncate">{fmtLabel(d.date)}</span>
+              ))}
              </div>
             </>
            )

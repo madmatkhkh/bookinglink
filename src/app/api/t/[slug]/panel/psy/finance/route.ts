@@ -156,15 +156,15 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
     if (k >= startOfToday) todayTotal += amt
     if (k >= startOfWeek) weekTotal += amt
   })
-  // سری ۳۰ روز اخیر برای نمودار میله‌ای روزانه (قدیمی‌ترین → جدیدترین)
+  // سری روزانه = کل هفته‌ی جاری، شنبه تا جمعه (۷ ستون؛ روزهای آینده‌ی همین هفته ۰)
   const daily: { date: string; amount: number }[] = []
-  for (let i = 29; i >= 0; i--) {
-    const k = startOfToday - i * 86400000
+  for (let i = 0; i < 7; i++) {
+    const k = startOfWeek + i * 86400000
     daily.push({ date: new Date(k).toISOString(), amount: amountByDay.get(k) || 0 })
   }
-  // سری ۱۲ هفته‌ی اخیر (هر ستون = یک هفته، از شنبه)
+  // سری ۴ هفته‌ی اخیر (هر ستون = یک هفته، از شنبه)
   const weekly: { date: string; amount: number }[] = []
-  for (let i = 11; i >= 0; i--) {
+  for (let i = 3; i >= 0; i--) {
     const ws = startOfWeek - i * 7 * 86400000
     const we = ws + 7 * 86400000
     let sum = 0

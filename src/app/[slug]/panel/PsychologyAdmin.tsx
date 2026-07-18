@@ -1680,8 +1680,6 @@ export function PsychologyAdmin() {
       const monthAmount = dashboardFinance?.monthly.find(m => m.month === thisMonthKey)?.amount || 0
       const money = (n: number) => n.toLocaleString('en-US')
       const activeCases = bookings.length
-      const trend = dashboardFinance?.monthly.slice(-6) || []
-      const maxTrend = Math.max(1, ...trend.map(m => m.amount))
       const needsSheba = !cardToCardAllowed || profile.payment_methods.online
       const missingSheba = needsSheba && !profile.settlement_sheba
 
@@ -1821,33 +1819,6 @@ export function PsychologyAdmin() {
           <div className="text-xl font-bold text-ink mt-2.5 tnum">{money(monthAmount)}</div>
           <div className="text-[11px] text-soot">درآمد این ماه (تومان)</div>
          </button>
-        </div>
-
-        {/* نمودار روند ۶ماهه */}
-        <div className="bg-white rounded-2xl border border-sand p-5">
-         <h2 className="text-sm font-display font-semibold text-ink mb-4">روند درآمد (۶ ماه اخیر)</h2>
-         {!dashboardLoaded ? (
-          <p className="text-xs text-soot text-center py-8">در حال بارگذاری…</p>
-         ) : trend.length === 0 ? (
-          <p className="text-xs text-soot text-center py-8">هنوز درآمدی ثبت نشده.</p>
-         ) : (
-          <svg viewBox={`0 0 ${trend.length * 60} 160`} className="w-full h-40" preserveAspectRatio="xMidYMax meet">
-           {trend.map((m, i) => {
-            const h = Math.max(4, (m.amount / maxTrend) * 120)
-            const x = i * 60 + 12
-            const [y, mm] = m.month.split('/')
-            const isCurrent = m.month === thisMonthKey
-            return (
-             <g key={m.month}>
-              <rect x={x} y={140 - h} width={36} height={h} rx={6} className={isCurrent ? 'fill-ink' : 'fill-sand'} />
-              <text x={x + 18} y={155} textAnchor="middle" className="fill-current text-soot" style={{ fontSize: 9 }}>
-               {PERSIAN_MONTHS[parseInt(mm) - 1]?.slice(0, 3)}
-              </text>
-             </g>
-            )
-           })}
-          </svg>
-         )}
         </div>
 
         {/* برنامه‌ی امروز */}
