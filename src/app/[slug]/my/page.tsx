@@ -17,13 +17,14 @@ type CaseStage = {
  id: string; case_number: string
  stage_type: string
  title?: string | null
- status: 'awaiting_payment' | 'payment_submitted' | 'awaiting_booking' | 'booked'
+ status: 'awaiting_payment' | 'payment_submitted' | 'awaiting_booking' | 'booked' | 'cancelled'
  price: number; paid: boolean; payment_submitted?: boolean; payment_ref?: string
  session_date?: string; session_time?: string; held?: boolean
  cancel_notice?: string; payment_reject_reason?: string; meet_link?: string; resource_id?: string | null; created_at: string
  delay_minutes?: number | null
  session_type?: 'online' | 'offline' | null
  meet_channel?: string | null
+ cancelled_by?: string | null
 }
 
 type Booking = {
@@ -2015,6 +2016,8 @@ function StageProgress({ stages, inTreatment }: { stages: CaseStage[]; inTreatme
   if (s.status === 'booked') return { text: 'زمان‌بندی شد', cls: 'text-ink' }
   if (s.status === 'awaiting_booking') return { text: 'در انتظار انتخاب زمان', cls: 'text-amber-600' }
   if (s.status === 'payment_submitted') return { text: 'در انتظار تأیید پرداخت', cls: 'text-amber-600' }
+  if (s.status === 'cancelled') return { text: s.cancelled_by === 'client' ? 'کنسل توسط مراجع' : 'لغو شد', cls: 'text-red-600' }
+  if (s.status === 'awaiting_payment') return { text: 'در انتظار پرداخت', cls: 'text-soot' }
   return { text: 'در انتظار پرداخت', cls: 'text-soot' }
  }
  const sorted = [...stages].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
@@ -2023,14 +2026,15 @@ function StageProgress({ stages, inTreatment }: { stages: CaseStage[]; inTreatme
   <div className="bg-white rounded-2xl border border-sand p-2 divide-y divide-sand">
    {sorted.map(s => {
     const done = s.status === 'booked' && !!s.held
+    const cancelled = s.status === 'cancelled'
     const st = statusOf(s)
     return (
      <div key={s.id} className="flex items-center gap-3 py-2.5 px-1.5">
-      <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs shrink-0 ${done ? 'bg-emerald-500 text-white' : 'bg-accent text-white'}`}>
-       {done ? '✓' : '●'}
+      <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs shrink-0 ${done ? 'bg-emerald-500 text-white' : cancelled ? 'bg-red-500/15 text-red-500' : 'bg-accent text-white'}`}>
+       {done ? '✓' : cancelled ? '✕' : '●'}
       </div>
       <div className="flex-1 min-w-0">
-       <div className="text-sm text-ink truncate">{stageTitle(s)}</div>
+       <div className={`text-sm truncate ${cancelled ? 'text-soot line-through' : 'text-ink'}`}>{stageTitle(s)}</div>
        {s.session_date && <div className="text-xs text-soot">{s.session_date} — {s.session_time}</div>}
       </div>
       <span className={`text-xs shrink-0 ${st.cls}`}>{st.text}</span>
