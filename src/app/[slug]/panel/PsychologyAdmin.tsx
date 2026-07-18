@@ -673,10 +673,12 @@ export function PsychologyAdmin() {
  }
 
  async function markRefunded(sessionId: string, refundRef: string, kind?: string) {
-  await fetch(api(kind === 'stage' ? '/stages' : '/sessions'), {
+  if (!refundRef.trim()) { uiAlert('برای ثبت بازپرداخت، شماره پیگیری لازم است'); return }
+  const res = await fetch(api(kind === 'stage' ? '/stages' : '/sessions'), {
    method: 'PATCH', headers: { 'Content-Type': 'application/json' },
    body: JSON.stringify({ id: sessionId, refund_status: 'done', refund_ref: refundRef.trim() }),
   })
+  if (!res.ok) { const d = await res.json().catch(() => ({})); uiAlert(d.error || 'ثبت بازپرداخت ناموفق بود'); return }
   await loadPendingPayments()
   // پرونده‌ی باز: PatientsTab با هر ورود به تب remount و تازه می‌شود (فاز 4)
  }

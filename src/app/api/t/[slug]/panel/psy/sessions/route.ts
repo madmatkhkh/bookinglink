@@ -57,6 +57,12 @@ export async function PATCH(req: NextRequest, { params }: { params: { slug: stri
 
   const { data: before } = await sb().from('psy_sessions').select('*').eq('id', id).eq('tenant_id', a.tenant.id).maybeSingle()
 
+  // شماره پیگیری بازپرداخت اجباری است — هنگام نهایی‌کردن بازپرداخت باید ثبت شده
+  // باشد (کلاینت هم الزام می‌کند، ولی سرور هم تضمین می‌کند تا شماره پیگیری‌ای که
+  // به مراجع نشان داده می‌شود هیچ‌وقت خالی نماند).
+  if (updates.refund_status === 'done' && !String(updates.refund_ref ?? before?.refund_ref ?? '').trim())
+    return NextResponse.json({ error: 'برای ثبت بازپرداخت، شماره پیگیری لازم است' }, { status: 400 })
+
   // لغو نوبت توسط مطب = خالی‌کردن زمان + پاک‌کردن تاخیر قبلی. قفل اسلات نگه داشته
   // می‌شود (بلاک) و فلگ روی همان خانه‌ی زمانی ثبت می‌شود.
   if (doctor_cancel) { updates.session_date = ''; updates.session_time = ''; updates.delay_minutes = null }

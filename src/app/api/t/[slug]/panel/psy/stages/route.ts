@@ -118,6 +118,13 @@ export async function PATCH(req: NextRequest, { params }: { params: { slug: stri
   const patch: Record<string, any> = {}
   for (const k of ALLOWED) if (body[k] !== undefined) patch[k] = body[k]
 
+  // شماره پیگیری بازپرداخت اجباری است — هنگام نهایی‌کردن بازپرداخت باید ثبت شده
+  // باشد (کلاینت هم الزام می‌کند، ولی سرور هم تضمین می‌کند تا شماره پیگیری‌ای که
+  // به مراجع نشان داده می‌شود هیچ‌وقت خالی نماند). قبول: در همین درخواست بیاید یا
+  // از قبل روی مرحله ثبت شده باشد.
+  if (body.refund_status === 'done' && !String(patch.refund_ref ?? stage.refund_ref ?? '').trim())
+    return NextResponse.json({ error: 'برای ثبت بازپرداخت، شماره پیگیری لازم است' }, { status: 400 })
+
   if (body.confirm_payment) {
     // پاک‌کردن صریح دلیل رد قبلی — وگرنه بعد از تایید نهایی هم پیام رد
     // قدیمی برای مراجع می‌ماند (باگ قبلی: با تایید پرداخت، پیام رد قبلی تازه
