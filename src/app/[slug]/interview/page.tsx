@@ -11,14 +11,15 @@ import { JalaliDateWheel } from '@/components/WheelPicker'
 import { useTenantThemeColor } from '@/lib/useTenantThemeColor'
 import SlotPicker, { SlotConfirmResult } from '@/components/SlotPicker'
 
-type Step = 1 | 3 | 'pay' | 'done'
+// ترتیب فلو: اطلاعات → نوع جلسه → پرداخت (انتخاب نوع جلسه بعد از پرکردن فرم است)
+type Step = 'info' | 'type' | 'pay' | 'done'
 
 export default function InterviewPage() {
  const { slug } = useParams<{ slug: string }>()
  const today = getCurrentJalali()
  const settings = usePublicClinic(slug)
  useTenantThemeColor(settings.theme_color)
- const [step, setStep] = useState<Step>(1)
+ const [step, setStep] = useState<Step>('info')
  const [selectedDoctorId, setSelectedDoctorId] = useState('')
  const [sessionType, setSessionType] = useState<'online'|'offline'|''>('')
  const [officeLoc, setOfficeLoc] = useState('')  // عنوان مکان حضوری انتخاب‌شده
@@ -226,32 +227,15 @@ export default function InterviewPage() {
      )}
     </div>
 
-    <StepBar current={step === 1 ? 1 : step === 3 ? 2 : 3} />
+    <StepBar current={step === 'info' ? 1 : step === 'type' ? 2 : 3} />
 
-    {/* Step 1 */}
-    {step === 1 && (
+    {/* نوع جلسه — بعد از اطلاعات، پیش از پرداخت. با «ادامه» پرونده ثبت و به پرداخت می‌رود. */}
+    {step === 'type' && (
      <div className="bg-white rounded-2xl border border-sand p-5 mb-4">
       {!settings.loaded ? (
        <div className="text-center py-10 text-soot text-sm">در حال بارگذاری...</div>
       ) : (
        <>
-        {needsDoctorPick && (
-         <div className="mb-5">
-          <h2 className="text-base font-medium mb-4 text-ink">با کدام دکتر مصاحبه می‌خواهید؟</h2>
-          <div className="grid grid-cols-2 gap-3">
-           {settings.doctors.map(d => (
-            <div key={d.id} onClick={() => setSelectedDoctorId(d.id)}
-             className={`p-3 rounded-xl border cursor-pointer transition-all text-center ${selectedDoctorId === d.id ? 'border-ink border-2 bg-sand' : 'border-sand hover:border-gray-300'}`}>
-             <div className="w-12 h-12 rounded-full bg-sand border border-sand flex items-center justify-center mx-auto mb-2 text-xl overflow-hidden">
-              {d.avatar_url ? <img src={d.avatar_url} alt={d.name} className="w-full h-full object-cover" /> : ''}
-             </div>
-             <div className="font-medium text-ink text-sm">{d.name}</div>
-             {d.title && <div className="text-xs text-soot">{d.title}</div>}
-            </div>
-           ))}
-          </div>
-         </div>
-        )}
         <h2 className="text-base font-medium mb-4 text-ink">نوع جلسه را انتخاب کنید</h2>
         <div className={`grid gap-3 mb-5 ${sessionOptions.length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
          {sessionOptions.map(o => {
@@ -268,17 +252,20 @@ export default function InterviewPage() {
           )
          })}
         </div>
-        <button disabled={!selKey || (needsDoctorPick && !selectedDoctorId)} onClick={() => setStep(3)}
-         className="w-full py-3 bg-accent text-white rounded-xl text-sm font-medium disabled:opacity-40 hover:bg-accent/90 transition-colors">
-         ادامه ←
-        </button>
+        <div className="flex gap-2">
+         <button onClick={() => setStep('info')} className="px-4 py-3 border border-sand rounded-xl text-sm text-soot hover:bg-gray-50">برگشت</button>
+         <button disabled={!selKey || loading} onClick={handleSubmit}
+          className="flex-1 py-3 bg-accent text-white rounded-xl text-sm font-medium disabled:opacity-40 hover:bg-accent/90 transition-colors">
+          {loading ? 'در حال ثبت...' : 'ادامه به پرداخت ←'}
+         </button>
+        </div>
        </>
       )}
      </div>
     )}
 
-    {/* Step 3 - فرم کامل (کاملا دیتایی — از فرم تنظیم‌شده‌ی همین دکتر)، به‌صورت ویزارد چندمرحله‌ای */}
-    {step === 3 && (() => {
+    {/* اطلاعات — اولین قدم. صفحه‌ی 0: انتخاب دکتر (اگر چنددکتره) + مشخصات تماس؛ صفحه‌های بعد: بخش‌های فرم همین دکتر، به‌صورت ویزارد چندمرحله‌ای. */}
+    {step === 'info' && (() => {
      const visibleSections = intakeForm.sections
       .map(s => ({ ...s, fields: s.fields.filter(f => fieldVisible(f, answers)) }))
       .filter(s => s.fields.length > 0)
@@ -289,6 +276,8 @@ export default function InterviewPage() {
      function missingOnThisPage(): string[] {
       if (safeIdx === 0) {
        const miss: string[] = []
+       // فرم رزرو per-doctor است؛ برای مجموعه‌ی چنددکتره باید همین صفحه دکتر انتخاب شود تا فرم درست بارگذاری شود.
+       if (needsDoctorPick && !selectedDoctorId) miss.push('انتخاب دکتر')
        if (!clientName.trim()) miss.push('نام')
        if (!contactPhone.trim() && !contactEmail.trim()) miss.push('شماره تماس یا ایمیل')
        else {
@@ -323,29 +312,23 @@ export default function InterviewPage() {
         if (d.exists) { uiAlert('پرونده‌ای با همین نام و شماره‌تماس قبلا ثبت شده است. اگر برای شخص دیگری است، نام را متفاوت وارد کنید.'); return }
        } catch {}
       }
-      if (safeIdx === totalPages - 1) handleSubmit()
+      // آخرین صفحه‌ی اطلاعات → انتخاب نوع جلسه (ثبت پرونده بعد از آن، در قدم «نوع جلسه» انجام می‌شود)
+      if (safeIdx === totalPages - 1) setStep('type')
       else setPageIdx(safeIdx + 1)
      }
      function goBack() {
-      if (safeIdx === 0) setStep(1)
-      else setPageIdx(safeIdx - 1)
+      // صفحه‌ی اول اطلاعات → برگشت به صفحه‌ی عمومی مجموعه (جایی که «مصاحبه» را انتخاب کرد)
+      if (safeIdx === 0) { window.location.href = `/${slug}`; return }
+      setPageIdx(safeIdx - 1)
      }
+
+     // صفحه‌ی 0 (دکتر + مشخصات تماس) به فرم رزرو نیاز ندارد و باید حتی پیش از بارگذاری فرم دیده شود —
+     // برای چنددکتره‌ها فرم اصلا تا انتخاب دکتر بارگذاری نمی‌شود. فقط صفحه‌های بخش‌ها منتظر intakeLoaded می‌مانند.
+     const waitingForForm = safeIdx > 0 && !intakeLoaded
 
      return (
       <div className="bg-white rounded-2xl border border-sand p-5 mb-4">
-       {/* خلاصه — فقط صفحه‌ی اول */}
-       {safeIdx === 0 && (
-        <div className="bg-sand rounded-xl p-3 text-sm mb-5">
-         <div className="flex justify-between text-soot mb-1">
-          <span>نوع جلسه</span><span className="font-medium">{sessionType === 'online' ? 'آنلاین ' : `حضوری ${officeLoc ? ` — ${officeLoc}` : ''}`}</span>
-         </div>
-         <div className="flex justify-between border-t border-sand pt-2 mt-2">
-          <span className="font-medium">هزینه‌ی مصاحبه‌ی اولیه</span><span className="font-medium text-ink">{(sessionType === 'online' ? (displayDoctor?.pricing.online ?? PRICING.online) : (displayDoctor?.pricing.offline ?? PRICING.offline)).toLocaleString()} تومان</span>
-         </div>
-        </div>
-       )}
-
-       {!intakeLoaded ? (
+       {waitingForForm ? (
         <div className="text-center py-10 text-soot text-sm">در حال بارگذاری فرم...</div>
        ) : (
         <>
@@ -361,14 +344,33 @@ export default function InterviewPage() {
          </div>
 
          {safeIdx === 0 ? (
-          <div className="grid grid-cols-2 gap-3">
-           <Field label="نام و نام خانوادگی *" value={clientName} onChange={setClientName} placeholder="آرین رضایی" />
-           <Field label="شماره تماس" value={contactPhone} onChange={setContactPhone} placeholder="0912..." dir="ltr" />
-           <div className="col-span-2">
-            <Field label="ایمیل" value={contactEmail} onChange={setContactEmail} placeholder="example@gmail.com" dir="ltr" />
-            <p className="text-[11px] text-soot mt-1">حداقل یکی از شماره یا ایمیل لازم است — برای مراجع خارج از ایران، ایمیل به‌تنهایی کافی است.</p>
+          <>
+           {needsDoctorPick && (
+            <div className="mb-5">
+             <h2 className="text-base font-medium mb-3 text-ink">با کدام دکتر مصاحبه می‌خواهید؟</h2>
+             <div className="grid grid-cols-2 gap-3">
+              {settings.doctors.map(d => (
+               <div key={d.id} onClick={() => setSelectedDoctorId(d.id)}
+                className={`p-3 rounded-xl border cursor-pointer transition-all text-center ${selectedDoctorId === d.id ? 'border-ink border-2 bg-sand' : 'border-sand hover:border-gray-300'}`}>
+                <div className="w-12 h-12 rounded-full bg-sand border border-sand flex items-center justify-center mx-auto mb-2 text-xl overflow-hidden">
+                 {d.avatar_url ? <img src={d.avatar_url} alt={d.name} className="w-full h-full object-cover" /> : ''}
+                </div>
+                <div className="font-medium text-ink text-sm">{d.name}</div>
+                {d.title && <div className="text-xs text-soot">{d.title}</div>}
+               </div>
+              ))}
+             </div>
+            </div>
+           )}
+           <div className="grid grid-cols-2 gap-3">
+            <Field label="نام و نام خانوادگی *" value={clientName} onChange={setClientName} placeholder="آرین رضایی" />
+            <Field label="شماره تماس" value={contactPhone} onChange={setContactPhone} placeholder="0912..." dir="ltr" />
+            <div className="col-span-2">
+             <Field label="ایمیل" value={contactEmail} onChange={setContactEmail} placeholder="example@gmail.com" dir="ltr" />
+             <p className="text-[11px] text-soot mt-1">حداقل یکی از شماره یا ایمیل لازم است — برای مراجع خارج از ایران، ایمیل به‌تنهایی کافی است.</p>
+            </div>
            </div>
-          </div>
+          </>
          ) : (
           <div className="space-y-3">
            {currentSection?.fields.map(f => (
@@ -382,9 +384,9 @@ export default function InterviewPage() {
 
        <div className="flex gap-2 pt-6">
         <button onClick={goBack} className="px-4 py-3 border border-sand rounded-xl text-sm text-soot hover:bg-gray-50">برگشت</button>
-        <button disabled={loading || !intakeLoaded} onClick={goNext}
+        <button disabled={waitingForForm} onClick={goNext}
          className="flex-1 py-3 bg-accent text-white rounded-xl text-sm font-medium disabled:opacity-40 hover:bg-accent/90 transition-colors">
-         {loading ? 'در حال ثبت...' : safeIdx === totalPages - 1 ? 'ادامه به پرداخت ←' : 'بعدی ←'}
+         {safeIdx === totalPages - 1 ? 'ادامه به انتخاب نوع جلسه ←' : 'بعدی ←'}
         </button>
        </div>
       </div>
@@ -470,7 +472,7 @@ function DynamicField({ field, value, onChange, onToggle }: {
 }
 
 function StepBar({ current }: { current: number }) {
- const steps = ['نوع جلسه','اطلاعات','پرداخت']
+ const steps = ['اطلاعات','نوع جلسه','پرداخت']
  return (
   <div className="flex items-center mb-6">
    {steps.map((s, i) => {
