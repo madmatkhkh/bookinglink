@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { sb } from '@/lib/supabase'
 import { getActiveTenant } from '@/lib/tenant'
 import { getPaymentMethods, effectivePaymentMethods, isCardToCardAllowed, checkDiscountCode, getResourcePricing, resolvePrice } from '@/lib/psy'
+import { isMeetMethod } from '@/lib/meet'
 import { getClientPhone, getPayCase, matchesClientIdentity } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
@@ -10,7 +11,7 @@ export const revalidate = 0
 export async function POST(req: NextRequest, { params }: { params: { slug: string } }) {
   const t = await getActiveTenant(params.slug)
   if (!t) return NextResponse.json({ error: 'یافت نشد' }, { status: 404 })
-  const { package_id, session_id, stage_id, extra_charge_id, case_number, payment_ref, discount_code, session_type } = await req.json()
+  const { package_id, session_id, stage_id, extra_charge_id, case_number, payment_ref, discount_code, session_type, meet_channel } = await req.json()
   // auth با کوکی امضاشده — نه شماره‌ای که کلاینت در body می‌فرستد. دو راه مجاز:
   // 1) کوکی مراجع OTPشده که شماره‌اش روی پرونده باشد (پنل /my)
   // 2) کوکی مجوز پرداخت همین پرونده (فلو مصاحبه‌ی اولیه، درست بعد از ثبت فرم)
@@ -56,7 +57,9 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
       let basePrice = stage.price || 0
       if ((session_type === 'online' || session_type === 'offline') && booking.resource_id) {
         basePrice = resolvePrice(session_type, await getResourcePricing(booking.resource_id))
-        await sb().from('psy_stages').update({ session_type, price: basePrice }).eq('id', stage_id).eq('tenant_id', t.id)
+        const stagePatch: Record<string, any> = { session_type, price: basePrice }
+        stagePatch.meet_channel = session_type === 'online' && isMeetMethod(meet_channel) ? meet_channel : null
+        await sb().from('psy_stages').update(stagePatch).eq('id', stage_id).eq('tenant_id', t.id)
       }
       const dcErr = await applyDiscount('psy_stages', stage_id, basePrice)
       if (dcErr) return NextResponse.json({ error: dcErr }, { status: 400 })

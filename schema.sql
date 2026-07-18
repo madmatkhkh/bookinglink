@@ -454,7 +454,8 @@ CREATE TABLE public.psy_stages (
     reminder_sent boolean DEFAULT false NOT NULL,
     payment_reject_reason text,
     meet_link text,
-    session_type text
+    session_type text,
+    meet_channel text
 );
 
 -- Name: psy_waitlist; Type: TABLE; Schema: public; Owner: -

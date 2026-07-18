@@ -23,6 +23,7 @@ type CaseStage = {
  cancel_notice?: string; payment_reject_reason?: string; meet_link?: string; resource_id?: string | null; created_at: string
  delay_minutes?: number | null
  session_type?: 'online' | 'offline' | null
+ meet_channel?: string | null
 }
 
 type Booking = {
@@ -453,10 +454,10 @@ export default function PatientPanel() {
            resourceId={booking.resource_id} caseNumber={booking.case_number} phone={phone} stageId={currentStage!.id}
            stageLabel={stageTitle(currentStage!)}
            sessionType={currentStage!.session_type || booking.session_type} officeLocation={booking.office_location}
-           onPaid={async (ref, discountCode, sessionType) => {
+           onPaid={async (ref, discountCode, sessionType, meetChannel) => {
             const res = await fetch(`/api/t/${slug}/psy/pay`, {
              method: 'POST', headers: { 'Content-Type': 'application/json' },
-             body: JSON.stringify({ case_number: booking.case_number, phone, stage_id: currentStage!.id, payment_ref: ref, discount_code: discountCode, session_type: sessionType })
+             body: JSON.stringify({ case_number: booking.case_number, phone, stage_id: currentStage!.id, payment_ref: ref, discount_code: discountCode, session_type: sessionType, meet_channel: meetChannel })
             })
             return res.ok
            }}
@@ -485,6 +486,7 @@ export default function PatientPanel() {
           label={`وقت ${stageTitle(currentStage!)}`}
           delayMinutes={currentStage!.delay_minutes}
           isOnline={(currentStage!.session_type || booking.session_type) === 'online'}
+          chosenChannel={currentStage!.meet_channel}
           meetChannels={mergeMeetChannels(
            settings.doctors.find(d => d.id === booking.resource_id)?.meet_channels,
            currentStage!.meet_link || settings.doctors.find(d => d.id === booking.resource_id)?.meet_link,
@@ -1564,10 +1566,11 @@ function StageWaiting({ title, desc }: { title: string; desc: string }) {
  )
 }
 
-function StageInfo({ icon, title, desc, date, time, label, delayMinutes, meetChannels, isOnline }: { icon: string; title: string; desc: string; date?: string; time?: string; label: string; delayMinutes?: number | null; meetChannels?: MeetChannel[]; isOnline?: boolean }) {
- // دکتر می‌تواند چند روش را هم‌زمان فعال کرده باشد؛ همه را نشان می‌دهیم و مراجع
- // یکی را انتخاب می‌کند. فقط کانال‌هایی که مقدارشان قابل استفاده است می‌آیند.
- const channels = usableMeetChannels(meetChannels)
+function StageInfo({ icon, title, desc, date, time, label, delayMinutes, meetChannels, isOnline, chosenChannel }: { icon: string; title: string; desc: string; date?: string; time?: string; label: string; delayMinutes?: number | null; meetChannels?: MeetChannel[]; isOnline?: boolean; chosenChannel?: string | null }) {
+ // اگر مراجع هنگام پرداخت یک روش را انتخاب کرده، فقط همان را نشان می‌دهیم؛
+ // وگرنه همه‌ی روش‌های فعال دکتر (رفتار قدیمی).
+ const all = usableMeetChannels(meetChannels)
+ const channels = chosenChannel ? all.filter(c => c.method === chosenChannel) : all
  return (
   <>
    <StageHero icon={icon} title={title} desc={desc} />
@@ -1604,7 +1607,7 @@ function StageInfo({ icon, title, desc, date, time, label, delayMinutes, meetCha
 // کارت پرداخت کارت‌به‌کارت — شماره کارت + کد رهگیری اختیاری + دکمه‌ی «پرداخت کردم»
 function StagePayment({ icon, title, desc, amount, onPaid, onDone, resourceId, caseNumber, phone, stageId, stageLabel, sessionType, officeLocation }: {
  icon: string; title: string; desc: string; amount: number
- onPaid: (ref: string, discountCode?: string, sessionType?: 'online' | 'offline') => Promise<boolean>; onDone: () => void
+ onPaid: (ref: string, discountCode?: string, sessionType?: 'online' | 'offline', meetChannel?: string) => Promise<boolean>; onDone: () => void
  resourceId?: string | null; caseNumber: string; phone: string; stageId: string
  stageLabel: string; sessionType?: 'online' | 'offline'; officeLocation?: string
 }) {
@@ -1621,6 +1624,17 @@ function StagePayment({ icon, title, desc, amount, onPaid, onDone, resourceId, c
  const [mode, setMode] = useState<'online' | 'offline'>(sessionType || 'offline')
  const baseAmount = pricing ? (mode === 'online' ? pricing.online : pricing.offline) : amount
  const finalAmount = discount ? discount.discountedAmount : baseAmount
+ // روش‌های آنلاین فعال متخصص — مراجع هنگام پرداخت یکی را انتخاب می‌کند
+ const doctor = settings.doctors.find(d => d.id === resourceId)
+ const onlineChannels = usableMeetChannels(mergeMeetChannels(doctor?.meet_channels, doctor?.meet_link))
+ const [meetChannel, setMeetChannel] = useState<string | null>(null)
+ // یک روش که باشد، خودکار انتخاب می‌شود؛ حضوری‌شدن، انتخاب را پاک می‌کند
+ useEffect(() => {
+  if (mode === 'online') { if (onlineChannels.length === 1) setMeetChannel(onlineChannels[0].method) }
+  else setMeetChannel(null)
+ // eslint-disable-next-line react-hooks/exhaustive-deps
+ }, [mode, onlineChannels.length])
+ const needsChannel = mode === 'online' && onlineChannels.length > 0 && !meetChannel
  const pm = settings.doctors.find(d => d.id === resourceId)?.payment_methods
  const onlineOn = !!pm?.online
  const cardOn = pm ? pm.card_to_card : false
@@ -1643,8 +1657,9 @@ function StagePayment({ icon, title, desc, amount, onPaid, onDone, resourceId, c
  const noMethod = settings.loaded && !onlineOn && !cardOn
 
  async function submit() {
+  if (needsChannel) { uiAlert('روش برگزاری جلسه‌ی آنلاین را انتخاب کنید.'); return }
   setSubmitting(true)
-  const ok = await onPaid(ref.trim(), discount?.code, mode)
+  const ok = await onPaid(ref.trim(), discount?.code, mode, mode === 'online' ? meetChannel || undefined : undefined)
   setSubmitting(false)
   if (!ok) { uiAlert('ثبت پرداخت ناموفق بود. دوباره تلاش کنید.'); return }
   onDone()
@@ -1658,7 +1673,7 @@ function StagePayment({ icon, title, desc, amount, onPaid, onDone, resourceId, c
   try {
    const res = await fetch(`/api/t/${slug}/psy/pay-online`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ case_number: caseNumber, phone, purpose: 'stage', ref_id: stageId, session_date: date, session_time: time, discount_code: discount?.code, session_type: mode }),
+    body: JSON.stringify({ case_number: caseNumber, phone, purpose: 'stage', ref_id: stageId, session_date: date, session_time: time, discount_code: discount?.code, session_type: mode, meet_channel: mode === 'online' ? meetChannel || undefined : undefined }),
    })
    const data = await res.json().catch(() => ({}))
    if (!res.ok || !data.url) return { ok: false, error: data.error || 'خطا در اتصال به درگاه' }
@@ -1690,6 +1705,20 @@ function StagePayment({ icon, title, desc, amount, onPaid, onDone, resourceId, c
        className={`py-2 rounded-lg text-xs font-medium transition-colors ${mode === 'online' ? 'bg-white shadow-sm text-ink' : 'text-soot'}`}>
        🎥 آنلاین
       </button>
+     </div>
+    </div>
+   )}
+
+   {mode === 'online' && onlineChannels.length > 0 && (
+    <div className="mb-3">
+     <div className="text-xs text-soot mb-1.5 text-center">روش برگزاری جلسه‌ی آنلاین را انتخاب کنید</div>
+     <div className="grid grid-cols-2 gap-2">
+      {onlineChannels.map(ch => (
+       <button key={ch.method} onClick={() => setMeetChannel(ch.method)}
+        className={`py-2 rounded-lg text-xs border transition-colors ${meetChannel === ch.method ? 'bg-ink text-white border-ink' : 'border-sand text-ink hover:bg-sand'}`}>
+        {ch.action}
+       </button>
+      ))}
      </div>
     </div>
    )}
@@ -1735,7 +1764,7 @@ function StagePayment({ icon, title, desc, amount, onPaid, onDone, resourceId, c
       <>
        <p className="text-xs text-soot mb-3 text-center">اول وقت خود را انتخاب کنید، سپس پرداخت می‌کنید. به‌محض تایید پرداخت، همان وقت برایتان ثبت می‌شود.</p>
        <button onClick={() => setShowSlotPicker(true)}
-        disabled={!!settings.doctors.find(d => d.id === resourceId)?.terms.enabled && !termsAccepted}
+        disabled={(!!settings.doctors.find(d => d.id === resourceId)?.terms.enabled && !termsAccepted) || needsChannel}
         className="w-full py-3 bg-accent text-white rounded-xl text-sm font-medium disabled:opacity-40">
         انتخاب وقت و پرداخت
        </button>
@@ -1909,30 +1938,40 @@ function MessagesView({ messages }: { messages: PatientMessage[] }) {
 
 // نوار پیشرفت مراحل — حالا طولش متغیر است (هر تعداد مصاحبه/ارزیابی که واقعا وجود دارد) + درمان در انتها
 function StageProgress({ stages, inTreatment }: { stages: CaseStage[]; inTreatment: boolean }) {
- const items = stages.map(s => ({
-  icon: '●',
-  label: stageTitle(s),
-  done: s.status === 'booked' && !!s.held,
-  current: !(s.status === 'booked' && !!s.held),
- }))
- // فقط اگر مراجع واقعا وارد فاز پروتکل درمان شده، آن را به‌عنوان مرحله‌ی آخر
- // نشان بده — نه به‌عنوان یک مقصد تحمیلی برای هر پرونده‌ای.
- if (inTreatment) items.push({ icon: '💊', label: 'پروتکل درمان', done: true, current: false })
- if (items.length === 0) return null
+ const statusOf = (s: CaseStage): { text: string; cls: string } => {
+  if (s.status === 'booked' && s.held) return { text: 'برگزار شد', cls: 'text-emerald-600' }
+  if (s.status === 'booked') return { text: 'زمان‌بندی شد', cls: 'text-ink' }
+  if (s.status === 'awaiting_booking') return { text: 'در انتظار انتخاب زمان', cls: 'text-amber-600' }
+  if (s.status === 'payment_submitted') return { text: 'در انتظار تأیید پرداخت', cls: 'text-amber-600' }
+  return { text: 'در انتظار پرداخت', cls: 'text-soot' }
+ }
+ const sorted = [...stages].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+ if (sorted.length === 0 && !inTreatment) return null
  return (
-  <div className="bg-white rounded-2xl border border-sand p-3 flex items-center justify-between overflow-x-auto">
-   {items.map((it, i) => (
-    <div key={i} className="flex items-center flex-1 last:flex-none">
-     <div className="flex flex-col items-center gap-1 shrink-0">
-      <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-medium
-       ${it.done ? 'bg-emerald-500 text-white' : it.current ? 'bg-accent text-white' : 'bg-gray-100 text-soot'}`}>
-       {it.done ? '✓' : it.icon}
+  <div className="bg-white rounded-2xl border border-sand p-2 divide-y divide-sand">
+   {sorted.map(s => {
+    const done = s.status === 'booked' && !!s.held
+    const st = statusOf(s)
+    return (
+     <div key={s.id} className="flex items-center gap-3 py-2.5 px-1.5">
+      <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs shrink-0 ${done ? 'bg-emerald-500 text-white' : 'bg-accent text-white'}`}>
+       {done ? '✓' : '●'}
       </div>
-      <span className={`text-[11px] whitespace-nowrap ${it.current ? 'text-ink font-medium' : 'text-soot'}`}>{it.label}</span>
+      <div className="flex-1 min-w-0">
+       <div className="text-sm text-ink truncate">{stageTitle(s)}</div>
+       {s.session_date && <div className="text-xs text-soot">{s.session_date} — {s.session_time}</div>}
+      </div>
+      <span className={`text-xs shrink-0 ${st.cls}`}>{st.text}</span>
      </div>
-     {i < items.length - 1 && <div className={`flex-1 h-px mx-2 ${it.done ? 'bg-emerald-400' : 'bg-gray-200'}`} />}
+    )
+   })}
+   {inTreatment && (
+    <div className="flex items-center gap-3 py-2.5 px-1.5">
+     <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs shrink-0 bg-emerald-500 text-white">💊</div>
+     <div className="flex-1 min-w-0"><div className="text-sm text-ink">پروتکل درمان</div></div>
+     <span className="text-xs shrink-0 text-emerald-600">فعال</span>
     </div>
-   ))}
+   )}
   </div>
  )
 }

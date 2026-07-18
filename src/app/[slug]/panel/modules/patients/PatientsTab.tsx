@@ -1497,7 +1497,7 @@ export default function PatientsTab({
 
        <div className="flex bg-gray-100 rounded-xl p-1 gap-1 mb-3">
         {(['soap', 'dap', 'freeform'] as const).map(f => (
-         <button key={f} onClick={() => { setNewNoteFormat(f); setNewNoteFields({}) }}
+         <button key={f} onClick={() => setNewNoteFormat(f)}
           className={`flex-1 text-xs py-2 rounded-lg font-medium transition-all ${newNoteFormat === f ? 'bg-white text-ink shadow-sm' : 'text-soot'}`}>
           {f === 'soap' ? 'SOAP' : f === 'dap' ? 'DAP' : 'آزاد'}
          </button>

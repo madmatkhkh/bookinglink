@@ -130,6 +130,7 @@ export type CaseStage = {
  delay_minutes?: number | null
  resource_id?: string | null
  session_type?: 'online' | 'offline' | null
+ meet_channel?: string | null
  created_at: string
 }
 
