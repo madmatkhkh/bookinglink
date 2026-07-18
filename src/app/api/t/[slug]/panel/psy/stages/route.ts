@@ -4,7 +4,6 @@ import { requirePanelAuth, isPanelAuthResponse } from '@/lib/tenant'
 import { STAGE_TYPES, STAGE_STATUS } from '@/lib/flow'
 import { getResourcePricing, resolvePrice, redeemDiscountCodeByCode } from '@/lib/psy'
 import { recordLedgerEntry } from '@/lib/ledger'
-import { releaseLockBySlot } from '@/lib/slotLocks'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -22,6 +21,13 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
     if (!a.isOwner) query = query.eq('resource_id', a.resourceId)
     const { data } = await query
     return NextResponse.json({ stages: data || [] })
+  }
+
+  if (q.get('cancelled_slots')) {
+    let query = sb().from('psy_cancelled_slots').select('*').eq('tenant_id', a.tenant.id).neq('session_date', '')
+    if (!a.isOwner) query = query.eq('resource_id', a.resourceId)
+    const { data } = await query
+    return NextResponse.json({ cancelled_slots: data || [] })
   }
 
   if (q.get('all')) {
@@ -126,7 +132,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { slug: stri
     // awaiting_payment برمی‌گرداند) اصلا دیده نمی‌شد.
     patch.payment_reject_reason = body.reject_reason ? String(body.reject_reason).trim() : (stage.payment_reject_reason || null)
   }
-  if (body.clear_booking) { patch.session_date = ''; patch.session_time = ''; patch.status = STAGE_STATUS.AWAITING_BOOKING; patch.delay_minutes = null }
+  if (body.clear_booking || body.doctor_cancel) { patch.session_date = ''; patch.session_time = ''; patch.status = STAGE_STATUS.AWAITING_BOOKING; patch.delay_minutes = null }
   if (body.mark_held) patch.held = true
 
   if (Object.keys(patch).length === 0) return NextResponse.json({ error: 'چیزی برای بروزرسانی نیست' }, { status: 400 })
@@ -134,10 +140,14 @@ export async function PATCH(req: NextRequest, { params }: { params: { slug: stri
   const { error } = await sb().from('psy_stages').update(patch).eq('id', id).eq('tenant_id', a.tenant.id)
   if (error) { console.error('panel/psy/stages PATCH error:', error); return NextResponse.json({ error: 'مشکلی در ذخیره‌ی تغییرات پیش آمد.' }, { status: 500 }) }
 
-  // لغو نوبت توسط دکتر: اسلات آزادشده باید از slot_locks هم حذف شود تا واقعا
-  // آزاد شود (وگرنه «قفل» می‌ماند و نه خود مراجع و نه کس دیگری نمی‌تواند بگیرد).
-  if (body.clear_booking && stage.session_date && stage.session_time && stage.resource_id) {
-    await releaseLockBySlot(a.tenant.id, stage.resource_id, { session_date: stage.session_date, session_time: stage.session_time })
+  // لغو توسط مطب: فلگ روی همان خانه‌ی زمانی ثبت می‌شود و قفل اسلات نگه داشته
+  // می‌شود تا کسی نتواند آن ساعت را بگیرد (دکتر عمدا آن را بست). مراجع با مرحله‌ی
+  // awaiting_booking یک زمان دیگر می‌گیرد.
+  if (body.doctor_cancel && stage.session_date && stage.session_time) {
+    await sb().from('psy_cancelled_slots').insert({
+      tenant_id: a.tenant.id, resource_id: stage.resource_id || null, case_number: stage.case_number,
+      session_date: stage.session_date, session_time: stage.session_time, cancelled_by: 'doctor',
+    })
   }
 
   // تأیید پرداخت اولین مرحله (همیشه مصاحبه) پرونده را از pending به confirmed می‌برد

@@ -385,6 +385,7 @@ export function PsychologyAdmin() {
  const [quickTimesSaving, setQuickTimesSaving] = useState(false)
  const [allSessions, setAllSessions] = useState<{ id: string; case_number: string; session_date: string; session_time: string; session_type: string; attendee: string; status: string; delay_minutes?: number | null }[]>([])
  const [allStages, setAllStages] = useState<CaseStage[]>([])
+ const [cancelledSlots, setCancelledSlots] = useState<{ id: string; case_number: string; session_date: string; session_time: string; cancelled_by: string }[]>([])
 
  // ── Loading ────────────────────────────────────────────────────
  const [loading, setLoading] = useState(true)
@@ -741,7 +742,7 @@ export function PsychologyAdmin() {
  // renderSessionList به PatientsTab.tsx منتقل شد (فاز 4).
  // همه‌ی نوبت‌های یک تاریخ (مصاحبه + ارزیابی + جلسه) مرتب‌شده بر اساس ساعت
  function apptsForDate(dateStr: string) {
-  const out: { time: string; name: string; type: string; mode?: string; loc?: string; channel?: string | null; modeText: string; color: string; kind: 'stage' | 'session'; id: string; caseNumber: string; delayMinutes?: number | null }[] = []
+  const out: { time: string; name: string; type: string; mode?: string; loc?: string; channel?: string | null; modeText: string; color: string; kind: 'stage' | 'session'; id: string; caseNumber: string; delayMinutes?: number | null; cancelled?: boolean; cancelledBy?: string }[] = []
   const bookingByCase = new Map(bookings.map(b => [b.case_number, b]))
   const channelLabel = (m?: string | null) => (m && isMeetMethod(m)) ? MEET_META[m].label : ''
   const modeTextOf = (mode?: string, loc?: string, channel?: string | null) =>
@@ -770,6 +771,20 @@ export function PsychologyAdmin() {
     const b = bookingByCase.get(s.case_number)
     const loc = b?.office_location
     out.push({ time: s.session_time, name: childNameOf(s.case_number), type: s.attendee === 'secondary' ? `جلسه (${profile.companion_label || 'همراه'})` : 'جلسه (مراجع)', mode: s.session_type, loc, channel: null, modeText: modeTextOf(s.session_type, loc, null), color: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20', kind: 'session', id: s.id, caseNumber: s.case_number, delayMinutes: s.delay_minutes })
+   }
+  }
+  // فلگ نوبت‌های لغوشده — فقط اگر روی همان ساعت نوبت فعالی نیست (وگرنه نوبت فعال
+  // اولویت دارد). «توسط مطب» = آن ساعت بلاک است؛ «توسط مراجع» = آزاد شده.
+  for (const cs of cancelledSlots) {
+   if (cs.session_date === dateStr && cs.session_time && !out.some(a => a.time === cs.session_time)) {
+    out.push({
+     time: cs.session_time, name: childNameOf(cs.case_number),
+     type: cs.cancelled_by === 'doctor' ? 'لغو توسط مطب' : 'لغو توسط مراجع',
+     mode: undefined, loc: undefined, channel: null, modeText: '',
+     color: 'bg-red-500/5 text-red-500 border-red-500/20',
+     kind: 'stage', id: `cancel-${cs.id}`, caseNumber: cs.case_number, delayMinutes: null,
+     cancelled: true, cancelledBy: cs.cancelled_by,
+    })
    }
   }
   return out.sort((a, b) => timeKey(a.time) - timeKey(b.time))
@@ -806,12 +821,12 @@ export function PsychologyAdmin() {
   if (appt.kind === 'session') {
    await fetch(api('/sessions'), {
     method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ id: appt.id, session_date: '', session_time: '', doctor_note_for_patient: msg }),
+    body: JSON.stringify({ id: appt.id, doctor_cancel: true, doctor_note_for_patient: msg }),
    })
   } else {
    await fetch(api('/stages'), {
     method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ id: appt.id, clear_booking: true, cancel_notice: msg }),
+    body: JSON.stringify({ id: appt.id, doctor_cancel: true, cancel_notice: msg }),
    })
   }
   await Promise.all([fetchAll(), loadAllSessions(), loadAllStages()])
@@ -825,10 +840,10 @@ export function PsychologyAdmin() {
   for (const a of appts) {
    if (a.kind === 'session') {
     await fetch(api('/sessions'), { method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-     body: JSON.stringify({ id: a.id, session_date: '', session_time: '', doctor_note_for_patient: msg }) })
+     body: JSON.stringify({ id: a.id, doctor_cancel: true, doctor_note_for_patient: msg }) })
    } else {
     await fetch(api('/stages'), { method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-     body: JSON.stringify({ id: a.id, clear_booking: true, cancel_notice: msg }) })
+     body: JSON.stringify({ id: a.id, doctor_cancel: true, cancel_notice: msg }) })
    }
   }
   await Promise.all([fetchAll(), loadAllSessions(), loadAllStages()])
@@ -855,6 +870,11 @@ export function PsychologyAdmin() {
    const res = await fetch(api('/stages?all=1'), { cache: 'no-store' })
    const data = await res.json()
    setAllStages(data.stages || [])
+  } catch {}
+  try {
+   const res = await fetch(api('/stages?cancelled_slots=1'), { cache: 'no-store' })
+   const data = await res.json()
+   setCancelledSlots(data.cancelled_slots || [])
   } catch {}
  }
 

@@ -27,7 +27,7 @@ function parseCustomTime(raw: string): string | null {
 
 export type SchedAppt = {
  time: string; name: string; type: string; mode?: string; loc?: string; channel?: string | null; modeText?: string; color: string
- kind: 'stage' | 'session'; id: string; caseNumber: string; delayMinutes?: number | null
+ kind: 'stage' | 'session'; id: string; caseNumber: string; delayMinutes?: number | null; cancelled?: boolean; cancelledBy?: string
 }
 export type SchedJump = { day: number; month: number; year: number }
 
@@ -458,6 +458,14 @@ export default function ScheduleTab({
                 <div key={t} className="flex items-center gap-3 text-sm">
                  <span className="font-mono text-xs text-soot w-12 shrink-0">{enTime(t)}</span>
                  {appt ? (
+                  appt.cancelled ? (
+                   <span className={`flex-1 flex items-center justify-between px-3 py-1.5 rounded-lg border text-xs ${appt.color}`}>
+                    <span className="font-medium line-through opacity-80">{appt.name}</span>
+                    <span className="px-1.5 py-0.5 bg-red-500/10 border border-red-500/20 rounded font-medium">
+                     {appt.cancelledBy === 'doctor' ? '🚫 لغو توسط مطب (بسته)' : '↩ لغو توسط مراجع (آزاد شد)'}
+                    </span>
+                   </span>
+                  ) : (
                   <span className={`flex-1 flex items-center justify-between px-3 py-1.5 rounded-lg border text-xs ${appt.color}`}>
                    <span className="font-medium">{appt.mode === 'online' ? '🎥 ' : appt.mode === 'offline' ? '🏥 ' : ''}{appt.name}</span>
                    <span className="flex items-center gap-2">
@@ -471,6 +479,7 @@ export default function ScheduleTab({
                      className="px-1.5 py-0.5 bg-red-500/10 border border-red-500/20 rounded text-red-600 hover:bg-red-500/20">لغو</button>
                    </span>
                   </span>
+                  )
                  ) : (
                   <span className="flex-1 px-3 py-1.5 rounded-lg border border-dashed border-sand text-xs text-gray-300">{slotTypeLabel}</span>
                  )}

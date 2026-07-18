@@ -46,11 +46,16 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
     const releaseStageSlot = () => stage.resource_id
       ? releaseLockBySlot(t.id, stage.resource_id, stFreed)
       : Promise.resolve()
+    // فلگ «لغو توسط مراجع» روی همان خانه‌ی زمانی — تا در برنامه‌ی متخصص دیده شود
+    const flagClientCancel = () => sb().from('psy_cancelled_slots').insert({
+      tenant_id: t.id, resource_id: stage.resource_id || null, case_number,
+      session_date: stage.session_date, session_time: stage.session_time, cancelled_by: 'client',
+    })
 
     // پرداخت‌نشده: فقط زمان آزاد می‌شود و مرحله به حالت انتخاب زمان برمی‌گردد
     if (!stage.paid) {
       await sb().from('psy_stages').update({ session_date: '', session_time: '', status: 'awaiting_booking' }).eq('id', stage_id)
-      await releaseStageSlot()
+      await releaseStageSlot(); await flagClientCancel()
       return NextResponse.json({ success: true, outcome: 'unpaid_released' })
     }
 
@@ -65,7 +70,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
     }).eq('id', stage_id)
     // مرحله بسته شد → پرونده آزاد می‌شود تا دکتر مرحله‌ی بعد را تعیین کند
     await sb().from('psy_cases').update({ current_stage_id: null }).eq('tenant_id', t.id).eq('case_number', case_number).eq('current_stage_id', stage_id)
-    await releaseStageSlot()
+    await releaseStageSlot(); await flagClientCancel()
     return NextResponse.json({ success: true, outcome: stPercent > 0 ? 'partial_refund' : 'forfeited', refund_percent: stPercent })
   }
 
@@ -90,10 +95,14 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   const releaseSlot = () => session.resource_id
     ? releaseLockBySlot(t.id, session.resource_id, freedSlot)
     : Promise.resolve()
+  const flagClientCancel = () => sb().from('psy_cancelled_slots').insert({
+    tenant_id: t.id, resource_id: session.resource_id || null, case_number,
+    session_date: session.session_date, session_time: session.session_time, cancelled_by: 'client',
+  })
 
   if (!session.paid) {
     await sb().from('psy_sessions').update({ session_date: '', session_time: '' }).eq('id', session_id)
-    await releaseSlot()
+    await releaseSlot(); await flagClientCancel()
     return NextResponse.json({ success: true, outcome: 'unpaid_released' })
   }
 
@@ -109,7 +118,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
       refund_card: earlyPercent > 0 ? (card || null) : null,
       refund_status: earlyPercent > 0 && card ? 'pending' : null,
     }).eq('id', session_id)
-    await releaseSlot()
+    await releaseSlot(); await flagClientCancel()
     return NextResponse.json({ success: true, outcome: earlyPercent > 0 ? 'partial_refund' : 'forfeited', refund_percent: earlyPercent })
   } else {
     const card = (refund_card || '').toString().trim()
@@ -119,7 +128,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
       refund_card: latePercent > 0 ? (card || null) : null,
       refund_status: latePercent > 0 && card ? 'pending' : null,
     }).eq('id', session_id)
-    await releaseSlot()
+    await releaseSlot(); await flagClientCancel()
     return NextResponse.json({ success: true, outcome: latePercent > 0 ? 'partial_refund' : 'forfeited', refund_percent: latePercent })
   }
 }

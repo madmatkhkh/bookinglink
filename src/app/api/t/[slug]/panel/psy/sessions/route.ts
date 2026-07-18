@@ -3,7 +3,6 @@ import { sb } from '@/lib/supabase'
 import { requirePanelAuth, isPanelAuthResponse } from '@/lib/tenant'
 import { redeemDiscountCodeByCode } from '@/lib/psy'
 import { recordLedgerEntry } from '@/lib/ledger'
-import { releaseLockBySlot } from '@/lib/slotLocks'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -53,23 +52,25 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
 export async function PATCH(req: NextRequest, { params }: { params: { slug: string } }) {
   const a = await requirePanelAuth(req, params.slug)
   if (isPanelAuthResponse(a)) return a
-  const { id, resource_id: _ignored, ...updates } = await req.json()
+  const { id, resource_id: _ignored, doctor_cancel, ...updates } = await req.json()
   if (!id) return NextResponse.json({ error: 'id لازم است' }, { status: 400 })
 
   const { data: before } = await sb().from('psy_sessions').select('*').eq('id', id).eq('tenant_id', a.tenant.id).maybeSingle()
 
-  // لغو نوبت توسط دکتر = خالی‌کردن زمان؛ تاخیر نوبت قبلی هم باید پاک شود تا روی
-  // نوبت بعدی نماند.
-  if (updates.session_date === '' && (updates.delay_minutes === undefined)) updates.delay_minutes = null
+  // لغو نوبت توسط مطب = خالی‌کردن زمان + پاک‌کردن تاخیر قبلی. قفل اسلات نگه داشته
+  // می‌شود (بلاک) و فلگ روی همان خانه‌ی زمانی ثبت می‌شود.
+  if (doctor_cancel) { updates.session_date = ''; updates.session_time = ''; updates.delay_minutes = null }
 
   let q = sb().from('psy_sessions').update(updates).eq('id', id).eq('tenant_id', a.tenant.id)
   if (!a.isOwner) q = q.eq('resource_id', a.resourceId)
   const { data, error } = await q.select().single()
   if (error) { console.error('src/app/api/t/[slug]/panel/psy/sessions/route.ts error:', error); return NextResponse.json({ error: 'مشکلی پیش آمد. دوباره تلاش کنید.' }, { status: 500 }) }
 
-  // اسلات آزادشده از slot_locks حذف شود تا واقعا آزاد شود
-  if (updates.session_date === '' && before?.session_date && before?.session_time && before?.resource_id) {
-    await releaseLockBySlot(a.tenant.id, before.resource_id, { session_date: before.session_date, session_time: before.session_time })
+  if (doctor_cancel && before?.session_date && before?.session_time) {
+    await sb().from('psy_cancelled_slots').insert({
+      tenant_id: a.tenant.id, resource_id: before.resource_id || null, case_number: before.case_number,
+      session_date: before.session_date, session_time: before.session_time, cancelled_by: 'doctor',
+    })
   }
 
   // گذار به paid (تایید کارت‌به‌کارت جلسه‌ی جایگزین) → دفتر حساب

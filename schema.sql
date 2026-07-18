@@ -462,6 +462,17 @@ CREATE TABLE public.psy_stages (
     refund_ref text
 );
 
+CREATE TABLE public.psy_cancelled_slots (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    tenant_id uuid NOT NULL,
+    resource_id uuid,
+    case_number text NOT NULL,
+    session_date text NOT NULL,
+    session_time text NOT NULL,
+    cancelled_by text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
 -- Name: psy_waitlist; Type: TABLE; Schema: public; Owner: -
 
 CREATE TABLE public.psy_waitlist (
