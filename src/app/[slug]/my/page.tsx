@@ -1879,7 +1879,10 @@ function StagePayment({ icon, title, desc, amount, onPaid, onDone, resourceId, c
 function StageSessionRow({ stage, sessionType }: { stage: CaseStage; sessionType?: 'online' | 'offline' }) {
  const held = stage.status === 'booked' && !!stage.held
  const scheduled = stage.status === 'booked' && !held && !!stage.session_date
- const badge = held
+ const cancelled = stage.status === 'cancelled'
+ const badge = cancelled
+  ? { text: stage.cancelled_by === 'client' ? 'کنسل توسط مراجع' : 'لغو شد', cls: 'bg-red-500/10 text-red-600 border-red-500/20' }
+  : held
   ? { text: '✅ برگزار شد', cls: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' }
   : scheduled
   ? { text: 'برگزار نشده', cls: 'bg-amber-500/10 text-amber-600 border-amber-500/20' }
@@ -1889,9 +1892,9 @@ function StageSessionRow({ stage, sessionType }: { stage: CaseStage; sessionType
   ? { text: 'در انتظار تأیید پرداخت', cls: 'bg-amber-500/10 text-amber-600 border-amber-500/20' }
   : { text: 'در انتظار پرداخت', cls: 'bg-gray-100 text-soot border-sand' }
  return (
-  <div className="bg-white rounded-xl border border-sand p-4">
+  <div className={`bg-white rounded-xl border border-sand p-4 ${cancelled ? 'opacity-70' : ''}`}>
    <div className="flex items-center gap-2 flex-wrap">
-    <span className="font-medium text-sm text-ink">{stageTitle(stage)}</span>
+    <span className={`font-medium text-sm text-ink ${cancelled ? 'line-through' : ''}`}>{stageTitle(stage)}</span>
     <span className={`text-xs px-2 py-0.5 rounded border ${badge.cls}`}>{badge.text}</span>
    </div>
    <div className="text-xs text-soot mt-1">

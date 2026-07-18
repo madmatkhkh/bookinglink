@@ -62,8 +62,8 @@ const STATUS_COLOR: Record<string, string> = {
 }
 
 // کارت جلسه‌ی مصاحبه/ارزیابی در پرونده — یادداشت + تأیید برگزاری
-function StageSessionCard({ stage, index, onSave, onClinical, noteCount = 0 }: {
- stage: CaseStage; index?: number
+function StageSessionCard({ stage, index, caseSessionType, onSave, onClinical, noteCount = 0 }: {
+ stage: CaseStage; index?: number; caseSessionType?: 'online' | 'offline' | null
  onSave: (stageId: string, notes: string, markHeld: boolean) => Promise<void> | void
  onClinical?: () => void
  noteCount?: number
@@ -72,22 +72,27 @@ function StageSessionCard({ stage, index, onSave, onClinical, noteCount = 0 }: {
  const label = stageTitle(stage) + (index && index > 1 ? ` #${index}` : '')
  const icon = stage.is_first ? '🎯' : '📝'
  const held = !!stage.held
+ const cancelled = stage.status === 'cancelled'
  const canHold = stage.status === 'booked' && !held
+ // نوع جلسه‌ی مرحله اگر جدا ذخیره نشده باشد، از نوع کلی پرونده ارث می‌برد — نوع
+ // مرحله معمولا سر پرداخت ذخیره می‌شود و مرحله‌ی اول اصلا session_type ندارد،
+ // پس بدون این fallback هیچ نوعی (حتی حضوری) نشان داده نمی‌شد.
+ const effType = stage.session_type || caseSessionType || null
  return (
-  <div className="bg-white rounded-xl border border-sand p-3">
+  <div className={`bg-white rounded-xl border border-sand p-3 ${cancelled ? 'opacity-70' : ''}`}>
    <div className="flex items-center justify-between mb-2">
     <div className="flex items-center gap-2">
      <Glyph icon={icon} className="w-5 h-5 shrink-0 text-ink" />
      <div>
-      <div className="text-sm font-medium text-ink">{label}</div>
+      <div className={`text-sm font-medium text-ink ${cancelled ? 'line-through' : ''}`}>{label}</div>
       <div className="text-xs text-soot">
        {stage.session_date ? `${enTime(stage.session_date)} — ${enTime(stage.session_time)}` : 'زمان ثبت نشده'}
-       {stage.session_type && ` · ${stage.session_type === 'online' ? 'آنلاین' : 'حضوری'}`}
+       {effType && ` · ${effType === 'online' ? 'آنلاین' : 'حضوری'}`}
       </div>
      </div>
     </div>
-    <span className={`text-xs px-2 py-0.5 rounded-full ${held ? 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20' : 'bg-amber-500/10 text-amber-600 border border-amber-500/20'}`}>
-     {held ? '✅ برگزار شد' : 'برگزار نشده'}
+    <span className={`text-xs px-2 py-0.5 rounded-full ${cancelled ? 'bg-red-500/10 text-red-600 border border-red-500/20' : held ? 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20' : 'bg-amber-500/10 text-amber-600 border border-amber-500/20'}`}>
+     {cancelled ? (stage.cancelled_by === 'client' ? 'کنسل توسط مراجع' : 'لغو شد') : held ? '✅ برگزار شد' : 'برگزار نشده'}
     </span>
    </div>
    {!held && canHold && (
@@ -1136,6 +1141,7 @@ export default function PatientsTab({
               typeCounts[s.stage_type] = (typeCounts[s.stage_type] || 0) + 1
               return (
                <StageSessionCard key={s.id} stage={s} index={typeCounts[s.stage_type]}
+                caseSessionType={selectedPatient?.session_type as ('online' | 'offline' | null | undefined)}
                 onSave={(stageId, notes, markHeld) => saveStageSession(stageId, notes, markHeld)}
                 onClinical={() => openClinical('stage', s.id, stageTitle(s))}
                 noteCount={clinicalNotes.filter(n => n.stage_id === s.id).length} />
