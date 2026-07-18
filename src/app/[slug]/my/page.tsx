@@ -49,7 +49,7 @@ type Session = {
  attendee: string; status: string; doctor_note_for_patient: string
  paid: boolean; payment_submitted?: boolean
  price?: number; payment_reject_reason?: string; meet_link?: string
- refund_percent?: number; refund_status?: string; refund_card?: string
+ refund_percent?: number; refund_status?: string; refund_card?: string; cancelled_by?: string | null
  resource_id?: string | null
  delay_minutes?: number | null
 }
@@ -892,7 +892,7 @@ function SessionCard({ session: s, num, phone, caseNumber, onUpdate }: {
       <span className={`text-xs px-2 py-0.5 rounded border ${s.attendee === 'secondary' ? 'bg-gray-100 text-ink border-sand' : 'bg-gray-100 text-ink border-sand'}`}>
        {s.attendee === 'secondary' ? (doctorForSession?.companion_label || 'همراه') : 'مراجع'}
       </span>
-      <span className={`text-xs px-2 py-0.5 rounded border ${STATUS_COLOR[displayStatus] || STATUS_COLOR.pending}`}>{STATUS_LABEL[displayStatus] || displayStatus}</span>
+      <span className={`text-xs px-2 py-0.5 rounded border ${STATUS_COLOR[displayStatus] || STATUS_COLOR.pending}`}>{s.cancelled_by === 'client' ? 'کنسل توسط مراجع' : STATUS_LABEL[displayStatus] || displayStatus}</span>
      </div>
      <div className="text-xs text-soot mt-1">
       {isAwaiting

@@ -425,7 +425,8 @@ CREATE TABLE public.psy_sessions (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     reminder_sent boolean DEFAULT false NOT NULL,
     payment_reject_reason text,
-    meet_link text
+    meet_link text,
+    cancelled_by text
 );
 
 -- Name: psy_stages; Type: TABLE; Schema: public; Owner: -
@@ -459,7 +460,8 @@ CREATE TABLE public.psy_stages (
     refund_percent integer,
     refund_status text,
     refund_card text,
-    refund_ref text
+    refund_ref text,
+    cancelled_by text
 );
 
 CREATE TABLE public.psy_cancelled_slots (

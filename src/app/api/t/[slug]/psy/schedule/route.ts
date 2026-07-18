@@ -16,21 +16,36 @@ const NO_STORE = { 'Cache-Control': 'no-store, max-age=0, must-revalidate' }
 // نمی‌آید — از نظر مراجع، انگار هیچ‌وقت وجود نداشته.
 async function bookedSlotKeys(tenantId: string, resourceId: string, year: string, month: string): Promise<Set<string>> {
   const padded = month.padStart(2, '0'), unpadded = String(parseInt(month))
+  const likeFilter = `session_date.like.${year}/${padded}/%,session_date.like.${year}/${unpadded}/%`
   const db = sb()
-  const [{ data: sessions }, { data: stages }] = await Promise.all([
+  const [{ data: sessions }, { data: stages }, { data: locks }] = await Promise.all([
     db.from('psy_sessions').select('session_date, session_time')
       .eq('tenant_id', tenantId).eq('resource_id', resourceId).eq('status', 'confirmed')
-      .or(`session_date.like.${year}/${padded}/%,session_date.like.${year}/${unpadded}/%`),
+      .or(likeFilter),
     db.from('psy_stages').select('session_date, session_time')
       .eq('tenant_id', tenantId).eq('resource_id', resourceId).eq('status', 'booked')
-      .or(`session_date.like.${year}/${padded}/%,session_date.like.${year}/${unpadded}/%`),
+      .or(likeFilter),
+    // قفل‌های slot_locks هم اسلات را می‌گیرند: active همیشه (رزرو قطعی یا بلاک
+    // لغو مطب)، pending فقط تا وقتی منقضی نشده. این خانه‌ها اصلا به مراجع نشان
+    // داده نمی‌شوند (نه فقط غیرفعال).
+    db.from('slot_locks').select('session_date, session_time, status, expires_at')
+      .eq('tenant_id', tenantId).eq('resource_id', resourceId)
+      .or(likeFilter),
   ])
   const keys = new Set<string>()
+  const now = Date.now()
   for (const row of [...(sessions || []), ...(stages || [])]) {
     if (!row.session_date || !row.session_time) continue
     const day = row.session_date.split('/')[2]
     if (!day) continue
     keys.add(`${parseInt(day)}|${timeKey(row.session_time)}`)
+  }
+  for (const lk of locks || []) {
+    if (!lk.session_date || !lk.session_time) continue
+    if (lk.status === 'pending' && lk.expires_at && new Date(lk.expires_at).getTime() <= now) continue
+    const day = lk.session_date.split('/')[2]
+    if (!day) continue
+    keys.add(`${parseInt(day)}|${timeKey(lk.session_time)}`)
   }
   return keys
 }

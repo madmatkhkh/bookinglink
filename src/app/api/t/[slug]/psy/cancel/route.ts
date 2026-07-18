@@ -52,9 +52,10 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
       session_date: stage.session_date, session_time: stage.session_time, cancelled_by: 'client',
     })
 
-    // پرداخت‌نشده: فقط زمان آزاد می‌شود و مرحله به حالت انتخاب زمان برمی‌گردد
+    // پرداخت‌نشده: زمان آزاد می‌شود و مرحله «کنسل توسط مراجع» علامت می‌خورد
     if (!stage.paid) {
-      await sb().from('psy_stages').update({ session_date: '', session_time: '', status: 'awaiting_booking' }).eq('id', stage_id)
+      await sb().from('psy_stages').update({ session_date: '', session_time: '', status: 'cancelled', cancelled_by: 'client' }).eq('id', stage_id)
+      await sb().from('psy_cases').update({ current_stage_id: null }).eq('tenant_id', t.id).eq('case_number', case_number).eq('current_stage_id', stage_id)
       await releaseStageSlot(); await flagClientCancel()
       return NextResponse.json({ success: true, outcome: 'unpaid_released' })
     }
@@ -63,7 +64,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
     const stPercent = stHours >= stThreshold ? (stPolicy?.early_refund_percent ?? 50) : (stPolicy?.late_refund_percent ?? 0)
     const stCard = (refund_card || '').toString().trim()
     await sb().from('psy_stages').update({
-      session_date: '', session_time: '', status: 'cancelled',
+      session_date: '', session_time: '', status: 'cancelled', cancelled_by: 'client',
       refund_percent: stPercent,
       refund_card: stPercent > 0 ? (stCard || null) : null,
       refund_status: stPercent > 0 && stCard ? 'pending' : null,
@@ -101,7 +102,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   })
 
   if (!session.paid) {
-    await sb().from('psy_sessions').update({ session_date: '', session_time: '' }).eq('id', session_id)
+    await sb().from('psy_sessions').update({ session_date: '', session_time: '', status: 'forfeited', cancelled_by: 'client' }).eq('id', session_id)
     await releaseSlot(); await flagClientCancel()
     return NextResponse.json({ success: true, outcome: 'unpaid_released' })
   }
@@ -113,7 +114,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   if (hours >= thresholdHours) {
     const card = (refund_card || '').toString().trim()
     await sb().from('psy_sessions').update({
-      session_date: '', session_time: '', status: 'forfeited',
+      session_date: '', session_time: '', status: 'forfeited', cancelled_by: 'client',
       refund_percent: earlyPercent,
       refund_card: earlyPercent > 0 ? (card || null) : null,
       refund_status: earlyPercent > 0 && card ? 'pending' : null,
@@ -123,7 +124,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   } else {
     const card = (refund_card || '').toString().trim()
     await sb().from('psy_sessions').update({
-      session_date: '', session_time: '', status: 'forfeited',
+      session_date: '', session_time: '', status: 'forfeited', cancelled_by: 'client',
       refund_percent: latePercent,
       refund_card: latePercent > 0 ? (card || null) : null,
       refund_status: latePercent > 0 && card ? 'pending' : null,

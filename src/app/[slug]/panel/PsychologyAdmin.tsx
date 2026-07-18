@@ -116,7 +116,7 @@ export type CaseStage = {
  stage_type: string
  title?: string | null
  is_first?: boolean
- status: 'awaiting_payment' | 'payment_submitted' | 'awaiting_booking' | 'booked'
+ status: 'awaiting_payment' | 'payment_submitted' | 'awaiting_booking' | 'booked' | 'cancelled'
  price: number
  paid: boolean
  payment_submitted?: boolean
@@ -131,6 +131,7 @@ export type CaseStage = {
  resource_id?: string | null
  session_type?: 'online' | 'offline' | null
  meet_channel?: string | null
+ cancelled_by?: string | null
  created_at: string
 }
 
@@ -194,6 +195,7 @@ export type Session = {
  payment_reject_reason?: string
  refund_status?: string
  refund_ref?: string
+ cancelled_by?: string | null
 }
 
 // FinanceCats/FinanceData به panel/modules/finance/FinanceTab.tsx منتقل شدند (فاز 4).
