@@ -3,16 +3,18 @@ import { useState, useEffect, useMemo, useRef } from 'react'
 import { useParams } from 'next/navigation'
 import { toFarsiNum, toLatinNum, getCurrentJalali } from '@/lib/calendar'
 import { PSY_PRICING as PRICING } from '@/lib/psy'
-import { usePublicClinic, CardChooser, TermsGate } from '@/components/PsyPublic'
+import { usePublicClinic, CardChooser, TermsGate, DiscountCodeField } from '@/components/PsyPublic'
 import { onlineAvailable, offlineAvailable, fieldVisible, missingIntakeFields } from '@/lib/psy'
-import type { PaymentCardInfo, IntakeForm, FormField, PaymentMethods, PublicDoctor } from '@/lib/psy'
+import { usableMeetChannels, mergeMeetChannels } from '@/lib/meet'
+import type { PaymentCardInfo, IntakeForm, FormField, PaymentMethods, PublicDoctor, OfficeLocation, SessionMode } from '@/lib/psy'
 import { DialogHost, uiAlert, uiConfirm, uiPrompt } from '@/components/ui/Dialog'
 import { JalaliDateWheel } from '@/components/WheelPicker'
 import { useTenantThemeColor } from '@/lib/useTenantThemeColor'
 import SlotPicker, { SlotConfirmResult } from '@/components/SlotPicker'
 
-// ترتیب فلو: اطلاعات → نوع جلسه → پرداخت (انتخاب نوع جلسه بعد از پرکردن فرم است)
-type Step = 'info' | 'type' | 'pay' | 'done'
+// ترتیب فلو: اطلاعات → پرداخت. انتخاب نوع جلسه/روش برگزاری روی همان صفحه‌ی پرداخت است
+// (مثل StagePayment پنل مراجع)؛ پرونده تا لحظه‌ی پرداخت ساخته نمی‌شود تا نوع/مکان انتخابی درست ذخیره شود.
+type Step = 'info' | 'pay' | 'done'
 
 export default function InterviewPage() {
  const { slug } = useParams<{ slug: string }>()
@@ -21,10 +23,6 @@ export default function InterviewPage() {
  useTenantThemeColor(settings.theme_color)
  const [step, setStep] = useState<Step>('info')
  const [selectedDoctorId, setSelectedDoctorId] = useState('')
- const [sessionType, setSessionType] = useState<'online'|'offline'|''>('')
- const [officeLoc, setOfficeLoc] = useState('')  // عنوان مکان حضوری انتخاب‌شده
- const [selKey, setSelKey] = useState('')     // کلید گزینه‌ی انتخاب‌شده (برای های‌لایت)
- const [loading, setLoading] = useState(false)
  const [caseNumber, setCaseNumber] = useState('')
  const [stageId, setStageId] = useState('')
  // نام و شماره‌تماس همیشه ثابت‌اند (برای OTP لازم‌اند)؛ بقیه‌ی سوال‌ها کاملا
@@ -53,28 +51,6 @@ export default function InterviewPage() {
  const displayDoctor = settings.doctors.find(d => d.id === selectedDoctorId) || settings.doctors[0]
  const needsDoctorPick = settings.doctors.length > 1
 
- // گزینه‌های نوع جلسه: آنلاین (در صورت فعال‌بودن) + یک کارت به‌ازای هر مکان حضوری.
- //
- // قیمت‌ها از pricing خود دکتر می‌آیند — قبلا این‌جا دو رشته‌ی هاردکد نشسته بود
- // ('850,000' و '1,200,000') که هیچ ربطی به قیمت تنظیم‌شده نداشت. نتیجه: مراجع
- // در صفحه‌ی انتخاب یک عدد می‌دید و سر پرداخت عدد دیگری — بدترین جای ممکن برای
- // ناهماهنگی قیمت. حالا هر دو از یک منبع می‌خوانند.
- const sessionOptions = useMemo(() => {
-  const opts: { key: string; type: 'online' | 'offline'; loc: string; icon: string; label: string; desc: string; price: number }[] = []
-  const onlinePrice = displayDoctor?.pricing.online ?? PRICING.online
-  const offlinePrice = displayDoctor?.pricing.offline ?? PRICING.offline
-  if (onlineAvailable(settings.session_modes)) {
-   opts.push({ key: 'online', type: 'online', loc: '', icon: '🎥', label: 'آنلاین', desc: 'تماس تصویری', price: onlinePrice })
-  }
-  if (offlineAvailable(settings.session_modes)) {
-   for (const l of settings.office_locations) {
-    opts.push({ key: `offline:${l.id}`, type: 'offline', loc: l.title, icon: '🏥', label: l.title || 'حضوری', desc: l.address || 'جلسه‌ی حضوری', price: offlinePrice })
-   }
-  }
-  return opts
-  // eslint-disable-next-line react-hooks/exhaustive-deps
- }, [settings.session_modes, settings.office_locations, displayDoctor?.pricing.online, displayDoctor?.pricing.offline])
-
  // فرم رزرو همان دکتر را بخوان — وقتی دکتر مشخص شد (تک‌دکترها فورا، چنددکترها بعد انتخاب)
  useEffect(() => {
   if (!settings.loaded) return
@@ -87,15 +63,6 @@ export default function InterviewPage() {
    .finally(() => { if (!cancelled) setIntakeLoaded(true) })
   return () => { cancelled = true }
  }, [settings.loaded, needsDoctorPick, selectedDoctorId, slug])
-
- useEffect(() => {
-  if (!settings.loaded) return
-  if (sessionOptions.length === 1) {
-   const o = sessionOptions[0]
-   setSelKey(o.key); setSessionType(o.type); setOfficeLoc(o.loc)
-  }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
- }, [settings.loaded, sessionOptions])
 
  // toggle عمومی برای فیلدهای چندگزینه‌ای — همان رفتار «هیچ‌کدام» منحصربه‌فرد
  function toggleMulti(fieldId: string, option: string) {
@@ -131,46 +98,36 @@ export default function InterviewPage() {
   return [...miss, ...missingIntakeFields(intakeForm, answers)]
  }
 
- async function handleSubmit() {
+ // پرونده تا لحظه‌ی پرداخت ساخته نمی‌شود؛ وقتی مراجع روی صفحه‌ی پرداخت نوع جلسه
+ // (آنلاین/حضوری) و مکان را انتخاب کرد و پرداخت را شروع کرد، همان‌جا پرونده با همان
+ // مقادیر ساخته می‌شود. یک‌بار ساخته می‌شود و caseNumber/stageId کش می‌شوند تا اگر
+ // مراجع بین آنلاین/کارت‌به‌کارت جابه‌جا شد یا دوباره تلاش کرد، پرونده‌ی تکراری نسازد.
+ async function ensureCase(sessionType: 'online' | 'offline', officeLocation: string): Promise<{ caseNumber: string; stageId: string } | null> {
+  if (caseNumber && stageId) return { caseNumber, stageId }
   const miss = missingFields()
-  if (miss.length) {
-   uiAlert('لطفا این موارد را کامل کنید:\n• ' + miss.join('\n• '))
-   return
-  }
-  setLoading(true)
+  if (miss.length) { uiAlert('لطفا این موارد را کامل کنید:\n• ' + miss.join('\n• ')); return null }
   try {
    const res = await fetch(`/api/t/${slug}/psy/book`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-     clientName, contactPhone, contactEmail: contactEmail.trim() || undefined, sessionType, officeLocation: officeLoc,
+     clientName, contactPhone, contactEmail: contactEmail.trim() || undefined,
+     sessionType, officeLocation: officeLocation || undefined,
      resourceId: selectedDoctorId || undefined, answers,
     })
    })
    const data = await res.json()
-   if (data.caseNumber) { setCaseNumber(data.caseNumber); setStageId(data.stageId || ''); setStep('pay') }
-   else uiAlert((data.error || 'خطا در ثبت اطلاعات') + (data.detail ? `\n\n(جزئیات فنی برای پشتیبانی: ${data.detail})` : ''))
-  } catch { uiAlert('خطا در ارتباط با سرور') }
-  setLoading(false)
+   if (data.caseNumber) { setCaseNumber(data.caseNumber); setStageId(data.stageId || ''); return { caseNumber: data.caseNumber, stageId: data.stageId || '' } }
+   uiAlert((data.error || 'خطا در ثبت اطلاعات') + (data.detail ? `\n\n(جزئیات فنی برای پشتیبانی: ${data.detail})` : ''))
+   return null
+  } catch { uiAlert('خطا در ارتباط با سرور'); return null }
  }
 
- // پرداخت کارت‌به‌کارت مصاحبه (پس از ثبت فرم)
- async function submitInterviewPayment(ref: string, discountCode?: string) {
-  setLoading(true)
-  try {
-   const res = await fetch(`/api/t/${slug}/psy/pay`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ case_number: caseNumber, phone: contactPhone, stage_id: stageId, payment_ref: ref, discount_code: discountCode || undefined })
-   })
-   if (res.ok) setStep('done')
-   else uiAlert('ثبت پرداخت ناموفق بود')
-  } catch { uiAlert('خطا در ارتباط با سرور') }
-  setLoading(false)
- }
-
- if (step === 'pay') return <InterviewPayScreen amount={sessionType === 'online' ? (displayDoctor?.pricing.online ?? PRICING.online) : (displayDoctor?.pricing.offline ?? PRICING.offline)} cards={settings.cards} loaded={settings.loaded} loading={loading}
-  onPay={submitInterviewPayment} paymentMethods={displayDoctor?.payment_methods} doctor={displayDoctor} slug={slug} caseNumber={caseNumber} phone={contactPhone} stageId={stageId} resourceId={displayDoctor?.id}
-  sessionType={sessionType || undefined} officeLocation={officeLoc} />
+ if (step === 'pay') return <InterviewPayScreen
+  doctor={displayDoctor} resourceId={displayDoctor?.id} slug={slug} phone={contactPhone}
+  cards={settings.cards} loaded={settings.loaded}
+  sessionModes={settings.session_modes} officeLocations={settings.office_locations}
+  ensureCase={ensureCase} onDone={() => setStep('done')} />
 
  if (step === 'done') return (
   <div className="min-h-screen bg-canvas flex items-center justify-center p-4">
@@ -227,42 +184,7 @@ export default function InterviewPage() {
      )}
     </div>
 
-    <StepBar current={step === 'info' ? 1 : step === 'type' ? 2 : 3} />
-
-    {/* نوع جلسه — بعد از اطلاعات، پیش از پرداخت. با «ادامه» پرونده ثبت و به پرداخت می‌رود. */}
-    {step === 'type' && (
-     <div className="bg-white rounded-2xl border border-sand p-5 mb-4">
-      {!settings.loaded ? (
-       <div className="text-center py-10 text-soot text-sm">در حال بارگذاری...</div>
-      ) : (
-       <>
-        <h2 className="text-base font-medium mb-4 text-ink">نوع جلسه را انتخاب کنید</h2>
-        <div className={`grid gap-3 mb-5 ${sessionOptions.length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
-         {sessionOptions.map(o => {
-          const sel = selKey === o.key
-          const tint = o.type === 'online' ? 'border-sky-500 bg-sky-500/5' : 'border-emerald-500 bg-emerald-500/5'
-          return (
-           <div key={o.key} onClick={() => { setSelKey(o.key); setSessionType(o.type); setOfficeLoc(o.loc) }}
-            className={`p-4 rounded-xl border cursor-pointer transition-all ${sel ? `${tint} border-2` : 'border-sand hover:border-gray-300'}`}>
-            <div className="text-2xl mb-2">{o.icon}</div>
-            <div className="font-medium text-ink text-sm">{o.label}</div>
-            <div className="text-xs text-soot mb-2">{o.desc}</div>
-            <div className={`text-sm font-medium ${sel ? (o.type === 'online' ? 'text-sky-600' : 'text-emerald-600') : 'text-ink'}`}>{o.price.toLocaleString()} تومان</div>
-           </div>
-          )
-         })}
-        </div>
-        <div className="flex gap-2">
-         <button onClick={() => setStep('info')} className="px-4 py-3 border border-sand rounded-xl text-sm text-soot hover:bg-gray-50">برگشت</button>
-         <button disabled={!selKey || loading} onClick={handleSubmit}
-          className="flex-1 py-3 bg-accent text-white rounded-xl text-sm font-medium disabled:opacity-40 hover:bg-accent/90 transition-colors">
-          {loading ? 'در حال ثبت...' : 'ادامه به پرداخت ←'}
-         </button>
-        </div>
-       </>
-      )}
-     </div>
-    )}
+    <StepBar current={step === 'info' ? 1 : 2} />
 
     {/* اطلاعات — اولین قدم. صفحه‌ی 0: انتخاب دکتر (اگر چنددکتره) + مشخصات تماس؛ صفحه‌های بعد: بخش‌های فرم همین دکتر، به‌صورت ویزارد چندمرحله‌ای. */}
     {step === 'info' && (() => {
@@ -312,8 +234,8 @@ export default function InterviewPage() {
         if (d.exists) { uiAlert('پرونده‌ای با همین نام و شماره‌تماس قبلا ثبت شده است. اگر برای شخص دیگری است، نام را متفاوت وارد کنید.'); return }
        } catch {}
       }
-      // آخرین صفحه‌ی اطلاعات → انتخاب نوع جلسه (ثبت پرونده بعد از آن، در قدم «نوع جلسه» انجام می‌شود)
-      if (safeIdx === totalPages - 1) setStep('type')
+      // آخرین صفحه‌ی اطلاعات → صفحه‌ی پرداخت (نوع جلسه/روش برگزاری همان‌جا انتخاب می‌شود؛ پرونده لحظه‌ی پرداخت ساخته می‌شود)
+      if (safeIdx === totalPages - 1) setStep('pay')
       else setPageIdx(safeIdx + 1)
      }
      function goBack() {
@@ -386,7 +308,7 @@ export default function InterviewPage() {
         <button onClick={goBack} className="px-4 py-3 border border-sand rounded-xl text-sm text-soot hover:bg-gray-50">برگشت</button>
         <button disabled={waitingForForm} onClick={goNext}
          className="flex-1 py-3 bg-accent text-white rounded-xl text-sm font-medium disabled:opacity-40 hover:bg-accent/90 transition-colors">
-         {safeIdx === totalPages - 1 ? 'ادامه به انتخاب نوع جلسه ←' : 'بعدی ←'}
+         {safeIdx === totalPages - 1 ? 'ادامه به پرداخت ←' : 'بعدی ←'}
         </button>
        </div>
       </div>
@@ -472,7 +394,7 @@ function DynamicField({ field, value, onChange, onToggle }: {
 }
 
 function StepBar({ current }: { current: number }) {
- const steps = ['اطلاعات','نوع جلسه','پرداخت']
+ const steps = ['اطلاعات','پرداخت']
  return (
   <div className="flex items-center mb-6">
    {steps.map((s, i) => {
@@ -493,58 +415,117 @@ function StepBar({ current }: { current: number }) {
   </div>
  )
 }
-// صفحه‌ی پرداخت کارت‌به‌کارت مصاحبه‌ی اولیه
-function InterviewPayScreen({ amount, cards, loaded, loading, onPay, paymentMethods, doctor, slug, caseNumber, phone, stageId, resourceId, sessionType, officeLocation }: {
- amount: number; cards: PaymentCardInfo[]; loaded: boolean; loading: boolean; onPay: (ref: string, discountCode?: string) => void
- paymentMethods?: PaymentMethods; doctor?: PublicDoctor; slug: string; caseNumber: string; phone: string; stageId: string; resourceId?: string
- sessionType?: 'online' | 'offline'; officeLocation?: string
+// صفحه‌ی پرداخت مصاحبه‌ی اولیه — همه‌چیز در یک صفحه (مثل StagePayment پنل مراجع):
+// نوع جلسه (آنلاین/حضوری) + مکان حضوری + روش برگزاری آنلاین + تخفیف + شرایط + پرداخت.
+// پرونده تا لحظه‌ی پرداخت ساخته نمی‌شود؛ نوع/مکان انتخاب‌شده در همان ساخت ذخیره می‌شوند.
+function InterviewPayScreen({ doctor, resourceId, slug, phone, cards, loaded, sessionModes, officeLocations, ensureCase, onDone }: {
+ doctor?: PublicDoctor; resourceId?: string; slug: string; phone: string
+ cards: PaymentCardInfo[]; loaded: boolean
+ sessionModes: SessionMode; officeLocations: OfficeLocation[]
+ ensureCase: (sessionType: 'online' | 'offline', officeLocation: string) => Promise<{ caseNumber: string; stageId: string } | null>
+ onDone: () => void
 }) {
- const [ref, setRef] = useState('')
- const [termsAccepted, setTermsAccepted] = useState(false)
- const termsBlocked = !!doctor?.terms.enabled && !termsAccepted
- const online = !!paymentMethods?.online
- const cardToCard = paymentMethods ? paymentMethods.card_to_card : false
+ const pricing = doctor?.pricing
+ // حالت‌های جلسه از session_modes خود متخصص می‌آیند — نه از وجود «مکان حضوری».
+ // باگ قبلی: حضوری فقط وقتی نشان داده می‌شد که مجموعه office_location ثبت کرده بود؛
+ // مجموعه‌ای که حضوری داشت ولی آدرسی ثبت نکرده بود، اصلا گزینه‌ی حضوری نمی‌دید.
+ const modesOnline = onlineAvailable(sessionModes)
+ const modesOffline = offlineAvailable(sessionModes)
+ const [mode, setMode] = useState<'online' | 'offline'>(modesOffline ? 'offline' : 'online')
 
- // همان باگی که در StagePayment پنل مراجع بود: مقدار اولیه‌ی useState فقط در
- // اولین رندر ارزیابی می‌شود، و اگر paymentMethods هنوز نرسیده باشد، روش برای
- // همیشه روی 'card' قفل می‌شد — حتی وقتی کارت‌به‌کارت اصلا فعال نبود. انتخاب
- // کاربر از مقدار پیش‌فرض جدا شد تا با رسیدن دیتا خودش درست شود.
+ // مکان حضوری (اختیاری) — اگر مجموعه چند مکان دارد، مراجع یکی را انتخاب می‌کند؛
+ // اگر یکی یا هیچ، همان پیش‌فرض. مکان‌ها ممکن است با تاخیر برسند.
+ const [officeLoc, setOfficeLoc] = useState('')
+ useEffect(() => {
+  if (!officeLoc && officeLocations.length) setOfficeLoc(officeLocations[0].title)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+ }, [officeLocations.length])
+
+ const baseAmount = mode === 'online'
+  ? (pricing?.online ?? PRICING.online)
+  : (pricing?.offline ?? PRICING.offline)
+ const [discount, setDiscount] = useState<{ code: string; discountedAmount: number; discountAmount: number } | null>(null)
+ const finalAmount = discount ? discount.discountedAmount : baseAmount
+
+ // روش‌های آنلاین فعال متخصص — مراجع هنگام پرداخت یکی را انتخاب می‌کند
+ const onlineChannels = usableMeetChannels(mergeMeetChannels(doctor?.meet_channels, doctor?.meet_link))
+ const [meetChannel, setMeetChannel] = useState<string | null>(null)
+ useEffect(() => {
+  if (mode === 'online') { if (onlineChannels.length === 1) setMeetChannel(onlineChannels[0].method) }
+  else setMeetChannel(null)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+ }, [mode, onlineChannels.length])
+ const needsChannel = mode === 'online' && onlineChannels.length > 0 && !meetChannel
+
+ const pm = doctor?.payment_methods
+ const onlineOn = !!pm?.online
+ const cardOn = pm ? pm.card_to_card : false
+ // انتخاب کاربر از پیش‌فرض جدا — تا وقتی دیتای متخصص نرسیده در حالت اشتباه قفل نشود
  const [picked, setPicked] = useState<'online' | 'card' | null>(null)
- const method: 'online' | 'card' = picked ?? (online ? 'online' : 'card')
- const noMethod = !!paymentMethods && !online && !cardToCard
- const [onlineError, setOnlineError] = useState('')
+ const method: 'online' | 'card' = picked ?? (onlineOn ? 'online' : 'card')
+ const noMethod = loaded && !onlineOn && !cardOn
+
+ const [termsAccepted, setTermsAccepted] = useState(false)
+ const termsBlocked = !!doctor?.terms?.enabled && !termsAccepted
+ const [ref, setRef] = useState('')
+ const [submitting, setSubmitting] = useState(false)
  const [showSlotPicker, setShowSlotPicker] = useState(false)
+ const [onlineError, setOnlineError] = useState('')
+ // پرونده یک‌بار ساخته و کش می‌شود — جابه‌جایی بین آنلاین/کارت‌به‌کارت پرونده‌ی تکراری نمی‌سازد
+ const [localCase, setLocalCase] = useState<{ caseNumber: string; stageId: string } | null>(null)
 
- // کد تخفیف — اختیاری، فقط اگر دکتر چیزی به مراجع گفته باشد
- const [showDiscount, setShowDiscount] = useState(false)
- const [discountCode, setDiscountCode] = useState('')
- const [discountChecking, setDiscountChecking] = useState(false)
- const [discountResult, setDiscountResult] = useState<{ ok: true; discountedAmount: number; discountAmount: number } | { ok: false; error: string } | null>(null)
- const finalAmount = discountResult?.ok ? discountResult.discountedAmount : amount
+ async function ensure(): Promise<{ caseNumber: string; stageId: string } | null> {
+  if (localCase) return localCase
+  const c = await ensureCase(mode, mode === 'offline' ? officeLoc : '')
+  if (c) setLocalCase(c)
+  return c
+ }
 
- async function checkDiscount() {
-  if (!discountCode.trim() || !resourceId) return
-  setDiscountChecking(true)
+ // کارت‌به‌کارت: اول پرونده ساخته می‌شود، بعد ادعای پرداخت با نوع/کانال انتخابی ثبت می‌شود
+ async function submitCard() {
+  if (needsChannel) { uiAlert('روش برگزاری جلسه‌ی آنلاین را انتخاب کنید.'); return }
+  setSubmitting(true)
+  const c = await ensure()
+  if (!c) { setSubmitting(false); return }
   try {
-   const res = await fetch(`/api/t/${slug}/psy/discount-check?resource_id=${resourceId}&code=${encodeURIComponent(discountCode.trim())}&amount=${amount}`)
-   const d = await res.json()
-   setDiscountResult(d)
-  } catch { setDiscountResult({ ok: false, error: 'خطا در بررسی کد' }) }
-  setDiscountChecking(false)
+   const res = await fetch(`/api/t/${slug}/psy/pay`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+     case_number: c.caseNumber, phone, stage_id: c.stageId, payment_ref: ref.trim(),
+     discount_code: discount?.code, session_type: mode,
+     meet_channel: mode === 'online' ? (meetChannel || undefined) : undefined,
+    })
+   })
+   setSubmitting(false)
+   if (res.ok) onDone()
+   else uiAlert('ثبت پرداخت ناموفق بود')
+  } catch { setSubmitting(false); uiAlert('خطا در ارتباط با سرور') }
+ }
+
+ // آنلاین: اول پرونده را بساز، بعد انتخاب‌گر وقت را باز کن (چون «اول وقت، بعد پرداخت»)
+ async function openSlotPicker() {
+  if (needsChannel) { uiAlert('روش برگزاری جلسه‌ی آنلاین را انتخاب کنید.'); return }
+  setOnlineError('')
+  const c = await ensure()
+  if (!c) return
+  setShowSlotPicker(true)
  }
 
  // پرداخت آنلاین = «اول وقت، بعد پرداخت». وقت انتخابی همراه درخواست می‌رود،
  // سرور اعتبارسنجی‌اش می‌کند و روی intent می‌نشاند؛ بعد از تایید پرداخت، کال‌بک
  // همان وقت را ثبت می‌کند. کارت‌به‌کارت این مسیر را نمی‌رود.
  async function payOnlineWithSlot(date: string, time: string): Promise<SlotConfirmResult> {
+  const c = localCase || await ensure()
+  if (!c) return { ok: false, error: 'خطا در ثبت اطلاعات' }
   setOnlineError('')
   try {
    const res = await fetch(`/api/t/${slug}/psy/pay-online`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-     case_number: caseNumber, phone, purpose: 'stage', ref_id: stageId,
+     case_number: c.caseNumber, phone, purpose: 'stage', ref_id: c.stageId,
      session_date: date, session_time: time,
-     discount_code: discountResult?.ok ? discountCode.trim() : undefined,
+     discount_code: discount?.code, session_type: mode,
+     meet_channel: mode === 'online' ? (meetChannel || undefined) : undefined,
     }),
    })
    const data = await res.json().catch(() => ({}))
@@ -560,95 +541,130 @@ function InterviewPayScreen({ amount, cards, loaded, loading, onPay, paymentMeth
  return (
   <div className="min-h-screen bg-canvas flex items-center justify-center p-4" dir="rtl">
    <DialogHost />
-   <div className="max-w-sm w-full bg-white rounded-2xl border border-sand p-6">
+   <div className="max-w-sm w-full bg-white rounded-2xl border border-sand p-6 text-right">
     <div className="text-center mb-4">
      <div className="w-16 h-16 rounded-full bg-sand flex items-center justify-center mx-auto mb-3 text-3xl">💳</div>
      <h1 className="text-lg font-display font-medium text-ink">پرداخت هزینه‌ی مصاحبه</h1>
+     <p className="text-sm text-soot mt-1">برای ادامه، هزینه‌ی مصاحبه‌ی اولیه را پرداخت کنید.</p>
     </div>
+
+    {/* نوع جلسه — فقط حالت‌هایی که متخصص ارائه می‌دهد */}
+    {(modesOnline || modesOffline) && (
+     <div className="mb-3">
+      <div className="text-xs text-soot mb-1.5 text-center">نوع این جلسه را انتخاب کنید</div>
+      <div className={`grid gap-2 p-1 bg-gray-100 rounded-xl ${modesOnline && modesOffline ? 'grid-cols-2' : 'grid-cols-1'}`}>
+       {modesOffline && (
+        <button onClick={() => { setMode('offline'); setDiscount(null) }}
+         className={`py-2 rounded-lg text-xs font-medium transition-colors ${mode === 'offline' ? 'bg-white shadow-sm text-ink' : 'text-soot'}`}>
+         🏥 حضوری{mode === 'offline' && officeLoc ? ` — ${officeLoc}` : ''}
+        </button>
+       )}
+       {modesOnline && (
+        <button onClick={() => { setMode('online'); setDiscount(null) }}
+         className={`py-2 rounded-lg text-xs font-medium transition-colors ${mode === 'online' ? 'bg-white shadow-sm text-ink' : 'text-soot'}`}>
+         🎥 آنلاین
+        </button>
+       )}
+      </div>
+     </div>
+    )}
+
+    {/* مکان حضوری — فقط اگر مجموعه بیش از یک مکان دارد */}
+    {mode === 'offline' && officeLocations.length > 1 && (
+     <div className="mb-3">
+      <div className="text-xs text-soot mb-1.5 text-center">محل مراجعه را انتخاب کنید</div>
+      <div className="grid grid-cols-2 gap-2">
+       {officeLocations.map(l => (
+        <button key={l.id} onClick={() => setOfficeLoc(l.title)}
+         className={`py-2 rounded-lg text-xs border transition-colors ${officeLoc === l.title ? 'bg-ink text-white border-ink' : 'border-sand text-ink hover:bg-sand'}`}>
+         {l.title || 'حضوری'}
+        </button>
+       ))}
+      </div>
+     </div>
+    )}
+
+    {/* روش برگزاری آنلاین */}
+    {mode === 'online' && onlineChannels.length > 0 && (
+     <div className="mb-3">
+      <div className="text-xs text-soot mb-1.5 text-center">روش برگزاری جلسه‌ی آنلاین را انتخاب کنید</div>
+      <div className="grid grid-cols-2 gap-2">
+       {onlineChannels.map(ch => (
+        <button key={ch.method} onClick={() => setMeetChannel(ch.method)}
+         className={`py-2 rounded-lg text-xs border transition-colors ${meetChannel === ch.method ? 'bg-ink text-white border-ink' : 'border-sand text-ink hover:bg-sand'}`}>
+         {ch.action}
+        </button>
+       ))}
+      </div>
+     </div>
+    )}
 
     <div className="bg-sand border border-sand rounded-xl p-4 mb-3">
      <div className="flex items-center justify-between">
       <span className="text-xs text-soot">مبلغ قابل پرداخت</span>
       <span className="text-base font-bold text-ink">
-       {discountResult?.ok && <span className="text-soot line-through text-xs ml-1.5">{amount.toLocaleString()}</span>}
+       {discount && <span className="text-soot line-through text-xs ml-1.5">{baseAmount.toLocaleString()}</span>}
        {finalAmount.toLocaleString()} تومان
       </span>
      </div>
     </div>
 
-    {resourceId && (
-     <div className="mb-3">
-      {!showDiscount ? (
-       <button onClick={() => setShowDiscount(true)} className="text-xs text-soot underline">کد تخفیف دارید؟</button>
-      ) : (
-       <div className="flex gap-2">
-        <input value={discountCode} onChange={e => { setDiscountCode(e.target.value.toUpperCase()); setDiscountResult(null) }}
-         dir="ltr" placeholder="کد تخفیف" className="flex-1 text-sm px-3 py-2 border border-sand rounded-lg tnum" />
-        <button onClick={checkDiscount} disabled={discountChecking || !discountCode.trim()}
-         className="px-3 py-2 border border-sand rounded-lg text-xs text-ink disabled:opacity-50">
-         {discountChecking ? '...' : 'اعمال'}
+    <DiscountCodeField slug={slug} resourceId={resourceId} amount={baseAmount} onApplied={setDiscount} />
+    <TermsGate doctor={doctor} accepted={termsAccepted} onAcceptedChange={setTermsAccepted} />
+
+    {!loaded ? (
+     <div className="h-32 rounded-xl bg-gray-100 animate-pulse" />
+    ) : noMethod ? (
+     <div className="text-xs text-amber-700 bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 text-center leading-5">
+      هنوز هیچ روش پرداختی برای این متخصص فعال نشده است. لطفا با ایشان تماس بگیرید.
+     </div>
+    ) : (
+     <>
+      {onlineOn && cardOn && (
+       <div className="grid grid-cols-2 gap-2 mb-3 p-1 bg-gray-100 rounded-xl">
+        <button onClick={() => setPicked('online')}
+         className={`py-2 rounded-lg text-xs font-medium transition-colors ${method === 'online' ? 'bg-white shadow-sm text-ink' : 'text-soot'}`}>
+         پرداخت آنلاین
+        </button>
+        <button onClick={() => setPicked('card')}
+         className={`py-2 rounded-lg text-xs font-medium transition-colors ${method === 'card' ? 'bg-white shadow-sm text-ink' : 'text-soot'}`}>
+         کارت‌به‌کارت
         </button>
        </div>
       )}
-      {discountResult && (
-       <p className={`text-xs mt-1.5 ${discountResult.ok ? 'text-emerald-700' : 'text-red-600'}`}>
-        {discountResult.ok ? `کد اعمال شد — ${discountResult.discountAmount.toLocaleString()} تومان تخفیف` : discountResult.error}
-       </p>
+
+      {method === 'online' && onlineOn ? (
+       <>
+        <p className="text-xs text-soot mb-3 text-center">اول وقت خود را انتخاب کنید، سپس پرداخت می‌کنید. به‌محض تایید پرداخت، همان وقت برایتان ثبت می‌شود.</p>
+        {onlineError && <div className="text-xs text-red-600 bg-red-500/10 border border-red-500/20 rounded-lg p-2.5 mb-3 text-center">{onlineError}</div>}
+        <button onClick={openSlotPicker} disabled={termsBlocked || needsChannel}
+         className="w-full py-3 bg-accent text-white rounded-xl text-sm font-medium disabled:opacity-40">
+         انتخاب وقت و پرداخت
+        </button>
+       </>
+      ) : (
+       <>
+        <p className="text-xs text-soot mb-3">مبلغ را کارت‌به‌کارت کنید و سپس «پرداخت کردم» را بزنید.</p>
+        <div className="bg-sand border border-sand rounded-xl p-3 mb-3">
+         <CardChooser cards={cards} loaded={loaded} />
+        </div>
+        <label className="text-xs text-soot mb-1 block">متن فیش واریزی <span className="text-red-500">*</span></label>
+        <textarea value={ref} onChange={e => setRef(e.target.value)} rows={3} placeholder="اطلاعات فیش واریزی را وارد کنید (کد پیگیری, شماره کارت مبدأ, تاریخ و ساعت واریز...)"
+         className="w-full text-sm px-3 py-2.5 border border-sand rounded-xl focus:outline-none focus:border-ink mb-3 resize-none" />
+        <button onClick={submitCard} disabled={submitting || !ref.trim() || termsBlocked}
+         className="w-full py-3 bg-accent text-white rounded-xl text-sm font-medium disabled:opacity-40">
+         {submitting ? 'در حال ثبت...' : 'پرداخت کردم'}
+        </button>
+        <p className="text-[11px] text-soot mt-2 text-center">پس از تأیید پرداخت، از پنل مراجع وقت مصاحبه را می‌گیرید.</p>
+       </>
       )}
-     </div>
-    )}
-
-    {noMethod && (
-     <div className="text-xs text-amber-700 bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 mb-3 text-center leading-5">
-      هنوز هیچ روش پرداختی برای این متخصص فعال نشده است. لطفا با ایشان تماس بگیرید.
-     </div>
-    )}
-
-    <TermsGate doctor={doctor} accepted={termsAccepted} onAcceptedChange={setTermsAccepted} />
-
-    {online && cardToCard && (
-     <div className="grid grid-cols-2 gap-2 mb-3 p-1 bg-gray-100 rounded-xl">
-      <button onClick={() => setPicked('online')}
-       className={`py-2 rounded-lg text-xs font-medium transition-colors ${method === 'online' ? 'bg-white shadow-sm text-ink' : 'text-soot'}`}>
-       پرداخت آنلاین
-      </button>
-      <button onClick={() => setPicked('card')}
-       className={`py-2 rounded-lg text-xs font-medium transition-colors ${method === 'card' ? 'bg-white shadow-sm text-ink' : 'text-soot'}`}>
-       کارت‌به‌کارت
-      </button>
-     </div>
-    )}
-
-    {noMethod ? null : method === 'online' && online ? (
-     <>
-      <p className="text-xs text-soot mb-3 text-center">اول وقت مصاحبه را انتخاب کنید، سپس پرداخت می‌کنید. به‌محض تایید پرداخت، همان وقت برایتان ثبت می‌شود.</p>
-      {onlineError && <div className="text-xs text-red-600 bg-red-500/10 border border-red-500/20 rounded-lg p-2.5 mb-3 text-center">{onlineError}</div>}
-      <button onClick={() => setShowSlotPicker(true)} disabled={termsBlocked}
-       className="w-full py-3 bg-accent text-white rounded-xl text-sm font-medium disabled:opacity-40">
-       انتخاب وقت و پرداخت
-      </button>
-     </>
-    ) : (
-     <>
-      <p className="text-xs text-soot mb-3">مبلغ را کارت‌به‌کارت کنید و سپس «پرداخت کردم» را بزنید.</p>
-      <div className="bg-sand border border-sand rounded-xl p-3 mb-3">
-       <CardChooser cards={cards} loaded={loaded} />
-      </div>
-      <label className="text-xs text-soot mb-1 block">متن فیش واریزی <span className="text-red-500">*</span></label>
-      <textarea value={ref} onChange={e => setRef(e.target.value)} rows={3} placeholder="اطلاعات فیش واریزی را وارد کنید (کد پیگیری، شماره کارت مبدأ، تاریخ و ساعت واریز...)"
-       className="w-full text-sm px-3 py-2.5 border border-sand rounded-xl focus:outline-none focus:border-ink mb-3 resize-none" />
-      <button onClick={() => onPay(ref.trim(), discountResult?.ok ? discountCode.trim() : undefined)} disabled={loading || !ref.trim() || termsBlocked}
-       className="w-full py-3 bg-accent text-white rounded-xl text-sm font-medium disabled:opacity-40">
-       {loading ? 'در حال ثبت...' : 'پرداخت کردم'}
-      </button>
-      <p className="text-[11px] text-soot mt-2 text-center">پس از تأیید پرداخت، از پنل مراجع وقت مصاحبه را می‌گیرید.</p>
      </>
     )}
 
     {showSlotPicker && (
-     <SlotPicker phone={phone} caseNumber={caseNumber}
+     <SlotPicker phone={phone} caseNumber={localCase?.caseNumber || ''}
       title="انتخاب وقت مصاحبه" confirmLabel="ادامه و پرداخت" resourceId={resourceId}
-      sessionType={sessionType} officeLocation={officeLocation}
+      sessionType={mode} officeLocation={mode === 'offline' ? officeLoc : undefined}
       onClose={() => setShowSlotPicker(false)}
       onDone={() => setShowSlotPicker(false)}
       onConfirm={payOnlineWithSlot} />
