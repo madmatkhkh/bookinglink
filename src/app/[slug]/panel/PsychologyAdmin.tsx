@@ -19,7 +19,7 @@ import StaffTab, { type ResourceRow } from './modules/staff/StaffTab'
 import BookingsTab from './modules/bookings/BookingsTab'
 import PatientsTab from './modules/patients/PatientsTab'
 import GrowthTab, { type WaitlistEntry } from './modules/growth/GrowthTab'
-import { MEET_METHODS, MEET_META, MeetChannel, meetHref, usableMeetChannels } from '@/lib/meet'
+import { MEET_METHODS, MEET_META, MeetChannel, isMeetMethod, meetHref, usableMeetChannels } from '@/lib/meet'
 import ThemeModePicker from '@/components/ThemeModePicker'
 import { DEFAULT_SAFE_THEME } from '@/lib/theme'
 
@@ -738,15 +738,22 @@ export function PsychologyAdmin() {
  // renderSessionList به PatientsTab.tsx منتقل شد (فاز 4).
  // همه‌ی نوبت‌های یک تاریخ (مصاحبه + ارزیابی + جلسه) مرتب‌شده بر اساس ساعت
  function apptsForDate(dateStr: string) {
-  const out: { time: string; name: string; type: string; mode?: string; loc?: string; color: string; kind: 'stage' | 'session'; id: string; caseNumber: string; delayMinutes?: number | null }[] = []
+  const out: { time: string; name: string; type: string; mode?: string; loc?: string; channel?: string | null; modeText: string; color: string; kind: 'stage' | 'session'; id: string; caseNumber: string; delayMinutes?: number | null }[] = []
   const bookingByCase = new Map(bookings.map(b => [b.case_number, b]))
+  const channelLabel = (m?: string | null) => (m && isMeetMethod(m)) ? MEET_META[m].label : ''
+  const modeTextOf = (mode?: string, loc?: string, channel?: string | null) =>
+   mode === 'online'
+    ? (channelLabel(channel) ? `آنلاین · ${channelLabel(channel)}` : 'آنلاین')
+    : (loc ? `حضوری · ${loc}` : 'حضوری')
   for (const s of allStages) {
    if (s.session_date === dateStr && s.session_time && s.status === 'booked') {
     const b = bookingByCase.get(s.case_number)
+    const mode = s.session_type || b?.session_type
+    const loc = b?.office_location
     out.push({
      time: s.session_time, name: childNameOf(s.case_number),
      type: stageTitle(s),
-     mode: b?.session_type, loc: b?.office_location,
+     mode, loc, channel: s.meet_channel, modeText: modeTextOf(mode, loc, s.meet_channel),
      color: s.is_first ? 'bg-sky-500/10 text-sky-600 border-sky-500/20'
       : 'bg-violet-500/10 text-violet-600 border-violet-500/20',
      kind: 'stage', id: s.id, caseNumber: s.case_number, delayMinutes: s.delay_minutes,
@@ -754,8 +761,11 @@ export function PsychologyAdmin() {
    }
   }
   for (const s of allSessions) {
-   if (s.session_date === dateStr && s.session_time && s.status !== 'cancelled' && s.status !== 'forfeited' && s.status !== 'replaced')
-    out.push({ time: s.session_time, name: childNameOf(s.case_number), type: s.attendee === 'secondary' ? `جلسه (${profile.companion_label || 'همراه'})` : 'جلسه (مراجع)', mode: s.session_type, color: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20', kind: 'session', id: s.id, caseNumber: s.case_number, delayMinutes: s.delay_minutes })
+   if (s.session_date === dateStr && s.session_time && s.status !== 'cancelled' && s.status !== 'forfeited' && s.status !== 'replaced') {
+    const b = bookingByCase.get(s.case_number)
+    const loc = b?.office_location
+    out.push({ time: s.session_time, name: childNameOf(s.case_number), type: s.attendee === 'secondary' ? `جلسه (${profile.companion_label || 'همراه'})` : 'جلسه (مراجع)', mode: s.session_type, loc, channel: null, modeText: modeTextOf(s.session_type, loc, null), color: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20', kind: 'session', id: s.id, caseNumber: s.case_number, delayMinutes: s.delay_minutes })
+   }
   }
   return out.sort((a, b) => timeKey(a.time) - timeKey(b.time))
  }
@@ -874,6 +884,7 @@ export function PsychologyAdmin() {
  // با ورود به تب برنامه، داده‌های ماه و جلسه‌ها را بارگذاری کن
  useEffect(() => {
   if (mainTab === 'dashboard') { loadAllSessions(); loadAllStages(); if (!profileLoaded) loadProfile(); loadDashboardFinance(); if (hasWorkingDays === null) checkWorkingDays() }
+  if (mainTab === 'patients') { loadAllSessions(); loadAllStages(); refreshBookings() }
   if (mainTab === 'schedule') { /* ماه را خود ScheduleTab هنگام mount می‌خواند */ loadAllSessions(); loadAllStages(); refreshBookings(); if (!profileLoaded) loadProfile() }
   if (mainTab === 'settings') {
    if (!settingsLoaded) loadSettings()
@@ -1843,7 +1854,7 @@ export function PsychologyAdmin() {
             <div key={a.id} className={`flex items-center gap-3 p-2.5 rounded-xl border ${a.color}`}>
              <span className="text-sm font-bold tnum shrink-0">{toFarsiNum(a.time)}</span>
              <span className="text-sm text-ink flex-1">{a.name}</span>
-             <span className="text-[11px] text-soot shrink-0">{a.type}{a.mode === 'online' ? ' · آنلاین' : a.loc ? ` · ${a.loc}` : ''}</span>
+             <span className="text-[11px] text-soot shrink-0">{a.type} · {a.modeText}</span>
             </div>
            ))}
           </div>
@@ -1860,6 +1871,7 @@ export function PsychologyAdmin() {
      <PatientsTab api={api} patients={patients} fetchAll={fetchAll} bookings={bookings}
       loading={loading} isOwner={!!me?.isOwner} profile={profile} staffList={staffList}
       viewingResourceId={viewingResourceId} setViewingResourceId={setViewingResourceId} mod={mod}
+      todayAppointments={apptsForDate(`${getCurrentJalali().year}/${getCurrentJalali().month + 1}/${getCurrentJalali().day}`)}
       onAppointmentsChanged={() => loadAllSessions()} />
     )}
 

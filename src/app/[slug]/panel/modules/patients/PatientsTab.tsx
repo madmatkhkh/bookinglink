@@ -128,7 +128,7 @@ function Section({ title, icon, children }: { title: string; icon?: string; chil
 
 export default function PatientsTab({
  api, patients, fetchAll, bookings, loading, isOwner, profile, staffList,
- viewingResourceId, setViewingResourceId, mod, onAppointmentsChanged,
+ viewingResourceId, setViewingResourceId, mod, onAppointmentsChanged, todayAppointments,
 }: {
  api: (path: string) => string
  patients: Patient[]
@@ -142,6 +142,7 @@ export default function PatientsTab({
  setViewingResourceId: (id: string) => void
  mod: (key: string) => boolean
  onAppointmentsChanged: () => void
+ todayAppointments: { time: string; name: string; type: string; modeText: string; caseNumber: string; id: string }[]
 }) {
  // ── Patients state ── (خود لیست patients از props می‌آید)
  const stagePresets = Array.isArray(profile.stage_presets) ? profile.stage_presets.filter(Boolean) : []
@@ -671,6 +672,29 @@ export default function PatientsTab({
       {patientView === 'list' && (
        <div>
         <PageHeader title="پرونده‌ها" desc="پرونده‌ی مراجعان، روند درمان و جلسات هرکدام از همین‌جا مدیریت می‌شود." />
+
+        {/* نوبت‌های امروز — سورت‌شده و آماده؛ کلیک روی هرکدام مستقیم پرونده را باز می‌کند */}
+        {todayAppointments.length > 0 && (
+         <div className="bg-white rounded-2xl border border-sand p-4 mb-4">
+          <div className="flex items-center justify-between mb-3">
+           <h2 className="text-sm font-semibold text-ink flex items-center gap-1.5">🗓 نوبت‌های امروز</h2>
+           <span className="text-xs text-soot tnum">{todayAppointments.length} نوبت</span>
+          </div>
+          <div className="space-y-2">
+           {todayAppointments.map(a => {
+            const p = patients.find(pt => pt.case_number === a.caseNumber)
+            return (
+             <button key={a.id} onClick={() => p && openPatient(p)} disabled={!p}
+              className="w-full flex items-center gap-3 p-2.5 rounded-xl border border-sand hover:border-ink/30 text-right transition-all disabled:opacity-60">
+              <span className="text-sm font-bold tnum shrink-0 w-12 text-center">{enTime(a.time)}</span>
+              <span className="text-sm text-ink flex-1 truncate">{a.name}</span>
+              <span className="text-[11px] text-soot shrink-0">{a.type} · {a.modeText}</span>
+             </button>
+            )
+           })}
+          </div>
+         </div>
+        )}
         {/* سوییچر کارمند — فقط owner و فقط وقتی بیش از یک نفر پرسنل هست */}
         {isOwner && staffList.filter(r => r.is_active).length > 1 && (
          <div className="mb-3">
