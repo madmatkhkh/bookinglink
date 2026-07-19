@@ -78,7 +78,18 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
     bankRef = verify.refNumber != null ? String(verify.refNumber) : null
   }
 
-  await sb().from('psy_payment_intents').update({ status: 'paid', bank_ref_number: bankRef }).eq('id', intentId)
+  // ادعای اتمیک: فقط یک درخواست هم‌زمان می‌تواند intent را از حالت غیر-paid به
+  // paid ببرد (compare-and-swap با neq). اگر صفر ردیف برگشت، یعنی callback دیگری
+  // (رفرش/تلاش دوباره در همان لحظه) همین حالا نهایی‌اش کرده — پس دوباره ledger
+  // ثبت نمی‌کنیم و تخفیف را دوباره redeem نمی‌کنیم؛ فقط موفقیت را برمی‌گردانیم.
+  // (چک intent.status==='paid' بالا مسیر سریع رفرش‌های بعدی است؛ این‌جا خود
+  // رقابت هم‌زمان را می‌بندد.)
+  const { data: claimed } = await sb().from('psy_payment_intents')
+    .update({ status: 'paid', bank_ref_number: bankRef })
+    .eq('id', intentId).neq('status', 'paid').select('id')
+  if (!claimed || claimed.length === 0) {
+    return NextResponse.redirect(`${redirectBase}?payment=success`)
+  }
 
   // ثبت در دفتر حساب — منبع حقیقت حسابداری. purpose از خود intent می‌آید؛
   // «stage» به interview/assessment ترجمه می‌شود چون ledger این دو را جدا نگه می‌دارد.

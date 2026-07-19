@@ -48,8 +48,15 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
 export async function PATCH(req: NextRequest, { params }: { params: { slug: string } }) {
   const a = await requirePanelAuth(req, params.slug)
   if (isPanelAuthResponse(a)) return a
-  const { id, resource_id: _ignored, price: _ignoredPrice, ...updates } = await req.json()
+  const { id, resource_id: _ignored, price: _ignoredPrice, ...body } = await req.json()
   if (!id) return NextResponse.json({ error: 'id لازم است' }, { status: 400 })
+
+  // فقط ستون‌های مجاز از بدنه پذیرفته می‌شوند (مثل روت‌های دیگر). بدون این،
+  // بدنه مستقیم spread می‌شد و کاربر می‌توانست tenant_id/case_number و ستون‌های
+  // دیگر را هم ست کند. price این‌جا نیست چون سمت سرور بازمحاسبه می‌شود.
+  const ALLOWED = ['title', 'month', 'year', 'primary_sessions', 'primary_session_type', 'secondary_sessions', 'secondary_session_type', 'paid', 'payment_submitted', 'payment_ref', 'payment_reject_reason', 'status', 'notes']
+  const updates: Record<string, any> = {}
+  for (const k of ALLOWED) if (body[k] !== undefined) updates[k] = body[k]
 
   // وضعیت فعلی را قبل از آپدیت می‌خوانیم تا «گذار به paid» را تشخیص دهیم (نه هر آپدیت paid)
   const { data: before } = await sb().from('psy_packages').select('*').eq('id', id).eq('tenant_id', a.tenant.id).maybeSingle()

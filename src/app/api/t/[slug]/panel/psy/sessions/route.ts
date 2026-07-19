@@ -52,8 +52,22 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
 export async function PATCH(req: NextRequest, { params }: { params: { slug: string } }) {
   const a = await requirePanelAuth(req, params.slug)
   if (isPanelAuthResponse(a)) return a
-  const { id, resource_id: _ignored, doctor_cancel, ...updates } = await req.json()
+  const { id, resource_id: _ignored, doctor_cancel, ...body } = await req.json()
   if (!id) return NextResponse.json({ error: 'id لازم است' }, { status: 400 })
+
+  // فقط ستون‌های مجاز از بدنه پذیرفته می‌شوند. بدون این whitelist، بدنه مستقیم
+  // spread می‌شد و کاربر احرازشده می‌توانست ستون‌های هویتی/مالی را هم ست کند —
+  // مثلا tenant_id (انتقال ردیف به مستأجر دیگر) یا price/refund_amount/case_number.
+  // ستون‌های حساس (tenant_id, resource_id, case_number, package_id, session_number,
+  // price, original_price, created_at, reminder_sent, refund_percent/amount/card,
+  // discount_code, cancelled_by) عمدا این‌جا نیستند.
+  const ALLOWED = [
+    'session_goals', 'session_summary', 'doctor_notes_private', 'doctor_note_for_patient', 'notes',
+    'status', 'paid', 'payment_submitted', 'payment_ref', 'payment_reject_reason', 'delay_minutes',
+    'refund_status', 'refund_ref', 'session_date', 'session_time', 'session_type', 'attendee', 'held', 'meet_link', 'cancel_notice',
+  ]
+  const updates: Record<string, any> = {}
+  for (const k of ALLOWED) if (body[k] !== undefined) updates[k] = body[k]
 
   const { data: before } = await sb().from('psy_sessions').select('*').eq('id', id).eq('tenant_id', a.tenant.id).maybeSingle()
 

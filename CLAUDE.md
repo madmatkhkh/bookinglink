@@ -1336,3 +1336,20 @@ stateهای بلااستفاده‌ی والد (`sessionType`/`officeLoc`/`selKe
 3) **«مشاهده‌ی شرایط و مقررات» درجا و شلوغ باز می‌شد.** `TermsGate` (در `PsyPublic`، مشترک بین پنل مراجع و فرم مصاحبه) حالا به‌جای بازشدن inline زیر دکمه، یک مودال جدا باز می‌کند: سربرگ + بدنه‌ی اسکرول‌شونده (`max-h-[80vh]`, متن `text-sm` با `leading-7` و حفظ خط‌ها) تا متن هرچقدر طولانی باشد واضح دیده شود؛ تیک پذیرش هم داخل مودال هست تا حین خواندن بشود پذیرفت. بستن با کلیک بیرون، × یا دکمه‌ی «بستن». تیک پذیرش inline کنار دکمه هم برای پذیرش سریع باقی ماند.
 
 دو فایل: `modules/patients/PatientsTab.tsx` و `components/PsyPublic.tsx`. بدون migration، بدون تغییر روت/سرور. `timeout 240 npx next build` → exit 0. اسکن اعراب روی خطوط تغییرکرده → CLEAN. ارقام خروجی لاتین.
+
+## چنج‌لاگ 1405/04/27 (2026-07-18) ادامه‌ی ۹ — audit امنیتی: رفع mass-assignment و رقابت callback
+
+audit فقط-خواندنی کل پلتفرم (متدولوژی improve). تصویر کلی: کدبیس خوب امن‌سازی شده — جداسازی مستأجر، اسکوپ staff به resource، مالکیت کلاینت، verify سمت سرور زیبال + چک مبلغ، idempotency دفترحساب (unique index)، کوکی‌های httpOnly+secure، throttle OTP، و رمزها همه از env. سه یافته‌ی واقعی؛ دوتای ایمن همین‌جا رفع شد.
+
+**SEC-01 (رفع‌شده) — mass-assignment در PATCH `sessions` و `packages`.** بدنه با `...updates` بدون whitelist در DB ست می‌شد؛ `tenant_id`/`case_number`/`price`/`refund_amount`/... قابل تعیین از بدنه بود. تزریق `tenant_id` = انتقال ردیف به مستأجر دیگر. هر دو روت حالا allowlist فیلد دارند (مثل `stages`/`cases`): فقط ستون‌های مجاز از بدنه پذیرفته می‌شوند؛ ستون‌های هویتی/مالی هرگز از بدنه ست نمی‌شوند. price در packages همچنان سمت سرور بازمحاسبه می‌شود.
+- `panel/psy/sessions/route.ts` — ALLOWED شامل یادداشت‌ها/وضعیت/paid/payment/refund/تاریخ‌وزمان؛ منهای tenant_id/case_number/price/commission/...
+- `panel/psy/packages/route.ts` — ALLOWED شامل ترکیب/عنوان/paid/payment؛ منهای tenant_id/case_number/price.
+
+**SEC-03 (رفع‌شده) — رقابت هم‌زمان در callback زیبال.** گارد idempotency «چک `status==='paid'` سپس update» بود؛ دو callback هم‌زمان (رفرش/تلاش دوباره) می‌توانستند هر دو finalize و `redeemDiscountCode` کنند (پول به‌خاطر unique index امن بود، ولی مصرف کد تخفیف می‌توانست دوبار کم شود). حالا گذار به paid یک **ادعای اتمیک** است: `update(status=paid).eq(id).neq(status,'paid').select()` — اگر صفر ردیف برگشت، درخواست دیگری همان لحظه نهایی‌اش کرده و این‌یکی بدون ثبت دوباره‌ی ledger/تخفیف فقط success برمی‌گرداند.
+- `psy/pay-online/callback/route.ts`.
+
+**SEC-02 (رفع‌نشده — منتظر تأیید) — نبود security headers (CSP/X-Frame-Options/HSTS).** ریسک شکستن (CSP سخت می‌تواند inline styles/scripts را بشکند) دارد و باید با اپ تست شود؛ قبل از اعمال از صاحب پروژه تأیید گرفته می‌شود.
+
+**رد شد:** `dangerouslySetInnerHTML` در `page.tsx` — همه‌ی pathها هاردکد/کلید lookup ثابت‌اند، نه ورودی کاربر.
+
+سه فایل. بدون migration، بدون تغییر schema. `timeout 240 npx next build` → exit 0. اسکن اعراب روی خطوط تغییرکرده → CLEAN. ارقام خروجی لاتین.
