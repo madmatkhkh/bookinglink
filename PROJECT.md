@@ -1286,3 +1286,17 @@ stateهای بلااستفاده‌ی والد (`sessionType`/`officeLoc`/`selKe
 - `src/app/[slug]/panel/PsychologyAdmin.tsx` — `markRefunded` حالا پیش از ارسال شماره خالی را رد می‌کند و در صورت رد سرور، خطا را به کاربر نشان می‌دهد (قبلا `res.ok` بررسی نمی‌شد).
 
 بازپرداخت دستی داخل پرونده (بخش «بازپرداخت» → `/refunds`) که از قبل «شماره پیگیری بانکی *» اجباری داشت، دست‌نخورده ماند. `timeout 220 npx next build` → exit 0. اسکن اعراب روی خطوط تغییرکرده → CLEAN. ارقام خروجی لاتین.
+
+## چنج‌لاگ 1405/04/27 (2026-07-18) ادامه‌ی ۵ — تازه‌سازی خودکار پنل‌ها (revalidate on focus + polling سبک)
+
+مشکل: صفحه‌ها فقط موقع mount یا بعد از اکشن خود کاربر داده می‌گرفتند؛ تغییر طرف مقابل (مراجع پرداخت/کنسل می‌کند و پنل باز متخصص خبردار نمی‌شود) یا برگشت به تب، نیاز به ریلود دستی داشت.
+
+راه‌حل بدون وابستگی جدید و بدون WebSocket — مورد 1 و 2 از گزینه‌های مطرح‌شده:
+- **هوک تازه `src/lib/useAutoRevalidate.ts`:** روی `focus`/`visibilitychange` یک بار داده تازه می‌گیرد، و هر intervalMs (پیش‌فرض 30000) یک بار — ولی فقط وقتی تب visible است (پس‌زمینه هیچ درخواستی نمی‌زند). اجراها هم‌پوشانی نمی‌کنند (runningRef)، و `enabled`/`paused` برای خاموش‌کردن موقت. callback باید «بی‌اسپینر» باشد تا پرش لودینگ نداشته باشیم.
+
+وصل شد به سه سطح زنده:
+- `PsychologyAdmin.tsx` — تابع تازه‌ی بی‌اسپینر `revalidate` (فقط فهرست پرونده‌ها + `loadPendingPayments` برای badge «تأیید پرداخت‌ها»؛ برخلاف `fetchAll` که setLoading دارد)؛ `enabled: initialLoadDone && !needsLogin`.
+- `modules/patients/PatientsTab.tsx` — پرونده‌ی باز با `loadPatientData(selectedPatient.case_number)` تازه می‌شود؛ `enabled: !!selectedPatient`. loadPatientData از قبل بی‌اسپینر است و فقط لیست‌های نمایشی را جای‌گزین می‌کند (ورودی‌های در حال تایپ شارژ/بازپرداخت و یادداشت مودال دست‌نخورده می‌مانند).
+- `my/page.tsx` (پنل مراجع) — `loadData(booking.case_number)`؛ `enabled: !!booking?.case_number`, `paused: restoring` (تا با بازیابی bfcache تداخل نکند).
+
+نکته: این تازه‌سازی‌ها همگی بی‌اسپینرند؛ handlerهای `pageshow` (بازیابی bfcache) دست‌نخورده ماندند. بدون migration، بدون تغییر روت/سرور. `timeout 240 npx next build` → exit 0. اسکن اعراب روی فایل‌های تغییرکرده → CLEAN. ارقام خروجی لاتین.

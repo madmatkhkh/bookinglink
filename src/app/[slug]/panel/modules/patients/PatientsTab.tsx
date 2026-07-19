@@ -15,6 +15,7 @@ import { Glyph } from '@/components/Glyph'
 import { PRICING } from '@/lib/config'
 import { MonthYearWheel, JalaliDateWheel } from '@/components/WheelPicker'
 import { useModalBackClose } from '@/lib/useModalBackClose'
+import { useAutoRevalidate } from '@/lib/useAutoRevalidate'
 import { stageTitle, STAGE_STATUS_LABEL, STAGE_TYPE_LABEL } from '@/lib/flow'
 import { IntakeForm, DEFAULT_INTAKE_FORM, LEGACY_DETAIL_LABELS, INTAKE_KNOWN_COLUMNS, fieldVisible, Pricing } from '@/lib/psy'
 import { PageHeader, EmptyState, SkeletonRows, enTime, Field, SelectField, TextareaField } from '../shared'
@@ -260,6 +261,15 @@ export default function PatientsTab({
    s.status === 'awaiting_payment' || s.status === 'payment_submitted' || s.status === 'awaiting_booking' || (s.status === 'booked' && !s.held))
   setSelectedPatient(p => (p && p.case_number === case_number ? { ...p, current_stage_id: openStage ? openStage.id : null } : p))
  }
+
+ // پرونده‌ی باز را روی focus و هر 30 ثانیه (فقط وقتی تب دیده می‌شود) بی‌اسپینر
+ // تازه می‌کند — تا وقتی مراجع پرداخت/کنسل می‌کند یا وقت می‌گیرد، همین‌جا بدون
+ // ریلود دستی به‌روز شود. loadPatientData فقط لیست‌های نمایشی را جای‌گزین می‌کند
+ // و ورودی‌های در حال تایپ (شارژ/بازپرداخت/یادداشت مودال) را دست نمی‌زند.
+ useAutoRevalidate(
+  () => { if (selectedPatient) return loadPatientData(selectedPatient.case_number) },
+  { enabled: !!selectedPatient },
+ )
 
  async function createExtraCharge(case_number: string) {
   const title = newChargeTitle.trim()

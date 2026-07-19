@@ -9,6 +9,7 @@ import { stageTitle } from '@/lib/flow'
 import { DialogHost, uiAlert, uiConfirm } from '@/components/ui/Dialog'
 import { useResendCooldown } from '@/lib/useResendCooldown'
 import { useModalBackClose } from '@/lib/useModalBackClose'
+import { useAutoRevalidate } from '@/lib/useAutoRevalidate'
 import { MeetChannel, usableMeetChannels, mergeMeetChannels } from '@/lib/meet'
 import { useTenantThemeColor } from '@/lib/useTenantThemeColor'
 import SlotPicker, { SlotConfirmResult } from '@/components/SlotPicker'
@@ -246,6 +247,14 @@ export default function PatientPanel() {
   setLedger(data.ledger || [])
   setMessages(data.messages || [])
  }
+
+ // پرونده را روی focus و هر 30 ثانیه (فقط وقتی تب دیده می‌شود) بی‌اسپینر تازه
+ // می‌کند — تا تأیید پرداخت توسط متخصص، وقت‌دهی، یا لغو بدون ریلود دستی دیده شود.
+ // loadData بی‌اسپینر است و ورودی‌های محلی صفحه‌ی پرداخت را دست نمی‌زند.
+ useAutoRevalidate(
+  () => { if (booking?.case_number) return loadData(booking.case_number) },
+  { enabled: !!booking?.case_number, paused: restoring },
+ )
 
  const pkgPrice = (p: Package) =>
   p.price || ((p.primary_sessions * (p.primary_session_type === 'online' ? PRICING.online : PRICING.offline)) +

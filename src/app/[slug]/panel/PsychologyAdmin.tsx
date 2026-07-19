@@ -11,6 +11,7 @@ import { useResendCooldown } from '@/lib/useResendCooldown'
 import { Glyph } from '@/components/Glyph'
 import { MonthYearWheel, JalaliDateWheel } from '@/components/WheelPicker'
 import { useModalBackClose } from '@/lib/useModalBackClose'
+import { useAutoRevalidate } from '@/lib/useAutoRevalidate'
 import { moduleOn, GROWTH_SUBTABS, type ModuleFlags } from '@/lib/moduleManifest'
 import { PageHeader, EmptyState, SkeletonRows, timeKey, enTime } from './modules/shared'
 import ScheduleTab, { type SchedJump } from './modules/schedule/ScheduleTab'
@@ -604,6 +605,25 @@ export function PsychologyAdmin() {
  }
 
  useEffect(() => { fetchAll(); loadSettings(); loadProfile() }, [fetchAll])
+
+ // تازه‌سازی بی‌اسپینر برای «revalidate on focus» و polling سبک — فقط فهرست
+ // پرونده‌ها و شمارنده‌ی «تأیید پرداخت‌ها» را در جا جای‌گزین می‌کند (برخلاف
+ // fetchAll که setLoading می‌گذارد و اسپینر می‌آورد). این‌طور وقتی مراجع در
+ // پس‌زمینه پرداخت/کنسل می‌کند یا کاربر به تب برمی‌گردد، پنل بدون ریلود دستی
+ // به‌روز می‌شود، بدون هیچ پرش لودینگ.
+ const revalidate = useCallback(async () => {
+  try {
+   const casesUrl = viewingResourceId ? api(`/cases?resource_id=${viewingResourceId}`) : api('/cases')
+   const pRes = await fetch(casesUrl, { cache: 'no-store' })
+   if (!pRes.ok) return
+   const pData = await pRes.json()
+   setPatients(pData.bookings || [])
+   setBookings(pData.bookings || [])
+  } catch {}
+  loadPendingPayments()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+ }, [viewingResourceId])
+ useAutoRevalidate(revalidate, { enabled: initialLoadDone && !needsLogin })
 
  // همان دلیل نسخه‌ی مراجع: برگشت از bfcache (دکمه‌ی برگشت مرورگر، یا در
  // مرورگرهای موبایل حتی سوییچ‌کردن بین اپ‌ها و برگشتن) React را remount
