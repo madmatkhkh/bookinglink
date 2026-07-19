@@ -1417,3 +1417,17 @@ img-src نهایی: `'self' data: blob: https://images.nobatlink.com https://tru
 اکنون در PsychologyAdmin هم لیست پرونده‌ها و هم پرداخت‌های منتظر روی SWR اند. تنها سطح باقی‌مانده روی هوک: کل my/page (پنل مراجع، تنیده با دوگانگی booking) — قدم بعدی.
 
 تنها فایل: `panel/PsychologyAdmin.tsx`. نیازمند `swr` (نصب‌شده). بدون migration. `timeout 240 npx next build` → exit 0. اسکن اعراب روی خطوط تغییرکرده → CLEAN. ارقام لاتین.
+
+## چنج‌لاگ 1405/04/27 (2026-07-18) ادامه‌ی ۱۵ — SWR: پنل مراجع (my/page) — پایان کامل مهاجرت
+
+آخرین سطح: کل پنل مراجع. تنیدگی‌اش دوگانگی `booking` بود (هم داده، هم سیگنال آماده‌بودن پنل).
+
+- state جدید `caseNumber` (هویت پرونده) اضافه شد؛ فقط برای کلید SWR. کلید `mydata:{caseNumber}:{phone}` روی داشتن هر دو گیت است (در restoring/قبل‌از‌ورود null → هیچ fetch/poll).
+- هشت state (`booking` + `packages/sessions/stages/extraCharges/apptRequests/ledger/messages`) حذف و از یک `useSWR` مشتق شدند. گیت رندر روی `step==='panel'` است (نه booking)، پس مشتق‌شدن booking مشکلی نمی‌سازد.
+- `loadData(case_number, phone?)` نام/امضا حفظ شد؛ حالا کش SWR را با داده‌ی تازه prime می‌کند (`globalMutate(key, loadClientData(...), {revalidate:false})`) — با await، تا در ورود «اول لود بعد نمایش» حفظ شود. همه‌ی جاهای صداکننده (ورود، برگشت از درگاه، بعد از mutationها) بی‌تغییر.
+- verifyOtp: `setBooking` → `setCaseNumber`؛ loadData قبل از `setStep('panel')` کش را prime می‌کند. restore: به‌جای ست مستقیم، `setCaseNumber/setPhone` + prime کش با داده‌ی خوانده‌شده. logout: `setCaseNumber('')` (کلید null → booking خودکار null → صفحه‌ی لاگین).
+- `useAutoRevalidate` و importش حذف شد — SWR خودش focus+poll می‌کند؛ گیت `paused: restoring` طبیعتا با null‌بودن کلید تا پایان restore حل می‌شود.
+
+**پایان مهاجرت SWR:** هر سه سطح زنده حالا روی SWR اند — PatientsTab (پرونده‌ی باز)، PsychologyAdmin (پرداخت‌های منتظر + لیست پرونده‌ها)، و my/page (پنل مراجع). فایل `src/lib/useAutoRevalidate.ts` دیگر هیچ‌جا import نمی‌شود و مرده است — می‌توان حذفش کرد (`rm src/lib/useAutoRevalidate.ts`)، ولی نگه‌داشتنش هم بی‌ضرر است.
+
+تنها فایل: `[slug]/my/page.tsx`. نیازمند `swr` (نصب‌شده). بدون migration. `timeout 240 npx next build` → exit 0. اسکن اعراب روی خطوط تغییرکرده → CLEAN. ارقام لاتین.

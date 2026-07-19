@@ -9,7 +9,8 @@ import { stageTitle } from '@/lib/flow'
 import { DialogHost, uiAlert, uiConfirm } from '@/components/ui/Dialog'
 import { useResendCooldown } from '@/lib/useResendCooldown'
 import { useModalBackClose } from '@/lib/useModalBackClose'
-import { useAutoRevalidate } from '@/lib/useAutoRevalidate'
+import useSWR, { mutate as globalMutate } from 'swr'
+import { LIVE_SWR_OPTIONS, FetchError } from '@/lib/swr'
 import { MeetChannel, usableMeetChannels, mergeMeetChannels } from '@/lib/meet'
 import { useTenantThemeColor } from '@/lib/useTenantThemeColor'
 import SlotPicker, { SlotConfirmResult } from '@/components/SlotPicker'
@@ -80,6 +81,14 @@ const faDate = (ts: string) => {
  catch { return '' }
 }
 
+// همه‌ی داده‌ی پرونده‌ی مراجع را یک‌جا می‌گیرد — fetcher مشترک SWR و تازه‌سازی
+// دستی. روی وضعیت غیر-OK خطای دارای status می‌اندازد.
+async function loadClientData(slug: string, caseNumber: string, phone: string) {
+ const res = await fetch(`/api/t/${slug}/psy/data?case_number=${caseNumber}&phone=${phone}`, { cache: 'no-store' })
+ if (!res.ok) throw new FetchError(res.status)
+ return res.json()
+}
+
 export default function PatientPanel() {
  const { slug } = useParams<{ slug: string }>()
  const router = useRouter()
@@ -96,14 +105,21 @@ export default function PatientPanel() {
  const [devCode, setDevCode] = useState('')
  const [loading, setLoading] = useState(false)
  const [error, setError] = useState('')
- const [booking, setBooking] = useState<Booking | null>(null)
- const [packages, setPackages] = useState<Package[]>([])
- const [sessions, setSessions] = useState<Session[]>([])
- const [stages, setStages] = useState<CaseStage[]>([])
- const [extraCharges, setExtraCharges] = useState<ExtraCharge[]>([])
- const [apptRequests, setApptRequests] = useState<ApptRequest[]>([])
- const [ledger, setLedger] = useState<LedgerEntry[]>([])
- const [messages, setMessages] = useState<PatientMessage[]>([])
+ // هویت پرونده برای کلید SWR — هنگام ورود/restore ست می‌شود. داده‌ی پرونده
+ // (booking + آرایه‌ها) از SWR می‌آید؛ booking علاوه بر داده، سیگنال «پنل آماده
+ // است» هم هست، ولی گیت رندر روی step==='panel' است، پس booking مشتق‌شده مشکلی
+ // نمی‌سازد (چون در ورود قبل از setStep('panel') کش prime می‌شود).
+ const [caseNumber, setCaseNumber] = useState('')
+ const dataKey = caseNumber && phone ? `mydata:${caseNumber}:${phone}` : null
+ const { data: myData } = useSWR(dataKey, () => loadClientData(slug, caseNumber, phone), LIVE_SWR_OPTIONS)
+ const booking: Booking | null = myData?.booking ?? null
+ const packages: Package[] = myData?.packages ?? []
+ const sessions: Session[] = myData?.sessions ?? []
+ const stages: CaseStage[] = myData?.stages ?? []
+ const extraCharges: ExtraCharge[] = myData?.extra_charges ?? []
+ const apptRequests: ApptRequest[] = myData?.appointment_requests ?? []
+ const ledger: LedgerEntry[] = myData?.ledger ?? []
+ const messages: PatientMessage[] = myData?.messages ?? []
  type ClientTab = 'status' | 'packages' | 'sessions' | 'payments' | 'messages' | 'info'
  const VALID_CLIENT_TABS: ClientTab[] = ['status', 'packages', 'sessions', 'payments', 'messages', 'info']
  const initialSection = (searchParams.get('section') as ClientTab) || 'status'
@@ -134,9 +150,9 @@ export default function PatientPanel() {
   const res = await fetch(`/api/t/${slug}/psy/otp`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
   const data = await res.json()
   if (data.success) {
-   setBooking(data.booking)
    setPhone(identity) // ذخیره‌ی هویت نهایی (شماره یا ایمیل) برای درخواست‌های بعدی — نام state تاریخی است
-   await loadData(data.booking.case_number, identity)
+   setCaseNumber(data.booking.case_number) // کلید SWR
+   await loadData(data.booking.case_number, identity) // کش را prime می‌کند تا پنل با داده باز شود
    try { localStorage.setItem('pb_phone', identity); localStorage.setItem('pb_case', data.booking.case_number) } catch {}
    setStep('panel')
   }
@@ -157,14 +173,9 @@ export default function PatientPanel() {
      const data = await res.json()
      if (data.booking) {
       setPhone(savedPhone)
-      setBooking(data.booking)
-      setPackages(data.packages || [])
-      setSessions(data.sessions || [])
-      setStages(data.stages || [])
-      setExtraCharges(data.extra_charges || [])
-      setLedger(data.ledger || [])
-      setMessages(data.messages || [])
-      setApptRequests(data.appointment_requests || [])
+      setCaseNumber(savedCase) // کلید SWR
+      // کش را با همین داده‌ی خوانده‌شده prime کن تا booking/آرایه‌ها از SWR بیایند
+      await globalMutate(`mydata:${savedCase}:${savedPhone}`, data, { revalidate: false })
       setStep('panel')
      }
     } finally {
@@ -217,7 +228,7 @@ export default function PatientPanel() {
 
  function logout() {
   try { localStorage.removeItem('pb_phone'); localStorage.removeItem('pb_case') } catch {}
-  setStep('login'); setBooking(null); setPhone('')
+  setStep('login'); setCaseNumber(''); setPhone('')
  }
 
  // اگر این صفحه از bfcache (کش برگشت/جلوی مرورگر) برگردد، React remount
@@ -234,27 +245,17 @@ export default function PatientPanel() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
  }, [booking?.case_number])
 
+ // تازه‌سازی داده‌ی پرونده در کش SWR — نام و امضا حفظ شد تا همه‌ی جاهای صداکننده
+ // (ورود، برگشت از درگاه، بعد از mutationها) بدون تغییر کار کنند. با await منتظر
+ // می‌ماند و کش را با داده‌ی تازه prime می‌کند تا «اول لود بعد نمایش» حفظ شود.
  async function loadData(case_number: string, phoneNum?: string) {
   const p = phoneNum || phone
-  const res = await fetch(`/api/t/${slug}/psy/data?case_number=${case_number}&phone=${p}`, { cache: 'no-store' })
-  const data = await res.json()
-  if (data.booking) setBooking(data.booking)
-  setPackages(data.packages || [])
-  setSessions(data.sessions || [])
-  setStages(data.stages || [])
-  setExtraCharges(data.extra_charges || [])
-  setApptRequests(data.appointment_requests || [])
-  setLedger(data.ledger || [])
-  setMessages(data.messages || [])
+  try { await globalMutate(`mydata:${case_number}:${p}`, loadClientData(slug, case_number, p), { revalidate: false }) } catch {}
  }
 
  // پرونده را روی focus و هر 30 ثانیه (فقط وقتی تب دیده می‌شود) بی‌اسپینر تازه
- // می‌کند — تا تأیید پرداخت توسط متخصص، وقت‌دهی، یا لغو بدون ریلود دستی دیده شود.
- // loadData بی‌اسپینر است و ورودی‌های محلی صفحه‌ی پرداخت را دست نمی‌زند.
- useAutoRevalidate(
-  () => { if (booking?.case_number) return loadData(booking.case_number) },
-  { enabled: !!booking?.case_number, paused: restoring },
- )
+ // می‌کند — این کار را حالا خود SWR انجام می‌دهد (کلید تا وقتی هویت restore/ورود
+ // نشده null است، پس در restoring اصلا poll نمی‌شود). هوک useAutoRevalidate حذف شد.
 
  const pkgPrice = (p: Package) =>
   p.price || ((p.primary_sessions * (p.primary_session_type === 'online' ? PRICING.online : PRICING.offline)) +
