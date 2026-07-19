@@ -133,6 +133,31 @@ function Section({ title, icon, children }: { title: string; icon?: string; chil
  )
 }
 
+// بخش جمع‌شونده — سربرگ کلیک‌پذیر که محتوا را باز/بسته می‌کند. پیش‌فرض بسته
+// است تا تب شلوغ نشود؛ با کلیک باز می‌شود. `badge` یک عدد کوچک کنار عنوان
+// (مثلا تعداد آیتم‌ها) نشان می‌دهد تا بدون بازکردن هم بشود فهمید چیزی هست.
+function CollapsibleSection({ title, icon, badge, defaultOpen = false, children }: {
+ title: string; icon?: string; badge?: number; defaultOpen?: boolean; children: React.ReactNode
+}) {
+ const [open, setOpen] = useState(defaultOpen)
+ return (
+  <div className="bg-white rounded-xl border border-sand overflow-hidden">
+   <button type="button" onClick={() => setOpen(o => !o)}
+    className="w-full flex items-center justify-between px-4 py-3 text-right hover:bg-gray-50 transition-colors">
+    <span className="flex items-center gap-1.5 text-xs font-semibold text-soot uppercase tracking-wide">
+     {icon && <Glyph icon={icon} className="w-4 h-4 shrink-0" />}
+     {title}
+     {badge ? <span className="text-[10px] bg-ink text-white rounded-full px-1.5 py-0.5 leading-none tnum">{badge}</span> : null}
+    </span>
+    <svg className={`w-4 h-4 text-soot shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+     <path d="M5 8l5 5 5-5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+   </button>
+   {open && <div className="px-4 pb-4">{children}</div>}
+  </div>
+ )
+}
+
 // همه‌ی داده‌ی یک پرونده را یک‌جا می‌گیرد — fetcher مشترک SWR و همچنین
 // تازه‌سازی دستی. خروجی همان شکلی است که کامپوننت مصرف می‌کند.
 async function loadCaseBundle(api: (path: string) => string, case_number: string) {
@@ -186,7 +211,6 @@ export default function PatientsTab({
  const sessions: Session[] = caseData?.sessions ?? []
  const stages: CaseStage[] = caseData?.stages ?? []
  const extraCharges: ExtraCharge[] = caseData?.extraCharges ?? []
- const refunds: Refund[] = caseData?.refunds ?? []
  const caseLedger: CaseLedgerEntry[] = caseData?.caseLedger ?? []
  // مرحله‌ی باز پرونده — از روی مراحل تازه مشتق می‌شود (قبلا روی selectedPatient
  // ذخیره می‌شد و در loadPatientData بازمحاسبه می‌شد).
@@ -944,16 +968,20 @@ export default function PatientsTab({
          const money = (n: number) => n.toLocaleString('en-US')
          // فقط تراکنش‌های ورودی (پرداخت مراجع) — بازپرداخت‌ها (outflow) بخش خودشان را دارند
          const inflows = caseLedger.filter(e => e.direction === 'inflow')
+         // بازپرداخت‌ها همه به‌صورت outflow در دفترحساب هستند — چه دستی چه ناشی از
+         // کنسل. لیست بخش بازپرداخت از همین می‌آید تا همه دیده شوند (قبلا فقط جدول
+         // refunds خوانده می‌شد و بازپرداخت‌های کنسلی جا می‌ماندند).
+         const outflows = caseLedger.filter(e => e.direction === 'outflow')
          // مواردی که هنوز نهایی/پرداخت نشده‌اند و در ledger نیستند — تا «در انتظار» هم دیده شود
          const pendingStages = stages.filter(s => !s.paid && s.payment_submitted)
          const pendingPkgs = packages.filter(p => !p.paid && p.payment_submitted)
          const pendingCharges = extraCharges.filter(c => c.status === 'payment_submitted')
-         const hasAny = inflows.length || pendingStages.length || pendingPkgs.length || pendingCharges.length
+         const paymentsCount = inflows.length + pendingStages.length + pendingPkgs.length + pendingCharges.length
+         const hasAny = paymentsCount > 0
          return (
           <div className="space-y-4">
            {/* بخش ۱: پرداختی‌های مراجع — کارت کامل هر تراکنش */}
-           <div className="bg-white rounded-xl border border-sand p-4">
-            <Section title="پرداختی‌های مراجع" icon="💳">
+           <CollapsibleSection title="پرداختی‌های مراجع" icon="💳" badge={paymentsCount}>
              {!hasAny && <p className="text-xs text-soot text-center py-3">هنوز پرداختی ثبت نشده.</p>}
 
              {/* تراکنش‌های نهایی‌شده — کارت تمیز و اسکن‌پذیر */}
@@ -993,12 +1021,10 @@ export default function PatientsTab({
              {pendingCharges.map(c => (
               <InfoRow key={c.id} label={c.title} value={`${money(c.amount)} ت — منتظر تأیید`} />
              ))}
-            </Section>
-           </div>
+           </CollapsibleSection>
 
            {/* بخش ۲: بازپرداخت — دکتر به مراجع پرداخت می‌کند (عمل قطعی، همان لحظه) */}
-           <div className="bg-white rounded-xl border border-sand p-4">
-            <Section title="بازپرداخت" icon="↩️">
+           <CollapsibleSection title="بازپرداخت" icon="↩️" badge={outflows.length}>
              <p className="text-xs text-soot mb-3">وقتی به هر دلیلی مبلغی به این مراجع برمی‌گردانید، همین‌جا ثبت کنید — بلافاصله در دفتر حساب می‌نشیند و شماره پیگیری برای مراجع نمایش داده می‌شود.</p>
              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-2">
               <input type="number" min={0} value={newRefundAmount} onChange={e => setNewRefundAmount(e.target.value)}
@@ -1012,25 +1038,26 @@ export default function PatientsTab({
               className="px-4 py-2 bg-ink text-white rounded-lg text-xs font-medium disabled:opacity-40">
               {refundSaving ? 'در حال ثبت...' : 'ثبت بازپرداخت'}
              </button>
-             {refunds.length > 0 && (
+             {outflows.length > 0 && (
               <div className="mt-3 pt-3 border-t border-sand space-y-2">
-               {refunds.map(r => (
-                <div key={r.id} className="text-xs bg-gray-50 rounded-lg p-2.5 border border-sand">
+               {outflows.map(e => (
+                <div key={e.id} className="text-xs bg-gray-50 rounded-lg p-2.5 border border-sand">
                  <div className="flex items-center justify-between mb-1">
-                  <span className="text-soot">{r.note || 'بازپرداخت'}</span>
-                  <span className="font-medium text-ink tnum">{r.amount.toLocaleString('en-US')} ت</span>
+                  <span className="text-soot">{e.note || 'بازپرداخت'}</span>
+                  <span className="font-medium text-ink tnum">{money(e.amount)} ت</span>
                  </div>
-                 {r.bank_ref_number && <div dir="ltr" className="text-[11px] text-soot tnum text-left">پیگیری بانکی: {r.bank_ref_number}</div>}
+                 <div className="flex flex-wrap items-center gap-x-4 gap-y-0.5 text-[11px] text-soot">
+                  <span className="tnum">{new Date(e.created_at).toLocaleDateString('fa-IR-u-nu-latn')}</span>
+                  {e.bank_ref_number && <span dir="ltr" className="tnum">پیگیری بانکی: {e.bank_ref_number}</span>}
+                 </div>
                 </div>
                ))}
               </div>
              )}
-            </Section>
-           </div>
+           </CollapsibleSection>
 
            {/* بخش ۳: ارسال لینک پرداخت اضافه — دکتر مبلغی مشخص می‌کند، در پنل مراجع قابل‌پرداخت می‌شود */}
-           <div className="bg-white rounded-xl border border-sand p-4">
-            <Section title="ارسال لینک پرداخت اضافه" icon="➕">
+           <CollapsibleSection title="ارسال لینک پرداخت اضافه" icon="➕" badge={extraCharges.length}>
              <p className="text-xs text-soot mb-3">یک مبلغ دلخواه (مثلا هزینه‌ی دقایق اضافه) بفرستید — در پنل مراجع به‌صورت قابل‌پرداخت (آنلاین یا کارت‌به‌کارت) ظاهر می‌شود.</p>
              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-2">
               <input value={newChargeTitle} onChange={e => setNewChargeTitle(e.target.value)}
@@ -1076,8 +1103,7 @@ export default function PatientsTab({
                ))}
               </div>
              )}
-            </Section>
-           </div>
+           </CollapsibleSection>
           </div>
          )
         })()}
