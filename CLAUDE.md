@@ -1403,3 +1403,17 @@ img-src نهایی: `'self' data: blob: https://images.nobatlink.com https://tru
 **هنوز روی هوک `useAutoRevalidate`:** لیست پرونده‌ها در PsychologyAdmin (تنیده با loading/initialLoadDone/needsLogin) و کل my/page (تنیده با دوگانگی booking). قدم‌های بعدی، هرکدام جدا و قابل‌تست.
 
 تنها فایل: `panel/PsychologyAdmin.tsx`. نیازمند `swr` (از قبل نصب). بدون migration. `timeout 240 npx next build` → exit 0. اسکن اعراب روی خطوط تغییرکرده → CLEAN. ارقام لاتین.
+
+## چنج‌لاگ 1405/04/27 (2026-07-18) ادامه‌ی ۱۴ — SWR: لیست پرونده‌های PsychologyAdmin (پایان مهاجرت پنل)
+
+تنیده‌ترین سطح: لیست پرونده‌ها در پنل متخصص. با حفظ دقیق gateهای اسپلش/لاگین/bfcache به SWR رفت.
+
+- `patients` و `bookings` (هر دو یک منبع = `/cases`.bookings) و `loading` حالا از یک `useSWR` مشتق می‌شوند. کلید `cases` یا `cases:{viewingResourceId}` (سوییچ منبع owner خودکار refetch می‌کند) و روی `!needsLogin` گیت است.
+- گیت‌های state نگه داشته شدند و از callbackهای SWR ست می‌شوند تا رفتار قبلی دقیقا حفظ شود: `onSuccess`→`setInitialLoadDone(true)`؛ `onError` روی 401→`setNeedsLogin(true)` (و در هر حال `setInitialLoadDone(true)`). `loading` = `isLoading` (فقط لود اول؛ رفرش‌ها بی‌اسپینر — بهتر از قبل که هر رفرش اسپینر می‌آورد).
+- `fetchAll` و `refreshBookings` نام‌ها و امضاها حفظ شدند ولی حالا `casesMutate()` را صدا می‌زنند (به‌علاوه‌ی loadMe در fetchAll)؛ همه‌ی جاهای صداکننده (login onSuccess، بعد از mutationها، سوییچ منبع، mount) بدون تغییر کار می‌کنند.
+- pageshow (bfcache): همان `setInitialLoadDone(false); fetchAll()` ماند — اسپلش می‌آید، بعد mutate، بعد onSuccess اسپلش را برمی‌دارد.
+- `revalidate` + `useAutoRevalidate` و importش حذف شدند — SWR خودش focus+poll می‌کند. **useAutoRevalidate دیگر در PsychologyAdmin استفاده نمی‌شود.**
+
+اکنون در PsychologyAdmin هم لیست پرونده‌ها و هم پرداخت‌های منتظر روی SWR اند. تنها سطح باقی‌مانده روی هوک: کل my/page (پنل مراجع، تنیده با دوگانگی booking) — قدم بعدی.
+
+تنها فایل: `panel/PsychologyAdmin.tsx`. نیازمند `swr` (نصب‌شده). بدون migration. `timeout 240 npx next build` → exit 0. اسکن اعراب روی خطوط تغییرکرده → CLEAN. ارقام لاتین.

@@ -11,9 +11,8 @@ import { useResendCooldown } from '@/lib/useResendCooldown'
 import { Glyph } from '@/components/Glyph'
 import { MonthYearWheel, JalaliDateWheel } from '@/components/WheelPicker'
 import { useModalBackClose } from '@/lib/useModalBackClose'
-import { useAutoRevalidate } from '@/lib/useAutoRevalidate'
 import useSWR, { mutate as globalMutate } from 'swr'
-import { LIVE_SWR_OPTIONS } from '@/lib/swr'
+import { LIVE_SWR_OPTIONS, FetchError } from '@/lib/swr'
 import { moduleOn, GROWTH_SUBTABS, type ModuleFlags } from '@/lib/moduleManifest'
 import { PageHeader, EmptyState, SkeletonRows, timeKey, enTime } from './modules/shared'
 import ScheduleTab, { type SchedJump } from './modules/schedule/ScheduleTab'
@@ -313,6 +312,16 @@ async function loadPendingBundle(api: (path: string) => string) {
  }
 }
 
+// لیست پرونده‌ها را می‌گیرد — fetcher مشترک SWR و همچنین تازه‌سازی دستی. روی
+// وضعیت غیر-OK (از جمله 401) خطای دارای status می‌اندازد تا مصرف‌کننده needsLogin
+// را تشخیص دهد.
+async function fetchCases(api: (path: string) => string, viewingResourceId: string) {
+ const url = viewingResourceId ? api(`/cases?resource_id=${viewingResourceId}`) : api('/cases')
+ const res = await fetch(url, { cache: 'no-store' })
+ if (!res.ok) throw new FetchError(res.status)
+ return res.json()
+}
+
 export function PsychologyAdmin() {
  const { slug } = useParams<{ slug: string }>()
  const api = (path: string) => `/api/t/${slug}/panel/psy${path}`
@@ -366,9 +375,8 @@ export function PsychologyAdmin() {
   setSettingsSubTab(sub)
  }
 
- // state تب «پرونده‌ها» به PatientsTab.tsx منتقل شد (فاز 4)؛ فقط patients و
- // fetchAll (مشترک با داشبورد/شمارنده‌ها) این‌جا ماند.
- const [patients, setPatients] = useState<Patient[]>([])
+ // patients/bookings/loading از SWR لیست پرونده‌ها مشتق می‌شوند — پایین‌تر بعد از
+ // viewingResourceId تعریف شده‌اند (چون کلید SWR به آن وابسته است).
  // ── تغییر نشانی اختصاصی (فقط owner) ──────────────────────────────────────
  const [slugEditOpen, setSlugEditOpen] = useState(false)
  const [slugInput, setSlugInput] = useState('')
@@ -391,7 +399,7 @@ export function PsychologyAdmin() {
  }
  // (بقیه‌ی stateهای پرونده هم به PatientsTab رفتند)
  // ── Bookings state ─────────────────────────────────────────────
- const [bookings, setBookings] = useState<Booking[]>([])
+ // bookings از همان SWR پرونده‌ها مشتق می‌شود (پایین).
 
  // ── Pending payments (تب تأیید پرداخت‌ها) ─────────────────────────
  // pendingPkgs/Sess/Refunds/Stages/ApptRequests از SWR می‌آیند — پایین‌تر بعد از
@@ -417,7 +425,7 @@ export function PsychologyAdmin() {
  const [cancelledSlots, setCancelledSlots] = useState<{ id: string; case_number: string; session_date: string; session_time: string; cancelled_by: string }[]>([])
 
  // ── Loading ────────────────────────────────────────────────────
- const [loading, setLoading] = useState(true)
+ // loading از SWR پرونده‌ها مشتق می‌شود (isLoading — فقط لود اول)، پایین.
  // جدا از loading (که هر بار سوییچ منبع/رفرش دوباره true می‌شود): این فقط یک‌بار
  // بعد اولین لود موفق true می‌شود و دیگر false نمی‌شود — برای گیت صفحه‌ی
  // اولیه، تا پنل با دیتای خالی/پیش‌فرض (۰ تومان، پرونده‌ی صفر) یک لحظه رندر
@@ -529,6 +537,24 @@ export function PsychologyAdmin() {
  const [staffLoaded, setStaffLoaded] = useState(false)
  // owner: کدام کارمند را می‌بینیم؟ '' = همه (پرونده‌ها) — برنامه/پروفایل همیشه یک نفر مشخص لازم دارد
  const [viewingResourceId, setViewingResourceId] = useState<string>('')
+
+ // لیست پرونده‌ها از SWR — کلید با viewingResourceId عوض می‌شود (سوییچ منبع
+ // owner) و روی !needsLogin گیت است؛ focus+polling و dedup را خود SWR می‌دهد.
+ // گیت‌های اسپلش/لاگین (initialLoadDone/needsLogin) در onSuccess/onError ست
+ // می‌شوند تا رفتار قبلی دقیقا حفظ شود (اسپلش اولیه، صفحه‌ی لاگین روی 401).
+ const casesKey = needsLogin ? null : (viewingResourceId ? `cases:${viewingResourceId}` : 'cases')
+ const { data: casesData, mutate: casesMutate, isLoading: loading } = useSWR(
+  casesKey,
+  () => fetchCases(api, viewingResourceId),
+  {
+   ...LIVE_SWR_OPTIONS,
+   onSuccess: () => setInitialLoadDone(true),
+   onError: (err) => { if ((err as FetchError)?.status === 401) setNeedsLogin(true); setInitialLoadDone(true) },
+  },
+ )
+ // patients و bookings هر دو همان bookings پرونده‌ها هستند (یک منبع)
+ const patients: Patient[] = casesData?.bookings ?? []
+ const bookings: Booking[] = casesData?.bookings ?? []
  // پروفایل per-resource (نام/عنوان/آواتار/بج/نوع جلسه/کارت) — جایگزین فیلدهای قدیمی settings
  const [profile, setProfile] = useState<ResourceProfileView>(DEFAULT_PROFILE)
  const [profileLoaded, setProfileLoaded] = useState(false)
@@ -600,21 +626,15 @@ export function PsychologyAdmin() {
 
  // فرم و CRUD درمانگرها به StaffTab.tsx منتقل شد (فاز 4).
 
+ // نامش نگه داشته شد تا همه‌ی جاهای صداکننده (بعد از mutationها، لاگین، سوییچ
+ // منبع) بدون تغییر کار کنند؛ حالا کش SWR پرونده‌ها را revalidate می‌کند.
+ // اسپینر/گیت‌ها (loading/initialLoadDone/needsLogin) خودکار از SWR می‌آیند.
  const fetchAll = useCallback(async () => {
-  setLoading(true)
-  const casesUrl = viewingResourceId ? api(`/cases?resource_id=${viewingResourceId}`) : api('/cases')
-  const pRes = await fetch(casesUrl, { cache: 'no-store' })
-  if (pRes.status === 401) { setNeedsLogin(true); setInitialLoadDone(true); return }
-  const pData = await pRes.json()
-  setPatients(pData.bookings || [])
-  setBookings(pData.bookings || [])
-  loadPendingPayments()
+  try { await casesMutate() } catch {}
   loadMe()
-  setLoading(false)
-  setInitialLoadDone(true)
- }, [viewingResourceId])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+ }, [casesMutate])
 
- // پرداخت‌های منتظر تأیید (پروتکل‌های درمان و جلسه‌های جایگزین) در همه‌ی پرونده‌ها
  // تازه‌سازی بج «تأیید پرداخت‌ها» — نامش نگه داشته شد تا همه‌ی جاهای صداکننده
  // (بعد از تأیید/رد پرداخت و بازپرداخت) بدون تغییر کار کنند؛ حالا کش SWR را
  // revalidate می‌کند به‌جای ست‌کردن state.
@@ -624,24 +644,8 @@ export function PsychologyAdmin() {
 
  useEffect(() => { fetchAll(); loadSettings(); loadProfile() }, [fetchAll])
 
- // تازه‌سازی بی‌اسپینر برای «revalidate on focus» و polling سبک — فقط فهرست
- // پرونده‌ها و شمارنده‌ی «تأیید پرداخت‌ها» را در جا جای‌گزین می‌کند (برخلاف
- // fetchAll که setLoading می‌گذارد و اسپینر می‌آورد). این‌طور وقتی مراجع در
- // پس‌زمینه پرداخت/کنسل می‌کند یا کاربر به تب برمی‌گردد، پنل بدون ریلود دستی
- // به‌روز می‌شود، بدون هیچ پرش لودینگ.
- const revalidate = useCallback(async () => {
-  try {
-   const casesUrl = viewingResourceId ? api(`/cases?resource_id=${viewingResourceId}`) : api('/cases')
-   const pRes = await fetch(casesUrl, { cache: 'no-store' })
-   if (!pRes.ok) return
-   const pData = await pRes.json()
-   setPatients(pData.bookings || [])
-   setBookings(pData.bookings || [])
-  } catch {}
-  // pending دیگر این‌جا نیست — SWR خودش poll/focus می‌کند.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
- }, [viewingResourceId])
- useAutoRevalidate(revalidate, { enabled: initialLoadDone && !needsLogin })
+ // لیست پرونده‌ها را خود SWR روی focus و هر 30 ثانیه (فقط وقتی تب دیده می‌شود)
+ // بی‌اسپینر تازه می‌کند — هوک useAutoRevalidate قبلی دیگر لازم نیست.
 
  // همان دلیل نسخه‌ی مراجع: برگشت از bfcache (دکمه‌ی برگشت مرورگر، یا در
  // مرورگرهای موبایل حتی سوییچ‌کردن بین اپ‌ها و برگشتن) React را remount
@@ -922,12 +926,7 @@ export function PsychologyAdmin() {
 
  // تازه‌سازی رزروها بدون لودینگ کلی (برای به‌روزماندن تعداد نوبت تقویم)
  async function refreshBookings() {
-  try {
-   const res = await fetch(api('/cases'), { cache: 'no-store' })
-   if (res.status === 401) { setNeedsLogin(true); return }
-   const data = await res.json()
-   setBookings(data.bookings || [])
-  } catch {}
+  try { await casesMutate() } catch {}
  }
 
  // ماژول‌های پنل مراجع (روشن/خاموش)
