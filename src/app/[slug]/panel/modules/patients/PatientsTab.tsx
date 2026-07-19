@@ -147,7 +147,7 @@ function CollapsibleSection({ title, icon, badge, defaultOpen = false, children 
     <span className="flex items-center gap-1.5 text-xs font-semibold text-soot uppercase tracking-wide">
      {icon && <Glyph icon={icon} className="w-4 h-4 shrink-0" />}
      {title}
-     {badge ? <span className="text-[10px] bg-ink text-white rounded-full px-1.5 py-0.5 leading-none tnum">{badge}</span> : null}
+     {badge ? <span className="text-xs font-bold bg-ink text-white rounded-full min-w-[20px] h-5 inline-flex items-center justify-center px-1.5 tnum">{badge}</span> : null}
     </span>
     <svg className={`w-4 h-4 text-soot shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
      <path d="M5 8l5 5 5-5" strokeLinecap="round" strokeLinejoin="round" />
@@ -1170,6 +1170,21 @@ export default function PatientsTab({
         {/* ── Tab: جلسات تکی ────────────────────────────────────── */}
         {patientTab === 'sessions' && (
          <div>
+          {/* دکمه‌ی افزودن جلسه اول می‌آید تا دم‌دست باشد. تنها راه دادن جلسه‌ی
+             تازه به مراجع همین است و همیشه روی psy_stages می‌نشیند (پنل مراجع را
+             برای پرداخت و گرفتن وقت باز می‌کند). وقتی جلسه‌ی بازی در جریان است
+             دکمه غیرفعال می‌شود (نه ناپدید) تا معلوم باشد چرا نمی‌شود جلسه داد. */}
+          {!currentStageId ? (
+           <button onClick={() => setShowNewStage(true)}
+            className="w-full py-3 bg-ink text-white rounded-xl text-sm font-medium hover:bg-ink/90 mb-4 transition-colors">
+            + افزودن جلسه‌ی جدید
+           </button>
+          ) : (
+           <div className="w-full py-3 border-2 border-dashed border-sand rounded-xl text-xs text-soot text-center mb-4 px-3 leading-relaxed">
+            یک جلسه‌ی باز در جریان است — تا وقتی برگزار (یا لغو) نشود، جلسه‌ی تازه‌ای نمی‌شود داد.
+           </div>
+          )}
+
           {/* مراحل پیش‌ازدرمان (مصاحبه/ارزیابی) — هر تعداد، به هر ترتیب */}
           {stages.length > 0 && (
            <div className="space-y-2 mb-4">
@@ -1186,23 +1201,6 @@ export default function PatientsTab({
               )
              })
             })()}
-           </div>
-          )}
-
-          {/* تنها راه دادن جلسه‌ی تازه به مراجع. قبلا این‌جا دو دکمه بود
-             («افزودن مرحله» و «ثبت جلسه‌ی تکی») که هر دو یک کار را با رفتار
-             متفاوت انجام می‌دادند و مدام با هم اشتباه گرفته می‌شدند؛ حالا یکی
-             است و همیشه روی psy_stages می‌نشیند، یعنی همیشه پنل مراجع را برای
-             پرداخت و گرفتن وقت باز می‌کند. وقتی جلسه‌ی بازی در جریان است دکمه
-             غیرفعال می‌شود (نه ناپدید) تا معلوم باشد چرا نمی‌شود جلسه‌ی تازه داد. */}
-          {!currentStageId ? (
-           <button onClick={() => setShowNewStage(true)}
-            className="w-full py-3 bg-ink text-white rounded-xl text-sm font-medium hover:bg-ink/90 mb-4 transition-colors">
-            + افزودن جلسه‌ی جدید
-           </button>
-          ) : (
-           <div className="w-full py-3 border-2 border-dashed border-sand rounded-xl text-xs text-soot text-center mb-4 px-3 leading-relaxed">
-            یک جلسه‌ی باز در جریان است — تا وقتی برگزار (یا لغو) نشود، جلسه‌ی تازه‌ای نمی‌شود داد.
            </div>
           )}
 

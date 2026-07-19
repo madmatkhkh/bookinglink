@@ -141,20 +141,45 @@ export function TermsGate({ doctor, accepted, onAcceptedChange }: {
   accepted: boolean
   onAcceptedChange: (v: boolean) => void
 }) {
-  const [expanded, setExpanded] = useState(false)
+  const [showModal, setShowModal] = useState(false)
   if (!doctor?.terms?.enabled) return null
   const text = doctor.terms.extra
   return (
-    <div className="mb-3 bg-gray-50 border border-sand rounded-xl p-3">
-      <button type="button" onClick={() => setExpanded(v => !v)} className="text-xs text-ink underline mb-2 block">
-        {expanded ? 'بستن شرایط و مقررات' : 'مشاهده‌ی شرایط و مقررات'}
-      </button>
-      {expanded && <p className="text-xs text-soot whitespace-pre-wrap leading-6 mb-2">{text}</p>}
-      <label className="flex items-start gap-2 text-xs text-ink cursor-pointer">
-        <input type="checkbox" checked={accepted} onChange={e => onAcceptedChange(e.target.checked)} className="mt-0.5 shrink-0" />
-        <span>شرایط و مقررات را مطالعه کردم و می‌پذیرم.</span>
-      </label>
-    </div>
+    <>
+      <div className="mb-3 bg-gray-50 border border-sand rounded-xl p-3">
+        <button type="button" onClick={() => setShowModal(true)} className="text-xs text-ink underline mb-2 block">
+          مشاهده‌ی شرایط و مقررات
+        </button>
+        <label className="flex items-start gap-2 text-xs text-ink cursor-pointer">
+          <input type="checkbox" checked={accepted} onChange={e => onAcceptedChange(e.target.checked)} className="mt-0.5 shrink-0" />
+          <span>شرایط و مقررات را مطالعه کردم و می‌پذیرم.</span>
+        </label>
+      </div>
+
+      {/* مودال جدا — متن هرچقدر طولانی باشد واضح و اسکرول‌شونده دیده می‌شود
+          (به‌جای بازشدن درجای شلوغ زیر دکمه). تیک پذیرش هم این‌جا هست تا حین
+          خواندن بشود پذیرفت. */}
+      {showModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" onClick={() => setShowModal(false)}>
+          <div className="bg-white rounded-2xl w-full max-w-lg max-h-[80vh] flex flex-col overflow-hidden text-right" dir="rtl" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-sand shrink-0">
+              <h3 className="font-display font-semibold text-ink">شرایط و مقررات</h3>
+              <button type="button" onClick={() => setShowModal(false)} className="text-soot hover:text-ink text-2xl leading-none">×</button>
+            </div>
+            <div className="px-5 py-4 overflow-y-auto">
+              <p className="text-sm text-ink whitespace-pre-wrap leading-7">{text}</p>
+            </div>
+            <div className="px-5 py-4 border-t border-sand shrink-0 flex items-center justify-between gap-3">
+              <label className="flex items-start gap-2 text-sm text-ink cursor-pointer">
+                <input type="checkbox" checked={accepted} onChange={e => onAcceptedChange(e.target.checked)} className="mt-0.5 shrink-0" />
+                <span>مطالعه کردم و می‌پذیرم.</span>
+              </label>
+              <button type="button" onClick={() => setShowModal(false)} className="px-4 py-2 bg-ink text-white rounded-xl text-sm font-medium shrink-0">بستن</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   )
 }
 
