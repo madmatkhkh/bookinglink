@@ -1300,3 +1300,17 @@ stateهای بلااستفاده‌ی والد (`sessionType`/`officeLoc`/`selKe
 - `my/page.tsx` (پنل مراجع) — `loadData(booking.case_number)`؛ `enabled: !!booking?.case_number`, `paused: restoring` (تا با بازیابی bfcache تداخل نکند).
 
 نکته: این تازه‌سازی‌ها همگی بی‌اسپینرند؛ handlerهای `pageshow` (بازیابی bfcache) دست‌نخورده ماندند. بدون migration، بدون تغییر روت/سرور. `timeout 240 npx next build` → exit 0. اسکن اعراب روی فایل‌های تغییرکرده → CLEAN. ارقام خروجی لاتین.
+
+## چنج‌لاگ 1405/04/27 (2026-07-18) ادامه‌ی ۶ — شروع مهاجرت به SWR: پرونده‌ی باز (PatientsTab)
+
+وابستگی جدید: `swr@^2.4.2`. پایه‌ی مشترک `src/lib/swr.ts` (fetcher + `LIVE_SWR_OPTIONS`: refreshInterval=30000، dedupingInterval، keepPreviousData؛ SWR به‌صورت پیش‌فرض وقتی تب پنهان است poll نمی‌کند و روی focus revalidate می‌کند — همان رفتار هوک دستی، ولی بومی و با dedup/کش).
+
+**مهاجرت `modules/patients/PatientsTab.tsx` (پرونده‌ی باز متخصص) به SWR** — تمیزترین و پرارزش‌ترین سطح (داده‌ی هر پرونده، polling، اشتراک کش):
+- شش state پرونده (`packages/sessions/stages/extraCharges/refunds/caseLedger`) حذف و از یک `useSWR` با کلید `case:{case_number}` مشتق شدند (fetcher تازه‌ی `loadCaseBundle` که هر شش endpoint را یک‌جا می‌گیرد). متغیرها هنوز آرایه‌اند، پس همه‌ی جاهای خواندن دست‌نخورده ماندند.
+- `loadPatientData(case_number)` نامش و امضایش حفظ شد ولی حالا shim روی `globalMutate(key, loadCaseBundle(...), {revalidate:false})` است؛ با await رفتار «اول لود بعد نمایش» در openPatient حفظ شد. هر 13 محل صداکننده بدون تغییر کار می‌کنند.
+- `current_stage_id` دیگر روی selectedPatient ذخیره نمی‌شود؛ از روی `stages` مشتق می‌شود (`currentStageId`) — گیت دکمه‌ی «افزودن جلسه».
+- `useAutoRevalidate` از این فایل حذف شد؛ focus+polling را خود SWR انجام می‌دهد (با dedup و کش مشترک).
+
+**عمدا انجام نشد (این پاس):** `PsychologyAdmin.tsx` و `my/page.tsx` روی همان هوک سبک `useAutoRevalidate` ماندند. این دو با state احراز هویت سراسری (`needsLogin`)، گیت‌های لودینگ/اسپلش، و دوگانگی `booking` (هم سیگنال ورود هم داده) تنیده‌اند؛ SWR در مقیاس برایشان سود اضافه‌ای ندارد (بار polling هر کلاینت یکسان است) و بازنویسی‌شان با اعتبارسنجی فقط-build ریسک روی مسیر پولی/ورود دارد. مهاجرتشان بهتر است تدریجی و با تست واقعی انجام شود.
+
+`timeout 240 npx next build` → exit 0. اسکن اعراب روی فایل‌های تغییرکرده → CLEAN. ارقام خروجی لاتین. بدون migration دیتابیس. نکته: `package.json` شامل `swr` است؛ روی محیط باید `npm install` اجرا شود.

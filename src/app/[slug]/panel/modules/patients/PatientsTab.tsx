@@ -15,7 +15,8 @@ import { Glyph } from '@/components/Glyph'
 import { PRICING } from '@/lib/config'
 import { MonthYearWheel, JalaliDateWheel } from '@/components/WheelPicker'
 import { useModalBackClose } from '@/lib/useModalBackClose'
-import { useAutoRevalidate } from '@/lib/useAutoRevalidate'
+import useSWR, { mutate as globalMutate } from 'swr'
+import { LIVE_SWR_OPTIONS } from '@/lib/swr'
 import { stageTitle, STAGE_STATUS_LABEL, STAGE_TYPE_LABEL } from '@/lib/flow'
 import { IntakeForm, DEFAULT_INTAKE_FORM, LEGACY_DETAIL_LABELS, INTAKE_KNOWN_COLUMNS, fieldVisible, Pricing } from '@/lib/psy'
 import { PageHeader, EmptyState, SkeletonRows, enTime, Field, SelectField, TextareaField } from '../shared'
@@ -132,6 +133,27 @@ function Section({ title, icon, children }: { title: string; icon?: string; chil
  )
 }
 
+// همه‌ی داده‌ی یک پرونده را یک‌جا می‌گیرد — fetcher مشترک SWR و همچنین
+// تازه‌سازی دستی. خروجی همان شکلی است که کامپوننت مصرف می‌کند.
+async function loadCaseBundle(api: (path: string) => string, case_number: string) {
+ const [pkgRes, sessRes, stageRes, chargeRes, refundRes, ledgerRes] = await Promise.all([
+  fetch(api(`/packages?case_number=${case_number}`), { cache: 'no-store' }),
+  fetch(api(`/sessions?case_number=${case_number}`), { cache: 'no-store' }),
+  fetch(api(`/stages?case_number=${case_number}`), { cache: 'no-store' }),
+  fetch(api(`/extra-charges?case_number=${case_number}`), { cache: 'no-store' }),
+  fetch(api(`/refunds?case_number=${case_number}`), { cache: 'no-store' }),
+  fetch(api(`/case-ledger?case_number=${case_number}`), { cache: 'no-store' }),
+ ])
+ const [pkg, sess, stage, charge, refund, ledger] = await Promise.all([
+  pkgRes.json().catch(() => ({})), sessRes.json().catch(() => ({})), stageRes.json().catch(() => ({})),
+  chargeRes.json().catch(() => ({})), refundRes.json().catch(() => ({})), ledgerRes.json().catch(() => ({})),
+ ])
+ return {
+  packages: pkg.packages || [], sessions: sess.sessions || [], stages: stage.stages || [],
+  extraCharges: charge.extra_charges || [], refunds: refund.refunds || [], caseLedger: ledger.entries || [],
+ }
+}
+
 export default function PatientsTab({
  api, patients, fetchAll, bookings, loading, isOwner, profile, staffList,
  viewingResourceId, setViewingResourceId, mod, onAppointmentsChanged, todayAppointments,
@@ -155,12 +177,21 @@ export default function PatientsTab({
  const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null)
  const [patientView, setPatientView] = useState<'list' | 'detail' | 'edit'>('list')
  const [patientTab, setPatientTab] = useState<'info' | 'payment' | 'packages' | 'sessions' | 'messages'>('info')
- const [packages, setPackages] = useState<Package[]>([])
- const [sessions, setSessions] = useState<Session[]>([])
- const [stages, setStages] = useState<CaseStage[]>([])
- const [extraCharges, setExtraCharges] = useState<ExtraCharge[]>([])
- const [refunds, setRefunds] = useState<Refund[]>([])
- const [caseLedger, setCaseLedger] = useState<CaseLedgerEntry[]>([])
+ // داده‌ی پرونده‌ی باز از SWR می‌آید (کلید = شماره‌ی پرونده). SWR خودش روی focus
+ // و هر 30 ثانیه (فقط وقتی تب دیده می‌شود) تازه می‌کند و درخواست‌های هم‌کلید را
+ // یکی می‌کند. متغیرها مثل قبل آرایه‌اند، پس همه‌ی جاهای خواندن دست‌نخورده‌اند.
+ const caseKey = selectedPatient ? `case:${selectedPatient.case_number}` : null
+ const { data: caseData } = useSWR(caseKey, (k: string) => loadCaseBundle(api, k.slice(5)), LIVE_SWR_OPTIONS)
+ const packages: Package[] = caseData?.packages ?? []
+ const sessions: Session[] = caseData?.sessions ?? []
+ const stages: CaseStage[] = caseData?.stages ?? []
+ const extraCharges: ExtraCharge[] = caseData?.extraCharges ?? []
+ const refunds: Refund[] = caseData?.refunds ?? []
+ const caseLedger: CaseLedgerEntry[] = caseData?.caseLedger ?? []
+ // مرحله‌ی باز پرونده — از روی مراحل تازه مشتق می‌شود (قبلا روی selectedPatient
+ // ذخیره می‌شد و در loadPatientData بازمحاسبه می‌شد).
+ const currentStageId = stages.find(s =>
+  s.status === 'awaiting_payment' || s.status === 'payment_submitted' || s.status === 'awaiting_booking' || (s.status === 'booked' && !s.held))?.id ?? null
  const [newChargeTitle, setNewChargeTitle] = useState('')
  const [newChargeAmount, setNewChargeAmount] = useState('')
  const [chargeSaving, setChargeSaving] = useState(false)
@@ -234,42 +265,13 @@ export default function PatientsTab({
  useModalBackClose(showAddPatient, () => setShowAddPatient(false))
  useModalBackClose(!!editSession, () => setEditSession(null))
 
+ // تازه‌سازی داده‌ی یک پرونده در کش SWR — نام تابع و امضایش نگه داشته شد تا
+ // ده‌ها محل صداکننده تغییر نکنند. با await منتظر می‌ماند تا رفتار «اول لود بعد
+ // نمایش» (در openPatient) حفظ شود. current_stage_id دیگر این‌جا محاسبه نمی‌شود؛
+ // از روی stages مشتق می‌شود. focus/polling را خود SWR انجام می‌دهد.
  async function loadPatientData(case_number: string) {
-  const [pkgRes, sessRes, stageRes, chargeRes, refundRes, ledgerRes] = await Promise.all([
-   fetch(api(`/packages?case_number=${case_number}`), { cache: 'no-store' }),
-   fetch(api(`/sessions?case_number=${case_number}`), { cache: 'no-store' }),
-   fetch(api(`/stages?case_number=${case_number}`), { cache: 'no-store' }),
-   fetch(api(`/extra-charges?case_number=${case_number}`), { cache: 'no-store' }),
-   fetch(api(`/refunds?case_number=${case_number}`), { cache: 'no-store' }),
-   fetch(api(`/case-ledger?case_number=${case_number}`), { cache: 'no-store' }),
-  ])
-  const pkgData = await pkgRes.json()
-  const sessData = await sessRes.json()
-  const stageData = await stageRes.json()
-  const chargeData = await chargeRes.json().catch(() => ({}))
-  const refundData = await refundRes.json().catch(() => ({}))
-  const ledgerData = await ledgerRes.json().catch(() => ({}))
-  setPackages(pkgData.packages || [])
-  setSessions(sessData.sessions || [])
-  setStages(stageData.stages || [])
-  setExtraCharges(chargeData.extra_charges || [])
-  setRefunds(refundData.refunds || [])
-  setCaseLedger(ledgerData.entries || [])
-  // current_stage_id را از روی مراحل تازه بازمحاسبه می‌کنیم تا دکمه‌ی «افزودن
-  // جلسه» بلافاصله بعد از تأیید برگزاری/افزودن جلسه به‌روز شود (بدون ریلود).
-  const openStage = (stageData.stages || []).find((s: CaseStage) =>
-   s.status === 'awaiting_payment' || s.status === 'payment_submitted' || s.status === 'awaiting_booking' || (s.status === 'booked' && !s.held))
-  setSelectedPatient(p => (p && p.case_number === case_number ? { ...p, current_stage_id: openStage ? openStage.id : null } : p))
+  try { await globalMutate(`case:${case_number}`, loadCaseBundle(api, case_number), { revalidate: false }) } catch {}
  }
-
- // پرونده‌ی باز را روی focus و هر 30 ثانیه (فقط وقتی تب دیده می‌شود) بی‌اسپینر
- // تازه می‌کند — تا وقتی مراجع پرداخت/کنسل می‌کند یا وقت می‌گیرد، همین‌جا بدون
- // ریلود دستی به‌روز شود. loadPatientData فقط لیست‌های نمایشی را جای‌گزین می‌کند
- // و ورودی‌های در حال تایپ (شارژ/بازپرداخت/یادداشت مودال) را دست نمی‌زند.
- useAutoRevalidate(
-  () => { if (selectedPatient) return loadPatientData(selectedPatient.case_number) },
-  { enabled: !!selectedPatient },
- )
 
  async function createExtraCharge(case_number: string) {
   const title = newChargeTitle.trim()
@@ -1167,7 +1169,7 @@ export default function PatientsTab({
              است و همیشه روی psy_stages می‌نشیند، یعنی همیشه پنل مراجع را برای
              پرداخت و گرفتن وقت باز می‌کند. وقتی جلسه‌ی بازی در جریان است دکمه
              غیرفعال می‌شود (نه ناپدید) تا معلوم باشد چرا نمی‌شود جلسه‌ی تازه داد. */}
-          {!selectedPatient?.current_stage_id ? (
+          {!currentStageId ? (
            <button onClick={() => setShowNewStage(true)}
             className="w-full py-3 bg-ink text-white rounded-xl text-sm font-medium hover:bg-ink/90 mb-4 transition-colors">
             + افزودن جلسه‌ی جدید
