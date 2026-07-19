@@ -1391,3 +1391,15 @@ img-src نهایی: `'self' data: blob: https://images.nobatlink.com https://tru
 بازگشت سریع در صورت مشکل: کافی است کلید هدر دوباره به `Content-Security-Policy-Report-Only` برگردد (یک خط).
 
 تنها فایل: `next.config.js`. بدون migration. `timeout 240 npx next build` → exit 0. اسکن اعراب روی خطوط تغییرکرده → CLEAN. ارقام لاتین.
+
+## چنج‌لاگ 1405/04/27 (2026-07-18) ادامه‌ی ۱۳ — SWR: پرداخت‌های منتظر PsychologyAdmin
+
+ادامه‌ی مهاجرت تدریجی به SWR. این نوبت: **بج «تأیید پرداخت‌ها» (پرداخت‌های منتظر) در PsychologyAdmin** — تمیزترین و پرارزش‌ترین سطح باقی‌مانده (خودش poll می‌شود و برای هر متخصص فعال است).
+
+- پنج state منتظر (`pendingPkgs/pendingSess/pendingRefunds/pendingStages/pendingApptRequests`) حذف و از یک `useSWR` با کلید `'pending'` مشتق شدند (fetcher تازه‌ی `loadPendingBundle` که هر شش endpoint منتظر را یک‌جا می‌گیرد). کلید روی `!needsLogin` گیت شده تا روی صفحه‌ی لاگین fetch/poll نشود. همه‌ی جاهای خواندن (بج شمارنده، propهای BookingsTab) دست‌نخورده‌اند چون متغیرها هنوز آرایه‌اند.
+- `loadPendingPayments` نامش و امضایش نگه داشته شد ولی حالا `globalMutate('pending')` است — همه‌ی جاهای صداکننده (بعد از تأیید/رد پرداخت و بازپرداخت) بدون تغییر کار می‌کنند.
+- `loadPendingPayments()` از تابع `revalidate` حذف شد (SWR خودش pending را focus+poll می‌کند). `revalidate` + `useAutoRevalidate` فقط برای لیست پرونده‌ها ماند.
+
+**هنوز روی هوک `useAutoRevalidate`:** لیست پرونده‌ها در PsychologyAdmin (تنیده با loading/initialLoadDone/needsLogin) و کل my/page (تنیده با دوگانگی booking). قدم‌های بعدی، هرکدام جدا و قابل‌تست.
+
+تنها فایل: `panel/PsychologyAdmin.tsx`. نیازمند `swr` (از قبل نصب). بدون migration. `timeout 240 npx next build` → exit 0. اسکن اعراب روی خطوط تغییرکرده → CLEAN. ارقام لاتین.

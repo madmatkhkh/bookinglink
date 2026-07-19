@@ -12,6 +12,8 @@ import { Glyph } from '@/components/Glyph'
 import { MonthYearWheel, JalaliDateWheel } from '@/components/WheelPicker'
 import { useModalBackClose } from '@/lib/useModalBackClose'
 import { useAutoRevalidate } from '@/lib/useAutoRevalidate'
+import useSWR, { mutate as globalMutate } from 'swr'
+import { LIVE_SWR_OPTIONS } from '@/lib/swr'
 import { moduleOn, GROWTH_SUBTABS, type ModuleFlags } from '@/lib/moduleManifest'
 import { PageHeader, EmptyState, SkeletonRows, timeKey, enTime } from './modules/shared'
 import ScheduleTab, { type SchedJump } from './modules/schedule/ScheduleTab'
@@ -285,6 +287,32 @@ const DEFAULT_PROFILE: ResourceProfileView = {
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
+// همه‌ی «پرداخت‌های منتظر» را یک‌جا می‌گیرد — fetcher مشترک SWR (بج «تأیید
+// پرداخت‌ها») و همچنین تازه‌سازی دستی بعد از تأیید/رد. خروجی همان پنج فهرستی است
+// که کامپوننت مصرف می‌کند.
+async function loadPendingBundle(api: (path: string) => string) {
+ const [pkgRes, sessRes, refundRes, stageRes, stageRefundRes, apptRes] = await Promise.all([
+  fetch(api('/packages?pending=1'), { cache: 'no-store' }),
+  fetch(api('/sessions?pending=1'), { cache: 'no-store' }),
+  fetch(api('/sessions?refunds=1'), { cache: 'no-store' }),
+  fetch(api('/stages?pending=1'), { cache: 'no-store' }),
+  fetch(api('/stages?refunds=1'), { cache: 'no-store' }),
+  fetch(api('/appointment-requests?pending=true'), { cache: 'no-store' }),
+ ])
+ const [pkg, sess, refunds, stg, stgRefunds, appt] = await Promise.all([
+  pkgRes.json().catch(() => ({})), sessRes.json().catch(() => ({})), refundRes.json().catch(() => ({})),
+  stageRes.json().catch(() => ({})), stageRefundRes.json().catch(() => ({})), apptRes.json().catch(() => ({})),
+ ])
+ return {
+  pkgs: pkg.packages || [],
+  sess: sess.sessions || [],
+  // بازپرداخت‌های جلسه و مرحله در یک فهرست؛ مرحله‌ها با _kind مشخص‌اند
+  refunds: [...(refunds.sessions || []), ...(stgRefunds.stages || [])],
+  stages: stg.stages || [],
+  apptRequests: appt.requests || [],
+ }
+}
+
 export function PsychologyAdmin() {
  const { slug } = useParams<{ slug: string }>()
  const api = (path: string) => `/api/t/${slug}/panel/psy${path}`
@@ -366,9 +394,8 @@ export function PsychologyAdmin() {
  const [bookings, setBookings] = useState<Booking[]>([])
 
  // ── Pending payments (تب تأیید پرداخت‌ها) ─────────────────────────
- const [pendingPkgs, setPendingPkgs] = useState<Package[]>([])
- const [pendingSess, setPendingSess] = useState<Session[]>([])
- const [pendingRefunds, setPendingRefunds] = useState<Session[]>([])
+ // pendingPkgs/Sess/Refunds/Stages/ApptRequests از SWR می‌آیند — پایین‌تر بعد از
+ // needsLogin تعریف شده‌اند (چون کلید SWR روی !needsLogin گیت می‌شود).
  // چک‌لیست راه‌اندازی: آیا حداقل یک روز کاری با ساعت باز تعریف شده؟ null یعنی
  // هنوز چک نشده (برای جلوگیری از فلاش «ناقص» قبل از رسیدن جواب).
  const [hasWorkingDays, setHasWorkingDays] = useState<boolean | null>(null)
@@ -376,8 +403,7 @@ export function PsychologyAdmin() {
  // (فاز 4). لیست انتظار این‌جا مانده چون بج سایدبار بیرون آن تب هم لازمش دارد.
  const [waitlist, setWaitlist] = useState<WaitlistEntry[]>([])
  const waitlistCount = waitlist.length
- const [pendingStages, setPendingStages] = useState<CaseStage[]>([])
- const [pendingApptRequests, setPendingApptRequests] = useState<{ id: string; case_number: string; note?: string | null; client_name?: string; created_at: string }[]>([])
+ // pendingStages/pendingApptRequests هم از همان SWR پایین مشتق می‌شوند.
 
  // ── Schedule state ─────────────────────────────────────────────
  // state تب «روزهای کاری» به ScheduleTab.tsx منتقل شد (فاز 4). این‌جا فقط
@@ -399,6 +425,16 @@ export function PsychologyAdmin() {
  // صفحه‌ی جدید» که گزارش شد).
  const [initialLoadDone, setInitialLoadDone] = useState(false)
  const [needsLogin, setNeedsLogin] = useState(false)
+
+ // پرداخت‌های منتظر (بج «تأیید پرداخت‌ها») از SWR — خودش روی focus و هر 30 ثانیه
+ // (فقط وقتی تب دیده می‌شود) بی‌اسپینر تازه می‌کند و درخواست‌های هم‌کلید را یکی
+ // می‌کند. وقتی needsLogin است کلید null می‌شود و اصلا fetch/poll نمی‌کند.
+ const { data: pendingData } = useSWR(needsLogin ? null : 'pending', () => loadPendingBundle(api), LIVE_SWR_OPTIONS)
+ const pendingPkgs: Package[] = pendingData?.pkgs ?? []
+ const pendingSess: Session[] = pendingData?.sess ?? []
+ const pendingRefunds: Session[] = pendingData?.refunds ?? []
+ const pendingStages: CaseStage[] = pendingData?.stages ?? []
+ const pendingApptRequests: { id: string; case_number: string; note?: string | null; client_name?: string; created_at: string }[] = pendingData?.apptRequests ?? []
  // ── تیکت پشتیبانی ────────────────────────────────────────────────────────────
  type Ticket = { id: string; category: string; subject: string; message: string; status: string; admin_reply?: string | null; created_at: string }
  const [tickets, setTickets] = useState<Ticket[]>([])
@@ -579,29 +615,11 @@ export function PsychologyAdmin() {
  }, [viewingResourceId])
 
  // پرداخت‌های منتظر تأیید (پروتکل‌های درمان و جلسه‌های جایگزین) در همه‌ی پرونده‌ها
+ // تازه‌سازی بج «تأیید پرداخت‌ها» — نامش نگه داشته شد تا همه‌ی جاهای صداکننده
+ // (بعد از تأیید/رد پرداخت و بازپرداخت) بدون تغییر کار کنند؛ حالا کش SWR را
+ // revalidate می‌کند به‌جای ست‌کردن state.
  async function loadPendingPayments() {
-  try {
-   const [pkgRes, sessRes, refundRes, stageRes, stageRefundRes, apptRes] = await Promise.all([
-    fetch(api('/packages?pending=1'), { cache: 'no-store' }),
-    fetch(api('/sessions?pending=1'), { cache: 'no-store' }),
-    fetch(api('/sessions?refunds=1'), { cache: 'no-store' }),
-    fetch(api('/stages?pending=1'), { cache: 'no-store' }),
-    fetch(api('/stages?refunds=1'), { cache: 'no-store' }),
-    fetch(api('/appointment-requests?pending=true'), { cache: 'no-store' }),
-   ])
-   const pkg = await pkgRes.json().catch(() => ({}))
-   const sess = await sessRes.json().catch(() => ({}))
-   const refunds = await refundRes.json().catch(() => ({}))
-   const stg = await stageRes.json().catch(() => ({}))
-   const stgRefunds = await stageRefundRes.json().catch(() => ({}))
-   const appt = await apptRes.json().catch(() => ({}))
-   setPendingPkgs(pkg.packages || [])
-   setPendingSess(sess.sessions || [])
-   // بازپرداخت‌های جلسه و مرحله در یک فهرست؛ مرحله‌ها با _kind مشخص‌اند
-   setPendingRefunds([...(refunds.sessions || []), ...(stgRefunds.stages || [])])
-   setPendingStages(stg.stages || [])
-   setPendingApptRequests(appt.requests || [])
-  } catch {}
+  await globalMutate('pending')
  }
 
  useEffect(() => { fetchAll(); loadSettings(); loadProfile() }, [fetchAll])
@@ -620,7 +638,7 @@ export function PsychologyAdmin() {
    setPatients(pData.bookings || [])
    setBookings(pData.bookings || [])
   } catch {}
-  loadPendingPayments()
+  // pending دیگر این‌جا نیست — SWR خودش poll/focus می‌کند.
   // eslint-disable-next-line react-hooks/exhaustive-deps
  }, [viewingResourceId])
  useAutoRevalidate(revalidate, { enabled: initialLoadDone && !needsLogin })
