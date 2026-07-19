@@ -1376,3 +1376,18 @@ CSP در حالت **Report-Only** (`Content-Security-Policy-Report-Only`) — ه
 یادداشت (نه تغییر این نوبت): 403 دیده‌شده روی `/psy/data` رفتار درست امنیتی است — روت به شماره‌ی داخل کوکی امضاشده اعتماد می‌کند و اگر با شماره‌ی تماس پرونده یکی نباشد 403 می‌دهد (به‌احتمال زیاد کوکی کلاینت دیگری از تست‌ها مانده). `loadData` سمت مراجع پاسخ non-ok را جدا هندل نمی‌کند (داده‌ها را خالی نشان می‌دهد بدون پیام) — بهبود اختیاری آینده، نه باگ ناشی از تغییرات اخیر.
 
 تنها فایل: `next.config.js`. بدون migration. `timeout 240 npx next build` → exit 0. اسکن اعراب روی خطوط تغییرکرده → CLEAN. ارقام لاتین.
+
+## چنج‌لاگ 1405/04/27 (2026-07-18) ادامه‌ی ۱۲ — CSP واقعی شد (enforcing) + افزودن نماد اعتماد انماد
+
+بعد از چند روز Report-Only بدون گزارش تازه، و یک بازرسی کامل کد برای همه‌ی منابع بیرونی (نه فقط اتکا به تست دستی کاربر)، CSP از `Content-Security-Policy-Report-Only` به `Content-Security-Policy` (فعال، واقعا بلاک‌کننده) سوییچ شد. متغیر `cspReportOnly` به `csp` تغییر نام یافت.
+
+بازرسی کد این‌ها را روشن کرد (که تست دستی محدود جا انداخته بود):
+- **تصویر نماد اعتماد انماد** (`https://trustseal.enamad.ir/logo.aspx`) در صفحه‌ی لندینگ — چون کاربر لندینگ را تست نکرده بود در Report-Only گزارش نشد؛ به `img-src` اضافه شد وگرنه با enforcing بلاک می‌شد.
+- `globals.additions.css` که فونت Estedad را از `cdn.jsdelivr.net` می‌گرفت **import نمی‌شود** (فایل مرده، `layout.tsx` فقط `globals.css`) — پس هیچ فونت CDN بار نمی‌شود و `font-src 'self'` امن است.
+- بدون اسکریپت/فونت/connect بیرونی دیگر؛ بدون آنالیتیکس بیرونی (Analytics داخلی از `/api` است)؛ بدون service worker/manifest بیرونی.
+
+img-src نهایی: `'self' data: blob: https://images.nobatlink.com https://trustseal.enamad.ir`. بقیه‌ی directiveها بی‌تغییر (script/style با unsafe-inline برای Next؛ connect/frame فقط self؛ form-action + gateway.zibal.ir). درگاه با ناوبری top-level باز می‌شود که اصلا مشمول CSP نیست، پس نمی‌شکند.
+
+بازگشت سریع در صورت مشکل: کافی است کلید هدر دوباره به `Content-Security-Policy-Report-Only` برگردد (یک خط).
+
+تنها فایل: `next.config.js`. بدون migration. `timeout 240 npx next build` → exit 0. اسکن اعراب روی خطوط تغییرکرده → CLEAN. ارقام لاتین.
