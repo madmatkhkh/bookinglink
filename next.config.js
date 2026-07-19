@@ -14,12 +14,16 @@ const cspReportOnly = [
   "object-src 'none'",
   "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
   "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob:",
+  // تصاویر آواتار/لوگو روی R2 (دامنه‌ی عمومی images.nobatlink.com) — از گزارش‌های
+  // Report-Only شناسایی شد.
+  "img-src 'self' data: blob: https://images.nobatlink.com",
   "font-src 'self' data:",
   "connect-src 'self'",
   "frame-src 'self'",
   "frame-ancestors 'self'",
-  "form-action 'self'",
+  // درگاه زیبال با window.location (ناوبری top-level) باز می‌شود که CSP بلاکش
+  // نمی‌کند؛ gateway.zibal.ir را محض احتیاط برای هر مسیر فرم‌محور اضافه می‌کنیم.
+  "form-action 'self' https://gateway.zibal.ir",
 ].join('; ')
 
 const securityHeaders = [
