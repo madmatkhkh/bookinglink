@@ -1353,3 +1353,16 @@ audit فقط-خواندنی کل پلتفرم (متدولوژی improve). تصو
 **رد شد:** `dangerouslySetInnerHTML` در `page.tsx` — همه‌ی pathها هاردکد/کلید lookup ثابت‌اند، نه ورودی کاربر.
 
 سه فایل. بدون migration، بدون تغییر schema. `timeout 240 npx next build` → exit 0. اسکن اعراب روی خطوط تغییرکرده → CLEAN. ارقام خروجی لاتین.
+
+## چنج‌لاگ 1405/04/27 (2026-07-18) ادامه‌ی ۱۰ — SEC-02: security headers + CSP در حالت Report-Only
+
+با تأیید صاحب پروژه، هدرهای امنیتی به `next.config.js` (تابع `headers()`، روی `/:path*`) اضافه شد. تأییدشده در `.next/routes-manifest.json`.
+
+هدرهای قطعی (کم‌ریسک):
+- `X-Frame-Options: SAMEORIGIN` — ضد clickjacking صفحات پنل/پرداخت (اپ خودش iframe ندارد، پس SAMEORIGIN بی‌دردسر است).
+- `Strict-Transport-Security: max-age=31536000; includeSubDomains` — اجبار HTTPS (Vercel همیشه HTTPS).
+- `X-Content-Type-Options: nosniff` و `Referrer-Policy: strict-origin-when-cross-origin` — سخت‌سازی کم‌ریسک.
+
+CSP در حالت **Report-Only** (`Content-Security-Policy-Report-Only`) — هیچ‌چیز را نمی‌شکند، فقط در کنسول مرورگر گزارش می‌دهد. دسته‌های اطلاعاتی (img/font/connect/frame/form) عمدا فقط `'self'` هستند تا منابع خارجی واقعی (تصاویر R2، فونت‌ها، درگاه/فرم زیبال، APIهای بیرونی) در گزارش‌ها ظاهر شوند؛ script/style با `'unsafe-inline'` چون Next خودش inline تولید می‌کند و گزارش‌شان نویز است. مرحله‌ی بعد (بعد از چند روز استفاده و دیدن گزارش‌ها): منابع واقعی به لیست سفید اضافه، سپس سوییچ از Report-Only به CSP واقعی.
+
+تنها فایل: `next.config.js`. بدون migration. `timeout 240 npx next build` → exit 0. اسکن اعراب روی خطوط تغییرکرده → CLEAN. ارقام خروجی لاتین.
