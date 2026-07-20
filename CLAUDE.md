@@ -1489,3 +1489,25 @@ img-src نهایی: `'self' data: blob: https://images.nobatlink.com https://tru
 نکته‌ی حین کار: دو ویرایش str_replace اولیه، به‌اشتباه خطوط `{profile.companion_label ? (` و `<div>` توضیحات را حذف کرده بودند و build را شکستند؛ هر دو بازگردانده شدند و build سبز شد.
 
 فایل‌ها: migrations/0044، PatientsTab.tsx، my/page.tsx، PsychologyAdmin.tsx، packages/route.ts. `timeout 240 npx next build` → exit 0. اسکن اعراب روی خطوط تغییرکرده → CLEAN. ارقام لاتین. migration پیوست است و باید روی DB اجرا شود.
+
+## چنج‌لاگ 1405/04/28 (2026-07-19) ادامه‌ی ۱۹ — migration runner (پایان SQL دستی) + رفع .gitignore
+
+خواسته: دیگر هر بار دستی SQL در سوپابیس اجرا نشود.
+
+- **`scripts/migrate.mjs` (جدید):** یک runner سبک که همان فایل‌های `migrations/*.sql` فعلی را به‌ترتیب (نام zero-padded) می‌خواند، وضعیت را در جدول `public.schema_migrations` نگه می‌دارد، و فقط معوق‌ها را اعمال می‌کند. هر migration در تراکنش جدا (rollback روی خطا). دستورها: `up` (پیش‌فرض)، `status`، `baseline` (علامت‌زدن همه‌ی فایل‌های فعلی به‌عنوان اعمال‌شده بدون اجرا — یک‌بار بعد از ساخت از صفر با full-schema). اتصال از env `DATABASE_URL`/`SUPABASE_DB_URL` (session/direct، ssl require، prepare:false برای سازگاری pooler).
+- **package.json:** اسکریپت‌های `migrate`، `migrate:status`، `migrate:baseline`؛ وابستگی جدید `postgres` (کاربر باید `npm install` بزند). package-lock هم به‌روز شد.
+- **`MIGRATIONS.md` (جدید):** راهنمای راه‌اندازی یک‌باره (npm install → ست DATABASE_URL در .env.local → migrate:baseline یک‌بار) و جریان همیشگی (`npm run migrate`).
+- **رفع باگ نهفته‌ی `.gitignore`:** فایل UTF-16 بود (بایت‌های null بین حروف)، و git فایل UTF-16 را درست پارس نمی‌کند — یعنی عملا `node_modules`، `.next`، `.env.local` هیچ‌کدام ignore نمی‌شدند (خطر commit‌شدن راز/node_modules). کاملا به UTF-8 تمیز بازنویسی شد و الگوهای `.env*` اضافه شد.
+
+جریان از این به بعد: من فایل `migrations/00NN_*.sql` اضافه می‌کنم؛ تو فقط `npm run migrate`.
+
+توجه: runner نیاز به دیتابیس واقعی دارد، پس در سندباکس تست زنده نشد؛ فقط `node --check` و صحت import تأیید شد. فایل‌ها: scripts/migrate.mjs، MIGRATIONS.md، package.json، package-lock.json، .gitignore. بدون تغییر در کد اپ (build دست‌نخورده).
+
+## چنج‌لاگ 1405/04/29 (2026-07-20) ادامه‌ی ۲۰ — حذف «نوع پیش‌فرض جلسه» از فرم افزودن پرونده‌ی دستی
+
+خواسته: فیلد «نوع پیش‌فرض جلسه» (تاگلِ حضوری/آنلاین) در مودالِ «افزودن پرونده‌ی دستی» (PatientsTab) گیج‌کننده و اضافی بود؛ حذف شد.
+
+- بلوکِ UIِ تاگل (label + دو دکمه + توضیح) از فرم حذف شد.
+- مقدارِ `session_type: 'offline'` در state اولیه‌ی newPatientForm و در reset باقی ماند، پس `createPatient` (که کل فرم را POST می‌کند) همچنان یک پیش‌فرض معتبر می‌فرستد و مسیر ساختِ پرونده/API دست‌نخورده و سالم است. فقط UI حذف شد.
+
+فایل: PatientsTab.tsx (فقط حذفِ خط، بدون افزودن). `timeout 240 npx next build` → exit 0.

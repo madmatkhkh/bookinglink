@@ -1586,18 +1586,6 @@ export default function PatientsTab({
         <textarea value={newPatientForm.reason} onChange={e => setNewPatientForm({ ...newPatientForm, reason: e.target.value })}
          rows={2} className="w-full text-sm px-3 py-2 border border-sand rounded-lg resize-none" />
        </div>
-       <div>
-        <label className="text-xs text-soot mb-1 block">نوع پیش‌فرض جلسه</label>
-        <div className="flex bg-gray-100 rounded-xl p-1 gap-1">
-         {([['offline', '🏥 حضوری'], ['online', '🎥 آنلاین']] as const).map(([v, label]) => (
-          <button key={v} type="button" onClick={() => setNewPatientForm({ ...newPatientForm, session_type: v })}
-           className={`flex-1 text-xs py-2 rounded-lg font-medium transition-all ${newPatientForm.session_type === v ? 'bg-white text-ink shadow-sm' : 'text-soot'}`}>
-           {label}
-          </button>
-         ))}
-        </div>
-        <p className="text-[11px] text-soot mt-1">مراجع هنگام پرداخت هر جلسه می‌تواند نوع را تغییر دهد؛ این فقط پیش‌فرض است.</p>
-       </div>
        <p className="text-[11px] text-soot">حداقل یکی از شماره‌های تماس لازم است تا مراجع بتواند وارد پنل شود.</p>
       </div>
       <div className="flex gap-2 mt-4">
