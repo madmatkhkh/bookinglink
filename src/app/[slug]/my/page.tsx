@@ -120,6 +120,8 @@ export default function PatientPanel() {
  const apptRequests: ApptRequest[] = myData?.appointment_requests ?? []
  const ledger: LedgerEntry[] = myData?.ledger ?? []
  const messages: PatientMessage[] = myData?.messages ?? []
+ // فهرست همه‌ی پرونده‌های همین مراجع (هم‌شماره/هم‌ایمیل) — برای سوییچر
+ const myCases: { case_number: string; client_name: string; status: string }[] = myData?.cases ?? []
  type ClientTab = 'status' | 'packages' | 'sessions' | 'payments' | 'messages' | 'info'
  const VALID_CLIENT_TABS: ClientTab[] = ['status', 'packages', 'sessions', 'payments', 'messages', 'info']
  const initialSection = (searchParams.get('section') as ClientTab) || 'status'
@@ -229,6 +231,15 @@ export default function PatientPanel() {
  function logout() {
   try { localStorage.removeItem('pb_phone'); localStorage.removeItem('pb_case') } catch {}
   setStep('login'); setCaseNumber(''); setPhone('')
+ }
+
+ // سوییچ بین پرونده‌های هم‌شماره — فقط کلید SWR (caseNumber) عوض می‌شود و SWR
+ // داده‌ی پرونده‌ی جدید را می‌آورد؛ در localStorage هم ذخیره می‌شود تا با ریلود
+ // همان پرونده‌ی آخر باز شود.
+ function switchCase(cn: string) {
+  if (!cn || cn === caseNumber) return
+  setCaseNumber(cn)
+  try { localStorage.setItem('pb_case', cn) } catch {}
  }
 
  // اگر این صفحه از bfcache (کش برگشت/جلوی مرورگر) برگردد، React remount
@@ -390,6 +401,23 @@ export default function PatientPanel() {
       className="text-xs text-soot border border-sand rounded-lg px-3 py-1.5">خروج</button>
     </div>
    </div>
+
+   {/* سوییچر پرونده — فقط وقتی مراجع بیش از یک پرونده‌ی هم‌شماره دارد */}
+   {myCases.length > 1 && (
+    <div className="bg-amber-50 border-b border-amber-100 px-4 py-2">
+     <div className="max-w-lg mx-auto flex items-center gap-2">
+      <span className="text-xs text-soot shrink-0">پرونده:</span>
+      <select value={caseNumber} onChange={e => switchCase(e.target.value)}
+       className="flex-1 text-xs bg-white border border-sand rounded-lg px-2 py-1.5 text-ink">
+       {myCases.map(c => (
+        <option key={c.case_number} value={c.case_number}>
+         {c.client_name} — {c.case_number}
+        </option>
+       ))}
+      </select>
+     </div>
+    </div>
+   )}
 
    <div className="max-w-lg mx-auto p-4">
     {extraCharges.filter(c => c.status !== 'paid').length > 0 && (

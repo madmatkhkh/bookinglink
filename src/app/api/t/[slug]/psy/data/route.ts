@@ -21,6 +21,16 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
   if (!booking || !matchesClientIdentity(booking, phone))
     return NextResponse.json({ error: 'دسترسی ندارید' }, { status: 403 })
 
+  // همه‌ی پرونده‌های همین هویت (شماره یا ایمیل) در این tenant — برای سوییچر پرونده
+  // در پنل مراجع. امن است: کوکی امضاشده هویت را اثبات می‌کند و matchesClientIdentity
+  // به هر کدام دسترسی می‌دهد. سبک: فقط فیلدهای لازم برای فهرست.
+  const { data: allCases } = await sb().from('psy_cases')
+    .select('case_number, client_name, status')
+    .eq('tenant_id', t.id)
+    .or(`contact_phone.eq.${phone},contact_email.eq.${phone}`)
+    .order('created_at', { ascending: false })
+  const cases = allCases || []
+
   const [{ data: packages }, { data: sessions }, { data: stages }, { data: extraCharges }, { data: refunds }, { data: apptRequests }, { data: ledger }, { data: messages }] = await Promise.all([
     sb().from('psy_packages').select('*').eq('tenant_id', t.id).eq('case_number', case_number).order('created_at', { ascending: false }),
     sb().from('psy_sessions').select('*').eq('tenant_id', t.id).eq('case_number', case_number).order('session_date', { ascending: true }),
@@ -35,5 +45,5 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
     // پیام‌های متخصص برای مراجع (دارو/تجویز/توصیه/عمومی)
     sb().from('psy_patient_messages').select('id, kind, body, created_at').eq('tenant_id', t.id).eq('case_number', case_number).order('created_at', { ascending: false }),
   ])
-  return NextResponse.json({ booking, packages: packages || [], sessions: sessions || [], stages: stages || [], extra_charges: extraCharges || [], refunds: refunds || [], appointment_requests: apptRequests || [], ledger: ledger || [], messages: messages || [] })
+  return NextResponse.json({ booking, cases, packages: packages || [], sessions: sessions || [], stages: stages || [], extra_charges: extraCharges || [], refunds: refunds || [], appointment_requests: apptRequests || [], ledger: ledger || [], messages: messages || [] })
 }
