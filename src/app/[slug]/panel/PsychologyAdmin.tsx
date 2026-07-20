@@ -2937,16 +2937,16 @@ export function PsychologyAdmin() {
        <div className="space-y-2">
         {myPanels.map(p => (
          <div key={p.slug}
-          className={`flex items-center justify-between gap-2 p-3 rounded-xl border ${p.current ? 'border-brand/30 bg-brand/5' : 'border-sand'}`}>
+          className={`flex items-center justify-between gap-2 p-3 rounded-xl border ${p.current ? 'border-ink/20 bg-brand-50' : 'border-sand'}`}>
           <div className="min-w-0">
            <div className="text-sm text-ink truncate">{p.display_name}</div>
            <div className="text-xs text-soot truncate" dir="ltr">nobatlink.com/{p.slug}</div>
           </div>
           {p.current ? (
-           <span className="text-xs text-brand font-medium shrink-0">پنل فعلی</span>
+           <span className="text-xs text-soot font-medium shrink-0">پنل فعلی</span>
           ) : (
            <button onClick={() => switchPanel(p.slug)}
-            className="text-xs text-white bg-brand rounded-lg px-3 py-1.5 shrink-0 hover:opacity-90">ورود به این پنل</button>
+            className="text-xs text-white bg-ink rounded-lg px-3 py-1.5 shrink-0 hover:bg-ink/90 transition-colors">ورود به این پنل</button>
           )}
          </div>
         ))}

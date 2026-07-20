@@ -419,7 +419,7 @@ export default function PatientPanel() {
          {myCases.map(c => (
           <button key={c.case_number} type="button"
            onClick={() => { switchCase(c.case_number); setCaseMenuOpen(false) }}
-           className={`w-full text-right px-3 py-2.5 flex flex-col gap-0.5 hover:bg-gray-50 transition-colors ${c.case_number === (booking.case_number) ? 'bg-brand/5' : ''}`}>
+           className={`w-full text-right px-3 py-2.5 flex flex-col gap-0.5 hover:bg-gray-50 transition-colors ${c.case_number === (booking.case_number) ? 'bg-brand-50' : ''}`}>
            <span className="text-sm font-medium text-ink">{c.client_name}</span>
            <span className="text-xs font-mono text-soot">{c.case_number}</span>
           </button>

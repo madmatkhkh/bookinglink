@@ -1461,3 +1461,14 @@ img-src نهایی: `'self' data: blob: https://images.nobatlink.com https://tru
 - **UI در «حساب من» (PsychologyAdmin):** بخش «پنل‌های شما» فقط وقتی `myPanels.length > 1`. هر پنل با نام نمایشی + slug؛ فعلی «پنل فعلی» و بقیه دکمه‌ی «ورود به این پنل» (→ `switchPanel` → ریدایرکت به `/{slug}/panel`). `loadMyPanels` یک‌بار در mount.
 
 فایل‌ها: `[slug]/my/page.tsx`، `panel/switch/route.ts` (جدید)، `[slug]/panel/PsychologyAdmin.tsx`. بدون migration. `timeout 240 npx next build` → exit 0. اسکن اعراب روی خطوط تغییرکرده → CLEAN. ارقام لاتین.
+
+## چنج‌لاگ 1405/04/27 (2026-07-18) ادامه‌ی ۱۷ (رفع) — دکمه‌ی سوییچ پنل نامرئی بود (توکن رنگ نامعتبر)
+
+باگ: در سوییچرها از کلاس‌های `bg-brand`/`text-brand`/`bg-brand/5` استفاده شده بود، ولی `brand` در tailwind یک پالت است (brand-50…900) و `DEFAULT` ندارد — پس این کلاس‌ها هیچ CSS تولید نمی‌کنند. نتیجه: دکمه‌ی «ورود به این پنل» متن سفید روی پس‌زمینه‌ی نامرئی → دیده نمی‌شد.
+
+رفع (فقط کلاس، بدون تغییر منطق):
+- دکمه‌ی سوییچ پنل: `bg-brand` → `bg-ink text-white hover:bg-ink/90` (همان دکمه‌های اصلی پنل).
+- «پنل فعلی»: `text-brand` → `text-soot`. کارت فعلی: `border-brand/30 bg-brand/5` → `border-ink/20 bg-brand-50`.
+- هایلایت پرونده‌ی فعلی در سوییچر مراجع: `bg-brand/5` → `bg-brand-50` (معتبر و ظریف).
+
+فایل‌ها: `[slug]/panel/PsychologyAdmin.tsx`، `[slug]/my/page.tsx`. بدون migration. `timeout 240 npx next build` → exit 0.
