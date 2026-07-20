@@ -11,7 +11,7 @@ import { useResendCooldown } from '@/lib/useResendCooldown'
 import { useModalBackClose } from '@/lib/useModalBackClose'
 import useSWR, { mutate as globalMutate } from 'swr'
 import { LIVE_SWR_OPTIONS, FetchError } from '@/lib/swr'
-import { MeetChannel, usableMeetChannels, mergeMeetChannels } from '@/lib/meet'
+import { MeetChannel, usableMeetChannels, mergeMeetChannels, MEET_META } from '@/lib/meet'
 import { useTenantThemeColor } from '@/lib/useTenantThemeColor'
 import SlotPicker, { SlotConfirmResult } from '@/components/SlotPicker'
 
@@ -42,9 +42,16 @@ type Package = {
  id: string; case_number: string; month: string; year: string
  primary_sessions: number; secondary_sessions: number
  primary_session_type: string; secondary_session_type: string
+ primary_office_location?: string | null; primary_meet_channel?: string | null
+ secondary_office_location?: string | null; secondary_meet_channel?: string | null
  notes: string; paid: boolean; payment_submitted?: boolean; status: string
  price?: number; payment_reject_reason?: string
  resource_id?: string | null
+}
+// برچسب «نوع» یک دسته‌ی پروتکل: آنلاین→کانال، حضوری→محل (اگر متخصص تعیین کرده)
+function pkgTypeDetail(type: string, location?: string | null, channel?: string | null): string {
+ if (type === 'online') return channel ? `آنلاین — ${MEET_META[channel as keyof typeof MEET_META]?.label || channel}` : 'آنلاین'
+ return location ? `حضوری — ${location}` : 'حضوری'
 }
 type Session = {
  id: string; package_id: string; session_number: number; title?: string
@@ -591,6 +598,10 @@ export default function PatientPanel() {
            <h3 className="font-display font-semibold text-ink">{PERSIAN_MONTHS[parseInt(pkg.month) - 1]} {pkg.year}</h3>
            <div className="text-xs text-soot mt-0.5">
             {pkg.primary_sessions} جلسه‌ی مراجع{pkg.secondary_sessions > 0 && ` + ${pkg.secondary_sessions} جلسه‌ی ${settings.doctors.find(d => d.id === booking.resource_id)?.companion_label || 'همراه'}`}
+           </div>
+           <div className="text-xs text-soot mt-0.5">
+            مراجع: {pkgTypeDetail(pkg.primary_session_type, pkg.primary_office_location, pkg.primary_meet_channel)}
+            {pkg.secondary_sessions > 0 && ` • ${settings.doctors.find(d => d.id === booking.resource_id)?.companion_label || 'همراه'}: ${pkgTypeDetail(pkg.secondary_session_type, pkg.secondary_office_location, pkg.secondary_meet_channel)}`}
            </div>
           </div>
           <div className="text-left">

@@ -54,7 +54,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { slug: stri
   // فقط ستون‌های مجاز از بدنه پذیرفته می‌شوند (مثل روت‌های دیگر). بدون این،
   // بدنه مستقیم spread می‌شد و کاربر می‌توانست tenant_id/case_number و ستون‌های
   // دیگر را هم ست کند. price این‌جا نیست چون سمت سرور بازمحاسبه می‌شود.
-  const ALLOWED = ['title', 'month', 'year', 'primary_sessions', 'primary_session_type', 'secondary_sessions', 'secondary_session_type', 'paid', 'payment_submitted', 'payment_ref', 'payment_reject_reason', 'status', 'notes']
+  const ALLOWED = ['title', 'month', 'year', 'primary_sessions', 'primary_session_type', 'secondary_sessions', 'secondary_session_type', 'primary_office_location', 'primary_meet_channel', 'secondary_office_location', 'secondary_meet_channel', 'paid', 'payment_submitted', 'payment_ref', 'payment_reject_reason', 'status', 'notes']
   const updates: Record<string, any> = {}
   for (const k of ALLOWED) if (body[k] !== undefined) updates[k] = body[k]
 

@@ -164,6 +164,10 @@ export type Package = {
  secondary_sessions: number
  primary_session_type: string
  secondary_session_type: string
+ primary_office_location?: string | null
+ primary_meet_channel?: string | null
+ secondary_office_location?: string | null
+ secondary_meet_channel?: string | null
  notes: string
  status: string
  price?: number
@@ -1964,6 +1968,7 @@ export function PsychologyAdmin() {
     {mainTab === 'patients' && (
      <PatientsTab api={api} patients={patients} fetchAll={fetchAll} bookings={bookings}
       loading={loading} isOwner={!!me?.isOwner} profile={profile} staffList={staffList}
+      officeLocations={settings.office_locations}
       viewingResourceId={viewingResourceId} setViewingResourceId={setViewingResourceId} mod={mod}
       todayAppointments={apptsForDate(`${getCurrentJalali().year}/${getCurrentJalali().month + 1}/${getCurrentJalali().day}`)}
       onAppointmentsChanged={() => loadAllSessions()} />

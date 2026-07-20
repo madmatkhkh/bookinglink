@@ -1472,3 +1472,20 @@ img-src نهایی: `'self' data: blob: https://images.nobatlink.com https://tru
 - هایلایت پرونده‌ی فعلی در سوییچر مراجع: `bg-brand/5` → `bg-brand-50` (معتبر و ظریف).
 
 فایل‌ها: `[slug]/panel/PsychologyAdmin.tsx`، `[slug]/my/page.tsx`. بدون migration. `timeout 240 npx next build` → exit 0.
+
+## چنج‌لاگ 1405/04/28 (2026-07-19) ادامه‌ی ۱۸ — پروتکل درمان: تعیین «نوع» (محل حضوری / کانال آنلاین) توسط متخصص
+
+خواسته: وقتی متخصص یک پروتکل درمان (پکیج) تعریف می‌کند، علاوه بر آنلاین/حضوری‌بودن، «نوعش» را هم مشخص کند — برای حضوری «کدام محل» (مثلا ولنجک) و برای آنلاین «کدام کانال» (مثلا واتساپ). مراجع خودش انتخاب نمی‌کند (این از قبل هم برای پکیج این‌طور بود؛ نوع جلسه از خود پکیج می‌آید).
+
+طراحی کم‌ریسک: محل/کانال فقط روی خود پکیج ذخیره می‌شود و در نمایش از پکیج مشتق می‌شود — مسیر پرداخت/ساخت جلسه اصلا لمس نشد.
+
+- **migration 0044:** چهار ستون nullable به psy_packages: `primary_office_location`، `primary_meet_channel`، `secondary_office_location`، `secondary_meet_channel` (office_location = عنوان محل؛ meet_channel = متد کانال مثل whatsapp/google_meet). additive و امن برای دیتای زنده.
+- **تایپ Package** در my/page و PsychologyAdmin با چهار فیلد اختیاری آپدیت شد.
+- **پلمبینگ:** ProfileBits حالا meet_channels/meet_link دارد؛ PatientsTab یک prop تازه‌ی officeLocations می‌گیرد؛ PsychologyAdmin آن را از settings.office_locations پاس می‌دهد.
+- **فرم «تعریف پروتکل درمانی» (PatientsTab):** برای مراجع و همراه، وقتی نوع حضوری است یک انتخابگر «محل» (از office_locations) و وقتی آنلاین است یک انتخابگر «کانال» (از کانال‌های فعال متخصص، با برچسب MEET_META) نشان داده می‌شود. state اولیه‌ی newPkg چهار فیلد جدید را دارد.
+- **API packages:** POST از قبل با ...rest فیلدها را ذخیره می‌کند؛ PATCH ALLOWED با چهار فیلد کامل شد (برای ویرایش).
+- **نمایش:** helper `pkgTypeDetail` (آنلاین→«آنلاین — واتساپ»، حضوری→«حضوری — ولنجک») در خلاصه‌ی پکیج، هم در پنل (PatientsTab) هم در کارت پکیج مراجع (my/page).
+
+نکته‌ی حین کار: دو ویرایش str_replace اولیه، به‌اشتباه خطوط `{profile.companion_label ? (` و `<div>` توضیحات را حذف کرده بودند و build را شکستند؛ هر دو بازگردانده شدند و build سبز شد.
+
+فایل‌ها: migrations/0044، PatientsTab.tsx، my/page.tsx، PsychologyAdmin.tsx، packages/route.ts. `timeout 240 npx next build` → exit 0. اسکن اعراب روی خطوط تغییرکرده → CLEAN. ارقام لاتین. migration پیوست است و باید روی DB اجرا شود.

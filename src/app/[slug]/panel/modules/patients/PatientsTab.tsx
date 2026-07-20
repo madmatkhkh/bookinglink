@@ -18,12 +18,13 @@ import { useModalBackClose } from '@/lib/useModalBackClose'
 import useSWR, { mutate as globalMutate } from 'swr'
 import { LIVE_SWR_OPTIONS } from '@/lib/swr'
 import { stageTitle, STAGE_STATUS_LABEL, STAGE_TYPE_LABEL } from '@/lib/flow'
-import { IntakeForm, DEFAULT_INTAKE_FORM, LEGACY_DETAIL_LABELS, INTAKE_KNOWN_COLUMNS, fieldVisible, Pricing } from '@/lib/psy'
+import { IntakeForm, DEFAULT_INTAKE_FORM, LEGACY_DETAIL_LABELS, INTAKE_KNOWN_COLUMNS, fieldVisible, Pricing, OfficeLocation } from '@/lib/psy'
+import { MeetChannel, usableMeetChannels, mergeMeetChannels, MEET_META } from '@/lib/meet'
 import { PageHeader, EmptyState, SkeletonRows, enTime, Field, SelectField, TextareaField } from '../shared'
 import type { Session, Package, CaseStage, Patient, Booking } from '../../PsychologyAdmin'
 
 // فقط دو فیلدی که این تب از پروفایل مصرف می‌کند (برچسب همراه + قیمت‌ها)
-type ProfileBits = { companion_label?: string | null; pricing: Pricing; stage_presets?: string[] }
+type ProfileBits = { companion_label?: string | null; pricing: Pricing; stage_presets?: string[]; meet_channels?: MeetChannel[]; meet_link?: string | null }
 type ExtraCharge = {
  id: string; case_number: string; title: string; amount: number
  status: 'awaiting_payment' | 'payment_submitted' | 'paid'
@@ -179,9 +180,15 @@ async function loadCaseBundle(api: (path: string) => string, case_number: string
  }
 }
 
+// برچسب «نوع» یک دسته‌ی پروتکل: آنلاین→کانال، حضوری→محل (اگر متخصص تعیین کرده)
+function pkgTypeDetail(type: string, location?: string | null, channel?: string | null): string {
+ if (type === 'online') return channel ? `آنلاین — ${MEET_META[channel as keyof typeof MEET_META]?.label || channel}` : 'آنلاین'
+ return location ? `حضوری — ${location}` : 'حضوری'
+}
+
 export default function PatientsTab({
  api, patients, fetchAll, bookings, loading, isOwner, profile, staffList,
- viewingResourceId, setViewingResourceId, mod, onAppointmentsChanged, todayAppointments,
+ viewingResourceId, setViewingResourceId, mod, onAppointmentsChanged, todayAppointments, officeLocations = [],
 }: {
  api: (path: string) => string
  patients: Patient[]
@@ -196,9 +203,12 @@ export default function PatientsTab({
  mod: (key: string) => boolean
  onAppointmentsChanged: () => void
  todayAppointments: { time: string; name: string; type: string; modeText: string; caseNumber: string; id: string }[]
+ officeLocations?: OfficeLocation[]
 }) {
  // ── Patients state ── (خود لیست patients از props می‌آید)
  const stagePresets = Array.isArray(profile.stage_presets) ? profile.stage_presets.filter(Boolean) : []
+ // متدهای کانال آنلاین فعال متخصص — برای انتخاب «کانال» هر پروتکل آنلاین
+ const myChannels = mergeMeetChannels(profile.meet_channels, profile.meet_link).map(c => c.method)
  const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null)
  const [patientView, setPatientView] = useState<'list' | 'detail' | 'edit'>('list')
  const [patientTab, setPatientTab] = useState<'info' | 'payment' | 'packages' | 'sessions' | 'messages'>('info')
@@ -256,6 +266,8 @@ export default function PatientsTab({
    month: String(t.month + 1), year: String(t.year),
    primary_sessions: 8, secondary_sessions: 0,
    primary_session_type: 'offline', secondary_session_type: 'offline', notes: '',
+   primary_office_location: '', primary_meet_channel: '',
+   secondary_office_location: '', secondary_meet_channel: '',
   }
  })
  const [editSession, setEditSession] = useState<Session | null>(null)
@@ -1135,9 +1147,9 @@ export default function PatientsTab({
                </div>
               </div>
               <div className="grid grid-cols-2 gap-2 text-xs text-soot">
-               <div>مراجع: {primarySess.length}/{pkg.primary_sessions} جلسه ({pkg.primary_session_type === 'online' ? 'آنلاین' : 'حضوری'})</div>
+               <div>مراجع: {primarySess.length}/{pkg.primary_sessions} جلسه ({pkgTypeDetail(pkg.primary_session_type, pkg.primary_office_location, pkg.primary_meet_channel)})</div>
                {(pkg.secondary_sessions > 0 || profile.companion_label) && (
-                <div>{profile.companion_label || 'همراه'}: {secondarySess.length}/{pkg.secondary_sessions} جلسه ({pkg.secondary_session_type === 'online' ? 'آنلاین' : 'حضوری'})</div>
+                <div>{profile.companion_label || 'همراه'}: {secondarySess.length}/{pkg.secondary_sessions} جلسه ({pkgTypeDetail(pkg.secondary_session_type, pkg.secondary_office_location, pkg.secondary_meet_channel)})</div>
                )}
               </div>
               {pkg.notes && <p className="text-xs text-soot mt-2 pt-2 border-t border-sand">{pkg.notes}</p>}
@@ -1424,6 +1436,27 @@ export default function PatientsTab({
          </select>
         </div>
        </div>
+       {/* «نوع» جلسه‌ی مراجع: حضوری→محل، آنلاین→کانال (per-پروتکل) */}
+       {newPkg.primary_session_type === 'offline' && officeLocations.length > 0 && (
+        <div>
+         <label className="text-xs text-soot mb-1 block">محل جلسه‌ی مراجع</label>
+         <select value={newPkg.primary_office_location} onChange={e => setNewPkg({...newPkg, primary_office_location: e.target.value})}
+          className="w-full text-sm px-3 py-2 border border-sand rounded-lg bg-white">
+          <option value="">— انتخاب محل —</option>
+          {officeLocations.map(loc => <option key={loc.id} value={loc.title}>{loc.title}</option>)}
+         </select>
+        </div>
+       )}
+       {newPkg.primary_session_type === 'online' && myChannels.length > 0 && (
+        <div>
+         <label className="text-xs text-soot mb-1 block">کانال جلسه‌ی مراجع</label>
+         <select value={newPkg.primary_meet_channel} onChange={e => setNewPkg({...newPkg, primary_meet_channel: e.target.value})}
+          className="w-full text-sm px-3 py-2 border border-sand rounded-lg bg-white">
+          <option value="">— انتخاب کانال —</option>
+          {myChannels.map(m => <option key={m} value={m}>{MEET_META[m].label}</option>)}
+         </select>
+        </div>
+       )}
        {profile.companion_label ? (
         <label className="flex items-center gap-2 text-sm text-ink cursor-pointer select-none">
          <input type="checkbox" checked={newPkg.secondary_sessions > 0}
@@ -1453,6 +1486,26 @@ export default function PatientsTab({
          </select>
         </div>
        </div>
+       )}
+       {newPkg.secondary_sessions > 0 && newPkg.secondary_session_type === 'offline' && officeLocations.length > 0 && (
+        <div>
+         <label className="text-xs text-soot mb-1 block">محل جلسه‌ی {profile.companion_label || 'همراه'}</label>
+         <select value={newPkg.secondary_office_location} onChange={e => setNewPkg({...newPkg, secondary_office_location: e.target.value})}
+          className="w-full text-sm px-3 py-2 border border-sand rounded-lg bg-white">
+          <option value="">— انتخاب محل —</option>
+          {officeLocations.map(loc => <option key={loc.id} value={loc.title}>{loc.title}</option>)}
+         </select>
+        </div>
+       )}
+       {newPkg.secondary_sessions > 0 && newPkg.secondary_session_type === 'online' && myChannels.length > 0 && (
+        <div>
+         <label className="text-xs text-soot mb-1 block">کانال جلسه‌ی {profile.companion_label || 'همراه'}</label>
+         <select value={newPkg.secondary_meet_channel} onChange={e => setNewPkg({...newPkg, secondary_meet_channel: e.target.value})}
+          className="w-full text-sm px-3 py-2 border border-sand rounded-lg bg-white">
+          <option value="">— انتخاب کانال —</option>
+          {myChannels.map(m => <option key={m} value={m}>{MEET_META[m].label}</option>)}
+         </select>
+        </div>
        )}
        <div>
         <label className="text-xs text-soot mb-1 block">توضیحات پروتکل درمان</label>
