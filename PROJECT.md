@@ -1445,3 +1445,19 @@ img-src نهایی: `'self' data: blob: https://images.nobatlink.com https://tru
 **بعدی (جدا):** سوییچر پنل متخصص (بین‌tenantی) — بزرگ‌تر و نیازمند تصمیم درباره‌ی session، جدا انجام می‌شود.
 
 دو فایل: `psy/data/route.ts` و `[slug]/my/page.tsx`. بدون migration. `timeout 240 npx next build` → exit 0. اسکن اعراب روی خطوط تغییرکرده → CLEAN. ارقام لاتین.
+
+## چنج‌لاگ 1405/04/27 (2026-07-18) ادامه‌ی ۱۷ — سوییچر پرونده روی هدر (بازطراحی) + سوییچر پنل متخصص (بدون OTP)
+
+دو کار در ادامه‌ی سوییچرها:
+
+### الف) بازطراحی سوییچر پرونده‌ی مراجع (my/page)
+نوار جدای amber با select بومی زشت و ناهمگون با پنل بود. حذف شد و سوییچر روی **خود بلوک نام/شماره‌ی پرونده در هدر** نشست:
+- اگر مراجع بیش از یک پرونده دارد، بلوک نام/شماره خودش یک دکمه با فلش (chevron) می‌شود؛ کلیک → یک منوی سفارشی هم‌جنس پنل (کارت سفید rounded-xl، border-sand، shadow، hover) باز می‌شود که پرونده‌ها را با نام + شماره فهرست می‌کند (فعلی با bg-brand/5 مشخص). انتخاب → `switchCase` (کلید SWR عوض می‌شود). backdrop برای بستن. `caseMenuOpen` state جدید.
+- اگر یک پرونده باشد، هیچ فلش/منویی نیست و دقیقا مثل قبل.
+
+### ب) سوییچر پنل متخصص — بین‌tenantی، بدون OTP دوباره
+متخصصی که چند tenant با یک owner_phone دارد، حالا می‌تواند بین پنل‌هایش سوییچ کند بدون کد پیامکی دوباره.
+- **روت جدید `panel/switch/route.ts`:** `GET` فهرست همه‌ی tenantهای همین صاحب (owner_phone یا owner_email یکی، از طریق `.or()` + نام نمایشی از tenant_profiles) — فقط owner. `POST {targetSlug}` سوییچ: هویت مقصد باید دقیقا با tenant فعلی یکی باشد (`samePhone || sameEmail`)، آن‌وقت `createPanelSession` برای مقصد و برگرداندن slug برای ریدایرکت. امنیت: session فعلی ثابت می‌کند این هویت با OTP وارد شده؛ tenant دیگری با همین owner_phone هم مال همین شخص است (می‌توانست با همان شماره OTP بگیرد) — پس بدون‌OTP امن است.
+- **UI در «حساب من» (PsychologyAdmin):** بخش «پنل‌های شما» فقط وقتی `myPanels.length > 1`. هر پنل با نام نمایشی + slug؛ فعلی «پنل فعلی» و بقیه دکمه‌ی «ورود به این پنل» (→ `switchPanel` → ریدایرکت به `/{slug}/panel`). `loadMyPanels` یک‌بار در mount.
+
+فایل‌ها: `[slug]/my/page.tsx`، `panel/switch/route.ts` (جدید)، `[slug]/panel/PsychologyAdmin.tsx`. بدون migration. `timeout 240 npx next build` → exit 0. اسکن اعراب روی خطوط تغییرکرده → CLEAN. ارقام لاتین.

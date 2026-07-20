@@ -527,6 +527,8 @@ export function PsychologyAdmin() {
 
  // ── چندکارمندی: کی وارد شده (صاحب مجموعه یا یک کارمند مشخص)؟ ──
  const [me, setMe] = useState<{ isOwner: boolean; resourceId: string | null; resourceName: string | null; phone: string | null; slug: string | null; multiTherapist: boolean; multiTherapistRequested: boolean; modules: ModuleFlags } | null>(null)
+ // پنل‌های دیگر همین صاحب (tenantهای هم‌شماره) — برای سوییچ بدون OTP دوباره
+ const [myPanels, setMyPanels] = useState<{ slug: string; display_name: string; current: boolean }[]>([])
  const [changePhoneOpen, setChangePhoneOpen] = useState(false)
  const [newPhoneInput, setNewPhoneInput] = useState('')
  const [changePhoneCode, setChangePhoneCode] = useState('')
@@ -642,7 +644,33 @@ export function PsychologyAdmin() {
   await globalMutate('pending')
  }
 
+ // فهرست پنل‌های همین صاحب — یک بار در mount. اگر بیش از یکی بود، سوییچر در
+ // «حساب من» نشان داده می‌شود.
+ async function loadMyPanels() {
+  try {
+   const res = await fetch(panelApi('/switch'), { cache: 'no-store' })
+   if (!res.ok) return
+   const d = await res.json()
+   setMyPanels(d.panels || [])
+  } catch {}
+ }
+
+ // سوییچ به پنل دیگر همین صاحب — بدون OTP دوباره (سرور هویت را چک می‌کند)،
+ // بعد به پنل مقصد ریدایرکت.
+ async function switchPanel(targetSlug: string) {
+  try {
+   const res = await fetch(panelApi('/switch'), {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ targetSlug }),
+   })
+   const d = await res.json()
+   if (d.success && d.slug) window.location.href = `/${d.slug}/panel`
+   else uiAlert(d.error || 'سوییچ ناموفق بود')
+  } catch { uiAlert('خطا در سوییچ پنل') }
+ }
+
  useEffect(() => { fetchAll(); loadSettings(); loadProfile() }, [fetchAll])
+ useEffect(() => { loadMyPanels() }, []) // فهرست پنل‌های همین صاحب، یک‌بار
 
  // لیست پرونده‌ها را خود SWR روی focus و هر 30 ثانیه (فقط وقتی تب دیده می‌شود)
  // بی‌اسپینر تازه می‌کند — هوک useAutoRevalidate قبلی دیگر لازم نیست.
@@ -2898,6 +2926,34 @@ export function PsychologyAdmin() {
    {mainTab === 'account' && (
     <div className="max-w-lg mx-auto space-y-4 pb-24">
      <PageHeader title="حساب من" desc="مشخصات حساب، پلن مجموعه و تنظیمات سطح دسترسی." />
+
+     {/* پنل‌های دیگر همین صاحب — سوییچ بدون OTP دوباره. فقط وقتی بیش از یک پنل باشد. */}
+     {myPanels.length > 1 && (
+      <section className="bg-white rounded-2xl border border-sand p-5">
+       <h2 className="text-sm font-display font-bold text-ink mb-1">پنل‌های شما</h2>
+       <p className="text-xs text-soot mb-4">
+        شما بیش از یک پنل با همین شماره دارید. برای جابه‌جایی بین آن‌ها، بدون کد پیامکی دوباره، روی هرکدام بزنید.
+       </p>
+       <div className="space-y-2">
+        {myPanels.map(p => (
+         <div key={p.slug}
+          className={`flex items-center justify-between gap-2 p-3 rounded-xl border ${p.current ? 'border-brand/30 bg-brand/5' : 'border-sand'}`}>
+          <div className="min-w-0">
+           <div className="text-sm text-ink truncate">{p.display_name}</div>
+           <div className="text-xs text-soot truncate" dir="ltr">nobatlink.com/{p.slug}</div>
+          </div>
+          {p.current ? (
+           <span className="text-xs text-brand font-medium shrink-0">پنل فعلی</span>
+          ) : (
+           <button onClick={() => switchPanel(p.slug)}
+            className="text-xs text-white bg-brand rounded-lg px-3 py-1.5 shrink-0 hover:opacity-90">ورود به این پنل</button>
+          )}
+         </div>
+        ))}
+       </div>
+      </section>
+     )}
+
      <section className="bg-white rounded-2xl border border-sand p-5">
       <h2 className="text-sm font-display font-bold text-ink mb-1">مشخصات حساب</h2>
       <p className="text-xs text-soot mb-4">

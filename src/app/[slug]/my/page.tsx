@@ -110,6 +110,7 @@ export default function PatientPanel() {
  // است» هم هست، ولی گیت رندر روی step==='panel' است، پس booking مشتق‌شده مشکلی
  // نمی‌سازد (چون در ورود قبل از setStep('panel') کش prime می‌شود).
  const [caseNumber, setCaseNumber] = useState('')
+ const [caseMenuOpen, setCaseMenuOpen] = useState(false) // منوی سوییچر پرونده روی هدر
  const dataKey = caseNumber && phone ? `mydata:${caseNumber}:${phone}` : null
  const { data: myData } = useSWR(dataKey, () => loadClientData(slug, caseNumber, phone), LIVE_SWR_OPTIONS)
  const booking: Booking | null = myData?.booking ?? null
@@ -385,39 +386,52 @@ export default function PatientPanel() {
    <DialogHost />
    <div className="bg-white border-b border-sand px-4 py-3 sticky top-0 z-10">
     <div className="max-w-lg mx-auto flex items-center justify-between">
-     <div>
-      <h1 className="text-sm font-display font-semibold text-ink">{booking.client_name}</h1>
-      <div className="flex items-center gap-2 flex-wrap">
-       <span className="text-xs text-soot">پرونده:</span>
-       <span className="text-xs font-mono text-ink bg-sand px-2 py-0.5 rounded">{booking.case_number}</span>
-       {booking.session_type && (
-        <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-soot">
-         {booking.session_type === 'online' ? '🎥 آنلاین' : `🏥 حضوری${booking.office_location ? ` — ${booking.office_location}` : ''}`}
-        </span>
-       )}
-      </div>
+     {/* نام و شماره‌ی پرونده — اگر مراجع چند پرونده دارد، همین بلوک خودش سوییچر
+        است (کلیک → منوی هم‌جنس پنل)، نه یک نوار جدا. */}
+     <div className="relative">
+      <button type="button" disabled={myCases.length <= 1}
+       onClick={() => setCaseMenuOpen(o => !o)}
+       className="text-right disabled:cursor-default group">
+       <h1 className="text-sm font-display font-semibold text-ink flex items-center gap-1">
+        {booking.client_name}
+        {myCases.length > 1 && (
+         <svg className={`w-4 h-4 text-soot transition-transform ${caseMenuOpen ? 'rotate-180' : ''}`} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M5 8l5 5 5-5" strokeLinecap="round" strokeLinejoin="round" />
+         </svg>
+        )}
+       </h1>
+       <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-xs text-soot">پرونده:</span>
+        <span className="text-xs font-mono text-ink bg-sand px-2 py-0.5 rounded">{booking.case_number}</span>
+        {booking.session_type && (
+         <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-soot">
+          {booking.session_type === 'online' ? '🎥 آنلاین' : `🏥 حضوری${booking.office_location ? ` — ${booking.office_location}` : ''}`}
+         </span>
+        )}
+       </div>
+      </button>
+
+      {caseMenuOpen && myCases.length > 1 && (
+       <>
+        <div className="fixed inset-0 z-20" onClick={() => setCaseMenuOpen(false)} />
+        <div className="absolute right-0 top-full mt-2 z-30 bg-white rounded-xl border border-sand shadow-lg overflow-hidden min-w-[240px] py-1">
+         <div className="px-3 py-1.5 text-[11px] text-soot border-b border-sand mb-1">پرونده‌های شما</div>
+         {myCases.map(c => (
+          <button key={c.case_number} type="button"
+           onClick={() => { switchCase(c.case_number); setCaseMenuOpen(false) }}
+           className={`w-full text-right px-3 py-2.5 flex flex-col gap-0.5 hover:bg-gray-50 transition-colors ${c.case_number === (booking.case_number) ? 'bg-brand/5' : ''}`}>
+           <span className="text-sm font-medium text-ink">{c.client_name}</span>
+           <span className="text-xs font-mono text-soot">{c.case_number}</span>
+          </button>
+         ))}
+        </div>
+       </>
+      )}
      </div>
      <button onClick={logout}
-      className="text-xs text-soot border border-sand rounded-lg px-3 py-1.5">خروج</button>
+      className="text-xs text-soot border border-sand rounded-lg px-3 py-1.5 shrink-0">خروج</button>
     </div>
    </div>
-
-   {/* سوییچر پرونده — فقط وقتی مراجع بیش از یک پرونده‌ی هم‌شماره دارد */}
-   {myCases.length > 1 && (
-    <div className="bg-amber-50 border-b border-amber-100 px-4 py-2">
-     <div className="max-w-lg mx-auto flex items-center gap-2">
-      <span className="text-xs text-soot shrink-0">پرونده:</span>
-      <select value={caseNumber} onChange={e => switchCase(e.target.value)}
-       className="flex-1 text-xs bg-white border border-sand rounded-lg px-2 py-1.5 text-ink">
-       {myCases.map(c => (
-        <option key={c.case_number} value={c.case_number}>
-         {c.client_name} — {c.case_number}
-        </option>
-       ))}
-      </select>
-     </div>
-    </div>
-   )}
 
    <div className="max-w-lg mx-auto p-4">
     {extraCharges.filter(c => c.status !== 'paid').length > 0 && (
