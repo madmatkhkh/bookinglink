@@ -580,6 +580,108 @@ const FAQS = [
   { q: 'راه‌اندازی چقدر زمان می‌برد؟', a: 'کمتر از پنج دقیقه. ثبت‌نام کنید، حوزه‌ی کاری را انتخاب و برنامه‌ی هفتگی را تنظیم کنید؛ نشانی اختصاصی شما بلافاصله آماده‌ی اشتراک‌گذاری است.' },
 ]
 
+// ── «هر چیزی که برای رشد لازم دارید» — روایت با مکانیزم متفاوت از دو بخش pinی
+// قبلی تا یکنواخت نشود: مسیر افقی که با اسکرول عمودی حرکت می‌کند (کارت‌ها مثل
+// نوار فیلم از کنار رد می‌شوند). RTL: کارت‌ها از راست به چپ می‌آیند.
+// حرکت‌کاهیده: به‌جای نوار افقی، گرید عمودی عادی نشان داده می‌شود.
+function FeatureTrack() {
+  const rootRef = useRef<HTMLDivElement>(null)
+  const trackRef = useRef<HTMLDivElement>(null)
+  const [reduced, setReduced] = useState(false)
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) { setReduced(true); return }
+    const root = rootRef.current
+    const track = trackRef.current
+    if (!root || !track) return
+
+    let ctx: any, killed = false
+    ;(async () => {
+      const gsapMod = await import('gsap')
+      const stMod = await import('gsap/ScrollTrigger')
+      if (killed) return
+      const gsap = (gsapMod as any).default || gsapMod
+      const ScrollTrigger = (stMod as any).ScrollTrigger || (stMod as any).default
+      gsap.registerPlugin(ScrollTrigger)
+
+      ctx = gsap.context(() => {
+        const getShift = () => Math.max(0, track.scrollWidth - window.innerWidth + 48)
+        gsap.to(track, {
+          x: () => getShift(), // RTL: مثبت = حرکت به سمت چپ دید
+          ease: 'none',
+          scrollTrigger: {
+            trigger: root,
+            start: 'top top',
+            end: () => '+=' + getShift(),
+            pin: true,
+            scrub: 0.5,
+            invalidateOnRefresh: true,
+          },
+        })
+      }, root)
+    })()
+    return () => { killed = true; if (ctx) ctx.revert() }
+  }, [])
+
+  // حالت حرکت‌کاهیده: گرید عمودی ساده (بدون افق/pin)
+  if (reduced) {
+    return (
+      <section id="grow" className="max-w-5xl mx-auto px-6 pt-16 pb-10">
+        <div className="text-center max-w-xl mx-auto mb-12">
+          <div className="text-sm font-semibold text-trust mb-3">و خیلی چیزهای دیگر</div>
+          <h2 className="font-display font-extrabold text-3xl sm:text-4xl tracking-tightest">هر چیزی که برای رشد لازم دارید</h2>
+        </div>
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+          {FEATURES.map(f => (
+            <div key={f.t} className="rounded-2xl border border-sand bg-white p-6">
+              <div className="w-11 h-11 rounded-xl bg-trust-wash text-trust-deep flex items-center justify-center mb-5">
+                <Icon path={f.icon} />
+              </div>
+              <h3 className="font-display font-bold text-lg mb-2">{f.t}</h3>
+              <p className="text-[13px] text-soot leading-relaxed mb-3">{f.d}</p>
+              {f.tag && (
+                <span dir="ltr" className="inline-block text-[12px] font-semibold text-trust-deep bg-trust-wash rounded-lg px-3 py-1.5">{f.tag}</span>
+              )}
+            </div>
+          ))}
+        </div>
+      </section>
+    )
+  }
+
+  return (
+    <section id="grow" ref={rootRef} className="relative bg-canvas border-y border-sand overflow-hidden">
+      <div className="min-h-screen flex flex-col justify-center py-12">
+        <div className="max-w-5xl mx-auto px-6 w-full mb-8 md:mb-12">
+          <div className="text-sm font-semibold text-trust mb-3">و خیلی چیزهای دیگر</div>
+          <h2 className="font-display font-extrabold text-3xl sm:text-4xl tracking-tightest">هر چیزی که برای رشد لازم دارید</h2>
+          <p className="mt-3 text-sm text-soot max-w-md hidden md:block">نوبت‌دهی و مدیریت فقط بخشی از کار است — این‌ها ابزارهایی‌اند که کسب‌وکارتان را جلو می‌برند.</p>
+        </div>
+        {/* نوار افقی — با اسکرول عمودی از راست به چپ حرکت می‌کند */}
+        <div ref={trackRef} className="flex gap-5 px-6 md:px-[max(1.5rem,calc((100vw-64rem)/2))] will-change-transform" style={{ direction: 'rtl' }}>
+          {FEATURES.map((f, i) => (
+            <div key={f.t}
+              className="shrink-0 w-[80vw] sm:w-[360px] rounded-2xl border border-sand bg-white p-7 shadow-[0_20px_50px_-30px_rgba(0,0,0,0.35)]">
+              <div className="flex items-center gap-3 mb-5">
+                <span className="w-11 h-11 rounded-xl bg-trust-wash text-trust-deep flex items-center justify-center shrink-0">
+                  <Icon path={f.icon} />
+                </span>
+                <span dir="ltr" className="font-display font-extrabold text-2xl text-trust/40 tnum">{String(i + 1).padStart(2, '0')}</span>
+              </div>
+              <h3 className="font-display font-bold text-xl mb-2.5">{f.t}</h3>
+              <p className="text-sm text-soot leading-relaxed mb-3.5">{f.d}</p>
+              {f.tag && (
+                <span dir="ltr" className="inline-block text-[12px] font-semibold text-trust-deep bg-trust-wash rounded-lg px-3 py-1.5">{f.tag}</span>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+}
+
 export default function Landing() {
   const [niches, setNiches] = useState<NicheCard[]>([])
   const [billing, setBilling] = useState<'monthly' | 'annual'>('monthly')
@@ -717,27 +819,8 @@ export default function Landing() {
       {/* ── داشبورد — روایت مرکز فرماندهی کسب‌وکار (pin/scrub) ── */}
       <DashboardStory />
 
-      {/* ── امکانات مکمل (چیزهایی که در روایت داشبورد نبودند) ── */}
-      <section className="max-w-5xl mx-auto px-6 pt-16 pb-10">
-        <div className="text-center max-w-xl mx-auto mb-12" data-fx="reveal">
-          <div className="text-sm font-semibold text-trust mb-3">و خیلی چیزهای دیگر</div>
-          <h2 className="font-display font-extrabold text-3xl sm:text-4xl tracking-tightest">هر چیزی که برای رشد لازم دارید</h2>
-        </div>
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5" data-fx="stagger">
-          {FEATURES.map(f => (
-            <div key={f.t} className="rounded-2xl border border-sand bg-white p-6 transition hover:-translate-y-1.5 hover:shadow-[0_22px_44px_-20px_rgba(0,0,0,0.32)]">
-              <div className="w-11 h-11 rounded-xl bg-trust-wash text-trust-deep flex items-center justify-center mb-5">
-                <Icon path={f.icon} />
-              </div>
-              <h3 className="font-display font-bold text-lg mb-2">{f.t}</h3>
-              <p className="text-[13px] text-soot leading-relaxed mb-3">{f.d}</p>
-              {f.tag && (
-                <span dir="ltr" className="inline-block text-[12px] font-semibold text-trust-deep bg-trust-wash rounded-lg px-3 py-1.5">{f.tag}</span>
-              )}
-            </div>
-          ))}
-        </div>
-      </section>
+      {/* ── هر چیزی که برای رشد لازم دارید — روایت افقی (مکانیزم متفاوت) ── */}
+      <FeatureTrack />
 
       {/* ── تخصص‌ها — رنگ هر نیچ فقط همین‌جا و در موکاپ hero ظاهر می‌شود ── */}
       <section id="niches" className="border-y border-sand bg-white">
