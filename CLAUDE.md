@@ -1511,3 +1511,16 @@ img-src نهایی: `'self' data: blob: https://images.nobatlink.com https://tru
 - مقدارِ `session_type: 'offline'` در state اولیه‌ی newPatientForm و در reset باقی ماند، پس `createPatient` (که کل فرم را POST می‌کند) همچنان یک پیش‌فرض معتبر می‌فرستد و مسیر ساختِ پرونده/API دست‌نخورده و سالم است. فقط UI حذف شد.
 
 فایل: PatientsTab.tsx (فقط حذفِ خط، بدون افزودن). `timeout 240 npx next build` → exit 0.
+
+## چنج‌لاگ 1405/04/30 (2026-07-21) ادامه‌ی ۲۱ — فاز P1 قیمت‌گذاری: preset پلن‌ها + grandfathering
+
+خواسته: اجرای فاز P1 از بخش 9 جدید MODULES.md (قیمت‌گذاری نهایی — دو محور پلن/نیچ، هیبرید اشتراک + کارمزد سقف‌دار). این جلسه فقط P1؛ مسیر پول (P2) دست نخورد.
+
+- **MODULES.md:** بخش 9 کامل اضافه شد (تخصیص 17 کلید کاتالوگ به پایه/حرفه‌ای/تیم، قیمت‌ها، کارمزد per-پلن با کف/سقف آینه‌ی زیبال، سهمیه SMS، وصول از تسویه، VAT 10% به‌صورت قلم جدای فاکتور، grandfathering، نقشه P1..P6، تصمیم‌های ردشده). بخش 6 قدیمی با اشاره به بخش 9 حفظ شد. نام پلن سوم «تیم» است نه «کلینیک» (واژگان نیچی در لایه پلتفرم ممنوع).
+- **`src/lib/plans.ts` (جدید):** PLAN_PRESETS ثابت در کد (free=alias پایه، base، pro، team)، OUT_OF_PLAN_KEYS (card_to_card، custom_domain)، PLAN_LABELS، planPreset. بدون import سروری (الگوی moduleManifest).
+- **`src/lib/modules.ts`:** لایه preset پلن در getEnabledModules طبق ترتیب حل بخش 9.8: is_active=false → ردیف tenant_features → preset پلن (فقط scope=platform و خارج از OUT_OF_PLAN_KEYS) → default_on. اعمال preset پشت فلگ `plans_enforced` در platform_settings (کش 60ثانیه مثل کاتالوگ) — تا migration نخورده، رفتار عینا قبلی است (fail-open، دیپلوی کد قبل از migration امن). آرگومان اختیاری plan به getEnabledModules/isModuleEnabled/requireModule؛ اگر پاس نشود خودش با کوئری موازی می‌خواند.
+- **11 فایل route:** همه call siteهای requireModule/getEnabledModules حالا t.plan / a.tenant.plan را پاس می‌دهند (یک کوئری کمتر). روت super/features عمدا بدون plan ماند (auto-fetch).
+- **migration 0045 (فایل `0045_plan_presets.sql` + append به schema.sql):** (1) constraint پلن باز شد به free/base/pro/team — بدون UPDATE روی دیتای زنده، free قدیمی alias پایه در کد؛ (2) دو اصلاح نمایشی کاتالوگ: multi_therapist «چندپرسنلی (تیم)» + خنثی‌سازی واژگان نیچی (مراجع→مشتری) در description پنج ماژول پلتفرمی — کلیدها دست‌نخورده؛ (3) grandfathering: برای هر tenant موجود × هر ماژول پلتفرمی default_on=true یک ردیف صریح tenant_features(enabled=true, source='manual') با on conflict do nothing — هیچ tenant زنده‌ای چیزی از دست نمی‌دهد؛ (4) seed کلید plans_enforced=true.
+- ترتیب استقرار امن از هر دو طرف: کد اول → فلگ نیست، رفتار قبلی؛ migration اول → grandfather بی‌اثر و فلگ خوانده نمی‌شود.
+
+فایل‌ها: MODULES.md، src/lib/plans.ts، src/lib/modules.ts، 11 روت، 0045_plan_presets.sql، schema.sql (append + هدر تا 0045). `timeout 300 npx next build` → exit 0. اسکن اعراب/ارقام فارسی روی خطوط تغییرکرده → CLEAN. **migration 0045 پیوست است و باید روی DB اجرا شود** (SQL Editor سوپابیس؛ idempotent).

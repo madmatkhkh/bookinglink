@@ -11,7 +11,7 @@ export const revalidate = 0
 export async function POST(req: NextRequest, { params }: { params: { slug: string } }) {
   const t = await getActiveTenant(params.slug)
   if (!t) return NextResponse.json({ error: 'یافت نشد' }, { status: 404 })
-  const gate = await requireModule(t.id, 'patient_buy_extra_session')
+  const gate = await requireModule(t.id, 'patient_buy_extra_session', t.plan)
   if (gate) return gate
   const { case_number, package_id, attendee, session_type, replace_session_id } = await req.json()
   const phone = getClientPhone(req)

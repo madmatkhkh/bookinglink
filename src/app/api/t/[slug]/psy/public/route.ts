@@ -22,7 +22,7 @@ export async function GET(_req: NextRequest, { params }: { params: { slug: strin
   // default_on) — نه فقط دو کلید قدیمی: waitlist و reviews هم اضافه شدند تا UI
   // مراجع (دکمه‌ی لیست انتظار در SlotPicker، باکس نظر در /my) خودش را با
   // سوییچ سوپرادمین هماهنگ کند. fail-open: کلید غایب = روشن (قبل از migration).
-  const enabledMap = await getEnabledModules(t.id)
+  const enabledMap = await getEnabledModules(t.id, t.plan)
   const features: Record<string, boolean> = {}
   for (const k of [...PATIENT_FEATURE_KEYS, 'waitlist', 'reviews']) {
     features[k] = enabledMap.has(k) ? !!enabledMap.get(k) : true

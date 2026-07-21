@@ -12,7 +12,7 @@ export const revalidate = 0
 export async function GET(req: NextRequest, { params }: { params: { slug: string } }) {
   const a = await requirePanelAuth(req, params.slug)
   if (isPanelAuthResponse(a)) return a
-  const gate = await requireModule(a.tenant.id, 'analytics')
+  const gate = await requireModule(a.tenant.id, 'analytics', a.tenant.plan)
   if (gate) return gate
   const db = sb()
   const since = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString()

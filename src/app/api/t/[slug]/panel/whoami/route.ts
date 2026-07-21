@@ -18,7 +18,7 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
   const [{ data: feature }, enabled] = await Promise.all([
     sb().from('tenant_features').select('enabled, config')
       .eq('tenant_id', a.tenant.id).eq('feature_key', MULTI_THERAPIST_FEATURE_KEY).maybeSingle(),
-    getEnabledModules(a.tenant.id),
+    getEnabledModules(a.tenant.id, a.tenant.plan),
   ])
   const multiTherapist = !!feature?.enabled
   const multiTherapistRequested = !multiTherapist && !!(feature?.config as any)?.requested

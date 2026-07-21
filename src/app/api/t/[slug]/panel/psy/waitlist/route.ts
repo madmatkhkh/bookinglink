@@ -11,7 +11,7 @@ export const revalidate = 0
 export async function GET(req: NextRequest, { params }: { params: { slug: string } }) {
   const a = await requirePanelAuth(req, params.slug)
   if (isPanelAuthResponse(a)) return a
-  const gate = await requireModule(a.tenant.id, 'waitlist')
+  const gate = await requireModule(a.tenant.id, 'waitlist', a.tenant.plan)
   if (gate) return gate
   let q = sb().from('psy_waitlist').select('*').eq('tenant_id', a.tenant.id).eq('status', 'pending').order('created_at', { ascending: true })
   if (!a.isOwner) q = q.eq('resource_id', a.resourceId)
@@ -31,7 +31,7 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
 export async function POST(req: NextRequest, { params }: { params: { slug: string } }) {
   const a = await requirePanelAuth(req, params.slug)
   if (isPanelAuthResponse(a)) return a
-  const gate = await requireModule(a.tenant.id, 'waitlist')
+  const gate = await requireModule(a.tenant.id, 'waitlist', a.tenant.plan)
   if (gate) return gate
   const { id, message } = await req.json()
   if (!id || !message?.trim()) return NextResponse.json({ error: 'پیام لازم است' }, { status: 400 })
@@ -57,7 +57,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
 export async function DELETE(req: NextRequest, { params }: { params: { slug: string } }) {
   const a = await requirePanelAuth(req, params.slug)
   if (isPanelAuthResponse(a)) return a
-  const gate = await requireModule(a.tenant.id, 'waitlist')
+  const gate = await requireModule(a.tenant.id, 'waitlist', a.tenant.plan)
   if (gate) return gate
   const { id } = await req.json()
   let q = sb().from('psy_waitlist').delete().eq('id', id).eq('tenant_id', a.tenant.id)

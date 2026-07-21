@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { sb } from '@/lib/supabase'
+import { planPreset, OUT_OF_PLAN_KEYS } from '@/lib/plans'
 
 // ── سیستم ماژولار (قابلیت = محصول) — سطح پلتفرم، نه مخصوص هیچ نیچی ─────────
 // طراحی کامل در MODULES.md. اصل: «ماژولار در دیتا، یکپارچه در کد» —
@@ -51,26 +52,57 @@ export async function getModuleCatalog(): Promise<ModuleRow[]> {
   return rows
 }
 
-// نقشه‌ی کامل «کلید ماژول → فعال؟» برای یک tenant (یک کوئری tenant_features +
-// کاتالوگ کش‌شده). کلیدهای خارج از کاتالوگ ولی موجود در tenant_features هم
-// عینا برگردانده می‌شوند تا هیچ رفتار قدیمی گم نشود.
-export async function getEnabledModules(tenantId: string): Promise<Map<string, boolean>> {
-  const [catalog, rowsRes] = await Promise.all([
+// آیا preset پلن‌ها اعمال شود؟ کلید 'plans_enforced' در platform_settings
+// (migration 0045). تا وقتی true نشده، رفتار دقیقا مثل قبل است — دیپلوی کد
+// قبل از اجرای migration هیچ‌چیز را نمی‌شکند (همان الگوی fail-open کاتالوگ).
+// کش کوتاه per-instance مثل خود کاتالوگ.
+let plansEnforcedCache: { v: boolean; at: number } | null = null
+
+async function plansEnforced(): Promise<boolean> {
+  if (plansEnforcedCache && Date.now() - plansEnforcedCache.at < CATALOG_TTL_MS) return plansEnforcedCache.v
+  let v = false
+  try {
+    const { data } = await sb().from('platform_settings').select('value').eq('key', 'plans_enforced').maybeSingle()
+    v = data?.value === true
+  } catch { /* جدول/ردیف هنوز نیست → اعمال نشود */ }
+  plansEnforcedCache = { v, at: Date.now() }
+  return v
+}
+
+// نقشه‌ی کامل «کلید ماژول → فعال؟» برای یک tenant. ترتیب حل (MODULES.md بخش 9.8):
+//   is_active=false کاتالوگ → خاموش برای همه
+//   ردیف tenant_features → برنده (add-on / دستی / grandfather / trial)
+//   preset پلن tenants.plan → فقط ماژول‌های scope='platform' و خارج از OUT_OF_PLAN_KEYS
+//   default_on کاتالوگ → fallback نهایی (رفتار قدیمی)
+// plan اختیاری است: اگر caller آن را دارد (Tenant لودشده) پاسش بدهد؛ وگرنه
+// همین‌جا خوانده می‌شود (کوئری موازی، بدون تاخیر اضافه).
+export async function getEnabledModules(tenantId: string, plan?: string): Promise<Map<string, boolean>> {
+  const [catalog, rowsRes, enforced, planRes] = await Promise.all([
     getModuleCatalog(),
     sb().from('tenant_features').select('feature_key, enabled').eq('tenant_id', tenantId),
+    plansEnforced(),
+    plan === undefined
+      ? sb().from('tenants').select('plan').eq('id', tenantId).maybeSingle()
+      : Promise.resolve(null),
   ])
+  const effectivePlan = plan !== undefined ? plan : (planRes && 'data' in planRes ? planRes.data?.plan : undefined)
+  const preset = enforced ? planPreset(effectivePlan) : null
   const rowBy = new Map<string, boolean>((rowsRes.data || []).map(r => [r.feature_key, !!r.enabled]))
   const out = new Map<string, boolean>()
   for (const m of catalog) {
     if (!m.is_active) { out.set(m.key, false); continue }
-    out.set(m.key, rowBy.has(m.key) ? rowBy.get(m.key)! : m.default_on)
+    if (rowBy.has(m.key)) { out.set(m.key, rowBy.get(m.key)!); continue }
+    if (preset && m.scope === 'platform' && !OUT_OF_PLAN_KEYS.has(m.key)) {
+      out.set(m.key, preset.has(m.key)); continue
+    }
+    out.set(m.key, m.default_on)
   }
   rowBy.forEach((v, k) => { if (!out.has(k)) out.set(k, v) })
   return out
 }
 
-export async function isModuleEnabled(tenantId: string, key: string): Promise<boolean> {
-  const map = await getEnabledModules(tenantId)
+export async function isModuleEnabled(tenantId: string, key: string, plan?: string): Promise<boolean> {
+  const map = await getEnabledModules(tenantId, plan)
   if (!map.has(key)) return true // fail-open: کلید ناشناخته/قبل از migration
   return !!map.get(key)
 }
@@ -78,8 +110,9 @@ export async function isModuleEnabled(tenantId: string, key: string): Promise<bo
 // گارد API — خط اول هر route ماژولی، بعد از auth:
 //   const gate = await requireModule(tenant.id, 'waitlist'); if (gate) return gate
 // مخفی‌کردن تب در UI کافی نیست؛ بدون این گارد، ماژول «فروختنی» عملا باز است.
-export async function requireModule(tenantId: string, key: string): Promise<NextResponse | null> {
-  if (await isModuleEnabled(tenantId, key)) return null
+// plan اختیاری: اگر caller شیء Tenant را دارد، t.plan را پاس بدهد (یک کوئری کمتر).
+export async function requireModule(tenantId: string, key: string, plan?: string): Promise<NextResponse | null> {
+  if (await isModuleEnabled(tenantId, key, plan)) return null
   return NextResponse.json({ error: 'این قابلیت برای این مجموعه فعال نیست' }, { status: 403 })
 }
 

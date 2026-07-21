@@ -13,7 +13,7 @@ export const revalidate = 0
 export async function POST(req: NextRequest, { params }: { params: { slug: string } }) {
   const t = await getActiveTenant(params.slug)
   if (!t) return NextResponse.json({ error: 'یافت نشد' }, { status: 404 })
-  const gate = await requireModule(t.id, 'waitlist')
+  const gate = await requireModule(t.id, 'waitlist', t.plan)
   if (gate) return gate
   const phone = getClientPhone(req)
   if (!phone) return NextResponse.json({ error: 'ابتدا با کد یک‌بارمصرف وارد شوید' }, { status: 401 })

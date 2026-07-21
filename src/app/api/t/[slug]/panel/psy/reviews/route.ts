@@ -9,7 +9,7 @@ export const revalidate = 0
 export async function GET(req: NextRequest, { params }: { params: { slug: string } }) {
   const a = await requirePanelAuth(req, params.slug)
   if (isPanelAuthResponse(a)) return a
-  const gate = await requireModule(a.tenant.id, 'reviews')
+  const gate = await requireModule(a.tenant.id, 'reviews', a.tenant.plan)
   if (gate) return gate
   let q = sb().from('psy_reviews').select('*').eq('tenant_id', a.tenant.id).order('created_at', { ascending: false })
   if (!a.isOwner) q = q.eq('resource_id', a.resourceId)
@@ -26,7 +26,7 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
 export async function PATCH(req: NextRequest, { params }: { params: { slug: string } }) {
   const a = await requirePanelAuth(req, params.slug)
   if (isPanelAuthResponse(a)) return a
-  const gate = await requireModule(a.tenant.id, 'reviews')
+  const gate = await requireModule(a.tenant.id, 'reviews', a.tenant.plan)
   if (gate) return gate
   const { id, status } = await req.json()
   if (!id || !['approved', 'hidden', 'pending'].includes(status))

@@ -22,7 +22,7 @@ async function resolveResourceId(req: NextRequest, a: { isOwner: boolean; resour
 export async function GET(req: NextRequest, { params }: { params: { slug: string } }) {
   const a = await requirePanelAuth(req, params.slug)
   if (isPanelAuthResponse(a)) return a
-  const gate = await requireModule(a.tenant.id, 'discount_codes')
+  const gate = await requireModule(a.tenant.id, 'discount_codes', a.tenant.plan)
   if (gate) return gate
   const resourceId = await resolveResourceId(req, a)
   if (!resourceId) return NextResponse.json({ codes: [] })
@@ -33,7 +33,7 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
 export async function POST(req: NextRequest, { params }: { params: { slug: string } }) {
   const a = await requirePanelAuth(req, params.slug)
   if (isPanelAuthResponse(a)) return a
-  const gate = await requireModule(a.tenant.id, 'discount_codes')
+  const gate = await requireModule(a.tenant.id, 'discount_codes', a.tenant.plan)
   if (gate) return gate
   const b = await req.json().catch(() => ({}))
   const resourceId = b.resource_id && a.isOwner ? b.resource_id : (await resolveResourceId(req, a))
@@ -64,7 +64,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
 export async function PATCH(req: NextRequest, { params }: { params: { slug: string } }) {
   const a = await requirePanelAuth(req, params.slug)
   if (isPanelAuthResponse(a)) return a
-  const gate = await requireModule(a.tenant.id, 'discount_codes')
+  const gate = await requireModule(a.tenant.id, 'discount_codes', a.tenant.plan)
   if (gate) return gate
   const b = await req.json().catch(() => ({}))
   if (!b.id) return NextResponse.json({ error: 'id لازم است' }, { status: 400 })
@@ -78,7 +78,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { slug: stri
 export async function DELETE(req: NextRequest, { params }: { params: { slug: string } }) {
   const a = await requirePanelAuth(req, params.slug)
   if (isPanelAuthResponse(a)) return a
-  const gate = await requireModule(a.tenant.id, 'discount_codes')
+  const gate = await requireModule(a.tenant.id, 'discount_codes', a.tenant.plan)
   if (gate) return gate
   const { id } = await req.json().catch(() => ({}))
   if (!id) return NextResponse.json({ error: 'id لازم است' }, { status: 400 })
