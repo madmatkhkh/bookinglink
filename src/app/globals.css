@@ -27,6 +27,10 @@
 .nl-reveal { opacity: 0; transform: translateY(16px); transition: opacity .6s cubic-bezier(.16,1,.3,1), transform .6s cubic-bezier(.16,1,.3,1); }
 .nl-reveal.nl-in { opacity: 1; transform: none; }
 
+/* ریل افقی روایت موبایل — نوار اسکرول پنهان (ناوبری با نقطه‌ها و کشیدن است) */
+.scrollbar-none { -ms-overflow-style: none; scrollbar-width: none; }
+.scrollbar-none::-webkit-scrollbar { display: none; }
+
 /* حرکت‌کاهیده: همه‌چیز بی‌انیمیشن و فورا دیده شود (چرخه‌ی hero هم در JS با
    همین media query غیرفعال می‌شود) */
 @media (prefers-reduced-motion: reduce) {

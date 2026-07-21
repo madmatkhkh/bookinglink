@@ -198,7 +198,7 @@ function StoryPhone({ scene }: { scene: number }) {
           <span className="w-16 h-4 rounded-full bg-sand" />
           <span className="tnum" dir="ltr">100%</span>
         </div>
-        <div className="relative h-[360px] border-t border-sand">
+        <div className="relative h-[320px] sm:h-[360px] border-t border-sand">
 
           {/* پرده‌ی 1: آشوب دایرکت */}
           <div className={S(0)}>
@@ -285,6 +285,9 @@ function StoryPhone({ scene }: { scene: number }) {
 function StorySection() {
   const [scene, setScene] = useState(0)
   const beatsRef = useRef<HTMLDivElement>(null)
+  const railRef = useRef<HTMLDivElement>(null)
+
+  // دسکتاپ: پرده‌ی فعال از اسکرول عمودی بلوک‌های متن (sticky دوستونه)
   useEffect(() => {
     const root = beatsRef.current
     if (!root) return
@@ -301,25 +304,74 @@ function StorySection() {
     return () => obs.disconnect()
   }, [])
 
+  // موبایل: پرده‌ی فعال از اسکرول افقی ریل کپشن‌ها (scroll-snap) — گوشی و متن
+  // هرگز روی هم نمی‌افتند چون هر کدام ناحیه‌ی خودش را دارد.
+  useEffect(() => {
+    const rail = railRef.current
+    if (!rail) return
+    let raf = 0
+    const onScroll = () => {
+      cancelAnimationFrame(raf)
+      raf = requestAnimationFrame(() => {
+        const i = Math.round(rail.scrollLeft / rail.clientWidth)
+        // RTL: scrollLeft منفی/برعکس است در برخی مرورگرها — با abs نرمال می‌کنیم
+        const idx = Math.min(STORY_BEATS.length - 1, Math.max(0, Math.abs(i)))
+        setScene(idx)
+      })
+    }
+    rail.addEventListener('scroll', onScroll, { passive: true })
+    return () => { rail.removeEventListener('scroll', onScroll); cancelAnimationFrame(raf) }
+  }, [])
+
   return (
-    <section id="how" className="border-y border-sand bg-trust-wash/50">
-      <div className="max-w-5xl mx-auto px-6 py-16 md:py-20">
+    <section id="how" className="border-y border-sand bg-trust-wash/50 overflow-hidden">
+      <div className="max-w-5xl mx-auto px-6 py-14 md:py-20">
         <div className="text-center max-w-xl mx-auto mb-10 md:mb-16 nl-reveal">
           <div className="text-sm font-semibold text-trust mb-3">سفر یک نوبت</div>
           <h2 className="font-display font-extrabold text-3xl sm:text-4xl tracking-tightest">از آشوب دایرکت، تا نوبت قطعی</h2>
         </div>
-        <div className="md:grid md:grid-cols-2 md:gap-12">
-          {/* گوشی sticky — روی موبایل هم می‌چسبد و پرده‌ها زیرش رد می‌شوند */}
-          <div className="sticky top-[4.5rem] md:top-24 z-10 self-start mb-8 md:mb-0">
+
+        {/* ── موبایل: گوشی بالا + ریل افقی کپشن‌ها زیرش (بدون هیچ همپوشانی) ── */}
+        <div className="md:hidden">
+          <div className="flex justify-center mb-6">
+            <StoryPhone scene={scene} />
+          </div>
+          {/* نقطه‌های پیشرفت */}
+          <div className="flex justify-center gap-2 mb-4">
+            {STORY_BEATS.map((_, i) => (
+              <button
+                key={i}
+                aria-label={`پرده‌ی ${i + 1}`}
+                onClick={() => railRef.current?.scrollTo({ left: railRef.current.clientWidth * i * (document.dir === 'rtl' ? -1 : 1), behavior: 'smooth' })}
+                className={`h-1.5 rounded-full transition-all ${scene === i ? 'w-6 bg-trust' : 'w-1.5 bg-trust/30'}`}
+              />
+            ))}
+          </div>
+          {/* ریل افقی — snap؛ هر کپشن یک صفحه‌ی کامل */}
+          <div ref={railRef} className="flex overflow-x-auto snap-x snap-mandatory -mx-6 px-6 gap-4 scrollbar-none">
+            {STORY_BEATS.map((b, i) => (
+              <div key={b.n} className="snap-center shrink-0 w-full text-center">
+                <div className="font-display font-extrabold text-xs text-trust tracking-widest mb-3 tnum">{b.n} / 4</div>
+                <h3 className="font-display font-bold text-xl mb-2 tracking-tightest">{b.t}</h3>
+                <p className="text-sm text-soot leading-relaxed max-w-xs mx-auto">{b.d}</p>
+              </div>
+            ))}
+          </div>
+          <p className="text-center text-[11px] text-soot/70 mt-4">← برای دیدن مراحل، بکشید</p>
+        </div>
+
+        {/* ── دسکتاپ: گوشی sticky + بلوک‌های بلند متن (scroll-scrubbed) ── */}
+        <div className="hidden md:grid md:grid-cols-2 md:gap-12">
+          <div className="sticky top-24 z-10 self-start">
             <StoryPhone scene={scene} />
           </div>
           <div ref={beatsRef}>
             {STORY_BEATS.map((b, i) => (
-              <div key={b.n} data-beat={i} className="min-h-[55vh] md:min-h-[70vh] flex items-center">
+              <div key={b.n} data-beat={i} className="min-h-[70vh] flex items-center">
                 <div className={`transition-opacity duration-300 motion-reduce:transition-none ${scene === i ? 'opacity-100' : 'opacity-40'}`}>
                   <div className="font-display font-extrabold text-sm text-trust tracking-widest mb-4 tnum">{b.n} / 4</div>
-                  <h3 className="font-display font-bold text-2xl sm:text-3xl mb-3 tracking-tightest">{b.t}</h3>
-                  <p className="text-sm sm:text-base text-soot leading-relaxed max-w-sm">{b.d}</p>
+                  <h3 className="font-display font-bold text-3xl mb-3 tracking-tightest">{b.t}</h3>
+                  <p className="text-base text-soot leading-relaxed max-w-sm">{b.d}</p>
                 </div>
               </div>
             ))}
@@ -335,8 +387,7 @@ const FEATURES = [
     t: 'نشانی اختصاصی برای هر متخصص', d: 'هر متخصص نشانی برندشده‌ی خود را دارد که به‌سادگی قابل اشتراک‌گذاری است.',
     tag: 'nobatlink.com/برند-شما' },
   { icon: '<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/>',
-    t: 'یادآوری خودکار پیامکی', d: 'پیش از هر نوبت، پیامک یادآوری برای مراجع ارسال می‌شود تا نرخ عدم‌حضور به حداقل برسد.',
-    tag: 'کاهش عدم‌حضور تا 40%' },
+    t: 'یادآوری خودکار پیامکی', d: 'پیش از هر نوبت، پیامک یادآوری برای مراجع ارسال می‌شود تا نرخ عدم‌حضور به حداقل برسد.' },
   { icon: '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>',
     t: 'تقویم واحد برای چند پرسنل', d: 'برنامه‌ی چند متخصص را هم‌زمان مدیریت کنید؛ همه‌ی نوبت‌ها در یک تقویم یکپارچه.' },
   { icon: '<rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/>',
@@ -431,19 +482,19 @@ export default function Landing() {
       </header>
 
       {/* ── HERO ────────────────────────────────────────────────────────── */}
-      <section className="max-w-5xl mx-auto px-6 pt-16 pb-12">
-        <div className="grid md:grid-cols-2 gap-14 items-center">
+      <section className="max-w-5xl mx-auto px-6 pt-12 sm:pt-16 pb-12">
+        <div className="grid md:grid-cols-2 gap-12 md:gap-14 items-center">
           <div className="animate-nl-up">
-            <div className="inline-flex items-center gap-2 text-xs text-soot border border-sand rounded-full px-3 py-1.5 mb-6">
+            <div className="inline-flex items-center gap-2 text-xs text-trust-deep bg-trust-wash rounded-full px-3 py-1.5 mb-6">
               <span className="w-1.5 h-1.5 rounded-full bg-trust" style={{ animation: 'nlPulse 2s infinite' }} />
               پلتفرم نوبت‌دهی آنلاین برای متخصصان
             </div>
             <h1 className="font-display font-extrabold text-4xl sm:text-5xl leading-[1.12] tracking-tightest">
-              نوبت‌دهی را به<br />صفحه‌ی اختصاصی‌تان بسپارید
+              تقویم‌تان را از<br />دایرکت بیرون بیاورید
             </h1>
             <p className="mt-5 text-base sm:text-lg text-soot leading-relaxed max-w-md">
-              برای هر تخصص — از مشاوره تا سالن زیبایی — یک صفحه‌ی رزرو برندشده با رنگ و هویت خودتان.
-              مراجعان زمان خالی را می‌بینند، رزرو و پرداخت می‌کنند؛ بدون تماس و هماهنگی دستی.
+              یک صفحه‌ی رزرو با رنگ و نشانی خودتان: مراجع زمان خالی را می‌بیند، رزرو و آنلاین پرداخت می‌کند،
+              یادآورش خودکار می‌رود. شما فقط سر جلسه حاضر می‌شوید.
             </p>
             <div className="mt-8 flex items-center gap-4 flex-wrap">
               <a href="/signup" className="font-display font-bold text-white bg-ink px-7 py-3.5 rounded-xl shadow-sm hover:-translate-y-0.5 hover:shadow-lg transition">شروع رایگان</a>
@@ -452,7 +503,11 @@ export default function Landing() {
                 <a href={`/${DEMO_SLUG}`} target="_blank" className="text-sm font-medium text-soot underline underline-offset-4 hover:text-ink">مشاهده‌ی صفحه‌ی نمونه</a>
               )}
             </div>
-            <p className="mt-5 text-[13px] text-soot/80">پرداخت امن از درگاه پرداخت نوبت‌لینک · دارای نماد اعتماد الکترونیکی · راه‌اندازی در کمتر از 5 دقیقه</p>
+            <div className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-2 text-[13px] text-soot">
+              <span className="inline-flex items-center gap-1.5"><Icon path='<path d="M20 6 9 17l-5-5"/>' className="w-4 h-4 text-trust" /> 14 روز اول رایگان</span>
+              <span className="inline-flex items-center gap-1.5"><Icon path='<path d="M20 6 9 17l-5-5"/>' className="w-4 h-4 text-trust" /> بدون کارت بانکی</span>
+              <span className="inline-flex items-center gap-1.5"><Icon path='<path d="M20 6 9 17l-5-5"/>' className="w-4 h-4 text-trust" /> راه‌اندازی زیر 5 دقیقه</span>
+            </div>
           </div>
 
           {/* موکاپ زنده‌ی چندتخصصی — امضای صفحه */}
@@ -474,7 +529,7 @@ export default function Landing() {
         <div className="grid sm:grid-cols-2 gap-5">
           {FEATURES.map((f, i) => (
             <div key={f.t} className="rounded-2xl border border-sand bg-white p-7 transition hover:-translate-y-1.5 hover:shadow-[0_22px_44px_-20px_rgba(0,0,0,0.32)] nl-reveal" style={{ transitionDelay: `${(i % 2) * 90}ms` }}>
-              <div className="w-11 h-11 rounded-xl bg-ink text-white flex items-center justify-center mb-5">
+              <div className="w-11 h-11 rounded-xl bg-trust-wash text-trust-deep flex items-center justify-center mb-5">
                 <Icon path={f.icon} />
               </div>
               <h3 className="font-display font-bold text-xl mb-2.5">{f.t}</h3>
