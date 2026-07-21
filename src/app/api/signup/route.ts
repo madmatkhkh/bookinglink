@@ -3,6 +3,7 @@ import { sb } from '@/lib/supabase'
 import { issueOtp, verifyOtp, normalizePhone, isValidEmail, createPanelSession, requestIp, otpEchoEnabled, OTP_THROTTLED_MSG } from '@/lib/auth'
 import { RESERVED_SLUGS, SLUG_PATTERN, SLUG_RULE_TEXT } from '@/lib/config'
 import { getNiche, isPsychologyNiche } from '@/lib/niche'
+import { PRO_TRIAL_KEYS, TRIAL_DAYS } from '@/lib/plans'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -44,6 +45,10 @@ export async function POST(req: NextRequest) {
 
   const name = String(b.name || '').trim().slice(0, 60)
 
+  // فاز P6: انتخاب پلن در ثبت‌نام — فقط پایه/حرفه‌ای (پلن «تیم» چون چندپرسنلی
+  // تصمیم اعتمادی سوپرادمین است، سلف‌سرویس نیست؛ از پشتیبانی درخواست می‌شود).
+  const plan = ['base', 'pro'].includes(String(b.plan || '')) ? String(b.plan) : 'base'
+
   if (!b.code) {
     const issued = await issueOtp(identifier, requestIp(req), viaEmail ? 'email' : 'sms')
     if (!issued.ok) {
@@ -59,7 +64,7 @@ export async function POST(req: NextRequest) {
 
   // ─── از این‌جا به بعد دقیقا همان مراحل ساخت tenant در /api/super/tenants ───
   const { data: tenant, error } = await sb().from('tenants')
-    .insert({ slug, owner_phone: viaEmail ? '' : identifier, owner_email: viaEmail ? identifier : null, niche_key: nicheKey })
+    .insert({ slug, owner_phone: viaEmail ? '' : identifier, owner_email: viaEmail ? identifier : null, niche_key: nicheKey, plan })
     .select().single()
   if (error) {
     if (error.code === '23505') return NextResponse.json({ error: 'این نشانی هم‌زمان توسط شخص دیگری گرفته شد — یکی دیگر امتحان کن' }, { status: 409 })
@@ -83,6 +88,17 @@ export async function POST(req: NextRequest) {
   if (niche.default_features?.length) {
     await sb().from('tenant_features').insert(
       niche.default_features.map((key: string) => ({ tenant_id: tenant.id, feature_key: key, enabled: true }))
+    )
+  }
+  // فاز P6: ترایال 14روزه‌ی «حرفه‌ای» برای ثبت‌نام پلن پایه — ردیف‌های موقت با
+  // source='trial' و expires_at؛ بعد از انقضا resolution خودکار به preset پایه
+  // برمی‌گردد (بدون cron). پلن حرفه‌ای ترایال لازم ندارد (همه‌چیز را دارد).
+  // upsert ignoreDuplicates: اگر کلیدی در default_features نیچ بود، دست نمی‌خورد.
+  if (plan === 'base' && PRO_TRIAL_KEYS.length) {
+    const expiresAt = new Date(Date.now() + TRIAL_DAYS * 86400000).toISOString()
+    await sb().from('tenant_features').upsert(
+      PRO_TRIAL_KEYS.map(key => ({ tenant_id: tenant.id, feature_key: key, enabled: true, source: 'trial', expires_at: expiresAt })),
+      { onConflict: 'tenant_id,feature_key', ignoreDuplicates: true }
     )
   }
   if (isPsychologyNiche(nicheKey)) {

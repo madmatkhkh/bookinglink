@@ -79,7 +79,7 @@ async function plansEnforced(): Promise<boolean> {
 export async function getEnabledModules(tenantId: string, plan?: string): Promise<Map<string, boolean>> {
   const [catalog, rowsRes, enforced, planRes] = await Promise.all([
     getModuleCatalog(),
-    sb().from('tenant_features').select('feature_key, enabled').eq('tenant_id', tenantId),
+    sb().from('tenant_features').select('feature_key, enabled, expires_at').eq('tenant_id', tenantId),
     plansEnforced(),
     plan === undefined
       ? sb().from('tenants').select('plan').eq('id', tenantId).maybeSingle()
@@ -87,7 +87,15 @@ export async function getEnabledModules(tenantId: string, plan?: string): Promis
   ])
   const effectivePlan = plan !== undefined ? plan : (planRes && 'data' in planRes ? planRes.data?.plan : undefined)
   const preset = enforced ? planPreset(effectivePlan) : null
-  const rowBy = new Map<string, boolean>((rowsRes.data || []).map(r => [r.feature_key, !!r.enabled]))
+  // فاز P6: ردیف منقضی‌شده (expires_at گذشته — مثل ترایال 14روزه) نادیده گرفته
+  // می‌شود و حل به preset پلن / default_on می‌افتد. یعنی «downgrade خودکار»
+  // بدون هیچ cron یا UPDATE — انقضا خود مکانیزم است. expires_at=null = دائمی.
+  const now = Date.now()
+  const rowBy = new Map<string, boolean>(
+    (rowsRes.data || [])
+      .filter(r => !r.expires_at || new Date(r.expires_at).getTime() > now)
+      .map(r => [r.feature_key, !!r.enabled])
+  )
   const out = new Map<string, boolean>()
   for (const m of catalog) {
     if (!m.is_active) { out.set(m.key, false); continue }

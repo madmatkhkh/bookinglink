@@ -568,6 +568,7 @@ export function PsychologyAdmin() {
  const [profileSaving, setProfileSaving] = useState(false)
  const [profileSaved, setProfileSaved] = useState(false)
  const [tenantPlan, setTenantPlan] = useState<string>('free')
+ const [trialExpiresAt, setTrialExpiresAt] = useState<string | null>(null)
  // چک‌لیست راه‌اندازی داشبورد — پیش‌فرض جمع (فقط سربرگ فشرده)، و انتخاب کاربر
  // بین سشن‌ها حفظ می‌شود تا هر بار مجبور نباشد دوباره ببندد.
  const [setupOpen, setSetupOpen] = useState(false)
@@ -1086,6 +1087,7 @@ export function PsychologyAdmin() {
    setProfile(next)
    setProfileSnapshot(JSON.stringify(next))
    if (data.plan) setTenantPlan(data.plan)
+   setTrialExpiresAt(data.trial_expires_at || null)
    setCardToCardAllowed(!!data.card_to_card_allowed)
   } catch {}
   setProfileLoaded(true)
@@ -3116,9 +3118,17 @@ export function PsychologyAdmin() {
       </p>
       <div className="flex items-center justify-between p-3.5 rounded-xl border border-sand">
        <span className="text-sm text-ink">پلن فعلی</span>
-       <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${tenantPlan === 'pro' || tenantPlan === 'team' ? 'bg-emerald-100 text-emerald-800' : 'bg-sand text-soot'}`}>
-        {PLAN_LABELS[tenantPlan] || 'پایه'}
-       </span>
+       {(() => {
+        const trialDays = trialExpiresAt ? Math.max(0, Math.ceil((new Date(trialExpiresAt).getTime() - Date.now()) / 86400000)) : 0
+        const trialActive = trialDays > 0 && tenantPlan !== 'pro' && tenantPlan !== 'team'
+        const label = trialActive ? `حرفه‌ای (آزمایشی — ${trialDays} روز)` : (PLAN_LABELS[tenantPlan] || 'پایه')
+        const green = trialActive || tenantPlan === 'pro' || tenantPlan === 'team'
+        return (
+         <span className={`text-xs px-2.5 py-1 rounded-full font-medium tnum ${green ? 'bg-emerald-100 text-emerald-800' : 'bg-sand text-soot'}`}>
+          {label}
+         </span>
+        )
+       })()}
       </div>
      </section>
 

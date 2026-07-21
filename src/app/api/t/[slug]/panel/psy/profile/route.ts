@@ -36,6 +36,15 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
   const prof = mergeResourceProfile(targetId, p)
   const cardToCardAllowed = await isCardToCardAllowed(a.tenant.id)
 
+  // فاز P6: انقضای ترایال فعال (اگر هست) برای نمایش بج در پنل
+  const { data: trialRows } = await sb().from('tenant_features').select('expires_at')
+    .eq('tenant_id', a.tenant.id).eq('source', 'trial').eq('enabled', true).not('expires_at', 'is', null)
+  const nowTs = Date.now()
+  const trialExpiresAt = (trialRows || [])
+    .map(r2 => r2.expires_at as string)
+    .filter(e => new Date(e).getTime() > nowTs)
+    .sort().pop() || null
+
   return NextResponse.json({
     profile: { resource_id: r.id, name: r.name, title: r.title, avatar_url: r.avatar_url, phone: r.phone,
       badges: prof.badges, session_modes: prof.session_modes, cards: prof.cards,
@@ -46,6 +55,7 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
       pricing: prof.pricing, companion_label: prof.companion_label, meet_channels: prof.meet_channels, terms: prof.terms,
       first_stage_label: prof.first_stage_label, stage_presets: prof.stage_presets },
     plan: a.tenant.plan,
+    trial_expires_at: trialExpiresAt,
     card_to_card_allowed: cardToCardAllowed,
   }, { headers: NO_STORE })
 }

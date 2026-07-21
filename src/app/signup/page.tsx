@@ -22,6 +22,7 @@ export default function Signup() {
   // ثبت‌نام با شماره یا ایمیل — صاحب کسب‌وکار خارج از ایران شماره‌ی ایرانی ندارد
   const [contactMode, setContactMode] = useState<'phone' | 'email'>('phone')
   const [niche, setNiche] = useState('')
+  const [plan, setPlan] = useState<'base' | 'pro'>('base')
   const [step, setStep] = useState<'details' | 'code'>('details')
   const [code, setCode] = useState('')
   const [devCode, setDevCode] = useState<string | null>(null)
@@ -51,7 +52,7 @@ export default function Signup() {
     try {
       const r = await fetch('/api/signup', {
         method: 'POST', headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(contactMode === 'email' ? { name, slug, email, niche_key: niche } : { name, slug, phone, niche_key: niche }),
+        body: JSON.stringify(contactMode === 'email' ? { name, slug, email, niche_key: niche, plan } : { name, slug, phone, niche_key: niche, plan }),
       })
       const d = await r.json().catch(() => ({}))
       if (!r.ok) { setErr(d.error || 'خطا در ثبت‌نام'); return }
@@ -65,7 +66,7 @@ export default function Signup() {
     try {
       const r = await fetch('/api/signup', {
         method: 'POST', headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(contactMode === 'email' ? { name, slug, email, niche_key: niche, code } : { name, slug, phone, niche_key: niche, code }),
+        body: JSON.stringify(contactMode === 'email' ? { name, slug, email, niche_key: niche, plan, code } : { name, slug, phone, niche_key: niche, plan, code }),
       })
       const d = await r.json().catch(() => ({}))
       if (!r.ok) { setErr(d.error || 'کد نادرست است'); return }
@@ -142,6 +143,23 @@ export default function Signup() {
                 </button>
               ))}
             </div>
+
+            {/* فاز P6: انتخاب پلن — تیم سلف‌سرویس نیست (چندپرسنلی با تایید پشتیبانی) */}
+            <label className="block text-[13px] font-semibold text-ink/80 mb-2">پلن</label>
+            <div className="grid sm:grid-cols-2 gap-2.5 mb-2">
+              {([
+                { key: 'base' as const, label: 'پایه', desc: 'نوبت‌دهی، پرداخت آنلاین، فرم رزرو، کنسل توسط مشتری' },
+                { key: 'pro' as const, label: 'حرفه‌ای', desc: '+ یادآور پیامکی، لیست انتظار، نظرات، آمار، کد تخفیف، جلسه آنلاین' },
+              ]).map(p => (
+                <button type="button" key={p.key} onClick={() => setPlan(p.key)}
+                  className={`text-right rounded-xl border p-3.5 transition ${
+                    plan === p.key ? 'border-ink bg-white ring-2 ring-ink/10' : 'border-sand hover:border-ink'}`}>
+                  <div className="font-display font-bold text-sm">{p.label}</div>
+                  <div className="text-[11px] text-soot leading-relaxed mt-1">{p.desc}</div>
+                </button>
+              ))}
+            </div>
+            <p className="text-[11px] text-soot mb-6">همه‌ی ثبت‌نام‌ها 14 روز اول همه‌ی امکانات «حرفه‌ای» را رایگان دارند. پلن «تیم» (چندپرسنلی) با هماهنگی پشتیبانی فعال می‌شود.</p>
 
             {err && <p className="text-[13px] text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2 mb-4">{err}</p>}
             <button disabled={busy} className="w-full font-display font-bold text-white bg-ink py-3.5 rounded-xl shadow-sm hover:-translate-y-0.5 transition disabled:opacity-60">

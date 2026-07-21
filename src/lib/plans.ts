@@ -44,6 +44,11 @@ export const PLAN_PRESETS: Record<string, Set<string>> = {
   team: new Set(TEAM),
 }
 
+// فاز P6: کلیدهای ترایال 14روزه‌ی «حرفه‌ای» برای ثبت‌نام‌های پلن پایه —
+// دقیقا تفاوت حرفه‌ای و پایه (نه تیم: چندپرسنلی تصمیم اعتمادی سوپرادمین است).
+export const PRO_TRIAL_KEYS: string[] = PRO.filter(k => !BASE.includes(k))
+export const TRIAL_DAYS = 14
+
 // preset پلن — پلن ناشناخته/آینده => null یعنی «preset اعمال نشود» (fail-open).
 export function planPreset(plan: string | null | undefined): Set<string> | null {
   if (!plan) return null
