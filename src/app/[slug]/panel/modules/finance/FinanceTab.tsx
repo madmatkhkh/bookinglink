@@ -58,13 +58,26 @@ export default function FinanceTab({ api, onUnauthorized }: {
  const [financeToIso, setFinanceToIso] = useState('')
  const [financeCustomOpen, setFinanceCustomOpen] = useState(false)
  const [detailsOpen, setDetailsOpen] = useState(false)
+ // فاز P5: فاکتورهای ماهانه‌ی نوبت‌لینک (حق اشتراک + کارمزد تراکنش، با تفکیک مالیات)
+ type InvoiceRow = { id: string; period_key: string; status: string; vat_rate: number; subscription_base: number; subscription_vat: number; txn_fee_base: number; txn_fee_vat: number; txn_count: number; total_base: number; total_vat: number; total: number; created_at: string }
+ const [invoices, setInvoices] = useState<InvoiceRow[]>([])
+ const [invoicesOpen, setInvoicesOpen] = useState(false)
  const [chartPeriod, setChartPeriod] = useState<'daily' | 'weekly' | 'monthly'>('daily')
  const [showAllTxns, setShowAllTxns] = useState(false)
  const [fromJ, setFromJ] = useState(() => { const t = getCurrentJalali(); return { y: t.year, m: t.month + 1, d: 1 } })
  const [toJ, setToJ] = useState(() => { const t = getCurrentJalali(); return { y: t.year, m: t.month + 1, d: t.day } })
 
  // معادل همان load قبلی هنگام ورود به تب
- useEffect(() => { loadFinance() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+ useEffect(() => { loadFinance(); loadInvoices() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+ async function loadInvoices() {
+  try {
+   const res = await fetch(api('/invoices'), { cache: 'no-store' })
+   if (!res.ok) return
+   const data = await res.json()
+   setInvoices(Array.isArray(data.invoices) ? data.invoices : [])
+  } catch {}
+ }
 
  async function loadFinance(range: 'all' | '1m' | '3m' | '6m' | '12m' | 'custom' = financeRange, iso?: { from?: string; to?: string }) {
   try {
@@ -434,6 +447,41 @@ export default function FinanceTab({ api, onUnauthorized }: {
         </>
        )
       })()}
+
+      {/* ── فاکتورهای نوبت‌لینک — فاز P5: صورت‌حساب ماهانه با تفکیک مالیات ── */}
+      {invoices.length > 0 && (
+       <div className="rounded-2xl border border-sand bg-white p-4">
+        <button onClick={() => setInvoicesOpen(v => !v)} className="w-full flex items-center justify-between">
+         <h3 className="text-sm font-semibold text-ink">فاکتورهای {PLATFORM_NAME}</h3>
+         <span className="text-xs text-soot">{invoicesOpen ? 'بستن' : `${invoices.length} فاکتور`}</span>
+        </button>
+        {invoicesOpen && (
+         <div className="mt-3 space-y-3">
+          <p className="text-[11px] text-soot">
+           صورت‌حساب خدمات پلتفرم (حق اشتراک + کارمزد تراکنش آنلاین) — مبالغ تومان، مالیات بر ارزش افزوده به‌صورت قلم جدا. وصول از محل تسویه‌ی سهم شما انجام می‌شود.
+          </p>
+          {invoices.map(inv => (
+           <div key={inv.id} className="rounded-xl border border-sand p-3 text-xs">
+            <div className="flex items-center justify-between mb-2">
+             <span className="font-semibold text-ink tnum">دوره {inv.period_key}</span>
+             <span className="font-bold text-ink tnum">{inv.total.toLocaleString('en-US')} تومان</span>
+            </div>
+            <div className="space-y-1 text-soot">
+             {inv.subscription_base > 0 && (
+              <div className="flex justify-between"><span>حق اشتراک</span><span className="tnum">{inv.subscription_base.toLocaleString('en-US')}</span></div>
+             )}
+             {inv.txn_fee_base > 0 && (
+              <div className="flex justify-between"><span>کارمزد تراکنش ({inv.txn_count} تراکنش)</span><span className="tnum">{inv.txn_fee_base.toLocaleString('en-US')}</span></div>
+             )}
+             <div className="flex justify-between"><span>مالیات بر ارزش افزوده ({inv.vat_rate}%)</span><span className="tnum">{inv.total_vat.toLocaleString('en-US')}</span></div>
+             <div className="flex justify-between border-t border-sand pt-1 text-ink font-medium"><span>جمع کل</span><span className="tnum">{inv.total.toLocaleString('en-US')} تومان</span></div>
+            </div>
+           </div>
+          ))}
+         </div>
+        )}
+       </div>
+      )}
      </div>
  )
 }
