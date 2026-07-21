@@ -1,4 +1,19 @@
 -- ═════════════════════════════════════════════════════════════════════════════
+-- نوبت‌لینک — اسکیمای کاملِ «ساخت از صفر» (تا migration 0044) — نسخه‌ی اصلاح‌شده
+--
+-- ⚠️ این فایل همه‌ی جدول‌های اپ را DROP و از نو می‌سازد. فقط روی دیتابیسِ خالی
+--    اجرا کن (داده پاک می‌شود). اگر دیتابیست الان چیزی دارد که نمی‌خواهی از دست
+--    بدهی، به‌جای این، فایل nobatlink-schema-catchup.sql را اجرا کن (غیرمخرب).
+--
+-- نسبت به نسخه‌ی قبلی: اشیایی که schema.sql جا انداخته بود (is_test روی tenants،
+-- جدول‌های slot_locks / appointment_requests / settlement_items و…) با افزودن کاملِ
+-- migrationهای 0029..0044 در انتها اضافه شده‌اند. همه idempotent‌اند.
+-- بدون اکستنشن، بدون دستور psql — مستقیم در SQL Editor سوپابیس اجرا می‌شود.
+-- ═════════════════════════════════════════════════════════════════════════════
+
+drop table if exists public.psy_cancelled_slots, public.psy_patient_messages cascade;
+
+-- ═════════════════════════════════════════════════════════════════════════════
 -- نوبت‌لینک — اسکیمای کامل و یکپارچه (تنها فایل SQL پروژه)
 --
 -- این فایل جایگزین supabase-schema.sql و کل پوشه‌ی migrations/ (0002 تا 0028) شد.
@@ -1416,3 +1431,417 @@ INSERT INTO public.modules (key, display_name, description, scope, depends_on, d
 INSERT INTO public.modules (key, display_name, description, scope, depends_on, default_on, enforced, sort_order) VALUES ('psy_packages', 'پروتکل‌های درمان', 'پکیج جلسات ماهانه', 'psychology', '[]', true, false, 220);
 INSERT INTO public.modules (key, display_name, description, scope, depends_on, default_on, enforced, sort_order) VALUES ('clinical_notes', 'یادداشت بالینی (SOAP/DAP)', 'یادداشت ساختاریافته‌ی بالینی per-جلسه', 'psychology', '[]', true, false, 230);
 INSERT INTO public.modules (key, display_name, description, scope, depends_on, default_on, enforced, sort_order) VALUES ('intake_form', 'فرم‌بیلدر رزرو', 'بخش/سوال/منطق شرطی — کاندید ارتقا به سطح پلتفرم', 'psychology', '[]', true, false, 240);
+-- ───────────────────────────────────────────────────────────────────────────
+-- 0029_module_catalog.sql
+-- ───────────────────────────────────────────────────────────────────────────
+-- 0029 — کاتالوگ ماژول‌ها (قابلیت = محصول) — فاز 1 سند MODULES.md
+-- کاملا additive و امن روی دیتابیس زنده. هیچ drop/rename ندارد.
+-- اگر شماره‌ی 0029 قبلا محلی استفاده شده، فقط نام فایل را به شماره‌ی آزاد بعدی تغییر بده.
+
+-- 1) کاتالوگ محصولات نوبت‌لینک -----------------------------------------------
+create table if not exists public.modules (
+  key           text primary key,
+  display_name  text not null,
+  description   text not null default '',
+  scope         text not null default 'platform',   -- 'platform' | 'psychology' | ...
+  depends_on    jsonb not null default '[]',         -- آرایه؛ عضو 'a|b' یعنی «حداقل یکی»
+  default_on    boolean not null default false,      -- برای tenantهایی که ردیف tenant_features ندارند
+  enforced      boolean not null default false,      -- آیا کد واقعا این کلید را گیت می‌کند؟ (فقط اینها در سوپرادمین سوییچ می‌گیرند)
+  pricing_type  text not null default 'included',    -- 'included' | 'addon_monthly' | 'addon_once'
+  price         bigint not null default 0,           -- تومان، فعلا فقط نمایشی/فاکتور دستی
+  is_active     boolean not null default true,       -- خاموش‌کردن ماژول از کل پلتفرم
+  sort_order    integer not null default 0
+);
+
+-- 2) ارتقای tenant_features (بدون rename) -------------------------------------
+alter table public.tenant_features
+  add column if not exists source text not null default 'manual';
+  -- 'niche_default' | 'addon' | 'trial' | 'manual'
+alter table public.tenant_features
+  add column if not exists expires_at timestamptz;
+
+-- 3) seed کاتالوگ — کلیدهای زنده‌ی فعلی عینا حفظ شده‌اند ------------------------
+-- enforced=true یعنی گارد سرور همین الان (بعد از این جلسه) فعال است؛
+-- بقیه با فازهای بعد (سایدبار داینامیک/جداسازی تب‌ها) enforced می‌شوند.
+insert into public.modules (key, display_name, description, scope, depends_on, default_on, enforced, sort_order) values
+  ('pay_online',                'پرداخت آنلاین (زیبال)',        'درگاه زیبال، تایید خودکار، کمیسیون پلتفرم',                'platform', '[]',                                false /*per-resource فعلا*/, false, 10),
+  ('card_to_card',              'پرداخت کارت‌به‌کارت',           'کارت‌به‌کارت با رسید + تب تایید پرداخت‌ها',                 'platform', '[]',                                false, true,  20),
+  ('patient_self_cancel',       'کنسل توسط مراجع',              'کنسل از پنل مراجع طبق سیاست کنسلی هر متخصص',               'platform', '[]',                                true,  true,  30),
+  ('patient_buy_extra_session', 'خرید جلسه‌ی جایگزین',           'خرید جلسه‌ی اضافه از پنل مراجع',                            'platform', '["pay_online|card_to_card"]',       true,  true,  40),
+  ('discount_codes',            'کدهای تخفیف',                  'ساخت و مدیریت کد تخفیف',                                    'platform', '["pay_online|card_to_card"]',       true,  true,  50),
+  ('waitlist',                  'لیست انتظار',                  'ثبت‌نام مراجع وقتی ظرفیت خالی نیست + اطلاع‌رسانی دستی',      'platform', '[]',                                true,  true,  60),
+  ('reviews',                   'نظرات و امتیاز مراجعان',       'ثبت نظر توسط مراجع + مدیریت و انتشار',                       'platform', '[]',                                true,  true,  70),
+  ('analytics',                 'تحلیل کسب‌وکار',               'داشبورد درآمد، no-show، رشد پرونده‌ها',                      'platform', '[]',                                true,  true,  80),
+  ('campaigns',                 'کمپین پیامک/ایمیل',            'پیام گروهی به مراجعان (سگمنت غیرفعال 30/90 روز)',            'platform', '[]',                                true,  true,  90),
+  ('reminders',                 'یادآور پیامکی نوبت',           'ارسال خودکار یادآور قبل از نوبت (cron)',                     'platform', '[]',                                true,  false, 100),
+  ('online_meeting',            'جلسه‌ی آنلاین (لینک)',          'لینک Meet/Zoom/WhatsApp/Bale/تلفن برای جلسه‌های آنلاین',     'platform', '[]',                                true,  false, 110),
+  ('multi_therapist',           'حالت کلینیک (چندپرسنلی)',      'ورود مستقل پرسنل، تب پرسنل، انتخابگر متخصص در رزرو',        'platform', '[]',                                false, true,  120),
+  ('custom_domain',             'دامنه‌ی اختصاصی',              'اتصال دامنه‌ی خود مشتری (هنوز ساخته نشده)',                  'platform', '[]',                                false, false, 130),
+  ('psy_stages',                'مراحل پیش‌ازدرمان',            'فلوی آزاد و تکرارپذیر مصاحبه/ارزیابی/دلخواه',                'psychology', '[]',                              true,  false, 210),
+  ('psy_packages',              'پروتکل‌های درمان',             'پکیج جلسات ماهانه',                                          'psychology', '[]',                              true,  false, 220),
+  ('clinical_notes',            'یادداشت بالینی (SOAP/DAP)',    'یادداشت ساختاریافته‌ی بالینی per-جلسه',                      'psychology', '[]',                              true,  false, 230),
+  ('intake_form',               'فرم‌بیلدر رزرو',               'بخش/سوال/منطق شرطی — کاندید ارتقا به سطح پلتفرم',            'psychology', '[]',                              true,  false, 240)
+on conflict (key) do nothing;
+
+-- custom_domain هنوز وجود خارجی ندارد — در کاتالوگ هست ولی از پلتفرم خاموش:
+update public.modules set is_active = false where key = 'custom_domain' and enforced = false;
+
+
+-- ───────────────────────────────────────────────────────────────────────────
+-- 0030_slot_locks.sql
+-- ───────────────────────────────────────────────────────────────────────────
+-- 0030 — slot_locks: تنها مرجع ضدتداخل زمان (راه‌حل اساسی برای مقیاس بالا)
+-- کاملا additive و امن روی دیتابیس زنده.
+--
+-- ایده: هر رزرو (مصاحبه/ارزیابی/جلسه‌ی پکیج/جلسه‌ی جایگزین) قبل از هرچیز باید
+-- یک ردیف در این جدول بگیرد. UNIQUE روی (tenant, resource, date, time) تضمین
+-- می‌کند دو رزرو — از هر جدولی — هرگز یک اسلات را هم‌زمان نگیرند. برنامه دیگر
+-- «اول چک کن گرفته‌شده؟» نمی‌کند (که در همزمانی می‌شکند)؛ فقط INSERT می‌زند و
+-- 23505 یعنی گرفته‌شده. این اتمی و بین‌جدولی است.
+--
+-- status:
+--   'pending' → قفل موقت (مراجع در حال پرداخت است)؛ با expires_at منقضی می‌شود.
+--   'active'  → رزرو نهایی (پرداخت شد / رایگان بود / دکتر تایید کرد).
+-- source_table/source_id → این قفل به کدام ردیف واقعی تعلق دارد (psy_stages/psy_sessions).
+
+create table if not exists public.slot_locks (
+  id            uuid primary key default gen_random_uuid(),
+  tenant_id     uuid not null,
+  resource_id   uuid not null,
+  session_date  text not null,
+  session_time  text not null,
+  status        text not null default 'active',      -- 'pending' | 'active'
+  source_table  text,                                -- 'psy_stages' | 'psy_sessions'
+  source_id     uuid,
+  case_number   text,
+  expires_at    timestamptz,                         -- فقط برای pending
+  created_at    timestamptz not null default now()
+);
+
+-- قلب سیستم: یک اسلات فعال/معلق فقط یک‌بار. INSERT دوم → 23505.
+create unique index if not exists slot_locks_uniq
+  on public.slot_locks (tenant_id, resource_id, session_date, session_time);
+
+-- برای پاک‌سازی سریع قفل‌های منقضی‌شده
+create index if not exists slot_locks_expiry
+  on public.slot_locks (expires_at) where (status = 'pending');
+
+-- برای یافتن قفل یک رزرو هنگام لغو/آزادسازی
+create index if not exists slot_locks_source
+  on public.slot_locks (source_table, source_id);
+
+-- ── Backfill: رزروهای موجود که تاریخ/ساعت دارند → قفل active ─────────────────
+-- ابتدا مرحله‌ها (مصاحبه/ارزیابی booked)، سپس جلسه‌ها. on conflict do nothing
+-- تا اگر تداخل تاریخی وجود دارد (نباید باشد) اجرا نشکند.
+insert into public.slot_locks (tenant_id, resource_id, session_date, session_time, status, source_table, source_id, case_number)
+select tenant_id, resource_id, session_date, session_time, 'active', 'psy_stages', id, case_number
+from public.psy_stages
+where session_date is not null and session_date <> '' and session_time is not null and session_time <> ''
+  and resource_id is not null
+on conflict (tenant_id, resource_id, session_date, session_time) do nothing;
+
+insert into public.slot_locks (tenant_id, resource_id, session_date, session_time, status, source_table, source_id, case_number)
+select tenant_id, resource_id, session_date, session_time, 'active', 'psy_sessions', id, case_number
+from public.psy_sessions
+where session_date is not null and session_date <> '' and session_time is not null and session_time <> ''
+  and resource_id is not null
+on conflict (tenant_id, resource_id, session_date, session_time) do nothing;
+
+-- ── اسلات‌های انتخاب‌شده‌ی پروتکل قبل از پرداخت (گزینه الف) ──────────────────
+-- پرداخت آنلاین پروتکل حالا «اول انتخاب همه‌ی جلسات، بعد پرداخت» است. اسلات‌های
+-- انتخاب‌شده اینجا (روی intent) نگه داشته می‌شوند تا callback بعد از پرداخت
+-- موفق، جلسات واقعی را از رویشان بسازد.
+alter table public.psy_payment_intents
+  add column if not exists package_slots jsonb;
+
+
+
+-- ───────────────────────────────────────────────────────────────────────────
+-- 0031_extra_charges_and_refunds.sql
+-- ───────────────────────────────────────────────────────────────────────────
+-- 0031 — شارژ اضافه (ارسال لینک پرداخت) + بازپرداخت دستی
+-- کاملا additive و امن روی دیتابیس زنده. هیچ drop/rename ندارد.
+-- اگر شماره‌ی 0031 قبلا محلی استفاده شده، فقط نام فایل را به شماره‌ی آزاد بعدی تغییر بده.
+
+-- 1) شارژ اضافه — دکتر یک مبلغ دلخواه برای پرونده تعریف می‌کند، در پنل مراجع
+--    قابل‌پرداخت (آنلاین یا کارت‌به‌کارت) می‌شود. کاملا مستقل از فلوی
+--    مصاحبه/ارزیابی/پروتکل — هیچ نوبتی به آن گره نمی‌خورد و قفل اسلات لازم ندارد.
+create table if not exists public.psy_extra_charges (
+  id                    uuid primary key default gen_random_uuid(),
+  tenant_id             uuid not null references public.tenants(id) on delete cascade,
+  resource_id           uuid references public.resources(id) on delete set null,
+  case_number           text not null,
+  title                 text not null,                          -- بابت چه چیزی («هزینه‌ی ۱۵ دقیقه اضافه»)
+  amount                bigint not null check (amount > 0),
+  status                text not null default 'awaiting_payment', -- awaiting_payment | payment_submitted | paid
+  payment_ref           text,                                    -- متن فیش کارت‌به‌کارت
+  payment_reject_reason text,
+  created_at            timestamptz not null default now()
+);
+create index if not exists psy_extra_charges_case_idx on public.psy_extra_charges (tenant_id, case_number);
+
+-- 2) بازپرداخت دستی — برای وقتی دکتر (نه به‌خاطر کنسلی نوبت، بلکه به هر دلیل
+--    دیگری) مبلغی به مراجع برمی‌گرداند. برخلاف شارژ اضافه، این یک عمل قطعی و
+--    همان لحظه است (نه چیزی که مراجع باید تایید/پرداخت کند) — پس همان لحظه‌ی
+--    ثبت هم در این جدول هم در ledger_entries (direction='outflow') می‌نشیند.
+create table if not exists public.psy_refunds (
+  id           uuid primary key default gen_random_uuid(),
+  tenant_id    uuid not null references public.tenants(id) on delete cascade,
+  resource_id  uuid references public.resources(id) on delete set null,
+  case_number  text not null,
+  amount       bigint not null check (amount > 0),
+  note         text,
+  recorded_by  text,
+  created_at   timestamptz not null default now()
+);
+create index if not exists psy_refunds_case_idx on public.psy_refunds (tenant_id, case_number);
+
+
+-- ───────────────────────────────────────────────────────────────────────────
+-- 0032_payment_terms.sql
+-- ───────────────────────────────────────────────────────────────────────────
+-- 0032 — شرایط و مقررات قبل از پرداخت (اختیاری، به‌ازای هر متخصص)
+-- additive و امن روی دیتابیس زنده.
+
+alter table public.psy_resource_profiles
+  add column if not exists terms jsonb not null default '{"enabled": false, "extra": ""}'::jsonb;
+
+
+-- ───────────────────────────────────────────────────────────────────────────
+-- 0033_accounting_foundation.sql
+-- ───────────────────────────────────────────────────────────────────────────
+-- 0033 — پایه‌ی حسابداری شفاف: مرجع بانکی، کمیسیون قابل‌تنظیم، تسویه‌ی ردیابی‌شونده
+-- کاملا additive و امن روی دیتابیس زنده. هیچ drop/rename/تغییر نوع ندارد.
+
+-- ── تسک ۱: شماره پیگیری بانکی (refNumber زیبال) ──────────────────────────────
+-- این عدد را زیبال موقع verify برمی‌گرداند ولی تا الان هیچ‌جا ذخیره نمی‌شد و
+-- برای همیشه از دست می‌رفت. برای تطبیق با صورت‌حساب بانکی و ارائه به مالیات
+-- حیاتی است. هم روی intent (منبع پرداخت) هم روی ledger (منبع حقیقت حسابداری).
+alter table public.psy_payment_intents add column if not exists bank_ref_number text;
+alter table public.ledger_entries       add column if not exists bank_ref_number text;
+
+-- ── تسک ۲: کمیسیون سراسری قابل‌تغییر + override به‌ازای هر متخصص ──────────────
+-- کمیسیون سراسری تا الان یک ثابت هاردکد در کد (config.ts = 7) بود. برای این‌که
+-- بدون دیپلوی مجدد قابل تغییر باشد، به یک ردیف در platform_settings منتقل می‌شود.
+-- جدول key/value ساده — هر تنظیم سراسری بعدی هم همین‌جا می‌نشیند.
+create table if not exists public.platform_settings (
+  key        text primary key,
+  value      jsonb not null,
+  updated_at timestamptz not null default now()
+);
+-- مقدار اولیه = همان ۷٪ فعلی، تا رفتار عوض نشود. اگر ردیف از قبل باشد دست نمی‌خورد.
+insert into public.platform_settings (key, value)
+  values ('commission_percent', '7'::jsonb)
+  on conflict (key) do nothing;
+
+-- override اختیاری per-متخصص: null یعنی «از سراسری تبعیت کن». عددی بین 0 تا 100.
+alter table public.psy_resource_profiles
+  add column if not exists commission_percent_override numeric;
+
+-- ── تسک ۳: تسویه‌ی ردیابی‌شونده و متصل به تراکنش ─────────────────────────────
+-- ستون‌های تازه‌ی settlements: شماره پیگیری بانکی واریز + تاریخ واقعی واریز +
+-- وضعیت (تا بشود «ثبت‌شده ولی هنوز واریزنشده» را هم نگه داشت).
+alter table public.settlements add column if not exists bank_ref_number text;
+alter table public.settlements add column if not exists paid_at         timestamptz;
+alter table public.settlements add column if not exists status          text not null default 'paid';
+
+-- جدول واسط: هر تسویه به دقیقا کدام ردیف‌های ledger (تراکنش‌ها) مربوط است.
+-- این همان چیزی است که حسابرس می‌خواهد — «این واریز پوشش‌دهنده‌ی این ۴۷ تراکنش».
+-- unique روی ledger_entry_id: یک تراکنش نباید در دو تسویه‌ی مختلف حساب شود.
+create table if not exists public.settlement_items (
+  id              uuid primary key default gen_random_uuid(),
+  settlement_id   uuid not null references public.settlements(id) on delete cascade,
+  ledger_entry_id uuid not null references public.ledger_entries(id),
+  doctor_amount   bigint not null,
+  created_at      timestamptz not null default now(),
+  unique (ledger_entry_id)
+);
+create index if not exists settlement_items_settlement_idx on public.settlement_items (settlement_id);
+
+
+-- ───────────────────────────────────────────────────────────────────────────
+-- 0034_refund_bank_ref.sql
+-- ───────────────────────────────────────────────────────────────────────────
+-- 0034 — شماره پیگیری بانکی روی بازپرداخت‌ها
+-- additive و امن. متخصص هنگام ثبت بازپرداخت باید شماره پیگیری واریز را بدهد تا
+-- در پنل مراجع نمایش داده شود (شفافیت دوطرفه).
+
+alter table public.psy_refunds add column if not exists bank_ref_number text;
+
+
+-- ───────────────────────────────────────────────────────────────────────────
+-- 0035_test_tenants.sql
+-- ───────────────────────────────────────────────────────────────────────────
+-- 0035 — مجموعه‌ی تستی/دمو
+-- additive و امن. مجموعه‌هایی که is_test=true دارند:
+--  • پرداخت آنلاین‌شان شبیه‌سازی می‌شود (بدون درگاه واقعی، بدون پول واقعی)
+--  • از محاسبات مالی واقعی (تسویه، حسابداری سوپر) کنار گذاشته می‌شوند
+--  • همه‌جا نشان «تستی» می‌گیرند تا سوءاستفاده نشود
+
+alter table public.tenants add column if not exists is_test boolean not null default false;
+
+
+-- ───────────────────────────────────────────────────────────────────────────
+-- 0036_appointment_requests.sql
+-- ───────────────────────────────────────────────────────────────────────────
+-- 0036 — درخواست نوبت جدید توسط مراجع
+-- additive و امن. مراجعی که مرحله‌ی بازی ندارد (تمام‌شده یا برگشته) می‌تواند
+-- درخواست نوبت جدید با یک توضیح ثبت کند؛ دکتر تأیید یا رد می‌کند. تأیید یعنی
+-- دکتر یک مرحله‌ی جدید برای پرونده می‌سازد (همان فلوی موجود).
+
+create table if not exists public.psy_appointment_requests (
+  id            uuid primary key default gen_random_uuid(),
+  tenant_id     uuid not null references public.tenants(id) on delete cascade,
+  resource_id   uuid references public.resources(id) on delete set null,
+  case_number   text not null,
+  note          text,                                  -- توضیح مراجع درباره‌ی درخواست
+  status        text not null default 'pending',        -- pending | approved | rejected
+  reject_reason text,
+  created_at    timestamptz not null default now(),
+  resolved_at   timestamptz
+);
+create index if not exists psy_appointment_requests_case_idx on public.psy_appointment_requests (tenant_id, case_number);
+create index if not exists psy_appointment_requests_pending_idx on public.psy_appointment_requests (tenant_id, status);
+
+
+-- ───────────────────────────────────────────────────────────────────────────
+-- 0037_free_stage_types.sql
+-- ───────────────────────────────────────────────────────────────────────────
+-- 0037 — آزادسازی مرحله‌ها از نوع‌های ثابت (سطح ۳ نوع الف)
+-- دیگر «مصاحبه/ارزیابی» نوع اسم‌دار خاص نیستند. هر مرحله فقط عنوان دلخواه دارد.
+-- ولی نقش فنی «اولین تماس» حفظ می‌شود — با یک فلگ ساده، نه یک اسم ثابت.
+
+-- فلگ اولین مرحله‌ی پرونده (همان که فرم اولیه می‌سازد). فقط نقش فنی دارد:
+-- می‌گوید کدام مرحله «اولین تماس» است، بدون تحمیل نامی به آن.
+alter table public.psy_stages add column if not exists is_first boolean not null default false;
+
+-- عنوان پیش‌فرض اولین مرحله برای هر متخصص. مراجع جدید که فرم را پر می‌کند،
+-- اولین مرحله‌اش این عنوان را می‌گیرد (مثلا «ویزیت اول» یا «جلسه‌ی مشاوره»).
+-- پیش‌فرض «مصاحبه» تا رفتار فعلی حفظ شود.
+alter table public.psy_resource_profiles
+  add column if not exists first_stage_label text not null default 'مصاحبه';
+
+-- عنوان‌های پیشنهادی مرحله برای هر متخصص (قالب‌های آماده). آرایه‌ی متن ساده؛
+-- موقع دادن نوبت، دکتر می‌تواند از این‌ها انتخاب کند یا عنوان تازه بنویسد.
+alter table public.psy_resource_profiles
+  add column if not exists stage_presets jsonb not null default '[]'::jsonb;
+
+
+-- ───────────────────────────────────────────────────────────────────────────
+-- 0038_patient_messages.sql
+-- ───────────────────────────────────────────────────────────────────────────
+-- 0038 — پیام‌های متخصص برای مراجع (دارو / تجویز / توصیه / عمومی)
+-- کاملا additive و امن روی دیتابیس زنده. هیچ drop/rename ندارد.
+-- یک کانال یک‌طرفه متخصص→مراجع، جدا از «یادداشت بالینی» (که خصوصی است و هرگز
+-- به مراجع نشان داده نمی‌شود) و جدا از «یادداشت برای مراجع» هر جلسه (که به یک
+-- جلسه‌ی خاص گره خورده). این‌جا پیام مستقل از جلسه است — مثل تجویز دارو یا توصیه.
+
+create table if not exists public.psy_patient_messages (
+  id           uuid primary key default gen_random_uuid(),
+  tenant_id    uuid not null references public.tenants(id) on delete cascade,
+  resource_id  uuid references public.resources(id) on delete set null,
+  case_number  text not null,
+  kind         text not null default 'general',   -- medication | prescription | recommendation | general
+  body         text not null,
+  created_at   timestamptz not null default now()
+);
+create index if not exists psy_patient_messages_case_idx on public.psy_patient_messages (tenant_id, case_number);
+
+
+-- ───────────────────────────────────────────────────────────────────────────
+-- 0039_clinical_notes_and_stage_session_type.sql
+-- ───────────────────────────────────────────────────────────────────────────
+-- 0039 — دو کار additive و امن روی دیتابیس زنده:
+--  (الف) تضمین وجود جدول یادداشت بالینی و ستون‌های session_id/stage_id.
+--        بدون این ستون‌ها، یادداشت بالینی گره‌خورده به یک جلسه ذخیره/بازیابی
+--        نمی‌شد و دکتر بعد از ثبت آن را نمی‌دید.
+--  (ب) افزودن session_type به psy_stages تا نوع هر جلسه (آنلاین/حضوری) مستقل
+--        از نوع کلی پرونده تعیین شود. null یعنی از نوع پرونده ارث می‌برد.
+
+create table if not exists public.psy_clinical_notes (
+  id          uuid primary key default gen_random_uuid(),
+  tenant_id   uuid not null,
+  case_number text not null,
+  resource_id uuid,
+  session_id  uuid,
+  stage_id    uuid,
+  format      text not null default 'soap',
+  fields      jsonb not null default '{}'::jsonb,
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz not null default now()
+);
+alter table public.psy_clinical_notes add column if not exists session_id uuid;
+alter table public.psy_clinical_notes add column if not exists stage_id uuid;
+create index if not exists psy_clinical_notes_case_idx on public.psy_clinical_notes (tenant_id, case_number);
+
+alter table public.psy_stages add column if not exists session_type text;
+
+
+-- ───────────────────────────────────────────────────────────────────────────
+-- 0040_stage_meet_channel.sql
+-- ───────────────────────────────────────────────────────────────────────────
+-- 0040 — پلتفرم آنلاین انتخابی مراجع برای هر جلسه.
+-- مراجع هنگام پرداخت جلسه‌ی آنلاین، از میان روش‌های فعال متخصص (گوگل‌میت/زوم/
+-- واتساپ/بله/تلفن) یکی را انتخاب می‌کند و همان روی جلسه ذخیره می‌شود؛ سپس فقط
+-- همان روش به او نشان داده می‌شود. null یعنی هنوز انتخاب نکرده (همه‌ی روش‌ها نشان
+-- داده می‌شوند — رفتار قبلی).
+alter table public.psy_stages add column if not exists meet_channel text;
+
+
+-- ───────────────────────────────────────────────────────────────────────────
+-- 0041_stage_cancellation_refunds.sql
+-- ───────────────────────────────────────────────────────────────────────────
+-- 0041 — کنسلی جلسات تکی (مرحله‌ای) توسط مراجع، هم‌تراز با جلسات پروتکل.
+-- مرحله‌ها تا امروز ستون بازپرداخت نداشتند؛ این ستون‌ها همان الگوی psy_sessions را
+-- می‌آورند تا کنسلی مراجع + تسویه‌ی بازپرداخت توسط دکتر برای مرحله هم کار کند.
+alter table public.psy_stages add column if not exists refund_percent integer;
+alter table public.psy_stages add column if not exists refund_status text;
+alter table public.psy_stages add column if not exists refund_card text;
+alter table public.psy_stages add column if not exists refund_ref text;
+
+
+-- ───────────────────────────────────────────────────────────────────────────
+-- 0042_cancelled_slots.sql
+-- ───────────────────────────────────────────────────────────────────────────
+-- 0042 — فلگ نوبت‌های لغوشده در برنامه‌ی نوبت‌های متخصص.
+-- وقتی نوبتی لغو می‌شود، زمان خود جلسه پاک می‌شود (تا مراجع بتواند دوباره وقت
+-- بگیرد)؛ برای همین برای نشان‌دادن فلگ روی همان خانه‌ی زمانی، یک رکورد سبک جدا
+-- نگه می‌داریم: چه کسی لغو کرده (مطب/مراجع) و چه زمانی. آزاد/بلاک‌بودن اسلات با
+-- slot_locks مدیریت می‌شود (لغو توسط مطب → قفل می‌ماند و بلاک؛ لغو توسط مراجع →
+-- قفل آزاد می‌شود).
+create table if not exists public.psy_cancelled_slots (
+  id            uuid primary key default gen_random_uuid(),
+  tenant_id     uuid not null,
+  resource_id   uuid,
+  case_number   text not null,
+  session_date  text not null,
+  session_time  text not null,
+  cancelled_by  text not null,   -- 'doctor' | 'client'
+  created_at    timestamptz not null default now()
+);
+create index if not exists psy_cancelled_slots_lookup
+  on public.psy_cancelled_slots (tenant_id, resource_id, session_date);
+
+
+-- ───────────────────────────────────────────────────────────────────────────
+-- 0043_row_cancelled_by.sql
+-- ───────────────────────────────────────────────────────────────────────────
+-- 0043 — نشانه‌ی اینکه یک جلسه/مرحله را چه کسی کنسل کرده، تا برچسب درست
+-- («کنسل توسط مراجع») نشان داده شود و کنسل پرداخت‌نشده دیگر «منتظر پرداخت» نماند.
+alter table public.psy_stages   add column if not exists cancelled_by text;
+alter table public.psy_sessions add column if not exists cancelled_by text;
+
+
+-- ───────────────────────────────────────────────────────────────────────────
+-- 0044_package_location_channel.sql
+-- ───────────────────────────────────────────────────────────────────────────
+-- پروتکل درمان (پکیج): متخصص علاوه بر آنلاین/حضوری، «نوع» را هم مشخص می‌کند —
+-- برای حضوری «کدام محل» و برای آنلاین «کدام کانال». per-پروتکل و برای هر دو
+-- دسته (مراجع/همراه) جدا. مقادیر متنی و nullable (additive، امن برای دیتای زنده):
+--   office_location = عنوان محل (مثل office_locations[].title)
+--   meet_channel    = متد کانال (مثل MeetChannel.method: 'whatsapp'، 'google_meet'، ...)
+ALTER TABLE public.psy_packages
+  ADD COLUMN IF NOT EXISTS primary_office_location text,
+  ADD COLUMN IF NOT EXISTS primary_meet_channel text,
+  ADD COLUMN IF NOT EXISTS secondary_office_location text,
+  ADD COLUMN IF NOT EXISTS secondary_meet_channel text;
