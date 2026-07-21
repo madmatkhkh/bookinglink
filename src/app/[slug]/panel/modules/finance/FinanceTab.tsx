@@ -334,7 +334,7 @@ export default function FinanceTab({ api, onUnauthorized }: {
              <div className="rounded-xl border border-sand p-4">
               <h3 className="text-xs font-semibold text-ink mb-1">تسویه‌ی پرداخت آنلاین</h3>
               <p className="text-[11px] text-soot mb-3">
-               پرداخت آنلاین (زیبال) اول به حساب {PLATFORM_NAME} می‌نشیند، بعد سهم شما (منهای کارمزد) تسویه می‌شود.
+               پرداخت آنلاین (درگاه پرداخت {PLATFORM_NAME}) اول به حساب {PLATFORM_NAME} می‌نشیند، بعد سهم شما (منهای کارمزد) تسویه می‌شود.
               </p>
               <div className="space-y-1.5 text-xs">
                <div className="flex justify-between"><span className="text-soot">کل تراکنش‌های آنلاین</span><span className="text-ink tnum">{money(f.settlement.totalOnline)}</span></div>

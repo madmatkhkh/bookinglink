@@ -53,12 +53,14 @@ export const TRIAL_DAYS = 14
 // ⚠️ منبع «عملیاتی» ردیف‌های plan_prices / plan_fees / plan_sms_quotas در
 // platform_settings است (migrationهای 0046..0048). این ثابت فقط نمایشی است؛
 // هر تغییری باید هم‌زمان هر دو جا اعمال شود تا اعلامیه و عمل از هم جدا نیفتند.
+// کارمزد فقط «کف» دارد، بدون سقف (بازنگری 1405/04/30). سالانه = 2 ماه رایگان
+// (10 × ماهانه) — فاز اول اعمالش دستی است (شارژ/فاکتور سوپرادمین).
 export const PLAN_PRICING = {
   vatPercent: 10,
-  annualFreeMonths: 2, // پرداخت سالانه = 2 ماه رایگان (فاز اول: اعمال دستی)
-  base: { monthly: 390000, feePct: 3, feeFloor: 3000, feeCap: 120000, sms: 150, settlement: 'دوهفتگی' },
-  pro: { monthly: 890000, feePct: 2.5, feeFloor: 3000, feeCap: 100000, sms: 500, settlement: 'هفتگی' },
-  team: { monthly: 1900000, feePct: 2, feeFloor: 3000, feeCap: 80000, sms: 1500, settlement: 'هفتگی', includedStaff: 3, extraStaff: 450000 },
+  annualFreeMonths: 2,
+  base: { monthly: 390000, annual: 3900000, feePct: 3, feeFloor: 3000, sms: 150, settlement: 'دوهفتگی' },
+  pro: { monthly: 890000, annual: 8900000, feePct: 2.5, feeFloor: 3000, sms: 500, settlement: 'هفتگی' },
+  team: { monthly: 1900000, annual: 19000000, feePct: 2, feeFloor: 3000, sms: 1500, settlement: 'هفتگی', includedStaff: 3, extraStaff: 450000 },
 } as const
 
 // preset پلن — پلن ناشناخته/آینده => null یعنی «preset اعمال نشود» (fail-open).

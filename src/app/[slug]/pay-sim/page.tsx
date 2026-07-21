@@ -33,7 +33,7 @@ function PaySimInner() {
           className="block w-full py-3 border border-sand text-soot rounded-xl text-sm font-medium hover:bg-gray-50">
           لغو / پرداخت ناموفق
         </a>
-        <p className="text-[11px] text-soot mt-4">این صفحه فقط در محیط تست دیده می‌شود. روی محیط واقعی، درگاه زیبال باز می‌شود.</p>
+        <p className="text-[11px] text-soot mt-4">این صفحه فقط در محیط تست دیده می‌شود. روی محیط واقعی، درگاه پرداخت نوبت‌لینک باز می‌شود.</p>
       </div>
     </div>
   )

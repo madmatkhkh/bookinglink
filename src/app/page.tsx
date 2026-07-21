@@ -152,7 +152,7 @@ function HeroShowcase() {
                 <div className="mt-4 flex items-center gap-2 text-[11px] text-soot border border-sand rounded-lg px-3 py-2">
                   <span className="tnum">{niche.price} تومان</span>
                   <span className="w-px h-3 bg-sand" />
-                  <span>درگاه امن زیبال</span>
+                  <span>درگاه پرداخت امن نوبت‌لینک</span>
                 </div>
               </div>
             </div>
@@ -190,7 +190,7 @@ const FEATURES = [
   { icon: '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>',
     t: 'تقویم واحد برای چند پرسنل', d: 'برنامه‌ی چند متخصص را هم‌زمان مدیریت کنید؛ همه‌ی نوبت‌ها در یک تقویم یکپارچه.' },
   { icon: '<rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/>',
-    t: 'پرداخت آنلاین امن', d: 'بهای خدمت هنگام رزرو از درگاه دارای مجوز زیبال دریافت و نوبت به‌صورت خودکار قطعی می‌شود.' },
+    t: 'پرداخت آنلاین امن', d: 'بهای خدمت هنگام رزرو از درگاه پرداخت نوبت‌لینک (دارای مجوز رسمی) دریافت و نوبت به‌صورت خودکار قطعی می‌شود.' },
   { icon: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
     t: 'لیست انتظار هوشمند', d: 'وقتی همه‌ی ساعت‌ها پر است، مراجع در لیست انتظار می‌ماند و به‌محض خالی‌شدن زمانی، با یک کلیک به او اطلاع می‌دهید.' },
   { icon: '<path d="M3 3v18h18"/><path d="M7 13l3-3 4 4 5-6"/>',
@@ -207,6 +207,7 @@ const FAQS = [
 
 export default function Landing() {
   const [niches, setNiches] = useState<NicheCard[]>([])
+  const [billing, setBilling] = useState<'monthly' | 'annual'>('monthly')
   const [loading, setLoading] = useState(true)
   const [faq, setFaq] = useState<number>(0)
 
@@ -301,7 +302,7 @@ export default function Landing() {
                 <a href={`/${DEMO_SLUG}`} target="_blank" className="text-sm font-medium text-soot underline underline-offset-4 hover:text-ink">مشاهده‌ی صفحه‌ی نمونه</a>
               )}
             </div>
-            <p className="mt-5 text-[13px] text-soot/80">پرداخت امن از درگاه دارای مجوز زیبال · دارای نماد اعتماد الکترونیکی · راه‌اندازی در کمتر از 5 دقیقه</p>
+            <p className="mt-5 text-[13px] text-soot/80">پرداخت امن از درگاه پرداخت نوبت‌لینک · دارای نماد اعتماد الکترونیکی · راه‌اندازی در کمتر از 5 دقیقه</p>
           </div>
 
           {/* موکاپ زنده‌ی چندتخصصی — امضای صفحه */}
@@ -398,23 +399,38 @@ export default function Landing() {
           <div className="text-sm font-semibold text-soot mb-3">تعرفه‌ها</div>
           <h2 className="font-display font-extrabold text-3xl sm:text-4xl tracking-tightest">قیمت‌گذاری شفاف، بدون هزینه‌ی پنهان</h2>
         </div>
-        <p className="text-center text-sm text-soot mb-10 nl-reveal">
+        <p className="text-center text-sm text-soot mb-6 nl-reveal">
           14 روز اول، همه‌ی امکانات «حرفه‌ای» برای همه رایگان است — بدون نیاز به کارت بانکی.
         </p>
+        <div className="flex justify-center mb-8 nl-reveal">
+          <div className="inline-flex rounded-full border border-sand bg-white p-1">
+            <button type="button" onClick={() => setBilling('monthly')}
+              className={`text-[13px] font-semibold px-4 py-1.5 rounded-full transition ${billing === 'monthly' ? 'bg-ink text-white' : 'text-soot hover:text-ink'}`}>
+              ماهانه
+            </button>
+            <button type="button" onClick={() => setBilling('annual')}
+              className={`text-[13px] font-semibold px-4 py-1.5 rounded-full transition tnum ${billing === 'annual' ? 'bg-ink text-white' : 'text-soot hover:text-ink'}`}>
+              سالانه (2 ماه رایگان)
+            </button>
+          </div>
+        </div>
         <div className="grid sm:grid-cols-3 gap-4">
 
           {/* پایه */}
           <div className="rounded-2xl border border-sand bg-white p-6 flex flex-col nl-reveal">
             <div className="font-display font-bold text-lg">پایه</div>
             <div className="mt-3 flex items-baseline gap-1.5">
-              <span className="font-display font-extrabold text-3xl tnum">{PLAN_PRICING.base.monthly.toLocaleString('en-US')}</span>
-              <span className="text-xs text-soot">تومان / ماه</span>
+              <span className="font-display font-extrabold text-3xl tnum">{(billing === 'annual' ? PLAN_PRICING.base.annual : PLAN_PRICING.base.monthly).toLocaleString('en-US')}</span>
+              <span className="text-xs text-soot">{billing === 'annual' ? 'تومان / سال' : 'تومان / ماه'}</span>
             </div>
-            <p className="mt-1 text-[11px] text-soot tnum">+ کارمزد {PLAN_PRICING.base.feePct}% هر تراکنش آنلاین (سقف {PLAN_PRICING.base.feeCap.toLocaleString('en-US')} ت)</p>
+            {billing === 'annual' && (
+              <p className="mt-0.5 text-[11px] text-emerald-700 tnum">معادل {Math.round(PLAN_PRICING.base.annual / 12 / 1000).toLocaleString('en-US')} هزار تومان در ماه — 2 ماه رایگان</p>
+            )}
+            <p className="mt-1 text-[11px] text-soot tnum">+ کارمزد {PLAN_PRICING.base.feePct}% هر تراکنش آنلاین (حداقل {PLAN_PRICING.base.feeFloor.toLocaleString('en-US')} ت)</p>
             <ul className="mt-5 space-y-2.5 text-[13px] text-soot leading-relaxed flex-1">
               <li>✓ صفحه‌ی رزرو اختصاصی با نشانی برندشده</li>
               <li>✓ رزرو و مدیریت نوبت‌ها بدون محدودیت</li>
-              <li>✓ پرداخت آنلاین از درگاه دارای مجوز (زیبال)</li>
+              <li>✓ درگاه پرداخت آنلاین نوبت‌لینک</li>
               <li>✓ فرم‌ساز رزرو با سوال‌های دلخواه</li>
               <li>✓ کنسل نوبت توسط خود مشتری</li>
               <li>✓ پنل مدیریت، پرونده‌ها و گزارش مالی</li>
@@ -429,10 +445,13 @@ export default function Landing() {
             <span className="absolute -top-3 right-6 text-[11px] font-bold text-white bg-ink px-3 py-1 rounded-full">پیشنهاد ما</span>
             <div className="font-display font-bold text-lg">حرفه‌ای</div>
             <div className="mt-3 flex items-baseline gap-1.5">
-              <span className="font-display font-extrabold text-3xl tnum">{PLAN_PRICING.pro.monthly.toLocaleString('en-US')}</span>
-              <span className="text-xs text-soot">تومان / ماه</span>
+              <span className="font-display font-extrabold text-3xl tnum">{(billing === 'annual' ? PLAN_PRICING.pro.annual : PLAN_PRICING.pro.monthly).toLocaleString('en-US')}</span>
+              <span className="text-xs text-soot">{billing === 'annual' ? 'تومان / سال' : 'تومان / ماه'}</span>
             </div>
-            <p className="mt-1 text-[11px] text-soot tnum">+ کارمزد {PLAN_PRICING.pro.feePct}% هر تراکنش آنلاین (سقف {PLAN_PRICING.pro.feeCap.toLocaleString('en-US')} ت)</p>
+            {billing === 'annual' && (
+              <p className="mt-0.5 text-[11px] text-emerald-700 tnum">معادل {Math.round(PLAN_PRICING.pro.annual / 12 / 1000).toLocaleString('en-US')} هزار تومان در ماه — 2 ماه رایگان</p>
+            )}
+            <p className="mt-1 text-[11px] text-soot tnum">+ کارمزد {PLAN_PRICING.pro.feePct}% هر تراکنش آنلاین (حداقل {PLAN_PRICING.pro.feeFloor.toLocaleString('en-US')} ت)</p>
             <ul className="mt-5 space-y-2.5 text-[13px] text-soot leading-relaxed flex-1">
               <li className="text-ink font-medium">✓ همه‌ی امکانات «پایه»</li>
               <li>✓ یادآوری پیامکی خودکار نوبت‌ها</li>
@@ -451,10 +470,13 @@ export default function Landing() {
           <div className="rounded-2xl border border-sand bg-white p-6 flex flex-col nl-reveal" style={{ transitionDelay: '180ms' }}>
             <div className="font-display font-bold text-lg">تیم</div>
             <div className="mt-3 flex items-baseline gap-1.5">
-              <span className="font-display font-extrabold text-3xl tnum">{PLAN_PRICING.team.monthly.toLocaleString('en-US')}</span>
-              <span className="text-xs text-soot">تومان / ماه</span>
+              <span className="font-display font-extrabold text-3xl tnum">{(billing === 'annual' ? PLAN_PRICING.team.annual : PLAN_PRICING.team.monthly).toLocaleString('en-US')}</span>
+              <span className="text-xs text-soot">{billing === 'annual' ? 'تومان / سال' : 'تومان / ماه'}</span>
             </div>
-            <p className="mt-1 text-[11px] text-soot tnum">+ کارمزد {PLAN_PRICING.team.feePct}% هر تراکنش آنلاین (سقف {PLAN_PRICING.team.feeCap.toLocaleString('en-US')} ت)</p>
+            {billing === 'annual' && (
+              <p className="mt-0.5 text-[11px] text-emerald-700 tnum">معادل {Math.round(PLAN_PRICING.team.annual / 12 / 1000).toLocaleString('en-US')} هزار تومان در ماه — 2 ماه رایگان</p>
+            )}
+            <p className="mt-1 text-[11px] text-soot tnum">+ کارمزد {PLAN_PRICING.team.feePct}% هر تراکنش آنلاین (حداقل {PLAN_PRICING.team.feeFloor.toLocaleString('en-US')} ت)</p>
             <ul className="mt-5 space-y-2.5 text-[13px] text-soot leading-relaxed flex-1">
               <li className="text-ink font-medium">✓ همه‌ی امکانات «حرفه‌ای»</li>
               <li className="tnum">✓ چندپرسنلی — تا {PLAN_PRICING.team.includedStaff} نفر (هر نفر اضافه {PLAN_PRICING.team.extraStaff.toLocaleString('en-US')} ت)</li>
@@ -468,13 +490,13 @@ export default function Landing() {
         </div>
 
         <p className="text-center text-[12px] text-soot mt-5 nl-reveal tnum">
-          پرداخت سالانه = {PLAN_PRICING.annualFreeMonths} ماه رایگان · قیمت‌ها بدون احتساب {PLAN_PRICING.vatPercent}% مالیات بر ارزش افزوده · پیامک بیشتر با بسته‌ی شارژ
+          قیمت‌ها بدون احتساب {PLAN_PRICING.vatPercent}% مالیات بر ارزش افزوده · پیامک بیشتر با بسته‌ی شارژ
         </p>
 
         <div className="max-w-3xl mx-auto mt-6 text-[13px] text-soot leading-relaxed bg-white border border-sand rounded-2xl p-5 nl-reveal">
           <p>
             <strong className="text-ink">بهای خدمات هر متخصص چگونه تعیین می‌شود؟</strong> بهای هر خدمت (برای نمونه، جلسه‌ی مشاوره) را خود متخصص تعیین می‌کند و
-            پیش از پرداخت، به‌صورت شفاف روی صفحه‌ی رزرو او نمایش داده می‌شود. پرداخت آنلاین از طریق درگاه دارای مجوز زیبال انجام می‌شود؛ کارمزد {PLATFORM_NAME} طبق پلن انتخابی متخصص (<span className="tnum">{PLAN_PRICING.team.feePct}% تا {PLAN_PRICING.base.feePct}%</span>، با سقف مشخص) هنگام تسویه از سهم او کسر می‌شود؛ مابقی به‌صورت دوره‌ای با متخصص تسویه و به حساب او واریز می‌گردد. مراجع همان قیمت اعلام‌شده را می‌پردازد و هیچ مبلغ اضافه‌ای از او دریافت نمی‌شود.
+            پیش از پرداخت، به‌صورت شفاف روی صفحه‌ی رزرو او نمایش داده می‌شود. پرداخت آنلاین از طریق درگاه پرداخت نوبت‌لینک (دارای مجوز رسمی پرداخت کشور) انجام می‌شود؛ کارمزد {PLATFORM_NAME} طبق پلن انتخابی متخصص (<span className="tnum">{PLAN_PRICING.team.feePct}% تا {PLAN_PRICING.base.feePct}%</span>، با حداقل مشخص) هنگام تسویه از سهم او کسر می‌شود؛ مابقی به‌صورت دوره‌ای با متخصص تسویه و به حساب او واریز می‌گردد. مراجع همان قیمت اعلام‌شده را می‌پردازد و هیچ مبلغ اضافه‌ای از او دریافت نمی‌شود.
             {DEMO_SLUG && <> برای مشاهده‌ی فرایند کامل رزرو و پرداخت، <a href={`/${DEMO_SLUG}`} target="_blank" className="text-ink underline underline-offset-4">صفحه‌ی نمونه</a> را ببینید.</>}
           </p>
         </div>

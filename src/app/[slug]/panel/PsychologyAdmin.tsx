@@ -2233,11 +2233,11 @@ export function PsychologyAdmin() {
         {!cardToCardAllowed ? (
          <>
           <p className="text-xs text-soot mb-4">
-           پرداخت مراجعان به‌صورت آنلاین (درگاه زیبال) انجام می‌شود — تایید خودکار، بدون نیاز به بررسی دستی شما.
+           پرداخت مراجعان به‌صورت آنلاین (درگاه پرداخت نوبت‌لینک) انجام می‌شود — تایید خودکار، بدون نیاز به بررسی دستی شما.
           </p>
           <div className="flex items-center justify-between p-3 rounded-xl border border-sand">
            <div>
-            <span className="text-sm text-ink block">پرداخت آنلاین (زیبال)</span>
+            <span className="text-sm text-ink block">پرداخت آنلاین (درگاه نوبت‌لینک)</span>
             <span className="text-[11px] text-soot">فعال — مراجع بلافاصله بعد از پرداخت می‌تواند ادامه دهد</span>
            </div>
            <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-full">فعال</span>
@@ -2261,7 +2261,7 @@ export function PsychologyAdmin() {
            </label>
            <label className="flex items-center justify-between p-3 rounded-xl border border-sand cursor-pointer">
             <div>
-             <span className="text-sm text-ink block">پرداخت آنلاین (زیبال)</span>
+             <span className="text-sm text-ink block">پرداخت آنلاین (درگاه نوبت‌لینک)</span>
              <span className="text-[11px] text-soot">تایید خودکار — مراجع بلافاصله می‌تواند نوبت بگیرد</span>
             </div>
             <input type="checkbox" checked={profile.payment_methods.online}

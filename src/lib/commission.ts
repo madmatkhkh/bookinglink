@@ -41,16 +41,17 @@ export async function resolveCommissionPercent(resourceId: string | null): Promi
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// فاز P2 قیمت‌گذاری (MODULES.md بخش 9.4 و 9.6) — کارمزد تراکنش per-پلن با
-// کف/سقف (آینه‌ی ساختار خود زیبال) + تفکیک پایه/مالیات بر ارزش افزوده.
+// فاز P2 قیمت‌گذاری (MODULES.md بخش 9.4 و 9.6) — کارمزد تراکنش per-پلن،
+// فقط با «کف» (بازنگری 1405/04/30: سقف حذف شد) + تفکیک پایه/مالیات.
 //
-// منبع: ردیف 'plan_fees' در platform_settings (migration 0046):
+// منبع: ردیف 'plan_fees' در platform_settings (migration 0046، اصلاح 0050):
 //   { "vat_percent": 10,
-//     "plans": { "base": {"pct":3,"floor":3000,"cap":120000},
-//                "pro":  {"pct":2.5,"floor":3000,"cap":100000},
-//                "team": {"pct":2,"floor":3000,"cap":80000} } }
-// فرمول: base = clamp(round(pct×amount), floor, cap)؛ vat = round(base×vat%)؛
+//     "plans": { "base": {"pct":3,"floor":3000},
+//                "pro":  {"pct":2.5,"floor":3000},
+//                "team": {"pct":2,"floor":3000} } }
+// فرمول: base = max(round(pct×amount), floor)؛ vat = round(base×vat%)؛
 // کل کسر = base + vat (کارمزد اعلامی «بدون احتساب مالیات» است — بخش 9.6).
+// اگر ردیف قدیمی هنوز cap داشته باشد، نادیده گرفته می‌شود.
 //
 // ترتیب حل (fail-safe در هر دو جهت استقرار):
 //   1) override per-متخصص → مدل قدیمی خالص (درصد×مبلغ، بدون کف/سقف/تفکیک VAT)
@@ -61,13 +62,12 @@ export async function resolveCommissionPercent(resourceId: string | null): Promi
 //      قبل از migration هیچ رفتاری را عوض نمی‌کند.
 // ─────────────────────────────────────────────────────────────────────────────
 
-type PlanFeeRule = { pct: number; floor: number; cap: number }
+type PlanFeeRule = { pct: number; floor: number }
 type PlanFeesSetting = { vat_percent: number; plans: Record<string, PlanFeeRule> }
 
 function validRule(r: any): r is PlanFeeRule {
   return r && typeof r.pct === 'number' && Number.isFinite(r.pct) && r.pct >= 0 && r.pct <= 100
     && typeof r.floor === 'number' && r.floor >= 0
-    && typeof r.cap === 'number' && r.cap >= r.floor
 }
 
 async function getPlanFeesSetting(): Promise<PlanFeesSetting | null> {
@@ -112,7 +112,7 @@ export async function resolveTransactionFee(
   if (setting) {
     const key = plan === 'free' || !plan ? 'base' : plan
     const rule = setting.plans[key] || setting.plans.base
-    let base = Math.min(Math.max(Math.round(amount * (rule.pct / 100)), rule.floor), rule.cap)
+    let base = Math.max(Math.round(amount * (rule.pct / 100)), rule.floor)
     let vat = Math.round(base * (setting.vat_percent / 100))
     if (base + vat > amount) {
       // تراکنش خیلی کوچک — کل کسر هرگز از خود مبلغ بیشتر نمی‌شود
