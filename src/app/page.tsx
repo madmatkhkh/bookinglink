@@ -175,7 +175,188 @@ function HeroShowcase() {
   )
 }
 
-// ── «سفر یک نوبت» — روایت مرکزی لندینگ (بازطراحی ادامه‌ی 29) ────────────────
+// نوار پیشرفت اسکرول — باریک، بالای صفحه، با رنگ اعتماد. سبک و بدون کتابخانه.
+function ScrollProgress() {
+  const [p, setP] = useState(0)
+  useEffect(() => {
+    let raf = 0
+    const onScroll = () => {
+      cancelAnimationFrame(raf)
+      raf = requestAnimationFrame(() => {
+        const h = document.documentElement
+        const max = h.scrollHeight - h.clientHeight
+        setP(max > 0 ? (h.scrollTop / max) * 100 : 0)
+      })
+    }
+    window.addEventListener('scroll', onScroll, { passive: true })
+    onScroll()
+    return () => { window.removeEventListener('scroll', onScroll); cancelAnimationFrame(raf) }
+  }, [])
+  return (
+    <div className="fixed top-0 inset-x-0 z-[60] h-0.5 bg-transparent" aria-hidden="true">
+      <div className="h-full bg-trust transition-[width] duration-150 ease-out" style={{ width: `${p}%` }} />
+    </div>
+  )
+}
+
+// ── «داشبورد» — روایت ساخته‌شدن مرکز فرماندهی کسب‌وکار ─────────────────────
+// چهار ماژول یکی‌یکی با اسکرول سرجایشان می‌نشینند (تقویم → پرداخت → پرونده →
+// گزارش) و کنارشان یک جمله‌ی روایت عوض می‌شود. همان مکانیزم pin/scrub story.
+const DASH_STEPS = [
+  { n: '1', t: 'همه‌ی نوبت‌ها، یک‌جا', d: 'تقویم زنده‌ی همه‌ی مراجعان و پرسنل — بدون دفتر کاغذی، بدون دابل‌بوکینگ. هر تغییری آنی همه‌جا اعمال می‌شود.' },
+  { n: '2', t: 'پول، خودکار و شفاف', d: 'هر پرداخت آنلاین ثبت، کارمزد و سهم شما جدا، و تسویه‌ی دوره‌ای به حسابتان. دیگر خبری از رسید کارت‌به‌کارت و حساب‌وکتاب دستی نیست.' },
+  { n: '3', t: 'پرونده‌ی هر مراجع', d: 'سابقه‌ی جلسات، یادداشت‌ها و مراحل درمان هر مراجع کنار هم. همه‌چیز محرمانه و همیشه در دسترس.' },
+  { n: '4', t: 'گزارشی که تصمیم می‌سازد', d: 'درآمد، نرخ حضور، پرمخاطب‌ترین ساعت‌ها — تصویر کاملی از کسب‌وکارتان که کمک می‌کند بهتر تصمیم بگیرید.' },
+]
+
+function DashboardMock({ step }: { step: number }) {
+  // هر ماژول تا وقتی نوبتش نرسیده کم‌رنگ و کمی پایین است؛ با رسیدن step فعال می‌شود
+  const M = (i: number) =>
+    `rounded-xl border bg-white p-3.5 transition-all duration-500 motion-reduce:transition-none ${step >= i ? 'opacity-100 translate-y-0 border-sand' : 'opacity-30 translate-y-2 border-sand/50'}`
+  const active = (i: number) => step === i ? 'ring-2 ring-trust/40' : ''
+  return (
+    <div className="w-full max-w-[440px] mx-auto">
+      <div className="rounded-2xl border border-sand bg-canvas shadow-[0_30px_70px_-30px_rgba(0,0,0,0.35)] overflow-hidden">
+        {/* نوار بالای داشبورد */}
+        <div className="flex items-center justify-between px-4 py-3 border-b border-sand bg-white">
+          <div className="flex items-center gap-2">
+            <span className="w-7 h-7 rounded-lg bg-ink text-white flex items-center justify-center font-display font-bold text-xs">ن</span>
+            <span className="font-display font-bold text-[13px]">داشبورد</span>
+          </div>
+          <span className="text-[10px] text-soot">دکتر شیرین احمدی</span>
+        </div>
+        <div className="p-3.5 grid grid-cols-2 gap-3">
+          {/* ماژول 1: تقویم */}
+          <div className={`${M(0)} ${active(0)} col-span-2`}>
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[11px] font-semibold text-ink">تقویم امروز</span>
+              <span className="text-[9px] text-soot tnum">پنجشنبه · 6 نوبت</span>
+            </div>
+            <div className="grid grid-cols-4 gap-1.5">
+              {['09:00', '10:30', '12:00', '14:00', '15:30', '17:00', '18:00', '19:30'].map((t, k) => (
+                <span key={t} className={`text-center text-[9px] rounded-md py-1 tnum ${k < 6 ? 'bg-trust text-white' : 'bg-sand text-soot'}`}>{t}</span>
+              ))}
+            </div>
+          </div>
+          {/* ماژول 2: پرداخت/مالی */}
+          <div className={`${M(1)} ${active(1)}`}>
+            <div className="text-[10px] text-soot mb-1">درآمد این ماه</div>
+            <div className="font-display font-extrabold text-lg tnum">42,600,000</div>
+            <div className="mt-2 flex items-end gap-1 h-8">
+              {[40, 55, 45, 70, 60, 85, 75].map((h, k) => (
+                <span key={k} className="flex-1 rounded-sm bg-trust/70" style={{ height: `${h}%` }} />
+              ))}
+            </div>
+          </div>
+          {/* ماژول 3: پرونده‌ی مراجع */}
+          <div className={`${M(2)} ${active(2)}`}>
+            <div className="text-[10px] text-soot mb-2">پرونده‌ها</div>
+            <div className="space-y-1.5">
+              {['علی رضایی', 'مریم کریمی', 'سارا محمدی'].map((nm, k) => (
+                <div key={nm} className="flex items-center gap-2">
+                  <span className="w-5 h-5 rounded-full bg-sand text-[8px] flex items-center justify-center text-soot">{nm[0]}</span>
+                  <span className="text-[10px] text-ink flex-1">{nm}</span>
+                  <span className="text-[8px] text-soot tnum">جلسه {k + 2}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          {/* ماژول 4: گزارش/تسویه */}
+          <div className={`${M(3)} ${active(3)} col-span-2`}>
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[11px] font-semibold text-ink">تسویه‌ی آماده</span>
+              <span className="text-[11px] font-bold text-trust-deep tnum">38,340,000 تومان</span>
+            </div>
+            <div className="flex items-center gap-3 text-[9px] text-soot">
+              <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-trust" /> نرخ حضور 94%</span>
+              <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-ink" /> پرمخاطب: عصرها</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function DashboardStory() {
+  const rootRef = useRef<HTMLDivElement>(null)
+  const [step, setStep] = useState(0)
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    const root = rootRef.current
+    if (!root) return
+
+    if (reduced) {
+      // حرکت‌کاهیده: همه‌ی ماژول‌ها روشن، تشخیص متن با IntersectionObserver
+      setStep(DASH_STEPS.length - 1)
+      const blocks = Array.from(root.querySelectorAll('[data-dstep]'))
+      const obs = new IntersectionObserver(es => {
+        es.forEach(e => { if (e.isIntersecting) setStep(Number((e.target as HTMLElement).dataset.dstep)) })
+      }, { rootMargin: '-45% 0px -45% 0px' })
+      blocks.forEach(b => obs.observe(b))
+      return () => obs.disconnect()
+    }
+
+    let ctx: any, killed = false
+    ;(async () => {
+      const gsapMod = await import('gsap')
+      const stMod = await import('gsap/ScrollTrigger')
+      if (killed) return
+      const gsap = (gsapMod as any).default || gsapMod
+      const ScrollTrigger = (stMod as any).ScrollTrigger || (stMod as any).default
+      gsap.registerPlugin(ScrollTrigger)
+      ctx = gsap.context(() => {
+        const n = DASH_STEPS.length
+        const per = window.innerWidth < 768 ? 0.7 : 1
+        ScrollTrigger.create({
+          trigger: root,
+          start: 'top top',
+          end: () => '+=' + window.innerHeight * n * per,
+          pin: root.querySelector('[data-pin]') as Element,
+          scrub: true,
+          invalidateOnRefresh: true,
+          onUpdate: (self: any) => setStep(Math.min(n - 1, Math.floor(self.progress * n))),
+        })
+      }, root)
+    })()
+    return () => { killed = true; if (ctx) ctx.revert() }
+  }, [])
+
+  return (
+    <section id="features" ref={rootRef} className="relative bg-white">
+      <div data-pin className="min-h-screen flex items-center overflow-hidden">
+        <div className="max-w-5xl mx-auto px-6 w-full py-8 md:py-12">
+          <div className="text-center max-w-xl mx-auto mb-6 md:mb-12">
+            <div className="text-xs sm:text-sm font-semibold text-trust mb-2 md:mb-3">یک پلتفرم، نه یک ابزار</div>
+            <h2 className="font-display font-extrabold text-2xl sm:text-4xl tracking-tightest">همه‌ی کسب‌وکارتان، از یک داشبورد</h2>
+          </div>
+          <div className="grid md:grid-cols-2 gap-6 md:gap-12 items-center">
+            <div className="order-2 md:order-none">
+              <DashboardMock step={step} />
+            </div>
+            <div className="relative min-h-[160px] md:min-h-[240px] order-1 md:order-none">
+              {DASH_STEPS.map((b, i) => (
+                <div key={b.n} data-dstep={i}
+                  className={`absolute inset-0 flex flex-col justify-center text-center md:text-right transition-all duration-500 motion-reduce:transition-none ${step === i ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3 pointer-events-none'}`}>
+                  <div dir="ltr" className="font-display font-extrabold text-xs sm:text-sm text-trust tracking-widest mb-2 md:mb-3 tnum">{b.n} / {DASH_STEPS.length}</div>
+                  <h3 className="font-display font-bold text-xl sm:text-3xl mb-2 md:mb-3 tracking-tightest">{b.t}</h3>
+                  <p className="text-[13px] sm:text-base text-soot leading-relaxed max-w-sm mx-auto md:mx-0">{b.d}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="mt-6 md:mt-8 flex gap-1.5 justify-center">
+            {DASH_STEPS.map((_, i) => (
+              <span key={i} className={`h-1 rounded-full transition-all duration-300 ${step === i ? 'w-8 bg-trust' : 'w-3 bg-trust/25'}`} />
+            ))}
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
 // الگوی oryzo: یک شیء قهرمان (گوشی) sticky می‌ماند و اسکرول کاربر پرده‌های
 // داستان را داخلش عوض می‌کند — بدون WebGL و کتابخانه‌ی جدید؛ فقط sticky +
 // IntersectionObserver (همان الگوی nl-reveal). ارقام لاتین، تابع reduced-motion.
@@ -355,7 +536,7 @@ function StorySection() {
               {STORY_BEATS.map((b, i) => (
                 <div key={b.n} data-beat={i}
                   className={`absolute inset-0 flex flex-col justify-center text-center md:text-right transition-all duration-500 motion-reduce:transition-none ${scene === i ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3 pointer-events-none'}`}>
-                  <div className="font-display font-extrabold text-xs sm:text-sm text-trust tracking-widest mb-2 md:mb-3 tnum">{b.n} / {STORY_BEATS.length}</div>
+                  <div dir="ltr" className="font-display font-extrabold text-xs sm:text-sm text-trust tracking-widest mb-2 md:mb-3 tnum">{b.n} / {STORY_BEATS.length}</div>
                   <h3 className="font-display font-bold text-xl sm:text-3xl mb-2 md:mb-3 tracking-tightest">{b.t}</h3>
                   <p className="text-[13px] sm:text-base text-soot leading-relaxed max-w-sm mx-auto md:mx-0">{b.d}</p>
                 </div>
@@ -469,6 +650,8 @@ export default function Landing() {
 
   return (
     <main className="min-h-screen bg-paper text-ink">
+      {/* نوار پیشرفت اسکرول کل صفحه — حس تجربه‌ی پیوسته */}
+      <ScrollProgress />
       {/* ── هدر ─────────────────────────────────────────────────────────── */}
       <header className="sticky top-0 z-50 bg-paper/80 backdrop-blur border-b border-sand">
         <div className="max-w-5xl mx-auto px-6 h-16 flex items-center justify-between gap-6">
@@ -531,13 +714,11 @@ export default function Landing() {
       {/* ── سفر یک نوبت — روایت مرکزی (جایگزین سه‌گام قدیمی، anchor #how حفظ) ── */}
       <StorySection />
 
-      {/* ── امکانات ─────────────────────────────────────────────────────── */}
-      <section id="features" className="max-w-5xl mx-auto px-6 pt-16 pb-10">
-        <div className="text-center max-w-xl mx-auto mb-12" data-fx="reveal">
-          <div className="text-sm font-semibold text-trust mb-3">یک پلتفرم، نه یک ابزار</div>
-          <h2 className="font-display font-extrabold text-3xl sm:text-4xl tracking-tightest">همه‌ی کسب‌وکارتان، از یک داشبورد</h2>
-          <p className="mt-4 text-sm text-soot leading-relaxed">نوبت‌دهی فقط شروع کار است. رزرو، پرداخت، پرونده‌ی مشتری، تسویه، تیم و گزارش مالی — همه در یک جا مدیریت می‌شوند.</p>
-        </div>
+      {/* ── داشبورد — روایت مرکز فرماندهی کسب‌وکار (pin/scrub) ── */}
+      <DashboardStory />
+
+      {/* ── امکانات (کارت‌های پشتیبان، زیر روایت داشبورد) ── */}
+      <section className="max-w-5xl mx-auto px-6 pt-14 pb-10">
         <div className="grid sm:grid-cols-2 gap-5" data-fx="stagger">
           {FEATURES.map((f, i) => (
             <div key={f.t} className="rounded-2xl border border-sand bg-white p-7 transition hover:-translate-y-1.5 hover:shadow-[0_22px_44px_-20px_rgba(0,0,0,0.32)] ">
