@@ -340,7 +340,6 @@ function DashboardStory() {
               {DASH_STEPS.map((b, i) => (
                 <div key={b.n} data-dstep={i}
                   className={`absolute inset-0 flex flex-col justify-center text-center md:text-right transition-all duration-500 motion-reduce:transition-none ${step === i ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3 pointer-events-none'}`}>
-                  <div dir="ltr" className="font-display font-extrabold text-xs sm:text-sm text-trust tracking-widest mb-2 md:mb-3 tnum">{b.n} / {DASH_STEPS.length}</div>
                   <h3 className="font-display font-bold text-xl sm:text-3xl mb-2 md:mb-3 tracking-tightest">{b.t}</h3>
                   <p className="text-[13px] sm:text-base text-soot leading-relaxed max-w-sm mx-auto md:mx-0">{b.d}</p>
                 </div>
@@ -536,7 +535,6 @@ function StorySection() {
               {STORY_BEATS.map((b, i) => (
                 <div key={b.n} data-beat={i}
                   className={`absolute inset-0 flex flex-col justify-center text-center md:text-right transition-all duration-500 motion-reduce:transition-none ${scene === i ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3 pointer-events-none'}`}>
-                  <div dir="ltr" className="font-display font-extrabold text-xs sm:text-sm text-trust tracking-widest mb-2 md:mb-3 tnum">{b.n} / {STORY_BEATS.length}</div>
                   <h3 className="font-display font-bold text-xl sm:text-3xl mb-2 md:mb-3 tracking-tightest">{b.t}</h3>
                   <p className="text-[13px] sm:text-base text-soot leading-relaxed max-w-sm mx-auto md:mx-0">{b.d}</p>
                 </div>
@@ -556,20 +554,22 @@ function StorySection() {
 }
 
 
+// قابلیت‌های «مکمل» روایت داشبورد (تقویم/پرداخت/پرونده/گزارش آنجا نشان داده
+// شده‌اند؛ این‌ها چیزهای دیگری‌اند تا تکرار نشود).
 const FEATURES = [
   { icon: '<path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/>',
-    t: 'نشانی اختصاصی برای هر متخصص', d: 'هر متخصص نشانی برندشده‌ی خود را دارد که به‌سادگی قابل اشتراک‌گذاری است.',
+    t: 'نشانی اختصاصی برندشده', d: 'صفحه‌ی رزرو با رنگ و هویت خودتان و نشانی کوتاه و به‌یادماندنی — کارت ویزیت دیجیتال شما.',
     tag: 'nobatlink.com/برند-شما' },
   { icon: '<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/>',
-    t: 'یادآوری خودکار پیامکی', d: 'پیش از هر نوبت، پیامک یادآوری برای مراجع ارسال می‌شود تا نرخ عدم‌حضور به حداقل برسد.' },
-  { icon: '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>',
-    t: 'تقویم واحد برای چند پرسنل', d: 'برنامه‌ی چند متخصص را هم‌زمان مدیریت کنید؛ همه‌ی نوبت‌ها در یک تقویم یکپارچه.' },
-  { icon: '<rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/>',
-    t: 'پرداخت آنلاین امن', d: 'بهای خدمت هنگام رزرو از درگاه پرداخت نوبت‌لینک (دارای مجوز رسمی) دریافت و نوبت به‌صورت خودکار قطعی می‌شود.' },
-  { icon: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
-    t: 'لیست انتظار هوشمند', d: 'وقتی همه‌ی ساعت‌ها پر است، مراجع در لیست انتظار می‌ماند و به‌محض خالی‌شدن زمانی، با یک کلیک به او اطلاع می‌دهید.' },
-  { icon: '<path d="M3 3v18h18"/><path d="M7 13l3-3 4 4 5-6"/>',
-    t: 'گزارش مالی و آمار کسب‌وکار', d: 'درآمد، تعداد نوبت‌ها و روند رشد را در گزارش‌های شفاف و قابل‌فیلتر دنبال کنید.' },
+    t: 'یادآوری خودکار پیامکی', d: 'پیش از هر نوبت، پیامک یادآوری برای مراجع می‌رود تا نرخ عدم‌حضور به حداقل برسد.' },
+  { icon: '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
+    t: 'لیست انتظار هوشمند', d: 'وقتی همه‌ی ساعت‌ها پر است، مراجع در صف می‌ماند و با خالی‌شدن هر زمان، با یک کلیک خبردار می‌شود.' },
+  { icon: '<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>',
+    t: 'فرم رزرو دلخواه', d: 'سوال‌های اختصاصی خودتان را به فرم رزرو اضافه کنید؛ اطلاعات لازم پیش از جلسه در پرونده می‌نشیند.' },
+  { icon: '<path d="M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h6"/><path d="M14 3h7v7"/><path d="M10 14 21 3"/>',
+    t: 'جلسه‌ی آنلاین یک‌پارچه', d: 'برای جلسات آنلاین، لینک گوگل‌میت یا واتساپ همراه تایید نوبت به مراجع می‌رسد — بدون هماهنگی جداگانه.' },
+  { icon: '<path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"/><path d="M9 5v14"/>',
+    t: 'کدهای تخفیف', d: 'کمپین‌های تخفیف بسازید و برای جذب مراجع تازه یا قدردانی از مراجعان قدیمی از آن‌ها استفاده کنید.' },
 ]
 
 const FAQS = [
@@ -717,18 +717,22 @@ export default function Landing() {
       {/* ── داشبورد — روایت مرکز فرماندهی کسب‌وکار (pin/scrub) ── */}
       <DashboardStory />
 
-      {/* ── امکانات (کارت‌های پشتیبان، زیر روایت داشبورد) ── */}
-      <section className="max-w-5xl mx-auto px-6 pt-14 pb-10">
-        <div className="grid sm:grid-cols-2 gap-5" data-fx="stagger">
-          {FEATURES.map((f, i) => (
-            <div key={f.t} className="rounded-2xl border border-sand bg-white p-7 transition hover:-translate-y-1.5 hover:shadow-[0_22px_44px_-20px_rgba(0,0,0,0.32)] ">
+      {/* ── امکانات مکمل (چیزهایی که در روایت داشبورد نبودند) ── */}
+      <section className="max-w-5xl mx-auto px-6 pt-16 pb-10">
+        <div className="text-center max-w-xl mx-auto mb-12" data-fx="reveal">
+          <div className="text-sm font-semibold text-trust mb-3">و خیلی چیزهای دیگر</div>
+          <h2 className="font-display font-extrabold text-3xl sm:text-4xl tracking-tightest">هر چیزی که برای رشد لازم دارید</h2>
+        </div>
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5" data-fx="stagger">
+          {FEATURES.map(f => (
+            <div key={f.t} className="rounded-2xl border border-sand bg-white p-6 transition hover:-translate-y-1.5 hover:shadow-[0_22px_44px_-20px_rgba(0,0,0,0.32)]">
               <div className="w-11 h-11 rounded-xl bg-trust-wash text-trust-deep flex items-center justify-center mb-5">
                 <Icon path={f.icon} />
               </div>
-              <h3 className="font-display font-bold text-xl mb-2.5">{f.t}</h3>
-              <p className="text-sm text-soot leading-relaxed mb-3.5">{f.d}</p>
+              <h3 className="font-display font-bold text-lg mb-2">{f.t}</h3>
+              <p className="text-[13px] text-soot leading-relaxed mb-3">{f.d}</p>
               {f.tag && (
-                <span dir="ltr" className="inline-block text-[13px] font-semibold text-ink bg-paper border border-sand rounded-lg px-3 py-2">{f.tag}</span>
+                <span dir="ltr" className="inline-block text-[12px] font-semibold text-trust-deep bg-trust-wash rounded-lg px-3 py-1.5">{f.tag}</span>
               )}
             </div>
           ))}
