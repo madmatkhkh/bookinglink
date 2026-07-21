@@ -1524,3 +1524,17 @@ img-src نهایی: `'self' data: blob: https://images.nobatlink.com https://tru
 - ترتیب استقرار امن از هر دو طرف: کد اول → فلگ نیست، رفتار قبلی؛ migration اول → grandfather بی‌اثر و فلگ خوانده نمی‌شود.
 
 فایل‌ها: MODULES.md، src/lib/plans.ts، src/lib/modules.ts، 11 روت، 0045_plan_presets.sql، schema.sql (append + هدر تا 0045). `timeout 300 npx next build` → exit 0. اسکن اعراب/ارقام فارسی روی خطوط تغییرکرده → CLEAN. **migration 0045 پیوست است و باید روی DB اجرا شود** (SQL Editor سوپابیس؛ idempotent).
+
+## چنج‌لاگ 1405/04/30 (2026-07-21) ادامه‌ی ۲۲ — فاز P2 قیمت‌گذاری: کارمزد سقف‌دار per-پلن + تفکیک VAT
+
+خواسته: اجرای فاز P2 از بخش 9 MODULES.md — پارامترهای کارمزد در platform_settings، فرمول سقف‌دار جایگزین 7% در مسیر زیبال/ledger، تفکیک پایه/مالیات در entryها.
+
+- **`src/lib/commission.ts`:** تابع جدید `resolveTransactionFee(plan, resourceId, amount)` با ترتیب حل سه‌مرحله‌ای: (1) override per-متخصص → مدل قدیمی خالص بدون کف/سقف/تفکیک (معامله‌های خاص از جمله معافیت 0 عینا حفظ)؛ (2) ردیف `plan_fees` در platform_settings → فرمول `clamp(round(pct×amount), floor, cap)` + VAT روی کارمزد ('free' قدیمی alias پایه، پلن ناشناخته → قاعده پایه)؛ (3) ردیف نیست → مدل قدیمی سراسری 7%. گارد تراکنش خیلی کوچک: کل کسر (پایه+VAT) هرگز از خود مبلغ بیشتر نمی‌شود (back-compute پایه از سقف مبلغ). resolveCommissionPercent قدیمی دست‌نخورده ماند (super/commission همچنان مصرفش می‌کند).
+- **`pay-online/route.ts`:** جایگزینی دو خط محاسبه قدیمی با resolveTransactionFee(t.plan, ...)؛ commission_amount = کل کسر (معنای ستون حفظ)؛ ستون‌های fee_base_amount/fee_vat_amount فقط وقتی مدل جدید فعال است spread می‌شوند (استقرار کد قبل از migration → insert بدون ستون ناشناخته، امن).
+- **`src/lib/ledger.ts`:** فیلدهای اختیاری feeBaseAmount/feeVatAmount در RecordLedgerInput؛ در insert فقط وقتی non-null هستند نوشته می‌شوند.
+- **`callback/route.ts`:** پاس‌دادن intent.fee_base_amount/fee_vat_amount به recordLedgerEntry.
+- **migration 0046 (فایل `0046_plan_fees.sql` + append به schema.sql، هدر تا 0046):** دو ستون nullable تفکیک روی psy_payment_intents و ledger_entries؛ seed ردیف plan_fees با {vat_percent:10, base:3%/3000/120000, pro:2.5%/3000/100000, team:2%/3000/80000} — تغییر عددها بدون دیپلوی از SQL Editor.
+- **تست عددی فرمول (node، خارج از DB):** جلسه 1.5م (پایه 49500 / حرفه‌ای 41250 / تیم 33000 کل کسر)، پکیج 6م سقف‌خورده (132000/88000)، کف روی 100هزار و 50هزار (3300)، حالت‌های دژنره 3000 و 1000 تومان → سهم متخصص صفر ولی هرگز منفی نه. همه ok.
+- مسیر پول فقط یک choke point داشت (pay-online → callback از روی intent کپی می‌کند)؛ /pay قدیمی کارت‌به‌کارت است و کمیسیون ندارد — دست نخورد. حالت تست (is_test/PAYMENT_TEST_MODE) از همان مسیر رد می‌شود، پس فرمول جدید با tenant تستی قابل‌آزمایش است.
+
+فایل‌ها: src/lib/commission.ts، src/lib/ledger.ts، pay-online/route.ts، pay-online/callback/route.ts، 0046_plan_fees.sql، schema.sql. `timeout 300 npx next build` → exit 0. اسکن اعراب/ارقام فارسی روی خطوط تغییرکرده → CLEAN. **migration 0046 پیوست است و باید روی DB اجرا شود** (idempotent). یادآوری: با اجرای 0046، کمیسیون 7% عملا بازنشسته می‌شود مگر برای متخصص‌های دارای override؛ اعداد اعلامی سایت عمومی/قوانین (اگر جایی 7% نوشته) باید در جلسه‌ی خودش به‌روز شود.

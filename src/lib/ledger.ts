@@ -24,6 +24,11 @@ export type RecordLedgerInput = {
   direction?: 'inflow' | 'outflow'
   amount: number
   commissionAmount?: number
+  // فاز P2: تفکیک کارمزد پلتفرم به پایه + مالیات بر ارزش افزوده (بخش 9.6).
+  // اختیاری و فقط وقتی مدل جدید فعال است پر می‌شود؛ commissionAmount همچنان
+  // «کل کسر» است (پایه+VAT) تا معنای ستون قدیمی و همه‌ی گزارش‌ها دست نخورد.
+  feeBaseAmount?: number | null
+  feeVatAmount?: number | null
   doctorAmount?: number
   sourceTable?: string | null
   sourceId?: string | null
@@ -54,6 +59,12 @@ export async function recordLedgerEntry(input: RecordLedgerInput): Promise<boole
       direction: input.direction || 'inflow',
       amount: Math.round(input.amount),
       commission_amount: Math.round(input.commissionAmount || 0),
+      // ستون‌های تفکیک فقط وقتی مقدار دارند نوشته می‌شوند — قبل از اجرای
+      // migration 0046 این کلیدها اصلا در insert نیستند و چیزی نمی‌شکند.
+      ...(input.feeBaseAmount != null ? {
+        fee_base_amount: Math.round(input.feeBaseAmount),
+        fee_vat_amount: Math.round(input.feeVatAmount || 0),
+      } : {}),
       doctor_amount: Math.round(input.doctorAmount ?? (input.amount - (input.commissionAmount || 0))),
       source_table: input.sourceTable || null,
       source_id: input.sourceId || null,

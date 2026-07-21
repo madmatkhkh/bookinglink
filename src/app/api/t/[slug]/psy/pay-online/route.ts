@@ -6,7 +6,7 @@ import { acquirePendingLocksAtomic, sweepExpiredLocks } from '@/lib/slotLocks'
 import { stageTitle } from '@/lib/flow'
 import { isMeetMethod } from '@/lib/meet'
 import { requestZibalPayment, MULTIPLEXING_ENABLED } from '@/lib/zibal'
-import { resolveCommissionPercent } from '@/lib/commission'
+import { resolveTransactionFee } from '@/lib/commission'
 import { PAYMENT_TEST_MODE } from '@/lib/config'
 import { getClientPhone, getPayCase, matchesClientIdentity } from '@/lib/auth'
 
@@ -132,15 +132,20 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
     if (discountCodeCheck.ok) amount = discountCodeCheck.discountedAmount
   }
 
-  const commissionPercent = await resolveCommissionPercent(c.resource_id)
-  const commissionAmount = Math.round(amount * (commissionPercent / 100))
+  // فاز P2 قیمت‌گذاری: کارمزد سقف‌دار per-پلن + تفکیک پایه/VAT (بخش 9.4/9.6
+  // در MODULES.md). تا وقتی ردیف plan_fees در platform_settings نیست، عینا
+  // مدل قدیمی (7% سراسری / override متخصص) برمی‌گردد و ستون‌های تفکیک هم
+  // نوشته نمی‌شوند — استقرار از هر دو جهت امن.
+  const fee = await resolveTransactionFee(t.plan, c.resource_id, amount)
+  const commissionAmount = fee.totalAmount
   const profile = await getResourceProfile(c.resource_id)
   const shebaOk = isValidSheba(profile.settlement_sheba)
   const doctorAmount = amount - commissionAmount
 
   const { data: intent, error: intentErr } = await sb().from('psy_payment_intents').insert({
     tenant_id: t.id, resource_id: c.resource_id, case_number, phone, purpose, ref_id: ref_id || null, amount,
-    commission_percent: commissionPercent, commission_amount: commissionAmount,
+    commission_percent: fee.percent, commission_amount: commissionAmount,
+    ...(fee.baseAmount != null ? { fee_base_amount: fee.baseAmount, fee_vat_amount: fee.vatAmount || 0 } : {}),
     settlement_sheba: shebaOk ? profile.settlement_sheba : null,
     // فقط برای مرحله معنا دارد — کال‌بک بعد از verify موفق همین را روی مرحله ثبت می‌کند
     ...(purpose === 'stage' ? { booking_date: session_date, booking_time: session_time } : {}),
