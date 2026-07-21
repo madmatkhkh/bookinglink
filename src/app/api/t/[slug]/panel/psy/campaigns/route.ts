@@ -3,6 +3,7 @@ import { sb } from '@/lib/supabase'
 import { requirePanelAuth, isPanelAuthResponse } from '@/lib/tenant'
 import { requireModule } from '@/lib/modules'
 import { sendFreeTextSms, freeTextSmsConfigured } from '@/lib/sms'
+import { getSmsAllowance, allocateCharge, logSmsSent, SmsCharge } from '@/lib/smsQuota'
 import { sendCampaignEmail, emailConfigured } from '@/lib/email'
 
 export const dynamic = 'force-dynamic'
@@ -69,16 +70,29 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   const resourceId = a.isOwner ? null : a.resourceId
   const recipients = await resolveRecipients(a.tenant.id, resourceId, segment || 'all')
 
+  // فاز P3: کمپین پیامکی «اختیاری» است — قبل از شروع، کل گیرنده‌های پیامکی باید
+  // در سهمیه+اعتبار جا شوند؛ وگرنه با پیام روشن رد می‌شود (ارسال نصفه‌کاره نه).
+  const al = await getSmsAllowance(a.tenant.id, a.tenant.plan)
+  if (channel === 'sms' && !al.unlimited) {
+    const need = recipients.filter(r => r.contact_phone).length
+    if (need > al.remaining)
+      return NextResponse.json({
+        error: `اعتبار پیامکی کافی نیست: ${need} گیرنده، ${al.remaining} پیامک باقی‌مانده. برای شارژ با پشتیبانی در تماس باشید.`,
+      }, { status: 403 })
+  }
+
   let count = 0
+  const charges: SmsCharge[] = []
   for (const r of recipients) {
     if (channel === 'sms' && r.contact_phone) {
       const res = await sendFreeTextSms(r.contact_phone, message.trim())
-      if (res.ok) count++
+      if (res.ok) { count++; charges.push(allocateCharge(al)) }
     } else if (channel === 'email' && r.contact_email) {
       const res = await sendCampaignEmail(r.contact_email, `پیامی از طرف ${a.tenant.slug}`, message.trim())
       if (res.ok) count++
     }
   }
+  if (charges.length) await logSmsSent(a.tenant.id, 'campaign', charges)
 
   await sb().from('psy_campaigns').insert({
     tenant_id: a.tenant.id, resource_id: resourceId, channel, segment: segment || 'all',

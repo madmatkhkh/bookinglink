@@ -18,7 +18,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
 
   const body = await req.json().catch(() => ({}))
   if (!body.code) {
-    const issued = await issueOtp(identifier, requestIp(req), viaEmail ? 'email' : 'sms')
+    const issued = await issueOtp(identifier, requestIp(req), viaEmail ? 'email' : 'sms', t.id)
     if (!issued.ok) {
       if ('throttled' in issued) return NextResponse.json({ error: OTP_THROTTLED_MSG }, { status: 429 })
       return NextResponse.json({ error: issued.smsError || (viaEmail ? 'ارسال ایمیل ناموفق بود — دوباره تلاش کن' : 'ارسال پیامک ناموفق بود — دوباره تلاش کن') }, { status: 502 })

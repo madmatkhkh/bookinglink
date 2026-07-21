@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { sb } from '@/lib/supabase'
 import { sendReminderSms, reminderSmsConfigured } from '@/lib/sms'
+import { getSmsAllowance, allocateCharge, logSmsSent, SmsAllowance, SmsCharge } from '@/lib/smsQuota'
 import { gregorianToJalali, jalaliKey, PERSIAN_MONTHS } from '@/lib/calendar'
 
 export const dynamic = 'force-dynamic'
@@ -57,7 +58,24 @@ export async function GET(req: NextRequest) {
   const tenantName = new Map((profiles || []).map(p => [p.tenant_id, p.display_name || 'نوبت‌لینک']))
   const nameOf = (tid: string) => tenantName.get(tid) || 'نوبت‌لینک'
 
-  let sent = 0, failed = 0
+  let sent = 0, failed = 0, skippedQuota = 0
+
+  // فاز P3: یادآور «اختیاری» است — به‌ازای هر tenant یک بار allowance خوانده و
+  // در حلقه به‌صورت محلی کم می‌شود؛ tenantی که سهمیه+اعتبارش تمام شده skip.
+  // ارسال موفق در sms_log ثبت می‌شود (batch در پایان، per-tenant).
+  const alCache = new Map<string, SmsAllowance>()
+  const chargesByTenant = new Map<string, SmsCharge[]>()
+  const canSend = async (tid: string): Promise<SmsAllowance | null> => {
+    let al = alCache.get(tid)
+    if (!al) { al = await getSmsAllowance(tid); alCache.set(tid, al) }
+    if (!al.unlimited && al.remaining <= 0) { skippedQuota++; return null }
+    return al
+  }
+  const noteSent = (tid: string, al: SmsAllowance) => {
+    const list = chargesByTenant.get(tid) || []
+    list.push(allocateCharge(al))
+    chargesByTenant.set(tid, list)
+  }
 
   // ۱) جلسات درمان روانشناسی
   const { data: sessions } = await db.from('psy_sessions')
@@ -68,8 +86,10 @@ export async function GET(req: NextRequest) {
     const { data: c } = await db.from('psy_cases').select('contact_phone')
       .eq('tenant_id', s.tenant_id).eq('case_number', s.case_number).maybeSingle()
     if (!c?.contact_phone) continue
+    const al = await canSend(s.tenant_id)
+    if (!al) continue
     const r = await sendReminderSms(c.contact_phone, nameOf(s.tenant_id), display, s.session_time)
-    if (r.ok) { sent++; await db.from('psy_sessions').update({ reminder_sent: true }).eq('id', s.id) }
+    if (r.ok) { sent++; noteSent(s.tenant_id, al); await db.from('psy_sessions').update({ reminder_sent: true }).eq('id', s.id) }
     else failed++
   }
 
@@ -82,8 +102,10 @@ export async function GET(req: NextRequest) {
     const { data: c } = await db.from('psy_cases').select('contact_phone')
       .eq('tenant_id', s.tenant_id).eq('case_number', s.case_number).maybeSingle()
     if (!c?.contact_phone) continue
+    const al = await canSend(s.tenant_id)
+    if (!al) continue
     const r = await sendReminderSms(c.contact_phone, nameOf(s.tenant_id), display, s.session_time)
-    if (r.ok) { sent++; await db.from('psy_stages').update({ reminder_sent: true }).eq('id', s.id) }
+    if (r.ok) { sent++; noteSent(s.tenant_id, al); await db.from('psy_stages').update({ reminder_sent: true }).eq('id', s.id) }
     else failed++
   }
 
@@ -94,10 +116,16 @@ export async function GET(req: NextRequest) {
     .limit(500)
   for (const b of bookings || []) {
     if (!b.client_phone) continue
+    const al = await canSend(b.tenant_id)
+    if (!al) continue
     const r = await sendReminderSms(b.client_phone, nameOf(b.tenant_id), display, b.booking_time)
-    if (r.ok) { sent++; await db.from('bookings').update({ reminder_sent: true }).eq('id', b.id) }
+    if (r.ok) { sent++; noteSent(b.tenant_id, al); await db.from('bookings').update({ reminder_sent: true }).eq('id', b.id) }
     else failed++
   }
 
-  return NextResponse.json({ success: true, date: padded, sent, failed })
+  const logJobs: Promise<void>[] = []
+  chargesByTenant.forEach((charges, tid) => { logJobs.push(logSmsSent(tid, 'reminder', charges)) })
+  await Promise.all(logJobs)
+
+  return NextResponse.json({ success: true, date: padded, sent, failed, skipped_quota: skippedQuota })
 }

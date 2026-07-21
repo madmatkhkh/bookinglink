@@ -32,7 +32,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   if (ownerClash || staffClash) return NextResponse.json({ error: 'این شماره قبلا برای ورود یک حساب دیگر ثبت شده است' }, { status: 409 })
 
   if (!b.code) {
-    const issued = await issueOtp(newPhone, requestIp(req))
+    const issued = await issueOtp(newPhone, requestIp(req), 'sms', a.tenant.id)
     if (!issued.ok) {
       if ('throttled' in issued) return NextResponse.json({ error: OTP_THROTTLED_MSG }, { status: 429 })
       return NextResponse.json({ error: issued.smsError || 'ارسال پیامک ناموفق بود' }, { status: 502 })

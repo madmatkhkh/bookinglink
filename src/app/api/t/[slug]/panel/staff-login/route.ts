@@ -27,7 +27,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
     if (!resource || !resource.is_active)
       return NextResponse.json({ error: 'درمانگری با این شماره در این مجموعه یافت نشد' }, { status: 404 })
 
-    const issued = await issueOtp(phone, requestIp(req))
+    const issued = await issueOtp(phone, requestIp(req), 'sms', t.id)
     if (!issued.ok) {
       if ('throttled' in issued) return NextResponse.json({ error: OTP_THROTTLED_MSG }, { status: 429 })
       return NextResponse.json({ error: issued.smsError || 'ارسال پیامک ناموفق بود — دوباره تلاش کن' }, { status: 502 })

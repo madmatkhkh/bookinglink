@@ -15,7 +15,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   if (!/^09\d{9}$/.test(phone)) return NextResponse.json({ error: 'شماره‌ی موبایل معتبر نیست' }, { status: 400 })
 
   if (!body.code) {
-    const issued = await issueOtp(phone, requestIp(req))
+    const issued = await issueOtp(phone, requestIp(req), 'sms', t.id)
     if (!issued.ok) {
       if ('throttled' in issued) return NextResponse.json({ error: OTP_THROTTLED_MSG }, { status: 429 })
       return NextResponse.json({ error: issued.smsError || 'ارسال پیامک ناموفق بود — دوباره تلاش کن' }, { status: 502 })

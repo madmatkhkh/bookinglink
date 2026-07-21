@@ -8,6 +8,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { DialogProvider, useDialog } from '@/components/Dialog'
 import { PLATFORM_NAME } from '@/lib/config'
+import { PLAN_LABELS } from '@/lib/plans'
 
 type Detail = {
   tenant: {
@@ -22,6 +23,7 @@ type Detail = {
   multi_therapist?: boolean
   multi_therapist_requested?: boolean
   card_to_card?: boolean
+  sms_allowance?: { unlimited: boolean; quota: number; usedThisMonth: number; quotaRemaining: number; creditRemaining: number; remaining: number }
   impersonate_token?: string
 }
 
@@ -135,6 +137,23 @@ function Inner() {
       body: JSON.stringify({ feature_key: key, enabled }),
     })
     load()
+  }
+
+  // فاز P3: شارژ دستی اعتبار پیامکی (بسته‌ی شارژ، فاکتور بیرون سیستم)
+  const [smsAmount, setSmsAmount] = useState('')
+  const [smsNote, setSmsNote] = useState('')
+  const [addingSms, setAddingSms] = useState(false)
+  async function addSmsCredit() {
+    const n = parseInt(smsAmount, 10)
+    if (!Number.isInteger(n) || n === 0) return
+    setAddingSms(true)
+    const res = await fetch(`/api/super/tenants/${id}/sms-credit`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ amount: n, note: smsNote }),
+    })
+    setAddingSms(false)
+    if (res.ok) { setSmsAmount(''); setSmsNote(''); load() }
+    else { const j = await res.json().catch(() => null); dialog.uiAlert(j?.error || 'ثبت شارژ ناموفق بود') }
   }
 
   function impersonate() {
@@ -267,21 +286,21 @@ function Inner() {
 
         <div className="flex items-center gap-2">
           <span className="text-xs text-soot">پلن:</span>
-          {(['free', 'pro'] as const).map(p => (
+          {(['base', 'pro', 'team'] as const).map(p => (
             <button
               key={p}
               onClick={() => setPlan(p)}
               className={
                 'text-xs rounded-xl px-3 py-1.5 border ' +
-                (t.plan === p ? 'bg-ink text-white border-ink' : 'border-sand text-ink')
+                (t.plan === p || (p === 'base' && t.plan === 'free') ? 'bg-ink text-white border-ink' : 'border-sand text-ink')
               }
             >
-              {p === 'free' ? 'رایگان' : 'حرفه‌ای'}
+              {PLAN_LABELS[p]}
             </button>
           ))}
         </div>
         <p className="text-[11px] text-soot -mt-2">
-          پلن رایگان: فقط پرداخت آنلاین زیبال (کارت‌به‌کارت غیرفعال است). با برگشت به رایگان، اگر کارت‌به‌کارت برای درمانگری روشن بود، خودکار خاموش و آنلاین اجباری می‌شود.
+          پلن، ماژول‌های پلتفرمی را تعیین می‌کند (پایه / حرفه‌ای / تیم — MODULES.md بخش 9). 'free' قدیمی معادل پایه است. سوییچ‌های دستی بخش «ماژول‌ها» همیشه بر پلن برنده‌اند.
         </p>
 
         <div className="text-xs text-soot pt-2 border-t border-sand">
@@ -363,6 +382,41 @@ function Inner() {
           ))}
         </section>
       )}
+
+      {/* اعتبار پیامکی — فاز P3 قیمت‌گذاری: سهمیه‌ی ماه جلالی پلن + بسته‌ی شارژ.
+         شارژ دستی (فاکتور بیرون سیستم). مقدار منفی = اصلاح اشتباه. */}
+      <section className="bg-white border border-sand rounded-2xl p-5 space-y-3">
+        <h2 className="font-bold text-ink text-sm">اعتبار پیامکی</h2>
+        {d.sms_allowance?.unlimited !== false ? (
+          <p className="text-xs text-soot">شمارش هنوز فعال نیست (migration 0047 و ردیف plan_sms_quotas لازم است) — ارسال بدون محدودیت.</p>
+        ) : (
+          <div className="flex flex-wrap gap-x-5 gap-y-1 text-xs text-soot tnum">
+            <span>سهمیه‌ی ماه: <b className="text-ink">{d.sms_allowance.quota}</b></span>
+            <span>مصرف‌شده: <b className="text-ink">{d.sms_allowance.usedThisMonth}</b></span>
+            <span>مانده‌ی سهمیه: <b className="text-ink">{d.sms_allowance.quotaRemaining}</b></span>
+            <span>اعتبار شارژی: <b className="text-ink">{d.sms_allowance.creditRemaining}</b></span>
+            <span>جمع قابل‌ارسال: <b className="text-ink">{d.sms_allowance.remaining}</b></span>
+          </div>
+        )}
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            value={smsAmount} onChange={e => setSmsAmount(e.target.value)}
+            inputMode="numeric" placeholder="تعداد پیامک (مثلا 500)"
+            className="text-xs border border-sand rounded-xl px-3 py-2 w-44 tnum" dir="ltr"
+          />
+          <input
+            value={smsNote} onChange={e => setSmsNote(e.target.value)}
+            placeholder="یادداشت (اختیاری — مثلا شماره فاکتور)"
+            className="text-xs border border-sand rounded-xl px-3 py-2 flex-1 min-w-44"
+          />
+          <button
+            onClick={addSmsCredit} disabled={addingSms || !smsAmount.trim()}
+            className="text-xs rounded-xl px-4 py-2 bg-ink text-white disabled:opacity-40"
+          >
+            {addingSms ? '...' : 'افزودن شارژ'}
+          </button>
+        </div>
+      </section>
 
       {/* حالت کلینیک — پیش‌فرض خاموش (تک‌درمانگر)، و فقط از همین‌جا (سوپرادمین)
          قابل‌روشن‌شدن است. خود متخصص فقط می‌تواند «درخواست» بدهد (از تب

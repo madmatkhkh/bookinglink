@@ -25,6 +25,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { sb } from './supabase'
 import { sendOtpSms, smsConfigured } from './sms'
 import { sendOtpEmail, emailConfigured } from './email'
+import { getSmsAllowance, allocateCharge, logSmsSent } from './smsQuota'
 
 function SECRET(): string {
   const s = process.env.AUTH_SECRET
@@ -262,7 +263,10 @@ export function otpEchoEnabled(channel: OtpChannel = 'sms'): boolean {
  * جدول otps ذخیره می‌شود — این جدول از قبل یک شناسه‌ی عمومی نگه می‌داشت، فقط
  * اسم ستونش تاریخی مانده.
  */
-export async function issueOtp(identifier: string, ip?: string, channel: OtpChannel = 'sms'): Promise<IssueOtpResult> {
+// tenantId اختیاری (فاز P3): اگر داده شود، پیامک OTP موفق در sms_log شمرده
+// می‌شود. OTP حیاتی است و هرگز به‌خاطر سهمیه بلاک نمی‌شود — فقط شمارش
+// (با اتمام سهمیه+اعتبار، charged='over' ثبت می‌شود). ایمیل شمرده نمی‌شود.
+export async function issueOtp(identifier: string, ip?: string, channel: OtpChannel = 'sms', tenantId?: string): Promise<IssueOtpResult> {
   if (!(await checkThrottle(`otp:issue:${identifier}`, 3, 600))) return { ok: false, throttled: true }
   if (ip && !(await checkThrottle(`otp:issue:ip:${ip}`, 10, 600))) return { ok: false, throttled: true }
   const code = String(randomInt(10000, 100000)) // 5 رقم، از CSPRNG نه Math.random
@@ -283,6 +287,10 @@ export async function issueOtp(identifier: string, ip?: string, channel: OtpChan
     if (!sent.ok) {
       await sb().from('otps').delete().eq('phone', identifier).eq('code', code)
       return { ok: false, smsError: sent.error }
+    }
+    if (tenantId) {
+      const al = await getSmsAllowance(tenantId)
+      await logSmsSent(tenantId, 'otp', allocateCharge(al))
     }
   }
   return { ok: true, code }

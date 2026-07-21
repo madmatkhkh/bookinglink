@@ -4,6 +4,7 @@ import { isSuperAuthed, normalizePhone, signImpersonateToken } from '@/lib/auth'
 import { getNiche, isPsychologyNiche } from '@/lib/niche'
 import { MULTI_THERAPIST_FEATURE_KEY, CARD_TO_CARD_FEATURE_KEY } from '@/lib/psy'
 import { getModuleCatalog } from '@/lib/modules'
+import { getSmsAllowance } from '@/lib/smsQuota'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -98,7 +99,11 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     cardToCard = (rowBy.get(CARD_TO_CARD_FEATURE_KEY)?.enabled as boolean | undefined) ?? false
   }
 
+  // فاز P3: وضعیت اعتبار پیامکی برای نمایش/شارژ دستی در سوپرادمین
+  const smsAllowance = await getSmsAllowance(tenant.id, tenant.plan)
+
   return NextResponse.json({
+    sms_allowance: smsAllowance,
     tenant: {
       id: tenant.id, slug: tenant.slug, status: tenant.status, plan: tenant.plan,
       niche_key: tenant.niche_key, owner_phone: tenant.owner_phone,
@@ -137,7 +142,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     tenantPatch.status = b.status
   }
   if (b.plan !== undefined) {
-    if (!['free', 'pro'].includes(b.plan)) return NextResponse.json({ error: 'پلن نامعتبر' }, { status: 400 })
+    if (!['free', 'base', 'pro', 'team'].includes(b.plan)) return NextResponse.json({ error: 'پلن نامعتبر' }, { status: 400 })
     tenantPatch.plan = b.plan
   }
   if (b.owner_phone !== undefined) {

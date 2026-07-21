@@ -3,6 +3,7 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { useParams } from 'next/navigation'
 import { PERSIAN_MONTHS, toLatinNum, getCurrentJalali, getDaysInJalaliMonth, jalaliDateTimeToTimestamp } from '@/lib/calendar'
 import { STAGE_TYPE_LABEL, STAGE_STATUS_LABEL, stageTitle } from '@/lib/flow'
+import { PLAN_LABELS } from '@/lib/plans'
 import { PRICING, PLATFORM_NAME, RESERVED_SLUGS, SLUG_PATTERN, SLUG_RULE_TEXT } from '@/lib/config'
 import { ClinicSettings, DEFAULT_SETTINGS, SessionMode, OfficeLocation, PaymentCardInfo } from '@/lib/settings'
 import { IntakeForm, FormField, FormFieldType, DEFAULT_INTAKE_FORM, LEGACY_DETAIL_LABELS, CancellationPolicy, PaymentMethods, DEFAULT_PAYMENT_METHODS, DEFAULT_CANCELLATION_POLICY, Pricing, DEFAULT_PRICING, TermsSettings, DEFAULT_TERMS, INTAKE_KNOWN_COLUMNS, fieldVisible } from '@/lib/psy'
@@ -3115,8 +3116,8 @@ export function PsychologyAdmin() {
       </p>
       <div className="flex items-center justify-between p-3.5 rounded-xl border border-sand">
        <span className="text-sm text-ink">پلن فعلی</span>
-       <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${tenantPlan === 'pro' ? 'bg-emerald-100 text-emerald-800' : 'bg-sand text-soot'}`}>
-        {tenantPlan === 'pro' ? 'حرفه‌ای' : 'رایگان'}
+       <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${tenantPlan === 'pro' || tenantPlan === 'team' ? 'bg-emerald-100 text-emerald-800' : 'bg-sand text-soot'}`}>
+        {PLAN_LABELS[tenantPlan] || 'پایه'}
        </span>
       </div>
      </section>
