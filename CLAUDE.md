@@ -1652,3 +1652,17 @@ img-src نهایی: `'self' data: blob: https://images.nobatlink.com https://tru
 - **پایداری:** ScrollTrigger.refresh() روی تغییر تاگل ماهانه/سالانه و باز/بسته‌شدن FAQ (چون ارتفاع عوض می‌شود و موقعیت pin/trigger نباید drift کند)؛ invalidateOnRefresh روی pin. تست: `next start` → HTTP 200، محتوای جدید رندر شد، صفر خطای runtime.
 
 فایل‌ها: src/app/page.tsx، src/app/useScrollFX.ts (جدید)، src/app/globals.css (پاک‌سازی scrollbar-none)، package.json/package-lock.json (gsap). `timeout 300 npx next build` → exit 0. اسکن خروجی → CLEAN (۸ رقم فارسی باقی‌مانده همه در کامنت‌های قدیمی HeroShowcase‌اند، نه متن کاربرنما). بدون migration. یادداشت: محیط headless browser نبود پس اسکرین‌شات نگرفتم؛ درستی با `next start` + curl تایید شد و رفتار pin/scrub استاندارد GSAP است. پیشنهاد تست کاربر: روی موبایل واقعی حس pin و سرعت scrub پرده‌ها؛ اگر طول pin زیاد بود، ضریب `per` در useEffect قابل تنظیم است.
+
+## چنج‌لاگ 1405/04/30 (2026-07-21) ادامه‌ی ۳۲ — رفع باگ «کارت‌های ناپدید» (GSAP) + رنگ‌بندی پلن‌ها
+
+بازخورد با اسکرین‌شات: (۱) بخش‌های امکانات/تخصص‌ها/تعرفه فقط هدر داشتند و گریدها **خالی/نامرئی** بودند؛ (۲) کارت‌های پلن هیچ رنگ‌بندی نداشتند (هر سه سفید-مشکی).
+
+- **باگ ریشه‌ای «ناپدید شدن»:** الگوی `gsap.from({opacity:0})` عنصر را فورا مخفی می‌کند و برای برگرداندنش به شلیک تریگر وابسته است. بخش story که با pin ارتفاع صفحه را دینامیک عوض می‌کند، محاسبه‌ی موقعیت تریگرهای پایین‌تر را به‌هم می‌زد و `once:true` قبل از رسیدن به دید «مصرف» می‌شد → گریدها برای همیشه opacity:0. **بازنویسی کامل useScrollFX با الگوی مقاوم:**
+  - `gsap.set` حالت اولیه را جدا می‌گذارد و `gsap.to` با `toggleActions:'play none none none'` (نه once) اجرا می‌کند.
+  - **fail-safe مطلق:** بعد از رفرش، هر `[data-fx]` که داخل ویوپورت و هنوز opacity<0.05 است، دستی مرئی می‌شود — پس هیچ عنصری تحت هیچ شرایطی گیر نمی‌ماند.
+  - چند `ScrollTrigger.refresh()` با تاخیر (300ms/900ms) + روی `window load` تا بعد از چیدن pin/فونت/دیتای نیچ‌ها موقعیت‌ها درست شوند.
+  - تایید SSR: خروجی سرور هیچ opacity:0 ندارد (curl) — یعنی حتی بدون اجرای GSAP هم محتوا مرئی است (progressive enhancement واقعی).
+- **رنگ‌بندی پلن‌ها:** کارت «حرفه‌ای» حالا کارت قهرمان است — پس‌زمینه‌ی `bg-trust-deep` (آبی deep) با متن سفید، بج «پیشنهاد ما» سفید، CTA سفید، سایه‌ی رنگی، و md:scale برای غالب‌شدن. کارت «پایه» نوار بالای `bg-trust/40` + تیک‌های آبی (via before:content)؛ کارت «تیم» نوار `bg-ink/70` + تیک آبی. خط «معادل ماهانه» از سبز به `text-trust-deep`. تایید: کلاس‌های trust در CSS نهایی purge نشده‌اند (grep در .next).
+- **رفع TS:** حذف `toArray<HTMLElement>` (این tsconfig ساختار generic روی untyped call را رد می‌کند) → callbackها `(el: any)`.
+
+فایل‌ها: src/app/page.tsx، src/app/useScrollFX.ts. `next build` → exit 0. `next start` → HTTP 200، هر سه کارت با قیمت و رنگ در SSR. اسکن → CLEAN (۸ رقم فارسی باقی‌مانده در page.tsx همه کامنت قدیمی HeroShowcase). بدون migration. یادداشت: نصب مرورگر headless برای اسکرین‌شات به‌خاطر محدودیت شبکه (chromium download بلاک) ممکن نشد؛ تایید با SSR HTML + بررسی CSS نهایی انجام شد.

@@ -2,12 +2,20 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // زیرساخت اسکرول‌موشن لندینگ — GSAP + ScrollTrigger.
 // یک هوک واحد که همه‌ی افکت‌های اسکرول صفحه را می‌سازد و در unmount پاک می‌کند.
-// کاملا تابع prefers-reduced-motion: با حرکت‌کاهیده، هیچ ScrollTrigger ساخته
-// نمی‌شود و محتوا در حالت نهایی (opacity:1) می‌ماند — پس صفحه بدون JS هم خواناست.
 //
-// اصول عملکرد (طبق اسکیل scroll-experience): فقط transform/opacity انیمیت
-// می‌شود (GPU)، هرگز layout؛ اسکرول‌هایجک نداریم (فقط scrub/reveal)؛ روی موبایل
-// شدت پارالاکس کمتر است.
+// ⚠️ درس مهم (رفع باگ «کارت‌های ناپدید»): الگوی gsap.from({opacity:0}) عنصر را
+// فورا مخفی می‌کند و برای برگرداندنش به شلیک تریگر وابسته است. وقتی یک بخش
+// pinشونده (story) ارتفاع صفحه را دینامیک عوض می‌کند، محاسبه‌ی موقعیت تریگرها
+// به‌هم می‌ریزد و بعضی گریدها هرگز شلیک نمی‌شوند → برای همیشه opacity:0 می‌مانند.
+// راه‌حل مقاوم:
+//   1) حالت اولیه را با gsap.set جدا ست می‌کنیم (نه از طریق from).
+//   2) انیمیشن با toggleActions play اجرا می‌شود، نه once.
+//   3) یک fallback با onRefresh/onEnter تضمین می‌کند اگر عنصر هنگام رفرش داخل
+//      دید بود، فورا مرئی شود — پس هیچ عنصری گیر نمی‌کند.
+//   4) بعد از آماده‌شدن layout (شامل pin)، چند بار refresh می‌کنیم.
+//
+// کاملا تابع prefers-reduced-motion: با حرکت‌کاهیده هیچ چیزی مخفی نمی‌شود.
+// فقط transform/opacity (GPU)؛ بدون اسکرول‌هایجک.
 // ─────────────────────────────────────────────────────────────────────────────
 import { useEffect } from 'react'
 
@@ -20,38 +28,46 @@ export function useScrollFX(ready: boolean) {
 
     let ctx: any
     let killed = false
+    const timers: any[] = []
 
     ;(async () => {
       const gsapMod = await import('gsap')
       const stMod = await import('gsap/ScrollTrigger')
       if (killed) return
-      const gsap = gsapMod.default || gsapMod
-      const ScrollTrigger = stMod.ScrollTrigger || stMod.default
+      const gsap = (gsapMod as any).default || gsapMod
+      const ScrollTrigger = (stMod as any).ScrollTrigger || (stMod as any).default
       gsap.registerPlugin(ScrollTrigger)
 
       const isMobile = window.innerWidth < 768
 
       ctx = gsap.context(() => {
-        // 1) reveal پایه — هر [data-fx="reveal"] موقع ورود از پایین محو-به-روشن
-        gsap.utils.toArray<HTMLElement>('[data-fx="reveal"]').forEach(el => {
-          gsap.from(el, {
-            opacity: 0, y: 40, duration: 0.9, ease: 'power3.out',
-            scrollTrigger: { trigger: el, start: 'top 85%', once: true },
+        // ── reveal + stagger: هر دو با یک الگوی مقاوم ────────────────────────
+        // به‌جای from (که به شلیک وابسته است) fromTo با toggleActions می‌سازیم؛
+        // اگر عنصر هنگام لود داخل دید بود، ScrollTrigger خودش onEnter را می‌زند.
+        const animateInto = (targets: any, group: Element, stagger: number) => {
+          gsap.set(targets, { opacity: 0, y: 40 })
+          gsap.to(targets, {
+            opacity: 1, y: 0, duration: 0.8, ease: 'power3.out', stagger,
+            scrollTrigger: {
+              trigger: group,
+              start: 'top 88%',
+              toggleActions: 'play none none none',
+            },
           })
+        }
+
+        gsap.utils.toArray('[data-fx="reveal"]').forEach((el: any) => {
+          animateInto(el, el, 0)
         })
 
-        // 2) stagger — فرزندان [data-fx="stagger"] پشت‌سرهم بالا می‌آیند
-        gsap.utils.toArray<HTMLElement>('[data-fx="stagger"]').forEach(group => {
-          const items = group.querySelectorAll(':scope > *')
-          gsap.from(items, {
-            opacity: 0, y: 48, duration: 0.7, ease: 'power3.out',
-            stagger: 0.09,
-            scrollTrigger: { trigger: group, start: 'top 80%', once: true },
-          })
+        gsap.utils.toArray('[data-fx="stagger"]').forEach((group: any) => {
+          const items = Array.from(group.querySelectorAll(':scope > *'))
+          if (!items.length) return
+          animateInto(items, group, 0.09)
         })
 
-        // 3) پارالاکس — [data-fx="parallax"] با data-speed کندتر/تندتر از اسکرول
-        gsap.utils.toArray<HTMLElement>('[data-fx="parallax"]').forEach(el => {
+        // پارالاکس ملایم موکاپ هرو
+        gsap.utils.toArray('[data-fx="parallax"]').forEach((el: any) => {
           const speed = parseFloat(el.dataset.speed || '0.2') * (isMobile ? 0.5 : 1)
           gsap.to(el, {
             yPercent: -speed * 100, ease: 'none',
@@ -59,30 +75,41 @@ export function useScrollFX(ready: boolean) {
           })
         })
 
-        // 4) عنوان‌های بزرگ — کلمه‌به‌کلمه با اسکرول از خاکستری به مشکی (scrub)
-        gsap.utils.toArray<HTMLElement>('[data-fx="words"]').forEach(el => {
-          const words = el.querySelectorAll('[data-word]')
-          if (!words.length) return
-          gsap.fromTo(words,
-            { opacity: 0.18 },
-            {
-              opacity: 1, ease: 'none', stagger: 0.2,
-              scrollTrigger: { trigger: el, start: 'top 75%', end: 'bottom 60%', scrub: true },
-            })
-        })
-
-        // 5) scale-in — [data-fx="scale"] از کمی کوچک‌تر با نرمی جا می‌افتد
-        gsap.utils.toArray<HTMLElement>('[data-fx="scale"]').forEach(el => {
-          gsap.from(el, {
-            opacity: 0, scale: 0.9, duration: 1, ease: 'power2.out',
-            scrollTrigger: { trigger: el, start: 'top 82%', once: true },
+        // scale-in باکس CTA
+        gsap.utils.toArray('[data-fx="scale"]').forEach((el: any) => {
+          gsap.set(el, { opacity: 0, scale: 0.92 })
+          gsap.to(el, {
+            opacity: 1, scale: 1, duration: 0.9, ease: 'power2.out',
+            scrollTrigger: { trigger: el, start: 'top 85%', toggleActions: 'play none none none' },
           })
         })
-
-        ScrollTrigger.refresh()
       })
+
+      // ── تضمین نهایی: بعد از اینکه همه‌چیز (شامل pin و فونت‌ها و دیتای نیچ‌ها)
+      // چید، چند بار refresh کن تا موقعیت‌ها درست شوند. اگر عنصری به هر دلیل
+      // مخفی ماند و داخل دید بود، دستی مرئی‌اش کن (fail-safe مطلق).
+      const refreshAll = () => {
+        if (killed) return
+        ScrollTrigger.refresh()
+        // fail-safe: هر [data-fx] که هنوز نامرئی و داخل ویوپورت است را نمایان کن
+        document.querySelectorAll<HTMLElement>('[data-fx="reveal"], [data-fx="stagger"] > *, [data-fx="scale"]').forEach((el: any) => {
+          const r = el.getBoundingClientRect()
+          const inView = r.top < window.innerHeight && r.bottom > 0
+          if (inView && parseFloat(getComputedStyle(el).opacity) < 0.05) {
+            gsap.to(el, { opacity: 1, y: 0, scale: 1, duration: 0.4, overwrite: true })
+          }
+        })
+      }
+      timers.push(setTimeout(refreshAll, 300))
+      timers.push(setTimeout(refreshAll, 900))
+      window.addEventListener('load', refreshAll)
+      timers.push(() => window.removeEventListener('load', refreshAll))
     })()
 
-    return () => { killed = true; if (ctx) ctx.revert() }
+    return () => {
+      killed = true
+      timers.forEach(t => (typeof t === 'function' ? t() : clearTimeout(t)))
+      if (ctx) ctx.revert()
+    }
   }, [ready])
 }

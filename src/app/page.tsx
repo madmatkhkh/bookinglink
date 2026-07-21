@@ -618,43 +618,44 @@ export default function Landing() {
         <div className="grid sm:grid-cols-3 gap-4" data-fx="stagger">
 
           {/* پایه */}
-          <div className="rounded-2xl border border-sand bg-white p-6 flex flex-col">
+          <div className="rounded-2xl border border-sand bg-white p-6 flex flex-col overflow-hidden relative">
+            <span className="absolute top-0 inset-x-0 h-1 bg-trust/40" />
             <div className="font-display font-bold text-lg">پایه</div>
             <div className="mt-3 flex items-baseline gap-1.5">
               <span className="font-display font-extrabold text-3xl tnum">{(billing === 'annual' ? PLAN_PRICING.base.annual : PLAN_PRICING.base.monthly).toLocaleString('en-US')}</span>
               <span className="text-xs text-soot">{billing === 'annual' ? 'تومان / سال' : 'تومان / ماه'}</span>
             </div>
             {billing === 'annual' && (
-              <p className="mt-0.5 text-[11px] text-emerald-700 tnum">معادل {Math.round(PLAN_PRICING.base.annual / 12 / 1000).toLocaleString('en-US')} هزار تومان در ماه — 2 ماه رایگان</p>
+              <p className="mt-0.5 text-[11px] text-trust-deep font-medium tnum">معادل {Math.round(PLAN_PRICING.base.annual / 12 / 1000).toLocaleString('en-US')} هزار تومان در ماه — 2 ماه رایگان</p>
             )}
             <p className="mt-1 text-[11px] text-soot tnum">+ کارمزد {PLAN_PRICING.base.feePct}% هر تراکنش آنلاین (حداقل {PLAN_PRICING.base.feeFloor.toLocaleString('en-US')} ت)</p>
-            <ul className="mt-5 space-y-2.5 text-[13px] text-soot leading-relaxed flex-1">
-              <li>✓ صفحه‌ی رزرو اختصاصی با نشانی برندشده</li>
-              <li>✓ رزرو و مدیریت نوبت‌ها بدون محدودیت</li>
-              <li>✓ درگاه پرداخت آنلاین نوبت‌لینک</li>
-              <li>✓ فرم‌ساز رزرو با سوال‌های دلخواه</li>
-              <li>✓ کنسل نوبت توسط خود مشتری</li>
-              <li>✓ پنل مدیریت، پرونده‌ها و گزارش مالی</li>
-              <li className="tnum">✓ {PLAN_PRICING.base.sms} پیامک در ماه</li>
-              <li>✓ تسویه‌ی {PLAN_PRICING.base.settlement}</li>
+            <ul className="mt-5 space-y-2.5 text-[13px] text-soot leading-relaxed flex-1 [&>li]:before:content-['✓'] [&>li]:before:text-trust [&>li]:before:font-bold [&>li]:before:ml-1.5">
+              <li>صفحه‌ی رزرو اختصاصی با نشانی برندشده</li>
+              <li>رزرو و مدیریت نوبت‌ها بدون محدودیت</li>
+              <li>درگاه پرداخت آنلاین نوبت‌لینک</li>
+              <li>فرم‌ساز رزرو با سوال‌های دلخواه</li>
+              <li>کنسل نوبت توسط خود مشتری</li>
+              <li>پنل مدیریت، پرونده‌ها و گزارش مالی</li>
+              <li className="tnum">{PLAN_PRICING.base.sms} پیامک در ماه</li>
+              <li>تسویه‌ی {PLAN_PRICING.base.settlement}</li>
             </ul>
             <a href="/signup" className="mt-6 text-center font-display font-bold text-ink border border-ink px-6 py-3 rounded-xl hover:bg-ink hover:text-white transition">شروع رایگان</a>
           </div>
 
-          {/* حرفه‌ای — پیشنهاد ما */}
-          <div className="rounded-2xl border-2 border-ink bg-white p-6 flex flex-col relative">
-            <span className="absolute -top-3 right-6 text-[11px] font-bold text-white bg-ink px-3 py-1 rounded-full">پیشنهاد ما</span>
+          {/* حرفه‌ای — پیشنهاد ما (کارت قهرمان: پس‌زمینه‌ی آبی deep، متن سفید) */}
+          <div className="rounded-2xl bg-trust-deep text-white p-6 flex flex-col relative shadow-[0_28px_60px_-24px_rgba(61,88,117,0.6)] md:-my-2 md:scale-[1.02]">
+            <span className="absolute -top-3 right-6 text-[11px] font-bold text-trust-deep bg-white px-3 py-1 rounded-full shadow">پیشنهاد ما</span>
             <div className="font-display font-bold text-lg">حرفه‌ای</div>
             <div className="mt-3 flex items-baseline gap-1.5">
               <span className="font-display font-extrabold text-3xl tnum">{(billing === 'annual' ? PLAN_PRICING.pro.annual : PLAN_PRICING.pro.monthly).toLocaleString('en-US')}</span>
-              <span className="text-xs text-soot">{billing === 'annual' ? 'تومان / سال' : 'تومان / ماه'}</span>
+              <span className="text-xs text-white/70">{billing === 'annual' ? 'تومان / سال' : 'تومان / ماه'}</span>
             </div>
             {billing === 'annual' && (
-              <p className="mt-0.5 text-[11px] text-emerald-700 tnum">معادل {Math.round(PLAN_PRICING.pro.annual / 12 / 1000).toLocaleString('en-US')} هزار تومان در ماه — 2 ماه رایگان</p>
+              <p className="mt-0.5 text-[11px] text-white/90 tnum">معادل {Math.round(PLAN_PRICING.pro.annual / 12 / 1000).toLocaleString('en-US')} هزار تومان در ماه — 2 ماه رایگان</p>
             )}
-            <p className="mt-1 text-[11px] text-soot tnum">+ کارمزد {PLAN_PRICING.pro.feePct}% هر تراکنش آنلاین (حداقل {PLAN_PRICING.pro.feeFloor.toLocaleString('en-US')} ت)</p>
-            <ul className="mt-5 space-y-2.5 text-[13px] text-soot leading-relaxed flex-1">
-              <li className="text-ink font-medium">✓ همه‌ی امکانات «پایه»</li>
+            <p className="mt-1 text-[11px] text-white/70 tnum">+ کارمزد {PLAN_PRICING.pro.feePct}% هر تراکنش آنلاین (حداقل {PLAN_PRICING.pro.feeFloor.toLocaleString('en-US')} ت)</p>
+            <ul className="mt-5 space-y-2.5 text-[13px] text-white/85 leading-relaxed flex-1">
+              <li className="text-white font-medium">✓ همه‌ی امکانات «پایه»</li>
               <li>✓ یادآوری پیامکی خودکار نوبت‌ها</li>
               <li>✓ لیست انتظار هوشمند</li>
               <li>✓ نظرات و امتیاز مشتریان</li>
@@ -664,27 +665,28 @@ export default function Landing() {
               <li className="tnum">✓ {PLAN_PRICING.pro.sms} پیامک در ماه</li>
               <li>✓ تسویه‌ی {PLAN_PRICING.pro.settlement}</li>
             </ul>
-            <a href="/signup" className="mt-6 text-center font-display font-bold text-white bg-ink px-6 py-3 rounded-xl hover:opacity-90 transition">شروع با 14 روز رایگان</a>
+            <a href="/signup" className="mt-6 text-center font-display font-bold text-trust-deep bg-white px-6 py-3 rounded-xl hover:bg-trust-wash transition">شروع با 14 روز رایگان</a>
           </div>
 
           {/* تیم */}
-          <div className="rounded-2xl border border-sand bg-white p-6 flex flex-col">
+          <div className="rounded-2xl border border-sand bg-white p-6 flex flex-col overflow-hidden relative">
+            <span className="absolute top-0 inset-x-0 h-1 bg-ink/70" />
             <div className="font-display font-bold text-lg">تیم</div>
             <div className="mt-3 flex items-baseline gap-1.5">
               <span className="font-display font-extrabold text-3xl tnum">{(billing === 'annual' ? PLAN_PRICING.team.annual : PLAN_PRICING.team.monthly).toLocaleString('en-US')}</span>
               <span className="text-xs text-soot">{billing === 'annual' ? 'تومان / سال' : 'تومان / ماه'}</span>
             </div>
             {billing === 'annual' && (
-              <p className="mt-0.5 text-[11px] text-emerald-700 tnum">معادل {Math.round(PLAN_PRICING.team.annual / 12 / 1000).toLocaleString('en-US')} هزار تومان در ماه — 2 ماه رایگان</p>
+              <p className="mt-0.5 text-[11px] text-trust-deep font-medium tnum">معادل {Math.round(PLAN_PRICING.team.annual / 12 / 1000).toLocaleString('en-US')} هزار تومان در ماه — 2 ماه رایگان</p>
             )}
             <p className="mt-1 text-[11px] text-soot tnum">+ کارمزد {PLAN_PRICING.team.feePct}% هر تراکنش آنلاین (حداقل {PLAN_PRICING.team.feeFloor.toLocaleString('en-US')} ت)</p>
-            <ul className="mt-5 space-y-2.5 text-[13px] text-soot leading-relaxed flex-1">
-              <li className="text-ink font-medium">✓ همه‌ی امکانات «حرفه‌ای»</li>
-              <li className="tnum">✓ چندپرسنلی — تا {PLAN_PRICING.team.includedStaff} نفر (هر نفر اضافه {PLAN_PRICING.team.extraStaff.toLocaleString('en-US')} ت)</li>
-              <li>✓ ورود مستقل هر پرسنل به پنل خودش</li>
-              <li>✓ پیام گروهی به مشتریان (کمپین)</li>
-              <li className="tnum">✓ {PLAN_PRICING.team.sms} پیامک در ماه</li>
-              <li>✓ تسویه‌ی {PLAN_PRICING.team.settlement}</li>
+            <ul className="mt-5 space-y-2.5 text-[13px] text-soot leading-relaxed flex-1 [&>li]:before:content-['✓'] [&>li]:before:text-trust [&>li]:before:font-bold [&>li]:before:ml-1.5">
+              <li className="text-ink font-medium">همه‌ی امکانات «حرفه‌ای»</li>
+              <li className="tnum">چندپرسنلی — تا {PLAN_PRICING.team.includedStaff} نفر (هر نفر اضافه {PLAN_PRICING.team.extraStaff.toLocaleString('en-US')} ت)</li>
+              <li>ورود مستقل هر پرسنل به پنل خودش</li>
+              <li>پیام گروهی به مشتریان (کمپین)</li>
+              <li className="tnum">{PLAN_PRICING.team.sms} پیامک در ماه</li>
+              <li>تسویه‌ی {PLAN_PRICING.team.settlement}</li>
             </ul>
             <a href={`mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent('فعال‌سازی پلن تیم')}`} className="mt-6 text-center font-display font-bold text-ink border border-ink px-6 py-3 rounded-xl hover:bg-ink hover:text-white transition">هماهنگی با پشتیبانی</a>
           </div>
