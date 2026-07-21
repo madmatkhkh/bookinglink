@@ -174,11 +174,161 @@ function HeroShowcase() {
   )
 }
 
-const STEPS = [
-  { n: '01', t: 'ثبت‌نام و انتخاب حوزه‌ی کاری', d: 'حساب رایگان خود را بسازید و حوزه‌ی تخصصتان را انتخاب کنید؛ صفحه‌ی شما بلافاصله آماده می‌شود.' },
-  { n: '02', t: 'تنظیم برنامه‌ی هفتگی', d: 'روزها و ساعت‌های در دسترس، مدت هر نوبت و فاصله‌ی میان نوبت‌ها را مشخص کنید.' },
-  { n: '03', t: 'اشتراک‌گذاری نشانی اختصاصی', d: 'نشانی برندشده‌ی خود را در اختیار مراجعان بگذارید؛ انتخاب زمان، رزرو و پرداخت را خودشان انجام می‌دهند.' },
+// ── «سفر یک نوبت» — روایت مرکزی لندینگ (بازطراحی ادامه‌ی 29) ────────────────
+// الگوی oryzo: یک شیء قهرمان (گوشی) sticky می‌ماند و اسکرول کاربر پرده‌های
+// داستان را داخلش عوض می‌کند — بدون WebGL و کتابخانه‌ی جدید؛ فقط sticky +
+// IntersectionObserver (همان الگوی nl-reveal). ارقام لاتین، تابع reduced-motion.
+const STORY_BEATS = [
+  { n: '1', t: 'ساعت 23:41 است', d: 'هر نوبت، ده پیام. هر پرداخت، یک اسکرین‌شات رسید. هر کنسلی، یک صندلی خالی که دیر خبرش می‌رسد. تقویم شما در دایرکت دیگران زندگی می‌کند.' },
+  { n: '2', t: 'همه‌اش جمع می‌شود در یک خط', d: 'nobatlink.com/نام-شما — صفحه‌ای با رنگ و هویت خودتان. از این‌جا به بعد، مراجع با صفحه‌ی شما طرف است، نه با گوشی شما.' },
+  { n: '3', t: 'مراجع خودش رزرو می‌کند', d: 'زمان‌های خالی را می‌بیند، انتخاب می‌کند و همان‌جا آنلاین پرداخت می‌کند. بدون پیام، بدون هماهنگی دستی — حتی وقتی خواب هستید.' },
+  { n: '4', t: 'بقیه‌اش خودکار است', d: 'تایید لحظه‌ای برای مراجع، یادآور پیامکی خودکار پیش از جلسه، و پول در مسیر تسویه. شما فقط سر جلسه حاضر می‌شوید.' },
 ]
+
+// صحنه‌های داخل گوشی — همان زبان بصری موکاپ hero (absolute + opacity/translate)
+function StoryPhone({ scene }: { scene: number }) {
+  const S = (i: number) =>
+    `absolute inset-0 p-4 transition-all duration-500 motion-reduce:transition-none ${scene === i ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2 pointer-events-none'}`
+  return (
+    <div className="mx-auto w-full max-w-[280px]">
+      <div className="rounded-[2rem] border border-sand bg-white shadow-[0_24px_60px_-28px_rgba(0,0,0,0.3)] overflow-hidden">
+        {/* نوار وضعیت گوشی */}
+        <div className="flex items-center justify-between px-5 pt-3 pb-2 text-[10px] text-soot">
+          <span className="tnum">{scene === 0 ? '23:41' : '10:05'}</span>
+          <span className="w-16 h-4 rounded-full bg-sand" />
+          <span className="tnum" dir="ltr">100%</span>
+        </div>
+        <div className="relative h-[360px] border-t border-sand">
+
+          {/* پرده‌ی 1: آشوب دایرکت */}
+          <div className={S(0)}>
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-[11px] font-semibold text-ink">دایرکت‌ها</span>
+              <span className="text-[10px] font-bold text-white bg-ink rounded-full px-2 py-0.5 tnum">9+</span>
+            </div>
+            <div className="space-y-2">
+              <div className="bg-sand rounded-2xl rounded-tr-md px-3 py-2 text-[11px] text-ink w-fit max-w-[85%]">سلام، وقت مشاوره دارید؟</div>
+              <div className="bg-sand rounded-2xl rounded-tr-md px-3 py-2 text-[11px] text-ink w-fit max-w-[85%]">برای پنجشنبه جا هست؟</div>
+              <div className="bg-sand rounded-2xl rounded-tr-md px-3 py-2 w-fit max-w-[85%]">
+                <div className="w-28 h-14 rounded-lg bg-white border border-soot/20 flex items-center justify-center text-[9px] text-soot">رسید کارت‌به‌کارت.jpg</div>
+              </div>
+              <div className="bg-sand rounded-2xl rounded-tr-md px-3 py-2 text-[11px] text-ink w-fit max-w-[85%]">ببخشید فردا نمی‌توانم بیایم</div>
+              <div className="bg-sand rounded-2xl rounded-tr-md px-3 py-2 text-[11px] text-soot w-fit">…</div>
+            </div>
+            <p className="absolute bottom-3 inset-x-4 text-center text-[10px] text-soot">پاسخ‌دادن، هماهنگی، چک‌کردن رسید — همه با شما</p>
+          </div>
+
+          {/* پرده‌ی 2: یک لینک */}
+          <div className={S(1)}>
+            <div className="h-full flex flex-col items-center justify-center gap-4">
+              <span className="inline-flex items-center gap-2 rounded-full border-2 border-trust bg-trust-wash px-4 py-2.5 text-[13px] font-semibold text-trust-deep" dir="ltr">
+                nobatlink.com/shirin
+              </span>
+              <p className="text-[11px] text-soot text-center leading-relaxed">همین. یک نشانی —<br />به‌جای همه‌ی آن پیام‌ها.</p>
+            </div>
+          </div>
+
+          {/* پرده‌ی 3: رزرو توسط مراجع */}
+          <div className={S(2)}>
+            <div className="flex items-center gap-2.5 mb-3">
+              <span className="w-9 h-9 rounded-full bg-trust text-white flex items-center justify-center font-display font-bold">ش</span>
+              <div>
+                <div className="font-display font-bold text-[13px]">دکتر شیرین احمدی</div>
+                <div className="text-[10px] text-soot">روانشناس کودک</div>
+              </div>
+            </div>
+            <div className="border border-sand rounded-xl p-3 mb-3">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-semibold text-ink">جلسه‌ی مشاوره</span>
+                <span className="text-[11px] font-bold tnum">1,200,000</span>
+              </div>
+              <div className="text-[10px] text-soot mt-0.5">45 دقیقه · حضوری یا آنلاین</div>
+            </div>
+            <div className="text-[10px] text-soot mb-1.5">پنجشنبه، زمان‌های خالی:</div>
+            <div className="grid grid-cols-3 gap-1.5 mb-3">
+              {['16:00', '17:00', '18:00'].map(t => (
+                <span key={t} className={`text-center text-[11px] rounded-lg py-1.5 tnum ${t === '17:00' ? 'bg-trust text-white font-bold' : 'border border-sand text-soot'}`}>{t}</span>
+              ))}
+            </div>
+            <button className="w-full py-2.5 rounded-xl bg-ink text-white font-display font-bold text-[12px]">پرداخت آنلاین</button>
+            <p className="absolute bottom-3 inset-x-4 text-center text-[10px] text-soot">مراجع خودش انتخاب و پرداخت می‌کند</p>
+          </div>
+
+          {/* پرده‌ی 4: قطعی و خودکار */}
+          <div className={S(3)}>
+            <div className="h-full flex flex-col items-center justify-center gap-3">
+              <span className="w-12 h-12 rounded-full bg-trust text-white flex items-center justify-center">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6"><path d="M20 6 9 17l-5-5" /></svg>
+              </span>
+              <div className="text-center">
+                <div className="font-display font-bold text-[14px]">نوبت قطعی شد</div>
+                <div className="text-[11px] text-soot mt-0.5 tnum">پنجشنبه · 17:00</div>
+              </div>
+              <div className="w-full space-y-1.5 mt-2">
+                <div className="flex items-center justify-between rounded-lg bg-trust-wash px-3 py-2 text-[10px]">
+                  <span className="text-trust-deep font-semibold">یادآور پیامکی</span><span className="text-soot">خودکار، پیش از جلسه</span>
+                </div>
+                <div className="flex items-center justify-between rounded-lg bg-trust-wash px-3 py-2 text-[10px]">
+                  <span className="text-trust-deep font-semibold">پرداخت</span><span className="text-soot">در مسیر تسویه با شما</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// چیدمان sticky + تشخیص پرده‌ی فعال با IntersectionObserver (نوار میانی viewport)
+function StorySection() {
+  const [scene, setScene] = useState(0)
+  const beatsRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const root = beatsRef.current
+    if (!root) return
+    const blocks = Array.from(root.querySelectorAll('[data-beat]'))
+    const obs = new IntersectionObserver(entries => {
+      for (const e of entries) {
+        if (e.isIntersecting) {
+          const i = Number((e.target as HTMLElement).dataset.beat)
+          if (!Number.isNaN(i)) setScene(i)
+        }
+      }
+    }, { rootMargin: '-45% 0px -45% 0px', threshold: 0 })
+    blocks.forEach(b => obs.observe(b))
+    return () => obs.disconnect()
+  }, [])
+
+  return (
+    <section id="how" className="border-y border-sand bg-trust-wash/50">
+      <div className="max-w-5xl mx-auto px-6 py-16 md:py-20">
+        <div className="text-center max-w-xl mx-auto mb-10 md:mb-16 nl-reveal">
+          <div className="text-sm font-semibold text-trust mb-3">سفر یک نوبت</div>
+          <h2 className="font-display font-extrabold text-3xl sm:text-4xl tracking-tightest">از آشوب دایرکت، تا نوبت قطعی</h2>
+        </div>
+        <div className="md:grid md:grid-cols-2 md:gap-12">
+          {/* گوشی sticky — روی موبایل هم می‌چسبد و پرده‌ها زیرش رد می‌شوند */}
+          <div className="sticky top-[4.5rem] md:top-24 z-10 self-start mb-8 md:mb-0">
+            <StoryPhone scene={scene} />
+          </div>
+          <div ref={beatsRef}>
+            {STORY_BEATS.map((b, i) => (
+              <div key={b.n} data-beat={i} className="min-h-[55vh] md:min-h-[70vh] flex items-center">
+                <div className={`transition-opacity duration-300 motion-reduce:transition-none ${scene === i ? 'opacity-100' : 'opacity-40'}`}>
+                  <div className="font-display font-extrabold text-sm text-trust tracking-widest mb-4 tnum">{b.n} / 4</div>
+                  <h3 className="font-display font-bold text-2xl sm:text-3xl mb-3 tracking-tightest">{b.t}</h3>
+                  <p className="text-sm sm:text-base text-soot leading-relaxed max-w-sm">{b.d}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
 
 const FEATURES = [
   { icon: '<path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/>',
@@ -266,7 +416,7 @@ export default function Landing() {
             <span className="font-display font-extrabold text-lg tracking-tightest">{PLATFORM_NAME}</span>
           </div>
           <nav className="hidden sm:flex items-center gap-7 text-sm text-soot">
-            <a href="#how" className="hover:text-ink">نحوه‌ی کار</a>
+            <a href="#how" className="hover:text-ink">سفر یک نوبت</a>
             <a href="#features" className="hover:text-ink">امکانات</a>
             <a href="#niches" className="hover:text-ink">تخصص‌ها</a>
             <a href="#pricing" className="hover:text-ink">تعرفه‌ها</a>
@@ -285,7 +435,7 @@ export default function Landing() {
         <div className="grid md:grid-cols-2 gap-14 items-center">
           <div className="animate-nl-up">
             <div className="inline-flex items-center gap-2 text-xs text-soot border border-sand rounded-full px-3 py-1.5 mb-6">
-              <span className="w-1.5 h-1.5 rounded-full bg-ink" style={{ animation: 'nlPulse 2s infinite' }} />
+              <span className="w-1.5 h-1.5 rounded-full bg-trust" style={{ animation: 'nlPulse 2s infinite' }} />
               پلتفرم نوبت‌دهی آنلاین برای متخصصان
             </div>
             <h1 className="font-display font-extrabold text-4xl sm:text-5xl leading-[1.12] tracking-tightest">
@@ -297,7 +447,7 @@ export default function Landing() {
             </p>
             <div className="mt-8 flex items-center gap-4 flex-wrap">
               <a href="/signup" className="font-display font-bold text-white bg-ink px-7 py-3.5 rounded-xl shadow-sm hover:-translate-y-0.5 hover:shadow-lg transition">شروع رایگان</a>
-              <a href="#how" className="text-sm font-medium text-ink">مشاهده‌ی نحوه‌ی کار ←</a>
+              <a href="#how" className="text-sm font-medium text-trust hover:text-trust-deep">سفر یک نوبت را ببینید ←</a>
               {DEMO_SLUG && (
                 <a href={`/${DEMO_SLUG}`} target="_blank" className="text-sm font-medium text-soot underline underline-offset-4 hover:text-ink">مشاهده‌ی صفحه‌ی نمونه</a>
               )}
@@ -312,29 +462,13 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* ── نحوه‌ی کار ──────────────────────────────────────────────────── */}
-      <section id="how" className="border-y border-sand bg-white">
-        <div className="max-w-5xl mx-auto px-6 py-16">
-          <div className="text-center max-w-xl mx-auto mb-12 nl-reveal">
-            <div className="text-sm font-semibold text-soot mb-3">نحوه‌ی کار</div>
-            <h2 className="font-display font-extrabold text-3xl sm:text-4xl tracking-tightest">از ثبت‌نام تا نخستین رزرو، سه گام</h2>
-          </div>
-          <div className="grid sm:grid-cols-3 gap-5">
-            {STEPS.map((s, i) => (
-              <div key={s.n} className="rounded-2xl border border-sand bg-paper p-6 nl-reveal" style={{ transitionDelay: `${i * 90}ms` }}>
-                <div className="font-display font-extrabold text-sm text-soot/60 tracking-widest mb-5 tnum">{s.n}</div>
-                <h3 className="font-display font-bold text-lg mb-2">{s.t}</h3>
-                <p className="text-sm text-soot leading-relaxed">{s.d}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+      {/* ── سفر یک نوبت — روایت مرکزی (جایگزین سه‌گام قدیمی، anchor #how حفظ) ── */}
+      <StorySection />
 
       {/* ── امکانات ─────────────────────────────────────────────────────── */}
       <section id="features" className="max-w-5xl mx-auto px-6 pt-16 pb-10">
         <div className="text-center max-w-xl mx-auto mb-12 nl-reveal">
-          <div className="text-sm font-semibold text-soot mb-3">امکانات</div>
+          <div className="text-sm font-semibold text-trust mb-3">امکانات</div>
           <h2 className="font-display font-extrabold text-3xl sm:text-4xl tracking-tightest">هرچه برای مدیریت نوبت‌ها لازم دارید</h2>
         </div>
         <div className="grid sm:grid-cols-2 gap-5">
@@ -357,7 +491,7 @@ export default function Landing() {
       <section id="niches" className="border-y border-sand bg-white">
         <div className="max-w-5xl mx-auto px-6 py-16">
           <div className="text-center max-w-xl mx-auto mb-12 nl-reveal">
-            <div className="text-sm font-semibold text-soot mb-3">تخصص‌ها</div>
+            <div className="text-sm font-semibold text-trust mb-3">تخصص‌ها</div>
             <h2 className="font-display font-extrabold text-3xl sm:text-4xl tracking-tightest">برای هر تخصص، با رنگ و هویت خودش</h2>
             <p className="mt-4 text-sm text-soot leading-relaxed">صفحه‌ی هر متخصص با رنگ حوزه‌ی خودش شخصی‌سازی می‌شود؛ حوزه‌های تازه به‌تدریج اضافه خواهند شد.</p>
           </div>
@@ -396,7 +530,7 @@ export default function Landing() {
          منبع عملیاتی platform_settings است و باید هم‌زمان تغییر کنند. */}
       <section id="pricing" className="max-w-5xl mx-auto px-6 pt-16 pb-10">
         <div className="text-center mb-4 nl-reveal">
-          <div className="text-sm font-semibold text-soot mb-3">تعرفه‌ها</div>
+          <div className="text-sm font-semibold text-trust mb-3">تعرفه‌ها</div>
           <h2 className="font-display font-extrabold text-3xl sm:text-4xl tracking-tightest">قیمت‌گذاری شفاف، بدون هزینه‌ی پنهان</h2>
         </div>
         <p className="text-center text-sm text-soot mb-6 nl-reveal">
@@ -506,7 +640,7 @@ export default function Landing() {
       <section id="faq" className="border-y border-sand bg-white">
         <div className="max-w-2xl mx-auto px-6 py-16">
           <div className="text-center mb-10 nl-reveal">
-            <div className="text-sm font-semibold text-soot mb-3">پرسش‌های پرتکرار</div>
+            <div className="text-sm font-semibold text-trust mb-3">پرسش‌های پرتکرار</div>
             <h2 className="font-display font-extrabold text-3xl sm:text-4xl tracking-tightest">پاسخ پرسش‌های شما</h2>
           </div>
           <div className="space-y-2.5 nl-reveal">
