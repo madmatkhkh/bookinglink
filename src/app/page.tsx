@@ -13,6 +13,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { PLATFORM_NAME, SUPPORT_EMAIL, SUPPORT_PHONE, DEMO_SLUG } from '@/lib/config'
 import { PLAN_PRICING } from '@/lib/plans'
+import { useScrollFX } from './useScrollFX'
 
 type NicheCard = {
   key: string; display_name: string; tagline: string
@@ -182,7 +183,7 @@ const STORY_BEATS = [
   { n: '1', t: 'ساعت 23:41 است', d: 'هر نوبت، ده پیام. هر پرداخت، یک اسکرین‌شات رسید. هر کنسلی، یک صندلی خالی که دیر خبرش می‌رسد. تقویم شما در دایرکت دیگران زندگی می‌کند.' },
   { n: '2', t: 'همه‌اش جمع می‌شود در یک خط', d: 'nobatlink.com/نام-شما — صفحه‌ای با رنگ و هویت خودتان. از این‌جا به بعد، مراجع با صفحه‌ی شما طرف است، نه با گوشی شما.' },
   { n: '3', t: 'مراجع خودش رزرو می‌کند', d: 'زمان‌های خالی را می‌بیند، انتخاب می‌کند و همان‌جا آنلاین پرداخت می‌کند. بدون پیام، بدون هماهنگی دستی — حتی وقتی خواب هستید.' },
-  { n: '4', t: 'بقیه‌اش خودکار است', d: 'تایید لحظه‌ای برای مراجع، یادآور پیامکی خودکار پیش از جلسه، و پول در مسیر تسویه. شما فقط سر جلسه حاضر می‌شوید.' },
+  { n: '4', t: 'شما فقط مدیریت می‌کنید', d: 'تایید لحظه‌ای، یادآور خودکار، پول در مسیر تسویه، و همه‌ی پرونده‌ها و گزارش‌های مالی یک‌جا. کسب‌وکارتان خودش می‌چرخد؛ شما تصمیم می‌گیرید.' },
 ]
 
 // صحنه‌های داخل گوشی — همان زبان بصری موکاپ hero (absolute + opacity/translate)
@@ -283,97 +284,88 @@ function StoryPhone({ scene }: { scene: number }) {
 
 // چیدمان sticky + تشخیص پرده‌ی فعال با IntersectionObserver (نوار میانی viewport)
 function StorySection() {
+  const rootRef = useRef<HTMLDivElement>(null)
   const [scene, setScene] = useState(0)
-  const beatsRef = useRef<HTMLDivElement>(null)
-  const railRef = useRef<HTMLDivElement>(null)
 
-  // دسکتاپ: پرده‌ی فعال از اسکرول عمودی بلوک‌های متن (sticky دوستونه)
   useEffect(() => {
-    const root = beatsRef.current
+    if (typeof window === 'undefined') return
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    const root = rootRef.current
     if (!root) return
-    const blocks = Array.from(root.querySelectorAll('[data-beat]'))
-    const obs = new IntersectionObserver(entries => {
-      for (const e of entries) {
-        if (e.isIntersecting) {
-          const i = Number((e.target as HTMLElement).dataset.beat)
-          if (!Number.isNaN(i)) setScene(i)
-        }
-      }
-    }, { rootMargin: '-45% 0px -45% 0px', threshold: 0 })
-    blocks.forEach(b => obs.observe(b))
-    return () => obs.disconnect()
-  }, [])
 
-  // موبایل: پرده‌ی فعال از اسکرول افقی ریل کپشن‌ها (scroll-snap) — گوشی و متن
-  // هرگز روی هم نمی‌افتند چون هر کدام ناحیه‌ی خودش را دارد.
-  useEffect(() => {
-    const rail = railRef.current
-    if (!rail) return
-    let raf = 0
-    const onScroll = () => {
-      cancelAnimationFrame(raf)
-      raf = requestAnimationFrame(() => {
-        const i = Math.round(rail.scrollLeft / rail.clientWidth)
-        // RTL: scrollLeft منفی/برعکس است در برخی مرورگرها — با abs نرمال می‌کنیم
-        const idx = Math.min(STORY_BEATS.length - 1, Math.max(0, Math.abs(i)))
-        setScene(idx)
-      })
+    // حرکت‌کاهیده: پین نمی‌کنیم؛ پرده‌ها با IntersectionObserver ساده عوض می‌شوند
+    if (reduced) {
+      const blocks = Array.from(root.querySelectorAll('[data-beat]'))
+      const obs = new IntersectionObserver(es => {
+        es.forEach(e => { if (e.isIntersecting) setScene(Number((e.target as HTMLElement).dataset.beat)) })
+      }, { rootMargin: '-45% 0px -45% 0px' })
+      blocks.forEach(b => obs.observe(b))
+      return () => obs.disconnect()
     }
-    rail.addEventListener('scroll', onScroll, { passive: true })
-    return () => { rail.removeEventListener('scroll', onScroll); cancelAnimationFrame(raf) }
+
+    let ctx: any, killed = false
+    ;(async () => {
+      const gsapMod = await import('gsap')
+      const stMod = await import('gsap/ScrollTrigger')
+      if (killed) return
+      const gsap = (gsapMod as any).default || gsapMod
+      const ScrollTrigger = (stMod as any).ScrollTrigger || (stMod as any).default
+      gsap.registerPlugin(ScrollTrigger)
+
+      ctx = gsap.context(() => {
+        const n = STORY_BEATS.length
+        const isMobile = window.innerWidth < 768
+        // بخش پین می‌شود و گوشی + متن‌ها ثابت می‌مانند؛ با پیشرفت اسکرول scene
+        // عوض می‌شود (سینمایی، بدون اسکرول‌هایجک). روی موبایل طول پین کوتاه‌تر
+        // است تا سنگین و کند حس نشود (توصیه‌ی اسکیل: شدت کمتر روی موبایل).
+        const per = isMobile ? 0.7 : 1
+        ScrollTrigger.create({
+          trigger: root,
+          start: 'top top',
+          end: () => '+=' + window.innerHeight * n * per,
+          pin: root.querySelector('[data-pin]') as Element,
+          scrub: true,
+          invalidateOnRefresh: true,
+          onUpdate: (self: any) => {
+            const idx = Math.min(n - 1, Math.floor(self.progress * n))
+            setScene(idx)
+          },
+        })
+      }, root)
+    })()
+    return () => { killed = true; if (ctx) ctx.revert() }
   }, [])
 
   return (
-    <section id="how" className="border-y border-sand bg-trust-wash/50 overflow-hidden">
-      <div className="max-w-5xl mx-auto px-6 py-14 md:py-20">
-        <div className="text-center max-w-xl mx-auto mb-10 md:mb-16 nl-reveal">
-          <div className="text-sm font-semibold text-trust mb-3">سفر یک نوبت</div>
-          <h2 className="font-display font-extrabold text-3xl sm:text-4xl tracking-tightest">از آشوب دایرکت، تا نوبت قطعی</h2>
-        </div>
-
-        {/* ── موبایل: گوشی بالا + ریل افقی کپشن‌ها زیرش (بدون هیچ همپوشانی) ── */}
-        <div className="md:hidden">
-          <div className="flex justify-center mb-6">
-            <StoryPhone scene={scene} />
+    <section id="how" ref={rootRef} className="relative border-y border-sand bg-trust-wash/40">
+      {/* ناحیه‌ی پین‌شونده — یک صفحه‌ی کامل که گوشی و متن کنارش ثابت می‌ماند */}
+      <div data-pin className="min-h-screen flex items-center overflow-hidden">
+        <div className="max-w-5xl mx-auto px-6 w-full py-8 md:py-12">
+          <div className="text-center max-w-xl mx-auto mb-5 md:mb-12">
+            <div className="text-xs sm:text-sm font-semibold text-trust mb-2 md:mb-3">از آشوب تا آرامش</div>
+            <h2 className="font-display font-extrabold text-2xl sm:text-4xl tracking-tightest">کل کسب‌وکارتان، در یک نقطه</h2>
           </div>
-          {/* نقطه‌های پیشرفت */}
-          <div className="flex justify-center gap-2 mb-4">
-            {STORY_BEATS.map((_, i) => (
-              <button
-                key={i}
-                aria-label={`پرده‌ی ${i + 1}`}
-                onClick={() => railRef.current?.scrollTo({ left: railRef.current.clientWidth * i * (document.dir === 'rtl' ? -1 : 1), behavior: 'smooth' })}
-                className={`h-1.5 rounded-full transition-all ${scene === i ? 'w-6 bg-trust' : 'w-1.5 bg-trust/30'}`}
-              />
-            ))}
-          </div>
-          {/* ریل افقی — snap؛ هر کپشن یک صفحه‌ی کامل */}
-          <div ref={railRef} className="flex overflow-x-auto snap-x snap-mandatory -mx-6 px-6 gap-4 scrollbar-none">
-            {STORY_BEATS.map((b, i) => (
-              <div key={b.n} className="snap-center shrink-0 w-full text-center">
-                <div className="font-display font-extrabold text-xs text-trust tracking-widest mb-3 tnum">{b.n} / 4</div>
-                <h3 className="font-display font-bold text-xl mb-2 tracking-tightest">{b.t}</h3>
-                <p className="text-sm text-soot leading-relaxed max-w-xs mx-auto">{b.d}</p>
-              </div>
-            ))}
-          </div>
-          <p className="text-center text-[11px] text-soot/70 mt-4">← برای دیدن مراحل، بکشید</p>
-        </div>
-
-        {/* ── دسکتاپ: گوشی sticky + بلوک‌های بلند متن (scroll-scrubbed) ── */}
-        <div className="hidden md:grid md:grid-cols-2 md:gap-12">
-          <div className="sticky top-24 z-10 self-start">
-            <StoryPhone scene={scene} />
-          </div>
-          <div ref={beatsRef}>
-            {STORY_BEATS.map((b, i) => (
-              <div key={b.n} data-beat={i} className="min-h-[70vh] flex items-center">
-                <div className={`transition-opacity duration-300 motion-reduce:transition-none ${scene === i ? 'opacity-100' : 'opacity-40'}`}>
-                  <div className="font-display font-extrabold text-sm text-trust tracking-widest mb-4 tnum">{b.n} / 4</div>
-                  <h3 className="font-display font-bold text-3xl mb-3 tracking-tightest">{b.t}</h3>
-                  <p className="text-base text-soot leading-relaxed max-w-sm">{b.d}</p>
+          <div className="grid md:grid-cols-2 gap-5 md:gap-12 items-center">
+            {/* گوشی — امضای بصری، ثابت در مرکز صحنه */}
+            <div className="flex justify-center scale-[0.82] sm:scale-90 md:scale-100 origin-top">
+              <StoryPhone scene={scene} />
+            </div>
+            {/* متن پرده‌ی فعال — cross-fade نرم؛ فقط یکی هم‌زمان دیده می‌شود */}
+            <div className="relative min-h-[150px] md:min-h-[240px] -mt-4 md:mt-0">
+              {STORY_BEATS.map((b, i) => (
+                <div key={b.n} data-beat={i}
+                  className={`absolute inset-0 flex flex-col justify-center text-center md:text-right transition-all duration-500 motion-reduce:transition-none ${scene === i ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3 pointer-events-none'}`}>
+                  <div className="font-display font-extrabold text-xs sm:text-sm text-trust tracking-widest mb-2 md:mb-3 tnum">{b.n} / {STORY_BEATS.length}</div>
+                  <h3 className="font-display font-bold text-xl sm:text-3xl mb-2 md:mb-3 tracking-tightest">{b.t}</h3>
+                  <p className="text-[13px] sm:text-base text-soot leading-relaxed max-w-sm mx-auto md:mx-0">{b.d}</p>
                 </div>
-              </div>
+              ))}
+            </div>
+          </div>
+          {/* نوار پیشرفت پرده‌ها */}
+          <div className="mt-5 md:mt-8 flex gap-1.5 justify-center">
+            {STORY_BEATS.map((_, i) => (
+              <span key={i} className={`h-1 rounded-full transition-all duration-300 ${scene === i ? 'w-8 bg-trust' : 'w-3 bg-trust/25'}`} />
             ))}
           </div>
         </div>
@@ -381,6 +373,7 @@ function StorySection() {
     </section>
   )
 }
+
 
 const FEATURES = [
   { icon: '<path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/>',
@@ -445,8 +438,26 @@ export default function Landing() {
     }).catch(() => setLoading(false))
   }, [])
 
-  // اسکرول‌ریویل — همه‌ی .nl-reveal ها موقع ورود به دید، کلاس nl-in می‌گیرند
-  // (CSS و fallback حرکت‌کاهیده در globals.css)
+  // GSAP ScrollTrigger — reveal/stagger/parallax/scrub روی [data-fx] ها.
+  // بعد از لود دیتا اجرا می‌شود تا ارتفاع‌ها نهایی باشند. تابع reduced-motion
+  // (داخل خود هوک) و در unmount پاک می‌شود.
+  useScrollFX(!loading)
+
+  // تغییر تاگل ماهانه/سالانه ارتفاع کارت‌ها را عوض می‌کند → موقعیت تریگرها را
+  // تازه کن تا پین/ریویل بخش‌های پایین‌تر جابه‌جا نشوند.
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    let killed = false
+    import('gsap/ScrollTrigger').then(m => {
+      if (killed) return
+      const ST = (m as any).ScrollTrigger || (m as any).default
+      ST && ST.refresh()
+    })
+    return () => { killed = true }
+  }, [billing, faq])
+
+  // fallback سبک برای .nl-reveal (بخش‌های بدون data-fx و حالت بدون GSAP)
   useEffect(() => {
     const els = document.querySelectorAll('.nl-reveal')
     const obs = new IntersectionObserver(entries => {
@@ -510,8 +521,8 @@ export default function Landing() {
             </div>
           </div>
 
-          {/* موکاپ زنده‌ی چندتخصصی — امضای صفحه */}
-          <div className="animate-nl-up">
+          {/* موکاپ زنده‌ی چندتخصصی — امضای صفحه (پارالاکس ملایم) */}
+          <div className="animate-nl-up" data-fx="parallax" data-speed="0.12">
             <HeroShowcase />
           </div>
         </div>
@@ -522,13 +533,14 @@ export default function Landing() {
 
       {/* ── امکانات ─────────────────────────────────────────────────────── */}
       <section id="features" className="max-w-5xl mx-auto px-6 pt-16 pb-10">
-        <div className="text-center max-w-xl mx-auto mb-12 nl-reveal">
-          <div className="text-sm font-semibold text-trust mb-3">امکانات</div>
-          <h2 className="font-display font-extrabold text-3xl sm:text-4xl tracking-tightest">هرچه برای مدیریت نوبت‌ها لازم دارید</h2>
+        <div className="text-center max-w-xl mx-auto mb-12" data-fx="reveal">
+          <div className="text-sm font-semibold text-trust mb-3">یک پلتفرم، نه یک ابزار</div>
+          <h2 className="font-display font-extrabold text-3xl sm:text-4xl tracking-tightest">همه‌ی کسب‌وکارتان، از یک داشبورد</h2>
+          <p className="mt-4 text-sm text-soot leading-relaxed">نوبت‌دهی فقط شروع کار است. رزرو، پرداخت، پرونده‌ی مشتری، تسویه، تیم و گزارش مالی — همه در یک جا مدیریت می‌شوند.</p>
         </div>
-        <div className="grid sm:grid-cols-2 gap-5">
+        <div className="grid sm:grid-cols-2 gap-5" data-fx="stagger">
           {FEATURES.map((f, i) => (
-            <div key={f.t} className="rounded-2xl border border-sand bg-white p-7 transition hover:-translate-y-1.5 hover:shadow-[0_22px_44px_-20px_rgba(0,0,0,0.32)] nl-reveal" style={{ transitionDelay: `${(i % 2) * 90}ms` }}>
+            <div key={f.t} className="rounded-2xl border border-sand bg-white p-7 transition hover:-translate-y-1.5 hover:shadow-[0_22px_44px_-20px_rgba(0,0,0,0.32)] ">
               <div className="w-11 h-11 rounded-xl bg-trust-wash text-trust-deep flex items-center justify-center mb-5">
                 <Icon path={f.icon} />
               </div>
@@ -545,7 +557,7 @@ export default function Landing() {
       {/* ── تخصص‌ها — رنگ هر نیچ فقط همین‌جا و در موکاپ hero ظاهر می‌شود ── */}
       <section id="niches" className="border-y border-sand bg-white">
         <div className="max-w-5xl mx-auto px-6 py-16">
-          <div className="text-center max-w-xl mx-auto mb-12 nl-reveal">
+          <div className="text-center max-w-xl mx-auto mb-12" data-fx="reveal">
             <div className="text-sm font-semibold text-trust mb-3">تخصص‌ها</div>
             <h2 className="font-display font-extrabold text-3xl sm:text-4xl tracking-tightest">برای هر تخصص، با رنگ و هویت خودش</h2>
             <p className="mt-4 text-sm text-soot leading-relaxed">صفحه‌ی هر متخصص با رنگ حوزه‌ی خودش شخصی‌سازی می‌شود؛ حوزه‌های تازه به‌تدریج اضافه خواهند شد.</p>
@@ -555,13 +567,13 @@ export default function Landing() {
               {[0, 1, 2].map(i => <div key={i} className="h-44 rounded-2xl border border-sand bg-paper animate-pulse" />)}
             </div>
           ) : (
-            <div className="grid sm:grid-cols-3 gap-4">
+            <div className="grid sm:grid-cols-3 gap-4" data-fx="stagger">
               {niches.map((n, i) => {
                 const c = `rgb(${n.default_theme})`
                 return (
                   <div key={n.key}
-                    className={`relative rounded-2xl border p-6 transition nl-reveal ${n.is_active ? 'border-sand bg-paper hover:-translate-y-1 hover:shadow-lg' : 'border-sand bg-paper opacity-60'}`}
-                    style={{ transitionDelay: `${i * 90}ms` }}>
+                    className={`relative rounded-2xl border p-6 transition ${n.is_active ? 'border-sand bg-paper hover:-translate-y-1 hover:shadow-lg' : 'border-sand bg-paper opacity-60'}`}
+                    >
                     {!n.is_active && (
                       <span className="absolute top-4 left-4 text-[11px] font-semibold text-soot bg-sand px-2 py-0.5 rounded-full">به‌زودی</span>
                     )}
@@ -584,7 +596,7 @@ export default function Landing() {
          سه پلن پلتفرمی (MODULES.md بخش 9) — اعداد نمایشی از PLAN_PRICING؛
          منبع عملیاتی platform_settings است و باید هم‌زمان تغییر کنند. */}
       <section id="pricing" className="max-w-5xl mx-auto px-6 pt-16 pb-10">
-        <div className="text-center mb-4 nl-reveal">
+        <div className="text-center mb-4" data-fx="reveal">
           <div className="text-sm font-semibold text-trust mb-3">تعرفه‌ها</div>
           <h2 className="font-display font-extrabold text-3xl sm:text-4xl tracking-tightest">قیمت‌گذاری شفاف، بدون هزینه‌ی پنهان</h2>
         </div>
@@ -603,10 +615,10 @@ export default function Landing() {
             </button>
           </div>
         </div>
-        <div className="grid sm:grid-cols-3 gap-4">
+        <div className="grid sm:grid-cols-3 gap-4" data-fx="stagger">
 
           {/* پایه */}
-          <div className="rounded-2xl border border-sand bg-white p-6 flex flex-col nl-reveal">
+          <div className="rounded-2xl border border-sand bg-white p-6 flex flex-col">
             <div className="font-display font-bold text-lg">پایه</div>
             <div className="mt-3 flex items-baseline gap-1.5">
               <span className="font-display font-extrabold text-3xl tnum">{(billing === 'annual' ? PLAN_PRICING.base.annual : PLAN_PRICING.base.monthly).toLocaleString('en-US')}</span>
@@ -630,7 +642,7 @@ export default function Landing() {
           </div>
 
           {/* حرفه‌ای — پیشنهاد ما */}
-          <div className="rounded-2xl border-2 border-ink bg-white p-6 flex flex-col relative nl-reveal" style={{ transitionDelay: '90ms' }}>
+          <div className="rounded-2xl border-2 border-ink bg-white p-6 flex flex-col relative">
             <span className="absolute -top-3 right-6 text-[11px] font-bold text-white bg-ink px-3 py-1 rounded-full">پیشنهاد ما</span>
             <div className="font-display font-bold text-lg">حرفه‌ای</div>
             <div className="mt-3 flex items-baseline gap-1.5">
@@ -656,7 +668,7 @@ export default function Landing() {
           </div>
 
           {/* تیم */}
-          <div className="rounded-2xl border border-sand bg-white p-6 flex flex-col nl-reveal" style={{ transitionDelay: '180ms' }}>
+          <div className="rounded-2xl border border-sand bg-white p-6 flex flex-col">
             <div className="font-display font-bold text-lg">تیم</div>
             <div className="mt-3 flex items-baseline gap-1.5">
               <span className="font-display font-extrabold text-3xl tnum">{(billing === 'annual' ? PLAN_PRICING.team.annual : PLAN_PRICING.team.monthly).toLocaleString('en-US')}</span>
@@ -694,11 +706,11 @@ export default function Landing() {
       {/* ── FAQ ─────────────────────────────────────────────────────────── */}
       <section id="faq" className="border-y border-sand bg-white">
         <div className="max-w-2xl mx-auto px-6 py-16">
-          <div className="text-center mb-10 nl-reveal">
+          <div className="text-center mb-10" data-fx="reveal">
             <div className="text-sm font-semibold text-trust mb-3">پرسش‌های پرتکرار</div>
             <h2 className="font-display font-extrabold text-3xl sm:text-4xl tracking-tightest">پاسخ پرسش‌های شما</h2>
           </div>
-          <div className="space-y-2.5 nl-reveal">
+          <div className="space-y-2.5" data-fx="stagger">
             {FAQS.map((f, i) => (
               <div key={f.q} className="rounded-xl border border-sand bg-paper overflow-hidden">
                 <button onClick={() => setFaq(faq === i ? -1 : i)}
@@ -715,7 +727,7 @@ export default function Landing() {
 
       {/* ── CTA پایانی ──────────────────────────────────────────────────── */}
       <section className="max-w-5xl mx-auto px-6 pt-16 pb-6">
-        <div className="rounded-3xl bg-ink text-white p-10 sm:p-14 text-center nl-reveal">
+        <div className="rounded-3xl bg-ink text-white p-10 sm:p-14 text-center" data-fx="scale">
           <h2 className="font-display font-extrabold text-3xl sm:text-4xl tracking-tightest">صفحه‌ی نوبت‌دهی شما، امروز آماده می‌شود</h2>
           <p className="mt-4 text-white/70 max-w-md mx-auto leading-relaxed">ثبت‌نام رایگان است و راه‌اندازی کمتر از پنج دقیقه زمان می‌برد.</p>
           <a href="/signup" className="inline-block mt-8 font-display font-bold text-ink bg-white px-8 py-3.5 rounded-xl hover:-translate-y-0.5 hover:shadow-xl transition">شروع رایگان</a>
