@@ -203,7 +203,7 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
   if (to) txnQ = txnQ.lte('created_at', to)
   const { data: txnRows } = await txnQ
   const PURPOSE_FA: Record<string, string> = {
-    stage: 'جلسه', interview: 'مصاحبه', assessment: 'ارزیابی', package: 'پروتکل درمان', session: 'جلسه', extra_charge: 'شارژ اضافه',
+    stage: 'جلسه', interview: 'مصاحبه', assessment: 'ارزیابی', package: 'پروتکل درمان', session: 'جلسه', extra_charge: 'شارژ اضافه', subscription_fee: 'حق اشتراک',
   }
   const transactions = (txnRows || []).map(r => ({
     type: PURPOSE_FA[r.purpose] || r.purpose,
@@ -257,8 +257,15 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
   if (resourceFilter) allIntentsQ = allIntentsQ.eq('resource_id', resourceFilter)
   let settlementsQ = sb().from('settlements').select('amount').eq('tenant_id', t.id)
   if (resourceFilter) settlementsQ = settlementsQ.eq('resource_id', resourceFilter)
-  const [{ data: allIntents }, { data: settlementRows }] = await Promise.all([allIntentsQ, settlementsQ])
+  // فاز P4: entryهای حق اشتراک (doctor_amount منفی) هم در معوق حساب می‌شوند —
+  // دقیقا همان چیزی که سوپرادمین در /super/settlements می‌بیند (owed از ledger
+  // شامل قلم منفی اشتراک است). بدون این، عدد دکتر و سوپر از هم جدا می‌افتاد.
+  let subsQ = sb().from('ledger_entries').select('doctor_amount')
+    .eq('tenant_id', t.id).eq('purpose', 'subscription_fee').eq('direction', 'inflow')
+  if (resourceFilter) subsQ = subsQ.eq('resource_id', resourceFilter)
+  const [{ data: allIntents }, { data: settlementRows }, { data: subsRows }] = await Promise.all([allIntentsQ, settlementsQ, subsQ])
   const owedGross = (allIntents || []).reduce((sum, i) => sum + (i.split_applied ? 0 : (i.amount || 0) - (i.commission_amount || 0)), 0)
+    + (subsRows || []).reduce((sum, r) => sum + (r.doctor_amount || 0), 0)
   const settledManual = (settlementRows || []).reduce((sum, s) => sum + (s.amount || 0), 0)
   settlement.owed = Math.max(0, owedGross - settledManual)
   const settlementWithManual = { ...settlement, settledManual }
