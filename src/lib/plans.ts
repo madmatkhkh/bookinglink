@@ -49,6 +49,18 @@ export const PLAN_PRESETS: Record<string, Set<string>> = {
 export const PRO_TRIAL_KEYS: string[] = PRO.filter(k => !BASE.includes(k))
 export const TRIAL_DAYS = 14
 
+// ── قیمت‌های نمایشی (لندینگ/ثبت‌نام/قوانین) — تومان، بدون احتساب مالیات ─────
+// ⚠️ منبع «عملیاتی» ردیف‌های plan_prices / plan_fees / plan_sms_quotas در
+// platform_settings است (migrationهای 0046..0048). این ثابت فقط نمایشی است؛
+// هر تغییری باید هم‌زمان هر دو جا اعمال شود تا اعلامیه و عمل از هم جدا نیفتند.
+export const PLAN_PRICING = {
+  vatPercent: 10,
+  annualFreeMonths: 2, // پرداخت سالانه = 2 ماه رایگان (فاز اول: اعمال دستی)
+  base: { monthly: 390000, feePct: 3, feeFloor: 3000, feeCap: 120000, sms: 150, settlement: 'دوهفتگی' },
+  pro: { monthly: 890000, feePct: 2.5, feeFloor: 3000, feeCap: 100000, sms: 500, settlement: 'هفتگی' },
+  team: { monthly: 1900000, feePct: 2, feeFloor: 3000, feeCap: 80000, sms: 1500, settlement: 'هفتگی', includedStaff: 3, extraStaff: 450000 },
+} as const
+
 // preset پلن — پلن ناشناخته/آینده => null یعنی «preset اعمال نشود» (fail-open).
 export function planPreset(plan: string | null | undefined): Set<string> | null {
   if (!plan) return null

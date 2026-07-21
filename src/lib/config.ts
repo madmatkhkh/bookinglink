@@ -10,10 +10,13 @@ export const PLATFORM_NAME = 'نوبت‌لینک'
 export const SUPPORT_EMAIL = 'info@nobatlink.com'
 export const SUPPORT_PHONE = '09134682153'
 
-// کارمزد پلتفرم (پلن رایگان) — درصدی از هر پرداخت آنلاین موفق که سهم
-// نوبت‌لینک است و در تسویه با متخصص کسر می‌شود. همه‌جای متن‌های عمومی
-// (تعرفه‌ها، FAQ، قوانین) از همین ثابت می‌خوانند — تغییرش فقط همین‌جا.
-export const PLATFORM_COMMISSION_PERCENT = 7
+// کارمزد legacy — فقط fallback مدل قدیمی (قبل از migration 0046). از وقتی
+// ردیف plan_fees در platform_settings هست، کارمزد واقعی per-پلن با کف/سقف از
+// lib/commission.resolveTransactionFee می‌آید و این ثابت هرگز استفاده نمی‌شود.
+// متن‌های عمومی (لندینگ/قوانین) دیگر از این نمی‌خوانند — از PLAN_PRICING در
+// lib/plans.ts می‌خوانند. عدد 3 = درصد پلن پایه، تا حتی fallback هم با
+// اعلامیه‌ی عمومی سازگار بماند (7% قدیمی بازنشسته شد — بدون مشتری، بدون مهاجرت).
+export const PLATFORM_COMMISSION_PERCENT = 3
 
 // ── حالت تست پرداخت ────────────────────────────────────────────
 // وقتی PAYMENT_TEST_MODE=true باشد، پرداخت آنلاین به‌جای رفتن به درگاه واقعی

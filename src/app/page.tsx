@@ -11,7 +11,8 @@
 // هر دو تابع prefers-reduced-motion.
 // ─────────────────────────────────────────────────────────────────────────────
 import { useEffect, useRef, useState } from 'react'
-import { PLATFORM_NAME, SUPPORT_EMAIL, SUPPORT_PHONE, DEMO_SLUG, PLATFORM_COMMISSION_PERCENT } from '@/lib/config'
+import { PLATFORM_NAME, SUPPORT_EMAIL, SUPPORT_PHONE, DEMO_SLUG } from '@/lib/config'
+import { PLAN_PRICING } from '@/lib/plans'
 
 type NicheCard = {
   key: string; display_name: string; tagline: string
@@ -197,7 +198,7 @@ const FEATURES = [
 ]
 
 const FAQS = [
-  { q: 'هزینه‌ی استفاده از نوبت‌لینک چقدر است؟', a: `اشتراک ماهانه‌ی پلن رایگان 0 تومان است؛ تنها ${PLATFORM_COMMISSION_PERCENT}% از هر پرداخت آنلاین موفق، سهم نوبت‌لینک است که هنگام تسویه کسر می‌شود — جزئیات در بخش «تعرفه‌ها» همین صفحه. بهای خدمات را خود متخصص تعیین می‌کند و پیش از پرداخت، روی صفحه‌ی رزرو نمایش داده می‌شود.` },
+  { q: 'هزینه‌ی استفاده از نوبت‌لینک چقدر است؟', a: `سه پلن ماهانه دارد — پایه ${PLAN_PRICING.base.monthly.toLocaleString('en-US')}، حرفه‌ای ${PLAN_PRICING.pro.monthly.toLocaleString('en-US')} و تیم ${PLAN_PRICING.team.monthly.toLocaleString('en-US')} تومان — به‌علاوه کارمزد کوچک سقف‌دار روی هر تراکنش آنلاین (${PLAN_PRICING.team.feePct}% تا ${PLAN_PRICING.base.feePct}% بسته به پلن). 14 روز اول همه‌ی امکانات حرفه‌ای برای همه رایگان است. جزئیات در بخش «تعرفه‌ها» همین صفحه.` },
   { q: 'چه تفاوتی با نوبت‌دهی تلفنی و دفترچه‌ای دارد؟', a: 'در روش دستی، پاسخ‌گویی به تماس‌ها و پیام‌ها بر عهده‌ی شماست. در نوبت‌لینک، مراجع خودش زمان خالی را می‌بیند و رزرو می‌کند، یادآوری پیامکی به‌صورت خودکار ارسال می‌شود و آمار نوبت‌ها همیشه در دسترس شماست.' },
   { q: 'اطلاعات من و مراجعانم محفوظ است؟', a: 'داده‌ها به‌صورت رمزنگاری‌شده نگهداری می‌شوند و دسترسی به اطلاعات هر متخصص تنها برای خود او امکان‌پذیر است. شماره و اطلاعات مراجعان در اختیار هیچ شخص دیگری قرار نمی‌گیرد.' },
   { q: 'در حال حاضر از چه حوزه‌هایی پشتیبانی می‌کنید؟', a: 'تمرکز فعلی بر حوزه‌ی روانشناسی و مشاوره است که به‌طور کامل فعال است. سالن زیبایی و حوزه‌های دیگر در مرحله‌ی آماده‌سازی نهایی‌اند و به‌زودی در دسترس قرار می‌گیرند.' },
@@ -389,46 +390,91 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* ── تعرفه‌ها — الزام شاپرک: قیمت خدمات باید روی سایت قابل احراز باشد ── */}
+      {/* ── تعرفه‌ها — الزام شاپرک: قیمت خدمات باید روی سایت قابل احراز باشد ──
+         سه پلن پلتفرمی (MODULES.md بخش 9) — اعداد نمایشی از PLAN_PRICING؛
+         منبع عملیاتی platform_settings است و باید هم‌زمان تغییر کنند. */}
       <section id="pricing" className="max-w-5xl mx-auto px-6 pt-16 pb-10">
-        <div className="text-center mb-10 nl-reveal">
+        <div className="text-center mb-4 nl-reveal">
           <div className="text-sm font-semibold text-soot mb-3">تعرفه‌ها</div>
           <h2 className="font-display font-extrabold text-3xl sm:text-4xl tracking-tightest">قیمت‌گذاری شفاف، بدون هزینه‌ی پنهان</h2>
         </div>
-        <div className="grid sm:grid-cols-2 gap-4 max-w-3xl mx-auto">
-          <div className="rounded-2xl border-2 border-ink bg-white p-7 flex flex-col nl-reveal">
-            <div className="font-display font-bold text-lg">پلن رایگان</div>
-            <div className="mt-2 flex items-baseline gap-1.5">
-              <span className="font-display font-extrabold text-4xl tnum">0</span>
-              <span className="text-sm text-soot">تومان — اشتراک ماهانه</span>
+        <p className="text-center text-sm text-soot mb-10 nl-reveal">
+          14 روز اول، همه‌ی امکانات «حرفه‌ای» برای همه رایگان است — بدون نیاز به کارت بانکی.
+        </p>
+        <div className="grid sm:grid-cols-3 gap-4">
+
+          {/* پایه */}
+          <div className="rounded-2xl border border-sand bg-white p-6 flex flex-col nl-reveal">
+            <div className="font-display font-bold text-lg">پایه</div>
+            <div className="mt-3 flex items-baseline gap-1.5">
+              <span className="font-display font-extrabold text-3xl tnum">{PLAN_PRICING.base.monthly.toLocaleString('en-US')}</span>
+              <span className="text-xs text-soot">تومان / ماه</span>
             </div>
-            <p className="mt-1 text-xs text-soot tnum">+ {PLATFORM_COMMISSION_PERCENT}% از هر پرداخت آنلاین موفق، سهم {PLATFORM_NAME}</p>
-            <ul className="mt-5 space-y-2.5 text-sm text-soot leading-relaxed flex-1">
+            <p className="mt-1 text-[11px] text-soot tnum">+ کارمزد {PLAN_PRICING.base.feePct}% هر تراکنش آنلاین (سقف {PLAN_PRICING.base.feeCap.toLocaleString('en-US')} ت)</p>
+            <ul className="mt-5 space-y-2.5 text-[13px] text-soot leading-relaxed flex-1">
               <li>✓ صفحه‌ی رزرو اختصاصی با نشانی برندشده</li>
               <li>✓ رزرو و مدیریت نوبت‌ها بدون محدودیت</li>
               <li>✓ پرداخت آنلاین از درگاه دارای مجوز (زیبال)</li>
-              <li>✓ یادآوری پیامکی خودکار برای مراجعان</li>
+              <li>✓ فرم‌ساز رزرو با سوال‌های دلخواه</li>
+              <li>✓ کنسل نوبت توسط خود مشتری</li>
               <li>✓ پنل مدیریت، پرونده‌ها و گزارش مالی</li>
+              <li className="tnum">✓ {PLAN_PRICING.base.sms} پیامک در ماه</li>
+              <li>✓ تسویه‌ی {PLAN_PRICING.base.settlement}</li>
             </ul>
-            <a href="/signup" className="mt-6 text-center font-display font-bold text-white bg-ink px-6 py-3 rounded-xl hover:opacity-90 transition">شروع رایگان</a>
+            <a href="/signup" className="mt-6 text-center font-display font-bold text-ink border border-ink px-6 py-3 rounded-xl hover:bg-ink hover:text-white transition">شروع رایگان</a>
           </div>
-          <div className="rounded-2xl border border-sand bg-white p-7 flex flex-col opacity-80 nl-reveal" style={{ transitionDelay: '90ms' }}>
-            <div className="flex items-center gap-2">
-              <div className="font-display font-bold text-lg">پلن حرفه‌ای</div>
-              <span className="text-[11px] font-semibold text-soot bg-sand px-2 py-0.5 rounded-full">به‌زودی</span>
+
+          {/* حرفه‌ای — پیشنهاد ما */}
+          <div className="rounded-2xl border-2 border-ink bg-white p-6 flex flex-col relative nl-reveal" style={{ transitionDelay: '90ms' }}>
+            <span className="absolute -top-3 right-6 text-[11px] font-bold text-white bg-ink px-3 py-1 rounded-full">پیشنهاد ما</span>
+            <div className="font-display font-bold text-lg">حرفه‌ای</div>
+            <div className="mt-3 flex items-baseline gap-1.5">
+              <span className="font-display font-extrabold text-3xl tnum">{PLAN_PRICING.pro.monthly.toLocaleString('en-US')}</span>
+              <span className="text-xs text-soot">تومان / ماه</span>
             </div>
-            <p className="mt-2 text-sm text-soot leading-relaxed">امکانات پیشرفته‌تر برای مجموعه‌های بزرگ‌تر؛ تعرفه‌ی آن پیش از عرضه در همین صفحه اعلام خواهد شد.</p>
-            <ul className="mt-5 space-y-2.5 text-sm text-soot leading-relaxed flex-1">
-              <li>· همه‌ی امکانات پلن رایگان</li>
-              <li>· ابزارهای رشد و کمپین پیامکی</li>
-              <li>· آمار و تحلیل پیشرفته‌ی کسب‌وکار</li>
+            <p className="mt-1 text-[11px] text-soot tnum">+ کارمزد {PLAN_PRICING.pro.feePct}% هر تراکنش آنلاین (سقف {PLAN_PRICING.pro.feeCap.toLocaleString('en-US')} ت)</p>
+            <ul className="mt-5 space-y-2.5 text-[13px] text-soot leading-relaxed flex-1">
+              <li className="text-ink font-medium">✓ همه‌ی امکانات «پایه»</li>
+              <li>✓ یادآوری پیامکی خودکار نوبت‌ها</li>
+              <li>✓ لیست انتظار هوشمند</li>
+              <li>✓ نظرات و امتیاز مشتریان</li>
+              <li>✓ آمار و تحلیل کسب‌وکار</li>
+              <li>✓ کدهای تخفیف</li>
+              <li>✓ جلسه‌ی آنلاین (Meet/واتساپ/…)</li>
+              <li className="tnum">✓ {PLAN_PRICING.pro.sms} پیامک در ماه</li>
+              <li>✓ تسویه‌ی {PLAN_PRICING.pro.settlement}</li>
             </ul>
+            <a href="/signup" className="mt-6 text-center font-display font-bold text-white bg-ink px-6 py-3 rounded-xl hover:opacity-90 transition">شروع با 14 روز رایگان</a>
+          </div>
+
+          {/* تیم */}
+          <div className="rounded-2xl border border-sand bg-white p-6 flex flex-col nl-reveal" style={{ transitionDelay: '180ms' }}>
+            <div className="font-display font-bold text-lg">تیم</div>
+            <div className="mt-3 flex items-baseline gap-1.5">
+              <span className="font-display font-extrabold text-3xl tnum">{PLAN_PRICING.team.monthly.toLocaleString('en-US')}</span>
+              <span className="text-xs text-soot">تومان / ماه</span>
+            </div>
+            <p className="mt-1 text-[11px] text-soot tnum">+ کارمزد {PLAN_PRICING.team.feePct}% هر تراکنش آنلاین (سقف {PLAN_PRICING.team.feeCap.toLocaleString('en-US')} ت)</p>
+            <ul className="mt-5 space-y-2.5 text-[13px] text-soot leading-relaxed flex-1">
+              <li className="text-ink font-medium">✓ همه‌ی امکانات «حرفه‌ای»</li>
+              <li className="tnum">✓ چندپرسنلی — تا {PLAN_PRICING.team.includedStaff} نفر (هر نفر اضافه {PLAN_PRICING.team.extraStaff.toLocaleString('en-US')} ت)</li>
+              <li>✓ ورود مستقل هر پرسنل به پنل خودش</li>
+              <li>✓ پیام گروهی به مشتریان (کمپین)</li>
+              <li className="tnum">✓ {PLAN_PRICING.team.sms} پیامک در ماه</li>
+              <li>✓ تسویه‌ی {PLAN_PRICING.team.settlement}</li>
+            </ul>
+            <a href={`mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent('فعال‌سازی پلن تیم')}`} className="mt-6 text-center font-display font-bold text-ink border border-ink px-6 py-3 rounded-xl hover:bg-ink hover:text-white transition">هماهنگی با پشتیبانی</a>
           </div>
         </div>
-        <div className="max-w-3xl mx-auto mt-5 text-[13px] text-soot leading-relaxed bg-white border border-sand rounded-2xl p-5 nl-reveal">
+
+        <p className="text-center text-[12px] text-soot mt-5 nl-reveal tnum">
+          پرداخت سالانه = {PLAN_PRICING.annualFreeMonths} ماه رایگان · قیمت‌ها بدون احتساب {PLAN_PRICING.vatPercent}% مالیات بر ارزش افزوده · پیامک بیشتر با بسته‌ی شارژ
+        </p>
+
+        <div className="max-w-3xl mx-auto mt-6 text-[13px] text-soot leading-relaxed bg-white border border-sand rounded-2xl p-5 nl-reveal">
           <p>
             <strong className="text-ink">بهای خدمات هر متخصص چگونه تعیین می‌شود؟</strong> بهای هر خدمت (برای نمونه، جلسه‌ی مشاوره) را خود متخصص تعیین می‌کند و
-            پیش از پرداخت، به‌صورت شفاف روی صفحه‌ی رزرو او نمایش داده می‌شود. پرداخت آنلاین از طریق درگاه دارای مجوز زیبال انجام می‌شود؛ سهم {PLATFORM_NAME} <span className="tnum">{PLATFORM_COMMISSION_PERCENT}%</span> از مبلغ هر پرداخت آنلاین موفق است که هنگام تسویه کسر می‌شود؛ مابقی به‌صورت دوره‌ای با متخصص تسویه و به حساب او واریز می‌گردد. مراجع همان قیمت اعلام‌شده را می‌پردازد و هیچ مبلغ اضافه‌ای از او دریافت نمی‌شود.
+            پیش از پرداخت، به‌صورت شفاف روی صفحه‌ی رزرو او نمایش داده می‌شود. پرداخت آنلاین از طریق درگاه دارای مجوز زیبال انجام می‌شود؛ کارمزد {PLATFORM_NAME} طبق پلن انتخابی متخصص (<span className="tnum">{PLAN_PRICING.team.feePct}% تا {PLAN_PRICING.base.feePct}%</span>، با سقف مشخص) هنگام تسویه از سهم او کسر می‌شود؛ مابقی به‌صورت دوره‌ای با متخصص تسویه و به حساب او واریز می‌گردد. مراجع همان قیمت اعلام‌شده را می‌پردازد و هیچ مبلغ اضافه‌ای از او دریافت نمی‌شود.
             {DEMO_SLUG && <> برای مشاهده‌ی فرایند کامل رزرو و پرداخت، <a href={`/${DEMO_SLUG}`} target="_blank" className="text-ink underline underline-offset-4">صفحه‌ی نمونه</a> را ببینید.</>}
           </p>
         </div>
