@@ -783,14 +783,14 @@ export default function Landing() {
           <div className="animate-nl-up">
             <div className="inline-flex items-center gap-2 text-xs text-trust-deep bg-trust-wash rounded-full px-3 py-1.5 mb-6">
               <span className="w-1.5 h-1.5 rounded-full bg-trust" style={{ animation: 'nlPulse 2s infinite' }} />
-              پلتفرم نوبت‌دهی آنلاین برای متخصصان
+              پلتفرم مدیریت کسب‌وکار و نوبت‌دهی آنلاین
             </div>
             <h1 className="font-display font-extrabold text-4xl sm:text-5xl leading-[1.12] tracking-tightest">
               تقویم‌تان را از<br />دایرکت بیرون بیاورید
             </h1>
             <p className="mt-5 text-base sm:text-lg text-soot leading-relaxed max-w-md">
-              یک صفحه‌ی رزرو با رنگ و نشانی خودتان: مراجع زمان خالی را می‌بیند، رزرو و آنلاین پرداخت می‌کند،
-              یادآورش خودکار می‌رود. شما فقط سر جلسه حاضر می‌شوید.
+              نوبت‌لینک کل کسب‌وکارتان را یک‌جا اداره می‌کند: رزرو آنلاین با صفحه‌ی اختصاصی خودتان،
+              پرداخت و تسویه‌ی خودکار، پرونده‌ی مشتریان، گزارش مالی و یادآوری پیامکی.
             </p>
             <div className="mt-8 flex items-center gap-4 flex-wrap">
               <a href="/signup" className="font-display font-bold text-white bg-ink px-7 py-3.5 rounded-xl shadow-sm hover:-translate-y-0.5 hover:shadow-lg transition">شروع رایگان</a>
