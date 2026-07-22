@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { sb } from '@/lib/supabase'
-import { sendReminderSms, reminderSmsConfigured } from '@/lib/sms'
+import { sendReminderSms, reminderSmsConfigured, sendFreeTextSms, freeTextSmsConfigured } from '@/lib/sms'
+import { getApprovedReminderTemplates, renderTemplate } from '@/lib/smsTemplates'
 import { getSmsAllowance, allocateCharge, logSmsSent, SmsAllowance, SmsCharge } from '@/lib/smsQuota'
 import { gregorianToJalali, jalaliKey, PERSIAN_MONTHS } from '@/lib/calendar'
 
@@ -46,8 +47,11 @@ export async function GET(req: NextRequest) {
   const secret = process.env.CRON_SECRET
   if (!secret || req.headers.get('authorization') !== `Bearer ${secret}`)
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  if (!reminderSmsConfigured())
-    return NextResponse.json({ skipped: true, reason: 'SMS_IR_REMINDER_TEMPLATE_ID تنظیم نشده' })
+  // دو مسیر ارسال داریم و هرکدام env خودش را دارد؛ اگر هیچ‌کدام تنظیم نباشد
+  // اصلا کاری نیست. (الگوی ثابت = SMS_IR_REMINDER_TEMPLATE_ID، متن سفارشی =
+  // SMS_IR_LINE_NUMBER.)
+  if (!reminderSmsConfigured() && !freeTextSmsConfigured())
+    return NextResponse.json({ skipped: true, reason: 'هیچ مسیر ارسال یادآوری تنظیم نشده' })
 
   const { padded, unpadded, display } = tomorrowJalali()
   const dates = padded === unpadded ? [padded] : [padded, unpadded]
@@ -77,6 +81,24 @@ export async function GET(req: NextRequest) {
     chargesByTenant.set(tid, list)
   }
 
+  // متن سفارشی تاییدشده‌ی هر tenant (migration 0052) — یک کوئری برای همه.
+  // خالی‌بودن نقشه یعنی هیچ‌کس متن تاییدشده ندارد و همه روی الگوی ثابت می‌مانند.
+  const customBodies = await getApprovedReminderTemplates()
+  const canSendCustom = freeTextSmsConfigured()
+
+  // انتخاب مسیر ارسال برای یک یادآوری:
+  //   متن تاییدشده + خط اختصاصی تنظیم‌شده → send/bulk با متن خود tenant
+  //   وگرنه                              → همان الگوی ثابت قبلی (رفتار قدیمی)
+  // اگر tenantی متن تاییدشده دارد ولی خط تنظیم نیست، سکوت نمی‌کنیم و به الگوی
+  // ثابت برمی‌گردیم — یادآوری نرفتن بدتر از یادآوری با متن پیش‌فرض است.
+  const deliverReminder = async (tid: string, phone: string, time: string) => {
+    const body = customBodies.get(tid)
+    if (body && canSendCustom)
+      return sendFreeTextSms(phone, renderTemplate(body, { name: nameOf(tid), date: display, time }))
+    if (!reminderSmsConfigured()) return { ok: false as const, error: 'الگوی ثابت تنظیم نشده' }
+    return sendReminderSms(phone, nameOf(tid), display, time)
+  }
+
   // ۱) جلسات درمان روانشناسی
   const { data: sessions } = await db.from('psy_sessions')
     .select('id, tenant_id, case_number, session_time')
@@ -88,7 +110,7 @@ export async function GET(req: NextRequest) {
     if (!c?.contact_phone) continue
     const al = await canSend(s.tenant_id)
     if (!al) continue
-    const r = await sendReminderSms(c.contact_phone, nameOf(s.tenant_id), display, s.session_time)
+    const r = await deliverReminder(s.tenant_id, c.contact_phone, s.session_time)
     if (r.ok) { sent++; noteSent(s.tenant_id, al); await db.from('psy_sessions').update({ reminder_sent: true }).eq('id', s.id) }
     else failed++
   }
@@ -104,7 +126,7 @@ export async function GET(req: NextRequest) {
     if (!c?.contact_phone) continue
     const al = await canSend(s.tenant_id)
     if (!al) continue
-    const r = await sendReminderSms(c.contact_phone, nameOf(s.tenant_id), display, s.session_time)
+    const r = await deliverReminder(s.tenant_id, c.contact_phone, s.session_time)
     if (r.ok) { sent++; noteSent(s.tenant_id, al); await db.from('psy_stages').update({ reminder_sent: true }).eq('id', s.id) }
     else failed++
   }
@@ -118,7 +140,7 @@ export async function GET(req: NextRequest) {
     if (!b.client_phone) continue
     const al = await canSend(b.tenant_id)
     if (!al) continue
-    const r = await sendReminderSms(b.client_phone, nameOf(b.tenant_id), display, b.booking_time)
+    const r = await deliverReminder(b.tenant_id, b.client_phone, b.booking_time)
     if (r.ok) { sent++; noteSent(b.tenant_id, al); await db.from('bookings').update({ reminder_sent: true }).eq('id', b.id) }
     else failed++
   }

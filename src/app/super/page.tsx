@@ -191,6 +191,9 @@ function SuperInner() {
           <a href="/super/tickets" className="text-xs border border-sand rounded-xl px-3 py-1.5 text-ink">
             تیکت‌ها
           </a>
+          <a href="/super/sms" className="text-xs border border-sand rounded-xl px-3 py-1.5 text-ink">
+            متن پیامک‌ها
+          </a>
           <a href="/super/niches" className="text-xs border border-sand rounded-xl px-3 py-1.5 text-ink">
             مدیریت نیچ‌ها
           </a>

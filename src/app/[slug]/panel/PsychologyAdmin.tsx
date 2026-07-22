@@ -22,6 +22,7 @@ import StaffTab, { type ResourceRow } from './modules/staff/StaffTab'
 import BookingsTab from './modules/bookings/BookingsTab'
 import PatientsTab from './modules/patients/PatientsTab'
 import GrowthTab, { type WaitlistEntry } from './modules/growth/GrowthTab'
+import CapabilitiesTab from './modules/capabilities/CapabilitiesTab'
 import { MEET_METHODS, MEET_META, MeetChannel, isMeetMethod, meetHref, usableMeetChannels } from '@/lib/meet'
 import ThemeModePicker from '@/components/ThemeModePicker'
 import { DEFAULT_SAFE_THEME } from '@/lib/theme'
@@ -346,7 +347,7 @@ export function PsychologyAdmin() {
  // «تنظیمات» دیگر صفحه‌ی دوم سایدبار نیست — یک تب معمولی مثل بقیه است که
  // زیرمجموعه‌هایش (صفحه‌ی عمومی + پنل مراجع) همین‌جا زیرش باز می‌شوند.
  // تیم/حساب/پشتیبانی هم از تنظیمات جدا شدند و تب مستقل خودشان را دارند.
- type MainTab = 'dashboard' | 'patients' | 'bookings' | 'schedule' | 'settings' | 'finance' | 'growth' | 'staff' | 'account' | 'tickets'
+ type MainTab = 'dashboard' | 'patients' | 'bookings' | 'schedule' | 'settings' | 'finance' | 'growth' | 'staff' | 'account' | 'capabilities' | 'tickets'
  type SettingsSub = 'profile' | 'payments' | 'pricing' | 'terms' | 'appearance' | 'form' | 'patient_panel'
 
  const [mainTab, setMainTab] = useState<MainTab>('dashboard')
@@ -1550,6 +1551,7 @@ export function PsychologyAdmin() {
   ...(me?.isOwner && me?.multiTherapist ? [{ key: 'staff' as const, icon: '🩺', label: 'درمانگرها', badge: 0 }] : []),
   { key: 'account' as const, icon: '🪪', label: 'حساب من', badge: 0 },
   { key: 'tickets' as const, icon: '🎫', label: 'پشتیبانی', badge: 0 },
+  { key: 'capabilities' as const, icon: '🧩', label: 'قابلیت‌ها', badge: 0 },
  ]
 
  function NavItemButton({ item, onNavigate }: { item: { key: MainTab; icon: string; label: string; badge: number }; onNavigate?: () => void }) {
@@ -2022,6 +2024,11 @@ export function PsychologyAdmin() {
      <GrowthTab api={api} growthTabs={growthTabs} modules={me?.modules}
       waitlist={waitlist} reloadWaitlist={loadWaitlist} />
     )}
+
+    {/* ════════════════════════════════════════════════════════════════
+      TAB: CAPABILITIES (قابلیت‌ها — فعلا فقط بخش پیامک)
+    ════════════════════════════════════════════════════════════════ */}
+    {mainTab === 'capabilities' && <CapabilitiesTab slug={slug} />}
 
     {/* ════════════════════════════════════════════════════════════════
       TAB: SETTINGS
