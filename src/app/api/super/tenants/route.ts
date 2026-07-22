@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { sb } from '@/lib/supabase'
 import { isSuperAuthed, normalizePhone } from '@/lib/auth'
-import { RESERVED_SLUGS, SLUG_PATTERN } from '@/lib/config'
+import { RESERVED_SLUGS, SLUG_PATTERN, SLUG_RULE_TEXT } from '@/lib/config'
 import { getNiche, isPsychologyNiche } from '@/lib/niche'
 import { MULTI_THERAPIST_FEATURE_KEY } from '@/lib/psy'
 
@@ -70,7 +70,7 @@ export async function POST(req: NextRequest) {
   const b = await req.json()
 
   const slug = String(b.slug || '').trim().toLowerCase()
-  if (!SLUG_PATTERN.test(slug)) return NextResponse.json({ error: 'slug نامعتبر (لاتین کوچک، عدد، خط تیره)' }, { status: 400 })
+  if (!SLUG_PATTERN.test(slug)) return NextResponse.json({ error: `نشانی معتبر نیست — ${SLUG_RULE_TEXT}` }, { status: 400 })
   if (RESERVED_SLUGS.includes(slug)) return NextResponse.json({ error: 'این slug رزرو سیستم است' }, { status: 400 })
   const phone = normalizePhone(b.owner_phone)
   if (!/^09\d{9}$/.test(phone)) return NextResponse.json({ error: 'شماره‌ی موبایل معتبر نیست' }, { status: 400 })

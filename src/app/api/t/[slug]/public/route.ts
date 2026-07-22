@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { sb } from '@/lib/supabase'
 import { requireTenant, isTenantResponse } from '@/lib/tenant'
 import { getNiche } from '@/lib/niche'
+import { isMultiTherapistEnabled } from '@/lib/psy'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -9,13 +10,16 @@ export const revalidate = 0
 export async function GET(_req: NextRequest, { params }: { params: { slug: string } }) {
   const t = await requireTenant(params.slug)
   if (isTenantResponse(t)) return t
-  const [{ data: profile }, { data: services }, { data: resources }, niche] = await Promise.all([
+  const [{ data: profile }, { data: services }, { data: resources }, niche, multiTherapist] = await Promise.all([
     sb().from('tenant_profiles').select('*').eq('tenant_id', t.id).single(),
     sb().from('services').select('id, name, duration_minutes, price, mode, description')
       .eq('tenant_id', t.id).eq('is_active', true).order('sort_order').order('created_at'),
     sb().from('resources').select('id, name, title, avatar_url, is_selectable')
       .eq('tenant_id', t.id).eq('is_active', true).order('sort_order').order('created_at'),
     getNiche(t.niche_key),
+    // صفحه‌ی ورود پنل قبل از احراز هویت است و whoami در دسترسش نیست، ولی باید
+    // بداند این مجموعه اصلا «ورود درمانگر» دارد یا نه تا سوییچ بی‌معنی نسازد.
+    isMultiTherapistEnabled(t.id),
   ])
   // برچسب‌ها از نیچ می‌آیند تا صفحه‌ی عمومی زبان درست همان کسب‌وکار را بگوید
   const labels = niche
@@ -27,5 +31,6 @@ export async function GET(_req: NextRequest, { params }: { params: { slug: strin
     profile, services: services || [],
     resources: selectableResources,
     labels, niche_key: t.niche_key,
+    multi_therapist: multiTherapist,
   })
 }

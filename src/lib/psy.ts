@@ -521,6 +521,15 @@ export const PATIENT_FEATURE_KEYS = ['patient_buy_extra_session', 'patient_self_
 // پیش‌فرض دارند؛ این فلگ فقط UI مدیریت پرسنل را نشان/مخفی می‌کند.
 export const MULTI_THERAPIST_FEATURE_KEY = 'multi_therapist'
 
+// همان الگوی isCardToCardAllowed: فلگ در لحظه‌ی مصرف خوانده می‌شود، نه از روی
+// مقدار کش‌شده. لازم است چون ورود کارمند (staff-login) باید سمت سرور هم بسته
+// باشد وقتی مجموعه تک‌درمانگر است — مخفی‌کردن دکمه در UI به‌تنهایی دفاع نیست.
+export async function isMultiTherapistEnabled(tenantId: string): Promise<boolean> {
+  const { data } = await sb().from('tenant_features').select('enabled')
+    .eq('tenant_id', tenantId).eq('feature_key', MULTI_THERAPIST_FEATURE_KEY).maybeSingle()
+  return !!data?.enabled
+}
+
 export const onlineAvailable = (m: SessionMode) => m === 'both' || m === 'online'
 export const offlineAvailable = (m: SessionMode) => m === 'both' || m === 'offline'
 

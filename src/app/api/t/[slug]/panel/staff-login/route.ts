@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { sb } from '@/lib/supabase'
 import { getActiveTenant } from '@/lib/tenant'
 import { issueOtp, verifyOtp, normalizePhone, createStaffSession, requestIp, otpEchoEnabled, OTP_THROTTLED_MSG } from '@/lib/auth'
+import { isMultiTherapistEnabled } from '@/lib/psy'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -16,6 +17,13 @@ export const revalidate = 0
 export async function POST(req: NextRequest, { params }: { params: { slug: string } }) {
   const t = await getActiveTenant(params.slug)
   if (!t) return NextResponse.json({ error: 'یافت نشد' }, { status: 404 })
+
+  // مجموعه‌ی تک‌درمانگر اصلا «کارمند» ندارد؛ تنها راه ورودش حساب صاحب مجموعه
+  // است. بدون این گارد، اگر شماره‌ی منبع پیش‌فرض (خود صاحب مجموعه) پر بود،
+  // می‌شد با همان شماره یک نشست staff گرفت — نشستی با دسترسی متفاوت که هرگز
+  // قرار نبوده صادر شود. دکمه‌ی UI هم مخفی است، ولی گارد واقعی همین‌جاست.
+  if (!(await isMultiTherapistEnabled(t.id)))
+    return NextResponse.json({ error: 'این مجموعه ورود جداگانه‌ی درمانگر ندارد' }, { status: 404 })
 
   const body = await req.json().catch(() => ({}))
   const phone = normalizePhone(body.phone || '')

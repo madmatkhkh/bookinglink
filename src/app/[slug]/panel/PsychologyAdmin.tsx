@@ -3396,6 +3396,18 @@ function DiscountCodesSection({ slug, isOwner, viewingResourceId }: { slug: stri
 // ─── ورود دکتر با OTP (جایگزین ADMIN_SECRET؛ کد پیامکی به موبایل صاحب پنل) ───
 function PanelLogin({ slug, onSuccess }: { slug: string; onSuccess: () => void }) {
  const [mode, setMode] = useState<'owner' | 'staff'>('owner')
+ // اکثر مجموعه‌ها تک‌درمانگرند و اصلا «ورود درمانگر» ندارند؛ پیش‌فرض مخفی است و
+ // فقط اگر حالت کلینیک روشن باشد سوییچ ظاهر می‌شود. تا وقتی پاسخ نیامده هم
+ // چیزی نشان نمی‌دهیم — پرش (flash) دکمه‌ای که بعدا محو شود بدتر از نبودنش است.
+ const [multiTherapist, setMultiTherapist] = useState(false)
+ useEffect(() => {
+  let alive = true
+  fetch(`/api/t/${slug}/public`)
+   .then(r => r.ok ? r.json() : null)
+   .then(d => { if (alive && d) setMultiTherapist(!!d.multi_therapist) })
+   .catch(() => {})
+  return () => { alive = false }
+ }, [slug])
  const [phone, setPhone] = useState('')
  const [otpSent, setOtpSent] = useState(false)
  const [devCode, setDevCode] = useState('')
@@ -3446,17 +3458,19 @@ function PanelLogin({ slug, onSuccess }: { slug: string; onSuccess: () => void }
      </p>
     </div>
 
-    {/* سوییچ صاحب مجموعه / کارمند */}
-    <div className="grid grid-cols-2 gap-2 mb-5 p-1 bg-gray-100 rounded-xl">
-     <button onClick={() => switchMode('owner')}
-      className={`py-2 rounded-lg text-xs font-medium transition-colors ${mode === 'owner' ? 'bg-white shadow-sm text-ink' : 'text-soot'}`}>
-      صاحب مجموعه‌ام
-     </button>
-     <button onClick={() => switchMode('staff')}
-      className={`py-2 rounded-lg text-xs font-medium transition-colors ${mode === 'staff' ? 'bg-white shadow-sm text-ink' : 'text-soot'}`}>
-      درمانگرم
-     </button>
-    </div>
+    {/* سوییچ صاحب مجموعه / درمانگر — فقط در حالت کلینیک معنا دارد */}
+    {multiTherapist && (
+     <div className="grid grid-cols-2 gap-2 mb-5 p-1 bg-gray-100 rounded-xl">
+      <button onClick={() => switchMode('owner')}
+       className={`py-2 rounded-lg text-xs font-medium transition-colors ${mode === 'owner' ? 'bg-white shadow-sm text-ink' : 'text-soot'}`}>
+       صاحب مجموعه‌ام
+      </button>
+      <button onClick={() => switchMode('staff')}
+       className={`py-2 rounded-lg text-xs font-medium transition-colors ${mode === 'staff' ? 'bg-white shadow-sm text-ink' : 'text-soot'}`}>
+       درمانگرم
+      </button>
+     </div>
+    )}
 
     {err && <div className="text-xs text-red-600 bg-red-500/10 border border-red-500/20 rounded-lg p-2.5 mb-3 text-center">{err}</div>}
 

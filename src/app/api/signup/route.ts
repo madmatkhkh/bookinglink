@@ -68,7 +68,11 @@ export async function POST(req: NextRequest) {
     .select().single()
   if (error) {
     if (error.code === '23505') return NextResponse.json({ error: 'این نشانی هم‌زمان توسط شخص دیگری گرفته شد — یکی دیگر امتحان کن' }, { status: 409 })
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    // این نقطه بعد از تایید OTP است — کاربر هویتش را ثابت کرده و اینجا شکست
+    // خورده. متن خام Postgres (انگلیسی، با نام constraint) نه برایش معنا دارد و
+    // نه باید ساختار دیتابیس را لو بدهد؛ اصلش فقط در لاگ سرور می‌ماند.
+    console.error('signup tenant insert error:', error)
+    return NextResponse.json({ error: 'ساخت مجموعه ناموفق بود — چند لحظه بعد دوباره تلاش کن یا به پشتیبانی پیام بده' }, { status: 500 })
   }
 
   await sb().from('tenant_profiles').insert({
