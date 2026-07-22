@@ -9,7 +9,7 @@
 //   تغییر زمان/وضعیت جلسه تا برنامه و داشبورد تازه بمانند).
 // گیت ماژول یادداشت بالینی با mod('clinical_notes') از props می‌آید.
 import React, { useState } from 'react'
-import { toFarsiNum, getCurrentJalali, PERSIAN_MONTHS } from '@/lib/calendar'
+import { toFarsiNum, getCurrentJalali, PERSIAN_MONTHS, jalaliDateTimeToTimestamp } from '@/lib/calendar'
 import { uiAlert, uiConfirm, uiPrompt } from '@/components/ui/Dialog'
 import { Glyph } from '@/components/Glyph'
 import { PRICING } from '@/lib/config'
@@ -47,11 +47,15 @@ function stageLabel(s?: CaseStage | null): string {
 
 const STATUS_LABEL: Record<string, string> = {
  pending: 'در انتظار',
- confirmed: 'تایید شده',
+ // «تایید شده» برای جلسه‌ای که هنوز نرسیده گمراه‌کننده بود — چیزی که تایید شده
+ // پرداخت و نوبت است، نه برگزاری. جلسه‌ی گذشته‌ی هنوز-ثبت‌نشده هم برچسب جداگانه
+ // می‌گیرد (pastLabel پایین‌تر) تا با جلسه‌ی آینده یک شکل دیده نشود.
+ confirmed: 'رزرو شد',
  cancelled: 'کنسل شده',
  forfeited: 'سوخت شده',
  replaced: 'جایگزین شد',
- completed: 'برگزار شده',
+ completed: '✅ برگزار شد',
+ no_show: 'حاضر نشد',
  active: 'فعال',
 }
 const STATUS_COLOR: Record<string, string> = {
@@ -61,8 +65,11 @@ const STATUS_COLOR: Record<string, string> = {
  forfeited: 'bg-red-500/10 text-red-600 border border-red-500/20',
  replaced: 'bg-gray-100 text-soot border border-sand',
  completed: 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20',
+ no_show: 'bg-red-500/10 text-red-600 border border-red-500/20',
  active: 'bg-sky-500/10 text-sky-600 border border-sky-500/20',
 }
+// جلسه‌ی گذشته‌ای که هنوز وضعیت برگزاری نگرفته — کار ناتمام، نه وضعیت خوب.
+const PENDING_OUTCOME_CLS = 'bg-amber-500/10 text-amber-700 border border-amber-500/20'
 
 // کارت جلسه‌ی مصاحبه/ارزیابی در پرونده — یادداشت + تأیید برگزاری
 function StageSessionCard({ stage, index, caseSessionType, onSave, onClinical, noteCount = 0 }: {
@@ -520,6 +527,17 @@ export default function PatientsTab({
  }
 
  // تأیید پرداخت جلسه‌ی جایگزین
+ // ثبت سریع نتیجه‌ی جلسه از روی خود کارت، بدون بازکردن مودال ویرایش.
+ // متخصص بعد از هر جلسه باید یک تصمیم بگیرد؛ سه کلیک برای آن زیادی است.
+ async function setSessionOutcome(id: string, status: 'completed' | 'no_show') {
+  await fetch(api('/sessions'), {
+   method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+   body: JSON.stringify({ id, status }),
+  })
+  if (selectedPatient) await loadPatientData(selectedPatient.case_number)
+  onAppointmentsChanged()
+ }
+
  async function saveSession() {
   if (!editSession) return
   await fetch(api('/sessions'), {
@@ -652,6 +670,11 @@ export default function PatientsTab({
   return sorted.map((s) => {
    const active = s.status !== 'forfeited' && s.status !== 'replaced' && s.status !== 'cancelled'
    const num = active ? ++n : null
+   // جلسه‌ای که وقتش گذشته ولی هنوز 'confirmed' مانده، یعنی متخصص نتیجه‌اش را
+   // ثبت نکرده. تا امروز همان برچسب سبز جلسه‌ی آینده را می‌گرفت و در فهرست گم
+   // می‌شد؛ حالا جدا دیده می‌شود و دو دکمه‌ی ثبت نتیجه می‌گیرد.
+   const ts = s.session_date && s.session_time ? jalaliDateTimeToTimestamp(s.session_date, s.session_time) : null
+   const awaitingOutcome = s.status === 'confirmed' && !!ts && ts < Date.now()
    return (
     <div key={s.id} onClick={() => { setEditSession(s); setSessForm({ session_goals: s.session_goals || '', session_summary: s.session_summary || '', doctor_notes_private: s.doctor_notes_private || '', doctor_note_for_patient: s.doctor_note_for_patient || '', status: s.status || 'confirmed' }) }}
      className="bg-white rounded-xl border border-sand p-3 cursor-pointer hover:border-sand transition-all">
@@ -671,8 +694,10 @@ export default function PatientsTab({
         </div>
        </div>
       </div>
-      <span className={`text-xs px-2 py-0.5 rounded-full ${STATUS_COLOR[s.status] || 'bg-gray-100 text-soot'}`}>
-       {s.cancelled_by === 'client' ? 'کنسل توسط مراجع' : STATUS_LABEL[s.status] || s.status}
+      <span className={`text-xs px-2 py-0.5 rounded-full ${awaitingOutcome ? PENDING_OUTCOME_CLS : STATUS_COLOR[s.status] || 'bg-gray-100 text-soot'}`}>
+       {s.cancelled_by === 'client' ? 'کنسل توسط مراجع'
+        : awaitingOutcome ? 'برگزار نشده'
+        : STATUS_LABEL[s.status] || s.status}
       </span>
      </div>
      {s.session_summary && (
@@ -696,6 +721,18 @@ export default function PatientsTab({
      )}
      {s.refund_status === 'done' && (
       <div className="mt-2 text-xs text-ink" onClick={e => e.stopPropagation()}>بازپرداخت واریز شد{s.refund_ref ? ` — ${s.refund_ref}` : ''}</div>
+     )}
+     {awaitingOutcome && (
+      <div className="mt-2 flex gap-2" onClick={e => e.stopPropagation()}>
+       <button onClick={() => setSessionOutcome(s.id, 'completed')}
+        className="flex-1 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs transition-colors">
+        ✅ برگزار شد
+       </button>
+       <button onClick={() => setSessionOutcome(s.id, 'no_show')}
+        className="flex-1 py-1.5 border border-sand text-soot rounded-lg text-xs hover:bg-sand transition-colors">
+        حاضر نشد
+       </button>
+      </div>
      )}
      <button onClick={e => { e.stopPropagation(); openClinical('session', s.id, s.title || `جلسه ${num ? toFarsiNum(num) : ''}`.trim()) }}
       className="w-full mt-2 py-1.5 border border-sand text-ink rounded-lg text-xs hover:bg-sand transition-all">
@@ -1687,8 +1724,9 @@ export default function PatientsTab({
         <label className="text-xs text-soot mb-1 block">وضعیت جلسه</label>
         <select value={sessForm.status} onChange={e => setSessForm({...sessForm, status: e.target.value})}
          className="w-full text-sm px-3 py-2 border border-sand rounded-lg bg-white">
-         <option value="confirmed">تایید شده</option>
-         <option value="completed">برگزار شده</option>
+         <option value="confirmed">رزرو شد</option>
+         <option value="completed">برگزار شد</option>
+         <option value="no_show">حاضر نشد</option>
          <option value="cancelled">کنسل شده</option>
         </select>
        </div>
