@@ -32,7 +32,7 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
 
   if (q.get('all')) {
     let query = sb().from('psy_stages')
-      .select('id, case_number, stage_type, title, is_first, held, session_date, session_time, status, session_type, meet_channel, delay_minutes')
+      .select('id, case_number, stage_type, title, is_first, held, no_show, session_date, session_time, status, session_type, meet_channel, delay_minutes')
       .eq('tenant_id', a.tenant.id).neq('session_date', '').order('session_date', { ascending: true })
     if (!a.isOwner) query = query.eq('resource_id', a.resourceId)
     const { data } = await query
@@ -140,7 +140,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { slug: stri
     patch.payment_reject_reason = body.reject_reason ? String(body.reject_reason).trim() : (stage.payment_reject_reason || null)
   }
   if (body.clear_booking || body.doctor_cancel) { patch.session_date = ''; patch.session_time = ''; patch.status = STAGE_STATUS.AWAITING_BOOKING; patch.delay_minutes = null }
-  if (body.mark_held) patch.held = true
+  // «حاضر نشد» هم مرحله را برگزارشده حساب می‌کند (پرونده باید آزاد شود) ولی
+  // واقعیت حضور را جدا ثبت می‌کند. هر دو مسیر از همان منطق mark_held می‌گذرند.
+  if (body.mark_held || body.mark_no_show) patch.held = true
+  if (body.mark_no_show) patch.no_show = true
 
   if (Object.keys(patch).length === 0) return NextResponse.json({ error: 'چیزی برای بروزرسانی نیست' }, { status: 400 })
 
@@ -183,7 +186,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { slug: stri
   }
 
   // وقتی مرحله برگزار شد (held)، پرونده آزاد می‌شود تا دکتر مرحله‌ی بعد را مشخص کند
-  if (body.mark_held) {
+  if (body.mark_held || body.mark_no_show) {
     await sb().from('psy_cases').update({ current_stage_id: null }).eq('tenant_id', a.tenant.id).eq('case_number', stage.case_number).eq('current_stage_id', id)
   }
 

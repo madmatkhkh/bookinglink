@@ -128,6 +128,9 @@ export type CaseStage = {
  session_date?: string
  session_time?: string
  held?: boolean
+ // «حاضر نشد» (migration 0054): کنار held می‌نشیند، جایگزینش نیست — جلسه‌ی
+ // حضورنیافته هم مصرف‌شده حساب می‌شود و پرونده را آزاد می‌کند.
+ no_show?: boolean
  notes?: string
  cancel_notice?: string
  payment_reject_reason?: string

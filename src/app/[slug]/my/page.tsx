@@ -514,10 +514,10 @@ export default function PatientPanel() {
            resourceId={booking.resource_id} caseNumber={booking.case_number} phone={phone} stageId={currentStage!.id}
            stageLabel={stageTitle(currentStage!)}
            sessionType={currentStage!.session_type || booking.session_type} officeLocation={booking.office_location}
-           onPaid={async (ref, discountCode, sessionType, meetChannel) => {
+           onPaid={async (ref, discountCode, sessionType, meetChannel, officeLoc) => {
             const res = await fetch(`/api/t/${slug}/psy/pay`, {
              method: 'POST', headers: { 'Content-Type': 'application/json' },
-             body: JSON.stringify({ case_number: booking.case_number, phone, stage_id: currentStage!.id, payment_ref: ref, discount_code: discountCode, session_type: sessionType, meet_channel: meetChannel })
+             body: JSON.stringify({ case_number: booking.case_number, phone, stage_id: currentStage!.id, payment_ref: ref, discount_code: discountCode, session_type: sessionType, meet_channel: meetChannel, office_location: officeLoc })
             })
             return res.ok
            }}
@@ -1743,7 +1743,7 @@ function StageCancel({ stage, phone, caseNumber, onDone }: { stage: CaseStage; p
 
 function StagePayment({ icon, title, desc, amount, onPaid, onDone, resourceId, caseNumber, phone, stageId, stageLabel, sessionType, officeLocation }: {
  icon: string; title: string; desc: string; amount: number
- onPaid: (ref: string, discountCode?: string, sessionType?: 'online' | 'offline', meetChannel?: string) => Promise<boolean>; onDone: () => void
+ onPaid: (ref: string, discountCode?: string, sessionType?: 'online' | 'offline', meetChannel?: string, officeLoc?: string) => Promise<boolean>; onDone: () => void
  resourceId?: string | null; caseNumber: string; phone: string; stageId: string
  stageLabel: string; sessionType?: 'online' | 'offline'; officeLocation?: string
 }) {
@@ -1764,6 +1764,15 @@ function StagePayment({ icon, title, desc, amount, onPaid, onDone, resourceId, c
  const doctor = settings.doctors.find(d => d.id === resourceId)
  const onlineChannels = usableMeetChannels(mergeMeetChannels(doctor?.meet_channels, doctor?.meet_link))
  const [meetChannel, setMeetChannel] = useState<string | null>(null)
+ // مکان حضوری — قرینه‌ی meetChannel. اگر مجموعه چند آدرس دارد مراجع انتخاب
+ // می‌کند؛ اگر یکی یا هیچ، همان پیش‌فرض. آدرس‌ها ممکن است با تاخیر برسند، پس
+ // مقداردهی در effect است نه در useState (همان باگی که برای method داشتیم).
+ const officeLocations = settings.office_locations || []
+ const [officeLoc, setOfficeLoc] = useState('')
+ useEffect(() => {
+  if (!officeLoc && officeLocations.length) setOfficeLoc(officeLocations[0].title)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+ }, [officeLocations.length])
  // یک روش که باشد، خودکار انتخاب می‌شود؛ حضوری‌شدن، انتخاب را پاک می‌کند
  useEffect(() => {
   if (mode === 'online') { if (onlineChannels.length === 1) setMeetChannel(onlineChannels[0].method) }
@@ -1795,7 +1804,7 @@ function StagePayment({ icon, title, desc, amount, onPaid, onDone, resourceId, c
  async function submit() {
   if (needsChannel) { uiAlert('روش برگزاری جلسه‌ی آنلاین را انتخاب کنید.'); return }
   setSubmitting(true)
-  const ok = await onPaid(ref.trim(), discount?.code, mode, mode === 'online' ? meetChannel || undefined : undefined)
+  const ok = await onPaid(ref.trim(), discount?.code, mode, mode === 'online' ? meetChannel || undefined : undefined, mode === 'offline' ? officeLoc || undefined : undefined)
   setSubmitting(false)
   if (!ok) { uiAlert('ثبت پرداخت ناموفق بود. دوباره تلاش کنید.'); return }
   onDone()
@@ -1809,7 +1818,7 @@ function StagePayment({ icon, title, desc, amount, onPaid, onDone, resourceId, c
   try {
    const res = await fetch(`/api/t/${slug}/psy/pay-online`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ case_number: caseNumber, phone, purpose: 'stage', ref_id: stageId, session_date: date, session_time: time, discount_code: discount?.code, session_type: mode, meet_channel: mode === 'online' ? meetChannel || undefined : undefined }),
+    body: JSON.stringify({ case_number: caseNumber, phone, purpose: 'stage', ref_id: stageId, session_date: date, session_time: time, discount_code: discount?.code, session_type: mode, meet_channel: mode === 'online' ? meetChannel || undefined : undefined, office_location: mode === 'offline' ? officeLoc || undefined : undefined }),
    })
    const data = await res.json().catch(() => ({}))
    if (!res.ok || !data.url) return { ok: false, error: data.error || 'خطا در اتصال به درگاه' }
@@ -1835,12 +1844,27 @@ function StagePayment({ icon, title, desc, amount, onPaid, onDone, resourceId, c
      <div className="grid grid-cols-2 gap-2 p-1 bg-gray-100 rounded-xl">
       <button onClick={() => { setMode('offline'); setDiscount(null) }}
        className={`py-2 rounded-lg text-xs font-medium transition-colors ${mode === 'offline' ? 'bg-white shadow-sm text-ink' : 'text-soot'}`}>
-       🏥 حضوری{officeLocation ? ` — ${officeLocation}` : ''}
+       🏥 حضوری{mode === 'offline' && (officeLoc || officeLocation) ? ` — ${officeLoc || officeLocation}` : ''}
       </button>
       <button onClick={() => { setMode('online'); setDiscount(null) }}
        className={`py-2 rounded-lg text-xs font-medium transition-colors ${mode === 'online' ? 'bg-white shadow-sm text-ink' : 'text-soot'}`}>
        🎥 آنلاین
       </button>
+     </div>
+    </div>
+   )}
+
+   {/* مکان حضوری — فقط اگر مجموعه بیش از یک آدرس دارد (یکی که باشد انتخابی نیست) */}
+   {mode === 'offline' && officeLocations.length > 1 && (
+    <div className="mb-3">
+     <div className="text-xs text-soot mb-1.5 text-center">محل مراجعه را انتخاب کنید</div>
+     <div className="grid grid-cols-2 gap-2">
+      {officeLocations.map(l => (
+       <button key={l.id} onClick={() => setOfficeLoc(l.title)}
+        className={`py-2 rounded-lg text-xs border transition-colors ${officeLoc === l.title ? 'bg-accent text-white border-accent' : 'border-sand text-ink hover:bg-sand'}`}>
+        {l.title || 'حضوری'}
+       </button>
+      ))}
      </div>
     </div>
    )}
@@ -1851,7 +1875,7 @@ function StagePayment({ icon, title, desc, amount, onPaid, onDone, resourceId, c
      <div className="grid grid-cols-2 gap-2">
       {onlineChannels.map(ch => (
        <button key={ch.method} onClick={() => setMeetChannel(ch.method)}
-        className={`py-2 rounded-lg text-xs border transition-colors ${meetChannel === ch.method ? 'bg-ink text-white border-ink' : 'border-sand text-ink hover:bg-sand'}`}>
+        className={`py-2 rounded-lg text-xs border transition-colors ${meetChannel === ch.method ? 'bg-accent text-white border-accent' : 'border-sand text-ink hover:bg-sand'}`}>
         {ch.action}
        </button>
       ))}

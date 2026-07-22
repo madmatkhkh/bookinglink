@@ -576,7 +576,7 @@ function InterviewPayScreen({ doctor, resourceId, slug, phone, cards, loaded, se
       <div className="grid grid-cols-2 gap-2">
        {officeLocations.map(l => (
         <button key={l.id} onClick={() => setOfficeLoc(l.title)}
-         className={`py-2 rounded-lg text-xs border transition-colors ${officeLoc === l.title ? 'bg-ink text-white border-ink' : 'border-sand text-ink hover:bg-sand'}`}>
+         className={`py-2 rounded-lg text-xs border transition-colors ${officeLoc === l.title ? 'bg-accent text-white border-accent' : 'border-sand text-ink hover:bg-sand'}`}>
          {l.title || 'حضوری'}
         </button>
        ))}
@@ -591,7 +591,7 @@ function InterviewPayScreen({ doctor, resourceId, slug, phone, cards, loaded, se
       <div className="grid grid-cols-2 gap-2">
        {onlineChannels.map(ch => (
         <button key={ch.method} onClick={() => setMeetChannel(ch.method)}
-         className={`py-2 rounded-lg text-xs border transition-colors ${meetChannel === ch.method ? 'bg-ink text-white border-ink' : 'border-sand text-ink hover:bg-sand'}`}>
+         className={`py-2 rounded-lg text-xs border transition-colors ${meetChannel === ch.method ? 'bg-accent text-white border-accent' : 'border-sand text-ink hover:bg-sand'}`}>
          {ch.action}
         </button>
        ))}

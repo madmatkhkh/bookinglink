@@ -22,7 +22,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   const t = await getActiveTenant(params.slug)
   if (!t) return NextResponse.json({ error: 'یافت نشد' }, { status: 404 })
 
-  const { case_number, purpose, ref_id, discount_code, session_date, session_time, package_slots, session_type, meet_channel } = await req.json() as { case_number: string; purpose: Purpose; ref_id?: string; discount_code?: string; session_date?: string; session_time?: string; package_slots?: { session_date: string; session_time: string; session_type?: string; attendee?: string }[]; session_type?: string; meet_channel?: string }
+  const { case_number, purpose, ref_id, discount_code, session_date, session_time, package_slots, session_type, meet_channel, office_location } = await req.json() as { case_number: string; purpose: Purpose; ref_id?: string; discount_code?: string; session_date?: string; session_time?: string; package_slots?: { session_date: string; session_time: string; session_type?: string; attendee?: string }[]; session_type?: string; meet_channel?: string; office_location?: string }
   // auth با کوکی امضاشده — نه شماره‌ای که کلاینت در body می‌فرستد. دو راه مجاز:
   // 1) کوکی مراجع OTPشده که شماره‌اش روی پرونده باشد (پنل /my)
   // 2) کوکی مجوز پرداخت همین پرونده (فلو مصاحبه‌ی اولیه، درست بعد از ثبت فرم)
@@ -58,8 +58,8 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
     amount = basePrice
     const stagePatch: Record<string, any> = {}
     if (chosenType && (chosenType !== stage.session_type || basePrice !== stage.price)) { stagePatch.session_type = chosenType; stagePatch.price = basePrice }
-    if (chosenType === 'online') stagePatch.meet_channel = isMeetMethod(meet_channel) ? meet_channel : null
-    else if (chosenType === 'offline') stagePatch.meet_channel = null
+    if (chosenType === 'online') { stagePatch.meet_channel = isMeetMethod(meet_channel) ? meet_channel : null; stagePatch.office_location = null }
+    else if (chosenType === 'offline') { stagePatch.meet_channel = null; stagePatch.office_location = String(office_location || '').trim() || null }
     if (Object.keys(stagePatch).length) await sb().from('psy_stages').update(stagePatch).eq('id', ref_id).eq('tenant_id', t.id)
     description = `هزینه‌ی ${stageTitle(stage)}`
 

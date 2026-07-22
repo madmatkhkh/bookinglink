@@ -74,7 +74,7 @@ const PENDING_OUTCOME_CLS = 'bg-amber-500/10 text-amber-700 border border-amber-
 // کارت جلسه‌ی مصاحبه/ارزیابی در پرونده — یادداشت + تأیید برگزاری
 function StageSessionCard({ stage, index, caseSessionType, onSave, onClinical, noteCount = 0 }: {
  stage: CaseStage; index?: number; caseSessionType?: 'online' | 'offline' | null
- onSave: (stageId: string, notes: string, markHeld: boolean) => Promise<void> | void
+ onSave: (stageId: string, notes: string, markHeld: boolean, noShow?: boolean) => Promise<void> | void
  onClinical?: () => void
  noteCount?: number
 }) {
@@ -101,13 +101,23 @@ function StageSessionCard({ stage, index, caseSessionType, onSave, onClinical, n
       </div>
      </div>
     </div>
-    <span className={`text-xs px-2 py-0.5 rounded-full ${cancelled ? 'bg-red-500/10 text-red-600 border border-red-500/20' : held ? 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20' : 'bg-amber-500/10 text-amber-600 border border-amber-500/20'}`}>
-     {cancelled ? (stage.cancelled_by === 'client' ? 'کنسل توسط مراجع' : 'لغو شد') : held ? '✅ برگزار شد' : 'برگزار نشده'}
+    <span className={`text-xs px-2 py-0.5 rounded-full ${
+     cancelled ? 'bg-red-500/10 text-red-600 border border-red-500/20'
+     : stage.no_show ? 'bg-red-500/10 text-red-600 border border-red-500/20'
+     : held ? 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20'
+     : 'bg-amber-500/10 text-amber-600 border border-amber-500/20'}`}>
+     {cancelled ? (stage.cancelled_by === 'client' ? 'کنسل توسط مراجع' : 'لغو شد')
+      : stage.no_show ? 'حاضر نشد'
+      : held ? '✅ برگزار شد' : 'برگزار نشده'}
     </span>
    </div>
    {!held && canHold && (
-    <button onClick={async () => { if (!await uiConfirm('تأیید برگزاری این جلسه؟ پرونده برای تعیین مرحله‌ی بعد آزاد می‌شود.')) return; setSaving(true); await onSave(stage.id, '', true); setSaving(false) }} disabled={saving}
-     className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm disabled:opacity-40">✅ تایید برگزاری</button>
+    <div className="flex gap-2">
+     <button onClick={async () => { if (!await uiConfirm('تأیید برگزاری این جلسه؟ پرونده برای تعیین مرحله‌ی بعد آزاد می‌شود.')) return; setSaving(true); await onSave(stage.id, '', true); setSaving(false) }} disabled={saving}
+      className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm disabled:opacity-40">✅ برگزار شد</button>
+     <button onClick={async () => { if (!await uiConfirm('مراجع در این جلسه حاضر نشد؟ جلسه مصرف‌شده حساب می‌شود و پرونده آزاد می‌شود.')) return; setSaving(true); await onSave(stage.id, '', true, true); setSaving(false) }} disabled={saving}
+      className="flex-1 py-2 border border-sand text-soot rounded-lg text-sm hover:bg-sand disabled:opacity-40">حاضر نشد</button>
+    </div>
    )}
    {onClinical && (
     <button onClick={onClinical}
@@ -645,10 +655,12 @@ export default function PatientsTab({
 
  // ذخیره‌ی یادداشت و/یا تأیید برگزاری یک مرحله — بعد از این، پرونده آزاد می‌شود
  // تا دکتر مرحله‌ی بعد را (اگر خواست) مشخص کند
- async function saveStageSession(stageId: string, notes: string, markHeld: boolean) {
+ async function saveStageSession(stageId: string, notes: string, markHeld: boolean, noShow = false) {
   const patch: Record<string, any> = { id: stageId }
   if (notes) patch.notes = notes
-  if (markHeld) patch.mark_held = true
+  // «حاضر نشد» هم مرحله را می‌بندد، فقط با ثبت واقعیت حضور
+  if (noShow) patch.mark_no_show = true
+  else if (markHeld) patch.mark_held = true
   const res = await fetch(api('/stages'), {
    method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch),
   })
@@ -1244,7 +1256,7 @@ export default function PatientsTab({
               return (
                <StageSessionCard key={s.id} stage={s} index={typeCounts[s.stage_type]}
                 caseSessionType={selectedPatient?.session_type as ('online' | 'offline' | null | undefined)}
-                onSave={(stageId, notes, markHeld) => saveStageSession(stageId, notes, markHeld)}
+                onSave={(stageId, notes, markHeld, noShow) => saveStageSession(stageId, notes, markHeld, noShow)}
                 onClinical={() => openClinical('stage', s.id, stageTitle(s))}
                 noteCount={clinicalNotes.filter(n => n.stage_id === s.id).length} />
               )

@@ -11,7 +11,7 @@ export const revalidate = 0
 export async function POST(req: NextRequest, { params }: { params: { slug: string } }) {
   const t = await getActiveTenant(params.slug)
   if (!t) return NextResponse.json({ error: 'یافت نشد' }, { status: 404 })
-  const { package_id, session_id, stage_id, extra_charge_id, case_number, payment_ref, discount_code, session_type, meet_channel } = await req.json()
+  const { package_id, session_id, stage_id, extra_charge_id, case_number, payment_ref, discount_code, session_type, meet_channel, office_location } = await req.json()
   // auth با کوکی امضاشده — نه شماره‌ای که کلاینت در body می‌فرستد. دو راه مجاز:
   // 1) کوکی مراجع OTPشده که شماره‌اش روی پرونده باشد (پنل /my)
   // 2) کوکی مجوز پرداخت همین پرونده (فلو مصاحبه‌ی اولیه، درست بعد از ثبت فرم)
@@ -59,6 +59,8 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
         basePrice = resolvePrice(session_type, await getResourcePricing(booking.resource_id))
         const stagePatch: Record<string, any> = { session_type, price: basePrice }
         stagePatch.meet_channel = session_type === 'online' && isMeetMethod(meet_channel) ? meet_channel : null
+        // قرینه‌ی meet_channel: مکان فقط برای جلسه‌ی حضوری معنا دارد.
+        stagePatch.office_location = session_type === 'offline' ? (String(office_location || '').trim() || null) : null
         await sb().from('psy_stages').update(stagePatch).eq('id', stage_id).eq('tenant_id', t.id)
       }
       const dcErr = await applyDiscount('psy_stages', stage_id, basePrice)
