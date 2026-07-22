@@ -212,20 +212,20 @@ const DASH_STEPS = [
 function DashboardMock({ step }: { step: number }) {
   // هر ماژول تا وقتی نوبتش نرسیده کم‌رنگ و کمی پایین است؛ با رسیدن step فعال می‌شود
   const M = (i: number) =>
-    `rounded-xl border bg-white p-3.5 transition-all duration-500 motion-reduce:transition-none ${step >= i ? 'opacity-100 translate-y-0 border-sand' : 'opacity-30 translate-y-2 border-sand/50'}`
+    `rounded-xl border bg-white p-2.5 sm:p-3.5 transition-all duration-500 motion-reduce:transition-none ${step >= i ? 'opacity-100 translate-y-0 border-sand' : 'opacity-30 translate-y-2 border-sand/50'}`
   const active = (i: number) => step === i ? 'ring-2 ring-trust/40' : ''
   return (
-    <div className="w-full max-w-[440px] mx-auto">
+    <div className="w-full max-w-[330px] sm:max-w-[440px] mx-auto">
       <div className="rounded-2xl border border-sand bg-canvas shadow-[0_30px_70px_-30px_rgba(0,0,0,0.35)] overflow-hidden">
         {/* نوار بالای داشبورد */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-sand bg-white">
+        <div className="flex items-center justify-between px-3 sm:px-4 py-2 sm:py-3 border-b border-sand bg-white">
           <div className="flex items-center gap-2">
             <span className="w-7 h-7 rounded-lg bg-ink text-white flex items-center justify-center font-display font-bold text-xs">ن</span>
             <span className="font-display font-bold text-[13px]">داشبورد</span>
           </div>
           <span className="text-[10px] text-soot">دکتر شیرین احمدی</span>
         </div>
-        <div className="p-3.5 grid grid-cols-2 gap-3">
+        <div className="p-2.5 sm:p-3.5 grid grid-cols-2 gap-2 sm:gap-3">
           {/* ماژول 1: تقویم */}
           <div className={`${M(0)} ${active(0)} col-span-2`}>
             <div className="flex items-center justify-between mb-2">
@@ -327,16 +327,16 @@ function DashboardStory() {
   return (
     <section id="features" ref={rootRef} className="relative bg-white">
       <div data-pin className="min-h-screen flex items-center overflow-hidden">
-        <div className="max-w-5xl mx-auto px-6 w-full py-8 md:py-12">
-          <div className="text-center max-w-xl mx-auto mb-6 md:mb-12">
+        <div className="max-w-5xl mx-auto px-6 w-full py-6 md:py-12">
+          <div className="text-center max-w-xl mx-auto mb-4 md:mb-12">
             <div className="text-xs sm:text-sm font-semibold text-trust mb-2 md:mb-3">یک پلتفرم، نه یک ابزار</div>
             <h2 className="font-display font-extrabold text-2xl sm:text-4xl tracking-tightest">همه‌ی کسب‌وکارتان، از یک داشبورد</h2>
           </div>
-          <div className="grid md:grid-cols-2 gap-6 md:gap-12 items-center">
+          <div className="grid md:grid-cols-2 gap-3 md:gap-12 items-center">
             <div className="order-2 md:order-none">
               <DashboardMock step={step} />
             </div>
-            <div className="relative min-h-[160px] md:min-h-[240px] order-1 md:order-none">
+            <div className="relative min-h-[118px] md:min-h-[240px] order-1 md:order-none">
               {DASH_STEPS.map((b, i) => (
                 <div key={b.n} data-dstep={i}
                   className={`absolute inset-0 flex flex-col justify-center text-center md:text-right transition-all duration-500 motion-reduce:transition-none ${step === i ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3 pointer-events-none'}`}>
@@ -346,7 +346,7 @@ function DashboardStory() {
               ))}
             </div>
           </div>
-          <div className="mt-6 md:mt-8 flex gap-1.5 justify-center">
+          <div className="mt-4 md:mt-8 flex gap-1.5 justify-center">
             {DASH_STEPS.map((_, i) => (
               <span key={i} className={`h-1 rounded-full transition-all duration-300 ${step === i ? 'w-8 bg-trust' : 'w-3 bg-trust/25'}`} />
             ))}
@@ -371,7 +371,7 @@ function StoryPhone({ scene }: { scene: number }) {
   const S = (i: number) =>
     `absolute inset-0 p-4 transition-all duration-500 motion-reduce:transition-none ${scene === i ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2 pointer-events-none'}`
   return (
-    <div className="mx-auto w-full max-w-[280px]">
+    <div className="mx-auto w-full max-w-[250px] sm:max-w-[280px]">
       <div className="rounded-[2rem] border border-sand bg-white shadow-[0_24px_60px_-28px_rgba(0,0,0,0.3)] overflow-hidden">
         {/* نوار وضعیت گوشی */}
         <div className="flex items-center justify-between px-5 pt-3 pb-2 text-[10px] text-soot">
@@ -379,7 +379,7 @@ function StoryPhone({ scene }: { scene: number }) {
           <span className="w-16 h-4 rounded-full bg-sand" />
           <span className="tnum" dir="ltr">100%</span>
         </div>
-        <div className="relative h-[320px] sm:h-[360px] border-t border-sand">
+        <div className="relative h-[290px] sm:h-[360px] border-t border-sand">
 
           {/* پرده‌ی 1: آشوب دایرکت */}
           <div className={S(0)}>
@@ -520,18 +520,18 @@ function StorySection() {
     <section id="how" ref={rootRef} className="relative border-y border-sand bg-trust-wash/40">
       {/* ناحیه‌ی پین‌شونده — یک صفحه‌ی کامل که گوشی و متن کنارش ثابت می‌ماند */}
       <div data-pin className="min-h-screen flex items-center overflow-hidden">
-        <div className="max-w-5xl mx-auto px-6 w-full py-8 md:py-12">
-          <div className="text-center max-w-xl mx-auto mb-5 md:mb-12">
+        <div className="max-w-5xl mx-auto px-6 w-full py-6 md:py-12">
+          <div className="text-center max-w-xl mx-auto mb-4 md:mb-12">
             <div className="text-xs sm:text-sm font-semibold text-trust mb-2 md:mb-3">از آشوب تا آرامش</div>
             <h2 className="font-display font-extrabold text-2xl sm:text-4xl tracking-tightest">کل کسب‌وکارتان، در یک نقطه</h2>
           </div>
-          <div className="grid md:grid-cols-2 gap-5 md:gap-12 items-center">
+          <div className="grid md:grid-cols-2 gap-3 md:gap-12 items-center">
             {/* گوشی — امضای بصری، ثابت در مرکز صحنه */}
-            <div className="flex justify-center scale-[0.82] sm:scale-90 md:scale-100 origin-top">
+            <div className="flex justify-center">
               <StoryPhone scene={scene} />
             </div>
             {/* متن پرده‌ی فعال — cross-fade نرم؛ فقط یکی هم‌زمان دیده می‌شود */}
-            <div className="relative min-h-[150px] md:min-h-[240px] -mt-4 md:mt-0">
+            <div className="relative min-h-[124px] md:min-h-[240px]">
               {STORY_BEATS.map((b, i) => (
                 <div key={b.n} data-beat={i}
                   className={`absolute inset-0 flex flex-col justify-center text-center md:text-right transition-all duration-500 motion-reduce:transition-none ${scene === i ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3 pointer-events-none'}`}>
@@ -542,7 +542,7 @@ function StorySection() {
             </div>
           </div>
           {/* نوار پیشرفت پرده‌ها */}
-          <div className="mt-5 md:mt-8 flex gap-1.5 justify-center">
+          <div className="mt-4 md:mt-8 flex gap-1.5 justify-center">
             {STORY_BEATS.map((_, i) => (
               <span key={i} className={`h-1 rounded-full transition-all duration-300 ${scene === i ? 'w-8 bg-trust' : 'w-3 bg-trust/25'}`} />
             ))}
