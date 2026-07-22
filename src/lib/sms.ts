@@ -136,3 +136,70 @@ export async function sendFreeTextSms(phone: string, message: string): Promise<S
     return { ok: false, error: 'اتصال به سرویس پیامک برقرار نشد' }
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// پیام‌های تراکنشی نوبت (تایید نوبت به مراجع، نوبت جدید به متخصص).
+//
+// چرا از همان مسیر send/verify می‌روند و نه از خط اختصاصی:
+// خط اختصاصی این حساب «تبلیغاتی» است، و طبق مستندات sms.ir پیامک تبلیغاتی به
+// شماره‌های لیست سیاه نمی‌رسد — یعنی مراجعی که شماره‌اش بلک‌لیست است بی‌صدا
+// تایید نوبتش را نمی‌گرفت و ما هم خبردار نمی‌شدیم (API «موفق» برمی‌گرداند).
+// در مقابل send/verify روی خط خدماتی خودِ sms.ir می‌رود و به همه می‌رسد.
+// بعد از خدماتی‌شدن خط، می‌شود این‌ها را هم به متن آزاد منتقل کرد.
+// ─────────────────────────────────────────────────────────────────────────────
+
+type TemplateParam = { name: string; value: string }
+
+/** ارسال یک الگوی verify. مشترک بین پیام‌های تراکنشی جدید. */
+async function sendTemplateSms(templateId: string, phone: string, parameters: TemplateParam[]): Promise<SmsSendResult> {
+  const apiKey = process.env.SMS_IR_API_KEY
+  if (!apiKey || !templateId) return { ok: false, error: 'پیامک تنظیم نشده' }
+  try {
+    const res = await fetch('https://api.sms.ir/v1/send/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'text/plain', 'x-api-key': apiKey },
+      body: JSON.stringify({ mobile: phone, templateId: Number(templateId), parameters }),
+    })
+    const data = await res.json().catch(() => null)
+    if (res.ok && data?.status === 1) return { ok: true }
+    console.error('sms.ir template send failed:', templateId, res.status, data)
+    return { ok: false, error: data?.message || 'ارسال پیامک ناموفق بود' }
+  } catch (err) {
+    console.error('sms.ir network error:', err)
+    return { ok: false, error: 'اتصال به سرویس پیامک برقرار نشد' }
+  }
+}
+
+/**
+ * تایید نوبت برای مراجع — بعد از پرداخت موفق.
+ * الگوی پیشنهادی در پنل sms.ir:
+ *   «نوبت شما در %NAME% قطعی شد: %DATE% ساعت %TIME%»
+ */
+export function bookingConfirmSmsConfigured(): boolean {
+  return !!(process.env.SMS_IR_API_KEY && process.env.SMS_IR_CONFIRM_TEMPLATE_ID)
+}
+
+export async function sendBookingConfirmSms(phone: string, name: string, date: string, time: string): Promise<SmsSendResult> {
+  return sendTemplateSms(process.env.SMS_IR_CONFIRM_TEMPLATE_ID || '', phone, [
+    { name: 'NAME', value: name },
+    { name: 'DATE', value: date },
+    { name: 'TIME', value: time },
+  ])
+}
+
+/**
+ * اطلاع نوبت تازه به خود متخصص.
+ * الگوی پیشنهادی:
+ *   «نوبت جدید: %CLIENT% برای %DATE% ساعت %TIME%»
+ */
+export function newBookingSmsConfigured(): boolean {
+  return !!(process.env.SMS_IR_API_KEY && process.env.SMS_IR_NEW_BOOKING_TEMPLATE_ID)
+}
+
+export async function sendNewBookingSms(phone: string, client: string, date: string, time: string): Promise<SmsSendResult> {
+  return sendTemplateSms(process.env.SMS_IR_NEW_BOOKING_TEMPLATE_ID || '', phone, [
+    { name: 'CLIENT', value: client },
+    { name: 'DATE', value: date },
+    { name: 'TIME', value: time },
+  ])
+}

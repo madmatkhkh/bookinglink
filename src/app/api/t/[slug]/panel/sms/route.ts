@@ -5,6 +5,19 @@ import { getSmsAllowance } from '@/lib/smsQuota'
 import { freeTextSmsConfigured } from '@/lib/sms'
 import { validateReminderBody, DEFAULT_REMINDER_BODY, SmsTemplate } from '@/lib/smsTemplates'
 
+// گزینه‌های فاصله‌ی یادآوری. قید migration 0053 سقف را روی 48 گذاشته و پنجره‌ی
+// جست‌وجوی cron هم بر همان اساس چیده شده — این لیست نباید از آن فراتر برود.
+const LEAD_OPTIONS = [2, 4, 6, 12, 24, 48]
+const DEFAULT_LEAD = 24
+
+async function loadLeadHours(tenantId: string): Promise<number> {
+  const { data, error } = await sb().from('tenant_profiles')
+    .select('reminder_lead_hours').eq('tenant_id', tenantId).maybeSingle()
+  // قبل از migration 0053 ستون نیست → پیش‌فرض
+  if (error || !data) return DEFAULT_LEAD
+  return Number((data as any).reminder_lead_hours) || DEFAULT_LEAD
+}
+
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
@@ -30,9 +43,10 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
   const a = await requirePanelAuth(req, params.slug)
   if (isPanelAuthResponse(a)) return a
 
-  const [allowance, template] = await Promise.all([
+  const [allowance, template, leadHours] = await Promise.all([
     getSmsAllowance(a.tenant.id, a.tenant.plan),
     loadTemplate(a.tenant.id),
+    loadLeadHours(a.tenant.id),
   ])
 
   return NextResponse.json({
@@ -44,6 +58,8 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
     // متنی بنویسد، تایید بگیرد و بی‌صدا هیچ‌وقت استفاده نشود.
     customSendingAvailable: freeTextSmsConfigured(),
     canEdit: a.isOwner,
+    leadHours,
+    leadOptions: LEAD_OPTIONS,
   })
 }
 
@@ -53,6 +69,22 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   if (!a.isOwner) return NextResponse.json({ error: 'فقط صاحب مجموعه می‌تواند متن پیامک را تغییر دهد' }, { status: 403 })
 
   const b = await req.json().catch(() => ({}))
+
+  // ذخیره‌ی فاصله‌ی یادآوری مستقل از متن است — عوض‌کردن زمان ارسال هیچ ربطی به
+  // محتوا ندارد، پس نباید قالب تاییدشده را دوباره به صف بازبینی بفرستد.
+  if (b.lead_hours !== undefined) {
+    const lead = Number(b.lead_hours)
+    if (!LEAD_OPTIONS.includes(lead))
+      return NextResponse.json({ error: 'فاصله‌ی یادآوری نامعتبر است' }, { status: 400 })
+    const { error } = await sb().from('tenant_profiles')
+      .update({ reminder_lead_hours: lead }).eq('tenant_id', a.tenant.id)
+    if (error) {
+      console.error('panel/sms lead save error:', error)
+      return NextResponse.json({ error: 'ذخیره‌ی فاصله‌ی یادآوری ناموفق بود — شاید migration 0053 اجرا نشده' }, { status: 500 })
+    }
+    if (b.body === undefined) return NextResponse.json({ success: true, leadHours: lead })
+  }
+
   const v = validateReminderBody(b.body)
   if (!v.ok) return NextResponse.json({ error: v.error }, { status: 400 })
 

@@ -19,6 +19,12 @@ type Template = {
 type SmsData = {
  allowance: Allowance; template: Template | null; defaultBody: string
  customSendingAvailable: boolean; canEdit: boolean
+ leadHours: number; leadOptions: number[]
+}
+
+const LEAD_LABEL: Record<number, string> = {
+ 2: '2 ساعت قبل', 4: '4 ساعت قبل', 6: '6 ساعت قبل',
+ 12: '12 ساعت قبل', 24: 'یک روز قبل', 48: 'دو روز قبل',
 }
 
 const STATUS_STYLE: Record<Template['status'], { label: string; cls: string }> = {
@@ -31,6 +37,7 @@ export default function CapabilitiesTab({ slug }: { slug: string }) {
  const [data, setData] = useState<SmsData | null>(null)
  const [body, setBody] = useState('')
  const [saving, setSaving] = useState(false)
+ const [leadSaving, setLeadSaving] = useState(false)
  const [loadError, setLoadError] = useState('')
 
  const load = useCallback(async () => {
@@ -44,6 +51,19 @@ export default function CapabilitiesTab({ slug }: { slug: string }) {
  }, [slug])
 
  useEffect(() => { load() }, [load])
+
+ async function saveLead(hours: number) {
+  setLeadSaving(true)
+  try {
+   const res = await fetch(`/api/t/${slug}/panel/sms`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ lead_hours: hours }),
+   })
+   const d = await res.json().catch(() => ({}))
+   if (!res.ok) { await uiAlert(d.error || 'ذخیره ناموفق بود'); return }
+   await load()
+  } catch { await uiAlert('اتصال برقرار نشد') } finally { setLeadSaving(false) }
+ }
 
  async function save() {
   setSaving(true)
@@ -103,6 +123,33 @@ export default function CapabilitiesTab({ slug }: { slug: string }) {
       از این مقدار، <span className="tnum">{al.creditRemaining}</span> پیامک از بسته‌ی شارژ شماست (بدون انقضا).
      </p>
     )}
+
+    <hr className="border-sand" />
+
+    {/* ── زمان ارسال یادآوری ── */}
+    <div className="space-y-2">
+     <h3 className="text-sm font-semibold text-ink">یادآوری چه زمانی فرستاده شود؟</h3>
+     <p className="text-xs text-soot leading-relaxed">
+      فاصله‌ی پیامک یادآوری تا خود نوبت. اگر یک اجرا از دست برود، اجرای بعدی
+      همچنان یادآوری را می‌فرستد — فقط دیرتر.
+     </p>
+     <div className="flex gap-2 flex-wrap">
+      {data.leadOptions.map(h => (
+       <button key={h} type="button" disabled={!data.canEdit || leadSaving}
+        onClick={() => saveLead(h)}
+        className={`text-xs rounded-xl px-3 py-2 border transition-colors disabled:opacity-50 ${
+         data.leadHours === h ? 'bg-ink text-white border-ink' : 'border-sand text-soot'}`}>
+        {LEAD_LABEL[h] || `${h} ساعت قبل`}
+       </button>
+      ))}
+     </div>
+     {data.leadHours < 12 && (
+      <p className="text-[11px] text-amber-800 bg-amber-500/10 border border-amber-500/20 rounded-xl p-2.5 leading-relaxed">
+       فاصله‌های کوتاه فقط وقتی دقیق کار می‌کنند که زمان‌بند پلتفرم ساعتی اجرا شود.
+       اگر روزانه اجرا شود، ممکن است یادآوری اصلا نرسد.
+      </p>
+     )}
+    </div>
 
     <hr className="border-sand" />
 

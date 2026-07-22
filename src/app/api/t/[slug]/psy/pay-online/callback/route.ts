@@ -3,6 +3,7 @@ import { sb } from '@/lib/supabase'
 import { getActiveTenant } from '@/lib/tenant'
 import { verifyZibalPayment } from '@/lib/zibal'
 import { recordLedgerEntry, LedgerPurpose } from '@/lib/ledger'
+import { notifyBookingConfirmed } from '@/lib/notify'
 import { redeemDiscountCode } from '@/lib/psy'
 import { activatePendingLocks, releaseLockBySlot, releaseLocks } from '@/lib/slotLocks'
 import { PAYMENT_TEST_MODE } from '@/lib/config'
@@ -137,6 +138,10 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
   // نمی‌شود. intentهای قدیمی (قبل از این تغییر) booking_date ندارند و همان
   // مسیر قدیمی awaiting_booking را می‌روند.
   let slotTakenFallback = false
+  // اگر پرداخت به یک نوبت با تاریخ و ساعت قطعی ختم شد، این پر می‌شود و در پایان
+  // پیامک «نوبت قطعی شد» می‌رود. پرداخت‌هایی که هنوز وقت ندارند (awaiting_booking)
+  // یا اصلا نوبت نیستند (extra_charge) خالی می‌مانند و پیامکی نمی‌رود.
+  let confirmedSlot: { date: string; time: string } | null = null
   if (intent.purpose === 'stage' && intent.ref_id) {
     const wantsSlot = !!(intent.booking_date && intent.booking_time)
     let booked = false
@@ -148,7 +153,7 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
         session_date: intent.booking_date, session_time: intent.booking_time,
         cancel_notice: null, ...discountPatch,
       }).eq('id', intent.ref_id).eq('tenant_id', t.id)
-      if (!bookErr) booked = true
+      if (!bookErr) { booked = true; confirmedSlot = { date: intent.booking_date, time: intent.booking_time } }
       else if ((bookErr as any).code === '23505') {
         // نباید رخ دهد (قفل داشتیم) ولی دفاع دولایه: اسلات را آزاد کن
         await releaseLockBySlot(t.id, intent.resource_id, { session_date: intent.booking_date, session_time: intent.booking_time })
@@ -179,6 +184,8 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
         session_type: s.session_type || null, attendee: s.attendee || 'primary',
         status: 'confirmed', paid: true, price: null,
       }))
+      const first = toInsert[0]
+      if (first?.session_date && first?.session_time) confirmedSlot = { date: first.session_date, time: first.session_time }
       const { error: insErr } = await sb().from('psy_sessions').insert(toInsert)
       if (insErr) {
         // نباید رخ دهد (قفل داشتیم). لاگ کن؛ جلسات با «انتخاب روزهای جلسات»
@@ -188,10 +195,23 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
     }
   } else if (intent.purpose === 'session' && intent.ref_id) {
     await sb().from('psy_sessions').update({ paid: true, price: intent.amount, ...discountPatch }).eq('id', intent.ref_id).eq('tenant_id', t.id)
+    const { data: sess } = await sb().from('psy_sessions').select('session_date, session_time').eq('id', intent.ref_id).maybeSingle()
+    if (sess?.session_date && sess?.session_time) confirmedSlot = { date: sess.session_date, time: sess.session_time }
   } else if (intent.purpose === 'extra_charge' && intent.ref_id) {
     await sb().from('psy_extra_charges').update({ status: 'paid' }).eq('id', intent.ref_id).eq('tenant_id', t.id)
   }
   if (intent.discount_code_id) await redeemDiscountCode(intent.discount_code_id)
+
+  // اطلاع‌رسانی بعد از نهایی‌شدن همه‌چیز. عمدا await دارد (تا در محیط serverless
+  // قبل از پایان درخواست تمام شود) ولی notifyBookingConfirmed هرگز throw نمی‌کند،
+  // پس نمی‌تواند ریدایرکت موفق پرداخت را خراب کند.
+  if (confirmedSlot) {
+    await notifyBookingConfirmed({
+      tenantId: t.id, plan: t.plan, resourceId: intent.resource_id || null,
+      caseNumber: intent.case_number || stageCase,
+      date: confirmedSlot.date, time: confirmedSlot.time,
+    })
+  }
 
   return NextResponse.redirect(`${redirectBase}?payment=${slotTakenFallback ? 'success_slot_taken' : 'success'}`)
 }

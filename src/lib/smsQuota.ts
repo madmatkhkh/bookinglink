@@ -23,7 +23,9 @@
 import { sb } from './supabase'
 import { gregorianToJalali, jalaliToGregorian } from './calendar'
 
-export type SmsKind = 'otp' | 'reminder' | 'campaign' | 'waitlist'
+// 'booking' = تایید نوبت به مراجع / اطلاع نوبت جدید به متخصص (lib/notify.ts).
+// ستون sms_log.kind قید CHECK ندارد، پس افزودن نوع نیازی به migration نداشت.
+export type SmsKind = 'otp' | 'reminder' | 'campaign' | 'waitlist' | 'booking'
 export type SmsCharge = 'quota' | 'credit' | 'over'
 
 export type SmsAllowance = {
