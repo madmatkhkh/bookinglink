@@ -2755,7 +2755,7 @@ export function PsychologyAdmin() {
                  {field.type === 'multiselect' && 'مراجع می‌تواند چند گزینه را همزمان انتخاب کند — مثل چند علامت رفتاری.'}
                  {field.type === 'date' && 'مراجع با یک تقویم واقعی شمسی (کلیک‌پذیر) تاریخ را انتخاب می‌کند — نه تایپ دستی.'}
                  {field.type === 'phone' && 'فقط شماره‌ی موبایل معتبر (11 رقم، با 09) قبول می‌شود — نه هر متنی.'}
-                 {field.type === 'email' && 'فقط ایمیل معتبر قبول می‌شود — برای مراجع خارج از ایران که پیامک بهش نمی‌رسد.'}
+                 {field.type === 'email' && 'فقط ایمیل معتبر قبول می‌شود.'}
                 </p>
                </div>
 
@@ -3148,7 +3148,7 @@ export function PsychologyAdmin() {
      <section className="bg-white rounded-2xl border border-sand p-5">
       <h2 className="text-sm font-display font-bold text-ink mb-1">شبای دریافت سهم از پرداخت آنلاین</h2>
       <p className="text-xs text-soot mb-4">
-       چون پرداخت آنلاین از حساب پلتفرم رد می‌شود، سهم شما برای واریز خودکار به این شبا نیاز دارد. تا وقتی این را ثبت نکنید، تسویه به‌صورت دستی هماهنگ می‌شود.
+       برای واریز خودکار سهم شما لازم است. تا ثبت نشود، تسویه به‌صورت دستی هماهنگ می‌شود.
       </p>
 
       {me?.isOwner && staffList.filter(r => r.is_active).length > 1 && (

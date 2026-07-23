@@ -360,8 +360,8 @@ function DashboardStory() {
 // داستان را داخلش عوض می‌کند — بدون WebGL و کتابخانه‌ی جدید؛ فقط sticky +
 // IntersectionObserver (همان الگوی nl-reveal). ارقام لاتین، تابع reduced-motion.
 const STORY_BEATS = [
-  { n: '1', t: 'ساعت 23:41 است', d: 'هر نوبت، ده پیام. هر پرداخت، یک اسکرین‌شات رسید. هر کنسلی، یک صندلی خالی که دیر خبرش می‌رسد. تقویم شما در دایرکت دیگران زندگی می‌کند.' },
-  { n: '2', t: 'همه‌اش جمع می‌شود در یک خط', d: 'nobatlink.com/نام-شما — صفحه‌ای با رنگ و هویت خودتان. از این‌جا به بعد، مراجع با صفحه‌ی شما طرف است، نه با گوشی شما.' },
+  { n: '1', t: 'ساعت 23:41 است', d: 'هر نوبت، ده پیام. هر پرداخت، یک اسکرین‌شات رسید. هر لغوی، یک صندلی خالی که دیر خبرش می‌رسد. تقویم شما در پیام‌رسان‌های شخصی زندگی می‌کند.' },
+  { n: '2', t: 'همه در یک نشانی جمع می‌شود', d: 'nobatlink.com/نام-شما — صفحه‌ای با رنگ و هویت خودتان. از این‌جا به بعد، مراجع با صفحه‌ی شما طرف است، نه با گوشی شما.' },
   { n: '3', t: 'مراجع خودش رزرو می‌کند', d: 'زمان‌های خالی را می‌بیند، انتخاب می‌کند و همان‌جا آنلاین پرداخت می‌کند. بدون پیام، بدون هماهنگی دستی — حتی وقتی خواب هستید.' },
   { n: '4', t: 'شما فقط مدیریت می‌کنید', d: 'تایید لحظه‌ای، یادآور خودکار، پول در مسیر تسویه، و همه‌ی پرونده‌ها و گزارش‌های مالی یک‌جا. کسب‌وکارتان خودش می‌چرخد؛ شما تصمیم می‌گیرید.' },
 ]
@@ -381,10 +381,10 @@ function StoryPhone({ scene }: { scene: number }) {
         </div>
         <div className="relative h-[290px] sm:h-[360px] border-t border-sand">
 
-          {/* پرده‌ی 1: آشوب دایرکت */}
+          {/* پرده‌ی 1: آشوب پیام‌ها */}
           <div className={S(0)}>
             <div className="flex items-center justify-between mb-3">
-              <span className="text-[11px] font-semibold text-ink">دایرکت‌ها</span>
+              <span className="text-[11px] font-semibold text-ink">پیام‌ها</span>
               <span className="text-[10px] font-bold text-white bg-ink rounded-full px-2 py-0.5 tnum">9+</span>
             </div>
             <div className="space-y-2">
@@ -405,7 +405,7 @@ function StoryPhone({ scene }: { scene: number }) {
               <span className="inline-flex items-center gap-2 rounded-full border-2 border-trust bg-trust-wash px-4 py-2.5 text-[13px] font-semibold text-trust-deep" dir="ltr">
                 nobatlink.com/shirin
               </span>
-              <p className="text-[11px] text-soot text-center leading-relaxed">همین. یک نشانی —<br />به‌جای همه‌ی آن پیام‌ها.</p>
+              <p className="text-[11px] text-soot text-center leading-relaxed">یک نشانی —<br />به‌جای همه‌ی آن پیام‌ها.</p>
             </div>
           </div>
 
@@ -629,7 +629,7 @@ function FeatureTrack() {
     return (
       <section id="grow" className="max-w-5xl mx-auto px-6 pt-16 pb-10">
         <div className="text-center max-w-xl mx-auto mb-12">
-          <div className="text-sm font-semibold text-trust mb-3">و خیلی چیزهای دیگر</div>
+          <div className="text-sm font-semibold text-trust mb-3">امکانات بیشتر</div>
           <h2 className="font-display font-extrabold text-3xl sm:text-4xl tracking-tightest">هر چیزی که برای رشد لازم دارید</h2>
         </div>
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
@@ -654,7 +654,7 @@ function FeatureTrack() {
     <section id="grow" ref={rootRef} className="relative bg-canvas border-y border-sand overflow-hidden">
       <div className="min-h-screen flex flex-col justify-center py-12">
         <div className="max-w-5xl mx-auto px-6 w-full mb-8 md:mb-12">
-          <div className="text-sm font-semibold text-trust mb-3">و خیلی چیزهای دیگر</div>
+          <div className="text-sm font-semibold text-trust mb-3">امکانات بیشتر</div>
           <h2 className="font-display font-extrabold text-3xl sm:text-4xl tracking-tightest">هر چیزی که برای رشد لازم دارید</h2>
           <p className="mt-3 text-sm text-soot max-w-md hidden md:block">نوبت‌دهی و مدیریت فقط بخشی از کار است — این‌ها ابزارهایی‌اند که کسب‌وکارتان را جلو می‌برند.</p>
         </div>
@@ -786,7 +786,7 @@ export default function Landing() {
               پلتفرم مدیریت کسب‌وکار و نوبت‌دهی آنلاین
             </div>
             <h1 className="font-display font-extrabold text-4xl sm:text-5xl leading-[1.12] tracking-tightest">
-              تقویم‌تان را از<br />دایرکت بیرون بیاورید
+              نوبت‌دهی را از<br />پیام‌رسان‌ها بیرون بیاورید
             </h1>
             <p className="mt-5 text-base sm:text-lg text-soot leading-relaxed max-w-md">
               نوبت‌لینک کل کسب‌وکارتان را یک‌جا اداره می‌کند: رزرو آنلاین با صفحه‌ی اختصاصی خودتان،
@@ -902,7 +902,7 @@ export default function Landing() {
               <li>رزرو و مدیریت نوبت‌ها بدون محدودیت</li>
               <li>درگاه پرداخت آنلاین نوبت‌لینک</li>
               <li>فرم‌ساز رزرو با سوال‌های دلخواه</li>
-              <li>کنسل نوبت توسط خود مشتری</li>
+              <li>لغو نوبت توسط خود مشتری</li>
               <li>پنل مدیریت، پرونده‌ها و گزارش مالی</li>
               <li className="tnum">{PLAN_PRICING.base.sms} پیامک در ماه</li>
               <li>تسویه‌ی {PLAN_PRICING.base.settlement}</li>

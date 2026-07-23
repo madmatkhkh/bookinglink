@@ -289,7 +289,7 @@ export default function InterviewPage() {
             <Field label="شماره تماس" value={contactPhone} onChange={setContactPhone} placeholder="0912..." dir="ltr" />
             <div className="col-span-2">
              <Field label="ایمیل" value={contactEmail} onChange={setContactEmail} placeholder="example@gmail.com" dir="ltr" />
-             <p className="text-[11px] text-soot mt-1">حداقل یکی از شماره یا ایمیل لازم است — برای مراجع خارج از ایران، ایمیل به‌تنهایی کافی است.</p>
+             <p className="text-[11px] text-soot mt-1">حداقل یکی از شماره یا ایمیل لازم است.</p>
             </div>
            </div>
           </>

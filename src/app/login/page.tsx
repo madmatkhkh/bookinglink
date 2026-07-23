@@ -30,7 +30,7 @@ export default function Login() {
     setBusy(true)
     try {
       const r = await fetch(`/api/t/${s}/niche`)
-      if (!r.ok) { setErr('کسب‌وکاری با این نشانی پیدا نشد — نشانی را دوباره چک کن.'); return }
+      if (!r.ok) { setErr('کسب‌وکاری با این نشانی پیدا نشد — نشانی را دوباره بررسی کنید.'); return }
       window.location.href = `/${s}/panel`
     } catch {
       setErr('اتصال برقرار نشد')
@@ -57,7 +57,7 @@ export default function Login() {
           <div className="w-full max-w-sm animate-nl-up">
             <h1 className="font-display font-extrabold text-3xl tracking-tightest mb-2">ورود به پنل</h1>
             <p className="text-sm text-soot leading-relaxed mb-7">
-              نشانی اختصاصی‌ات را وارد کن؛ کد ورود (پیامکی) داخل همان پنل ازت پرسیده می‌شود.
+              نشانی اختصاصی خود را وارد کنید؛ کد ورود (پیامکی) داخل همان پنل از شما پرسیده می‌شود.
             </p>
 
             <form onSubmit={goToPanel}>
@@ -74,7 +74,7 @@ export default function Login() {
             </form>
 
             <p className="text-center text-[13px] text-soot mt-7">
-              حساب نداری؟ <a href="/signup" className="font-semibold text-ink">ثبت‌نام رایگان</a>
+              حساب ندارید؟ <a href="/signup" className="font-semibold text-ink">ثبت‌نام رایگان</a>
             </p>
           </div>
         </div>
@@ -89,8 +89,8 @@ export default function Login() {
             <span className="w-1.5 h-1.5 rounded-full bg-white" style={{ animation: 'nlPulse 2s infinite' }} />
             داشبورد {PLATFORM_NAME}
           </div>
-          <h2 className="font-display font-extrabold text-3xl leading-snug tracking-tightest mb-4">همه‌ی نوبت‌هایت،<br />یک‌جا و مرتب</h2>
-          <p className="text-[15px] text-white/70 leading-loose mb-10">وارد شو تا تقویم، مراجعین و یادآوری‌های پیامکی‌ات را مدیریت کنی — بدون هماهنگی دستی.</p>
+          <h2 className="font-display font-extrabold text-3xl leading-snug tracking-tightest mb-4">نوبت‌های شما،<br />یک‌جا و مرتب</h2>
+          <p className="text-[15px] text-white/70 leading-loose mb-10">وارد شوید تا تقویم، مراجعان و یادآوری‌های پیامکی خود را مدیریت کنید — بدون هماهنگی دستی.</p>
           <div className="rounded-2xl border border-white/12 bg-white/5 p-5 backdrop-blur">
             <div className="flex items-center justify-between mb-4">
               <span className="font-display font-bold text-sm">امروز · یک‌شنبه</span>

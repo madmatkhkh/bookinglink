@@ -81,8 +81,8 @@ export default function Signup() {
       <div className="min-h-screen bg-paper text-ink flex items-center justify-center p-6">
         <div className="max-w-sm text-center animate-nl-up">
           <div className="w-14 h-14 rounded-2xl bg-ink text-white flex items-center justify-center mx-auto mb-6 text-2xl">✓</div>
-          <h1 className="font-display font-extrabold text-2xl tracking-tightest mb-3">پنلت آماده شد!</h1>
-          <p className="text-sm text-soot leading-relaxed mb-7">کسب‌وکار <b className="text-ink" dir="ltr">nobatlink.com/{slug}</b> ساخته شد. حالا می‌توانی وارد پنلش شوی.</p>
+          <h1 className="font-display font-extrabold text-2xl tracking-tightest mb-3">پنل شما آماده شد!</h1>
+          <p className="text-sm text-soot leading-relaxed mb-7">کسب‌وکار <b className="text-ink" dir="ltr">nobatlink.com/{slug}</b> ساخته شد. اکنون می‌توانید وارد پنل شوید.</p>
           <a href={`/${slug}/panel`} className="font-display font-bold text-white bg-ink px-7 py-3 rounded-xl inline-block">ورود به پنل ←</a>
         </div>
       </div>
@@ -96,12 +96,12 @@ export default function Signup() {
           <img src="/logo.svg" alt="" className="w-7 h-7" />
           <span className="font-display font-extrabold text-lg tracking-tightest">{PLATFORM_NAME}</span>
         </a>
-        <a href="/login" className="text-[13px] text-soot hover:text-ink">قبلا ثبت‌نام کرده‌ای؟ ورود</a>
+        <a href="/login" className="text-[13px] text-soot hover:text-ink">قبلا ثبت‌نام کرده‌اید؟ ورود</a>
       </header>
 
       <div className="max-w-md mx-auto px-6 py-10 animate-nl-up">
         <h1 className="font-display font-extrabold text-3xl tracking-tightest mb-2">ساخت پنل نوبت‌دهی — رایگان</h1>
-        <p className="text-sm text-soot leading-relaxed mb-8">در کمتر از 5 دقیقه صفحه‌ی رزرو اختصاصی‌ات را بساز. بدون نیاز به درگاه بانکی.</p>
+        <p className="text-sm text-soot leading-relaxed mb-8">در کمتر از 5 دقیقه صفحه‌ی رزرو اختصاصی خود را بسازید. بدون نیاز به درگاه بانکی.</p>
 
         {step === 'details' ? (
           <form onSubmit={requestCode}>
@@ -114,12 +114,12 @@ export default function Signup() {
               <input value={slug} onChange={e => setSlug(e.target.value.toLowerCase())} placeholder="your-name" required
                 className={`${field} rounded-l-none text-left ${slug && !slugOk ? 'border-red-400' : ''}`} />
             </div>
-            <p className={`text-[12px] mt-1.5 mb-4 ${slugMsg ? 'text-red-500' : 'text-soot'}`}>{slugMsg || (slug && slugOk ? '✓ این نشانی در دسترس است' : 'نشانی لینک عمومی‌ات')}</p>
+            <p className={`text-[12px] mt-1.5 mb-4 ${slugMsg ? 'text-red-500' : 'text-soot'}`}>{slugMsg || (slug && slugOk ? '✓ این نشانی در دسترس است' : 'نشانی عمومی شما')}</p>
 
             <div className="flex items-center justify-between mb-1.5">
               <label className="block text-[13px] font-semibold text-ink/80">{contactMode === 'phone' ? 'شماره‌ی موبایل' : 'ایمیل'}</label>
               <button type="button" onClick={() => setContactMode(m => m === 'phone' ? 'email' : 'phone')} className="text-[12px] text-soot underline">
-                {contactMode === 'phone' ? 'خارج از ایرانی؟ با ایمیل ثبت‌نام کن' : 'با شماره‌ی ایرانی ثبت‌نام کن'}
+                {contactMode === 'phone' ? 'خارج از ایران هستید؟ با ایمیل ثبت‌نام کنید' : 'با شماره‌ی ایرانی ثبت‌نام کن'}
               </button>
             </div>
             {contactMode === 'phone' ? (
@@ -165,12 +165,12 @@ export default function Signup() {
             <button disabled={busy} className="w-full font-display font-bold text-white bg-ink py-3.5 rounded-xl shadow-sm hover:-translate-y-0.5 transition disabled:opacity-60">
               {busy ? 'در حال ارسال کد…' : 'ادامه ←'}
             </button>
-            <p className="text-center text-[12px] text-soot/80 mt-4">با ثبت‌نام، قوانین و حریم خصوصی نوبت‌لینک را می‌پذیری.</p>
+            <p className="text-center text-[12px] text-soot/80 mt-4">با ثبت‌نام، قوانین و حریم خصوصی نوبت‌لینک را می‌پذیرید.</p>
           </form>
         ) : (
           <form onSubmit={verifyAndCreate}>
             <p className="text-sm text-soot leading-relaxed mb-5">
-              کد 5 رقمی ارسال‌شده به <b className="text-ink" dir="ltr">{contactMode === 'email' ? email : phone}</b> را وارد کن تا پنلت ساخته شود.
+              کد 5 رقمی ارسال‌شده به <b className="text-ink" dir="ltr">{contactMode === 'email' ? email : phone}</b> را وارد کنید تا پنل شما ساخته شود.
             </p>
             {devCode && (
               <p className="text-[12px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-4">
@@ -189,7 +189,7 @@ export default function Signup() {
                   ارسال دوباره‌ی کد
                 </button>
               ) : (
-                <p className="text-[12px] text-soot">کد نیامد؟ تا <b className="text-ink">{resend.secondsLeft}</b> ثانیه‌ی دیگر می‌توانی دوباره درخواست کنی</p>
+                <p className="text-[12px] text-soot">کد نیامد؟ تا <b className="text-ink">{resend.secondsLeft}</b> ثانیه‌ی دیگر می‌توانید دوباره درخواست کنید</p>
               )}
             </div>
             <button type="button" onClick={() => { setStep('details'); setErr(''); setCode('') }} className="w-full text-[13px] text-soot hover:text-ink">

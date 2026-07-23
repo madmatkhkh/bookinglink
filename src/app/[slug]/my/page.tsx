@@ -327,7 +327,7 @@ export default function PatientPanel() {
        <input value={emailInput} onChange={e => setEmailInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && sendOtp()}
         placeholder="example@gmail.com" dir="ltr"
         className="w-full text-sm px-3 py-2.5 border border-sand rounded-xl text-center focus:outline-none focus:border-ink" />
-       <p className="text-[11px] text-soot mt-1.5">برای مراجعین خارج از ایران — اگر ایمیلت را موقع ثبت‌نام داده باشی.</p>
+       <p className="text-[11px] text-soot mt-1.5">اگر هنگام ثبت‌نام ایمیل داده باشید.</p>
       </>
      )}
     </div>
