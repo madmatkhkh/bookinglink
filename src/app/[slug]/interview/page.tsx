@@ -566,6 +566,11 @@ function InterviewPayScreen({ doctor, resourceId, slug, phone, cards, loaded, se
         </button>
        )}
       </div>
+      {pricing && (
+       <div className="mt-1.5 text-center text-[11px] text-soot tnum">
+        {mode === 'online' ? pricing.duration_online : pricing.duration_offline} دقیقه
+       </div>
+      )}
      </div>
     )}
 
