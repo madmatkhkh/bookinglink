@@ -25,7 +25,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   try {
     const { data } = await sb()
       .from('tenants')
-      .select('slug, updated_at')
+      // ⚠️ قبلا updated_at خوانده می‌شد ولی جدول tenants چنین ستونی ندارد؛
+      // کوئری خطا می‌داد، try/catch بی‌صدا می‌بلعیدش و sitemap هیچ صفحه‌ی
+      // مجموعه‌ای نداشت. created_at موجود است و برای lastModified کافی.
+      .select('slug, created_at')
       .eq('status', 'active')
       .eq('is_test', false)
       .limit(5000)
@@ -33,7 +36,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       .filter(t => t.slug)
       .map(t => ({
         url: `${base}/${t.slug}`,
-        lastModified: t.updated_at ? new Date(t.updated_at) : now,
+        lastModified: t.created_at ? new Date(t.created_at) : now,
         changeFrequency: 'weekly' as const,
         priority: 0.8,
       }))

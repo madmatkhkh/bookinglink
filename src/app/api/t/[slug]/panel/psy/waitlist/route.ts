@@ -3,6 +3,7 @@ import { sb } from '@/lib/supabase'
 import { requirePanelAuth, isPanelAuthResponse } from '@/lib/tenant'
 import { requireModule } from '@/lib/modules'
 import { sendFreeTextSms, freeTextSmsConfigured } from '@/lib/sms'
+import { ensureSenderIdentity } from '@/lib/smsTemplates'
 import { getSmsAllowance, allocateCharge, logSmsSent } from '@/lib/smsQuota'
 import { sendCampaignEmail, emailConfigured } from '@/lib/email'
 
@@ -48,7 +49,10 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
     const al = await getSmsAllowance(a.tenant.id, a.tenant.plan)
     if (!al.unlimited && al.remaining <= 0)
       return NextResponse.json({ error: 'اعتبار پیامکی این ماه تمام شده. برای شارژ با پشتیبانی در تماس باشید.' }, { status: 403 })
-    const r = await sendFreeTextSms(entry.contact_phone, message.trim())
+    // همان قاعده‌ی کمپین: پیام خط خدماتی نباید بی‌نام‌ونشان باشد
+    const { data: prof } = await sb().from('tenant_profiles')
+      .select('display_name').eq('tenant_id', a.tenant.id).maybeSingle()
+    const r = await sendFreeTextSms(entry.contact_phone, ensureSenderIdentity(message.trim(), (prof as any)?.display_name || ''))
     if (r.ok) await logSmsSent(a.tenant.id, 'waitlist', allocateCharge(al))
     sent = sent || r.ok
   }

@@ -3,6 +3,7 @@ import { sb } from '@/lib/supabase'
 import { requirePanelAuth, isPanelAuthResponse } from '@/lib/tenant'
 import { requireModule } from '@/lib/modules'
 import { sendFreeTextSms, freeTextSmsConfigured } from '@/lib/sms'
+import { ensureSenderIdentity } from '@/lib/smsTemplates'
 import { getSmsAllowance, allocateCharge, logSmsSent, SmsCharge } from '@/lib/smsQuota'
 import { sendCampaignEmail, emailConfigured } from '@/lib/email'
 
@@ -81,11 +82,17 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
       }, { status: 403 })
   }
 
+  // اپراتور خط خدماتی: پیام نباید بی‌نام‌ونشان باشد. متن کمپین آزاد است، پس
+  // اگر اسم مجموعه در آن نیامده باشد یک بار به ابتدایش اضافه می‌شود.
+  const { data: prof } = await sb().from('tenant_profiles')
+    .select('display_name').eq('tenant_id', a.tenant.id).maybeSingle()
+  const smsBody = ensureSenderIdentity(message.trim(), (prof as any)?.display_name || '')
+
   let count = 0
   const charges: SmsCharge[] = []
   for (const r of recipients) {
     if (channel === 'sms' && r.contact_phone) {
-      const res = await sendFreeTextSms(r.contact_phone, message.trim())
+      const res = await sendFreeTextSms(r.contact_phone, smsBody)
       if (res.ok) { count++; charges.push(allocateCharge(al)) }
     } else if (channel === 'email' && r.contact_email) {
       const res = await sendCampaignEmail(r.contact_email, `پیامی از طرف ${a.tenant.slug}`, message.trim())

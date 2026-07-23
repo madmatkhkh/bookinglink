@@ -68,9 +68,14 @@ export function validateReminderBody(raw: unknown): TemplateValidation {
 
   // بدون تاریخ و ساعت، «یادآوری نوبت» عملا بی‌فایده است و مراجع نمی‌داند کِی
   // باید بیاید — این را به‌جای بازبین دستی، همین‌جا می‌گیریم.
-  for (const req of ['date', 'time'] as const)
+  // {name} اجباری است چون اپراتور خط خدماتی می‌گوید پیام نباید بی‌نام‌ونشان
+  // باشد — گیرنده باید بفهمد از طرف کیست. بدون آن، یک متن ناشناس از خط
+  // خدماتی می‌رفت و سفته‌ی صاحب خط (پلتفرم) را به خطر می‌انداخت.
+  // {date} و {time} هم اجباری‌اند چون یادآوری بدون زمان بی‌فایده است.
+  const REQUIRED = { name: 'نام مجموعه', date: 'تاریخ', time: 'ساعت' } as const
+  for (const req of Object.keys(REQUIRED) as (keyof typeof REQUIRED)[])
     if (!used.includes(req))
-      return { ok: false, error: `متن باید شامل جاگذار {${req}} باشد` }
+      return { ok: false, error: `متن باید شامل جاگذار {${req}} باشد (${REQUIRED[req]})` }
 
   return { ok: true, body }
 }
@@ -101,4 +106,19 @@ export async function getApprovedReminderTemplates(): Promise<Map<string, string
     console.error('getApprovedReminderTemplates exception:', e)
     return new Map()
   }
+}
+
+/**
+ * تضمین اینکه پیام آزاد بی‌نام‌ونشان از خط خدماتی بیرون نرود.
+ *
+ * اپراتور خط خدماتی صریحا گفته متن باید مشخص کند از طرف کیست. کمپین و
+ * اطلاع‌رسانی لیست انتظار متن آزاد کاربرند و ممکن است اسم مجموعه در آن‌ها
+ * نباشد؛ این تابع فقط وقتی اسم را اضافه می‌کند که واقعا نباشد، تا متنی که
+ * کاربر خودش درست نوشته دستکاری نشود.
+ */
+export function ensureSenderIdentity(body: string, clinicName: string): string {
+  const text = String(body || '').trim()
+  const name = String(clinicName || '').trim()
+  if (!name || text.includes(name)) return text
+  return `${name}:\n${text}`
 }
