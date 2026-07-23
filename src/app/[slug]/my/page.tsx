@@ -1854,6 +1854,9 @@ function StagePayment({ icon, title, desc, amount, onPaid, onDone, resourceId, c
        🎥 آنلاین
       </button>
      </div>
+     <div className="mt-1.5 text-center text-[11px] text-soot tnum">
+      {mode === 'online' ? pricing.duration_online : pricing.duration_offline} دقیقه
+     </div>
     </div>
    )}
 
