@@ -2128,6 +2128,25 @@ export function PsychologyAdmin() {
           </button>
          ))}
         </div>
+
+        <div className="border-t border-sand mt-4 pt-4">
+         <h3 className="text-xs font-medium text-ink mb-1">مدت زمان جلسات</h3>
+         <p className="text-xs text-soot mb-3">صرفا نمایشی/مرجع است — روی ساعت‌های قابل‌رزرو اثر نمی‌گذارد.</p>
+         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+           <label className="text-xs text-soot mb-1 block">مدت جلسه‌ی آنلاین (دقیقه)</label>
+           <input type="number" min={1} value={profile.pricing.duration_online}
+            onChange={e => patchProfile({ pricing: { ...profile.pricing, duration_online: Math.max(1, Number(e.target.value) || 1) } })}
+            className="w-full text-sm px-3 py-2 border border-sand rounded-lg tnum focus:outline-none focus:border-ink" />
+          </div>
+          <div>
+           <label className="text-xs text-soot mb-1 block">مدت جلسه‌ی حضوری (دقیقه)</label>
+           <input type="number" min={1} value={profile.pricing.duration_offline}
+            onChange={e => patchProfile({ pricing: { ...profile.pricing, duration_offline: Math.max(1, Number(e.target.value) || 1) } })}
+            className="w-full text-sm px-3 py-2 border border-sand rounded-lg tnum focus:outline-none focus:border-ink" />
+          </div>
+         </div>
+        </div>
        </section>
        )}
 
@@ -2408,25 +2427,6 @@ export function PsychologyAdmin() {
           <input type="number" min={0} value={profile.pricing.offline}
            onChange={e => patchProfile({ pricing: { ...profile.pricing, offline: Math.max(0, Number(e.target.value) || 0) } })}
            className="w-full text-sm px-3 py-2 border border-sand rounded-lg tnum focus:outline-none focus:border-ink" />
-         </div>
-        </div>
-
-        <div className="border-t border-sand mt-4 pt-4">
-         <h3 className="text-xs font-medium text-ink mb-1">مدت زمان جلسات</h3>
-         <p className="text-xs text-soot mb-3">صرفا نمایشی/مرجع است — روی ساعت‌های قابل‌رزرو اثر نمی‌گذارد.</p>
-         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-           <label className="text-xs text-soot mb-1 block">مدت جلسه‌ی آنلاین (دقیقه)</label>
-           <input type="number" min={1} value={profile.pricing.duration_online}
-            onChange={e => patchProfile({ pricing: { ...profile.pricing, duration_online: Math.max(1, Number(e.target.value) || 1) } })}
-            className="w-full text-sm px-3 py-2 border border-sand rounded-lg tnum focus:outline-none focus:border-ink" />
-          </div>
-          <div>
-           <label className="text-xs text-soot mb-1 block">مدت جلسه‌ی حضوری (دقیقه)</label>
-           <input type="number" min={1} value={profile.pricing.duration_offline}
-            onChange={e => patchProfile({ pricing: { ...profile.pricing, duration_offline: Math.max(1, Number(e.target.value) || 1) } })}
-            className="w-full text-sm px-3 py-2 border border-sand rounded-lg tnum focus:outline-none focus:border-ink" />
-          </div>
          </div>
         </div>
 
