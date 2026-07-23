@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "check:claims": "node scripts/check-changelog-claims.mjs"
+    "check:claims": "node scripts/check-changelog-claims.mjs",
+    "check:relay": "node scripts/check-relay-sync.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1085.0",

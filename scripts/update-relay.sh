@@ -1,3 +1,37 @@
+#!/bin/bash
+# ─────────────────────────────────────────────────────────────────────────────
+# Update the running relay in place.
+#
+# Replaces /opt/zibal-relay/zibal-relay.mjs and restarts the service. It does
+# NOT touch DNS, Caddy, the zibal user, or the systemd unit - so it is safe to
+# run on a working server.
+#
+# Why this exists: the deployed relay only knew the Zibal paths and answered
+# 404 to every /sms/v1/* request. Re-running the full installer just to add two
+# routes would have been heavy and risky.
+#
+# Usage, as root on the relay server:
+#   bash update-relay.sh
+#
+# It backs up the current file first and rolls back automatically if the
+# service fails to come up.
+# ─────────────────────────────────────────────────────────────────────────────
+set -euo pipefail
+
+TARGET=/opt/zibal-relay/zibal-relay.mjs
+BACKUP="$TARGET.bak.$(date +%s)"
+PORT="${PORT:-8080}"
+
+if [ ! -f "$TARGET" ]; then
+  echo "ERROR: $TARGET not found. The relay is not installed on this server."
+  exit 1
+fi
+
+echo "==> Backing up current relay to: $BACKUP"
+cp "$TARGET" "$BACKUP"
+
+echo "==> Writing new relay"
+cat > "$TARGET" << 'RELAY_EOF'
 // ─────────────────────────────────────────────────────────────────────────────
 // Fixed-IP relay for Zibal and sms.ir. This file does NOT run on Vercel.
 //
@@ -106,3 +140,61 @@ http.createServer((req, res) => {
     }
   })
 }).listen(PORT, '127.0.0.1', () => console.log(`relay listening on 127.0.0.1:${PORT}`))
+RELAY_EOF
+
+chown zibal:zibal "$TARGET" 2>/dev/null || true
+
+echo "==> Checking syntax"
+if ! node --check "$TARGET"; then
+  echo "ERROR: new file has a syntax error. Restoring backup."
+  cp "$BACKUP" "$TARGET"
+  exit 1
+fi
+
+echo "==> Restarting service"
+systemctl restart zibal-relay
+sleep 2
+
+if ! systemctl is-active --quiet zibal-relay; then
+  echo "ERROR: service did not come up. Restoring backup."
+  cp "$BACKUP" "$TARGET"
+  systemctl restart zibal-relay
+  echo "--- last 30 log lines ---"
+  journalctl -u zibal-relay -n 30 --no-pager
+  exit 1
+fi
+
+echo "==> Service is active"
+echo
+echo "--- Self test ---"
+
+health=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$PORT/health" || echo "000")
+echo "  /health              -> HTTP $health   (expect 200)"
+
+sms=$(curl -s -o /dev/null -w '%{http_code}' -X POST \
+  -H 'Content-Type: application/json' -d '{}' \
+  "http://127.0.0.1:$PORT/sms/v1/send/verify" || echo "000")
+echo "  /sms/v1/send/verify  -> HTTP $sms   (expect 401)"
+
+zibal=$(curl -s -o /dev/null -w '%{http_code}' -X POST \
+  -H 'Content-Type: application/json' -d '{}' \
+  "http://127.0.0.1:$PORT/v1/request" || echo "000")
+echo "  /v1/request          -> HTTP $zibal   (expect 401)"
+
+echo
+if [ "$sms" = "401" ] && [ "$zibal" = "401" ] && [ "$health" = "200" ]; then
+  echo "OK - SMS route is live. 401 is correct here: the path was recognised"
+  echo "     and only the relay key is missing, which the app sends."
+  echo
+  echo "Next: set SMS_IR_API_BASE in Vercel to  https://<relay-domain>/sms/v1"
+  echo "      (note /sms/v1, not /v1), then redeploy and send a test OTP."
+else
+  echo "PROBLEM:"
+  [ "$health" != "200" ] && echo "  - /health is not 200; the service may not be listening on port $PORT."
+  [ "$sms"  = "404" ]    && echo "  - /sms/v1/send/verify returned 404; the update did not take effect."
+  [ "$zibal" = "404" ]   && echo "  - /v1/request returned 404; Zibal routes are missing too - restore the backup."
+  echo
+  echo "  Backup kept at: $BACKUP"
+  echo "  Restore with:   cp $BACKUP $TARGET && systemctl restart zibal-relay"
+  exit 1
+fi

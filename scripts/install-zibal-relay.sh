@@ -114,17 +114,36 @@ mkdir -p /opt/zibal-relay
 
 cat > /opt/zibal-relay/zibal-relay.mjs << 'RELAY_EOF'
 // ─────────────────────────────────────────────────────────────────────────────
-// Zibal fixed-IP relay — this file does NOT run on Vercel.
+// Fixed-IP relay for Zibal and sms.ir. This file does NOT run on Vercel.
 //
-// Vercel is serverless: its outbound IP changes between invocations, so there
-// is no single IP to whitelist in the Zibal panel. This relay runs on a server
-// with a fixed IP; that one IP is registered with Zibal, and the Vercel app
-// calls Zibal through here. Forwarding the request and returning the response
-// is all it does — no payment logic lives in this file.
+// Everything here runs on a Linux server and its output goes to journalctl,
+// so this file is intentionally English-only. Persian text renders as garbage
+// in most SSH terminals.
 //
-// Security: without RELAY_KEY this would be an open proxy to a payment gateway.
-// The x-relay-key header is mandatory and compared in constant time. Paths are
-// whitelisted so the relay can't be pointed at arbitrary addresses.
+// Why it exists: Zibal requires a fixed IP for the payment gateway, but Vercel
+// is serverless and its outbound IP changes between invocations, so there is no
+// single IP to whitelist. This relay runs on a server with a fixed IP; that one
+// IP is registered with Zibal, and the Vercel app talks to this instead.
+// Forwarding the request and returning the response is all it does - no payment
+// logic lives here.
+//
+// ── Setup ───────────────────────────────────────────────────────────────────
+//   1) Put this file on the server.
+//   2) Generate a key:   openssl rand -hex 32
+//   3) Run:              RELAY_KEY=<key> PORT=8080 node zibal-relay.mjs
+//      (use systemd for persistence - see install-zibal-relay.sh)
+//   4) Put nginx/Caddy + TLS in front of it so it is served over https.
+//   5) Set these in Vercel:
+//        ZIBAL_API_BASE   = https://<relay-domain>/v1
+//        SMS_IR_API_BASE  = https://<relay-domain>/sms/v1
+//        ZIBAL_RELAY_KEY  = <same key>
+//   6) Register this server's IP in the Zibal panel (and sms.ir, which also
+//      recommends restricting API access to a fixed IP).
+//
+// ── Security ────────────────────────────────────────────────────────────────
+// Without RELAY_KEY this would be an open proxy to a payment gateway. The
+// x-relay-key header is mandatory and compared in constant time. Paths are
+// whitelisted so the relay cannot be pointed at arbitrary addresses.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import http from 'node:http'
@@ -132,11 +151,28 @@ import crypto from 'node:crypto'
 
 const PORT = parseInt(process.env.PORT || '8080', 10)
 const RELAY_KEY = process.env.RELAY_KEY || ''
-const ZIBAL = 'https://gateway.zibal.ir/v1'
-const ALLOWED = new Set(['/v1/request', '/v1/verify', '/v1/inquiry'])
+
+// Path -> upstream. Anything not listed here is rejected, so the relay only
+// ever knows these specific endpoints and cannot become an open proxy.
+//
+// sms.ir is included for the same reason as Zibal: it is an Iranian service
+// that may be unreachable from Vercel, and sms.ir also recommends restricting
+// API access to a fixed IP. Point SMS_IR_API_BASE at /sms/v1 on this relay.
+const ROUTES = {
+  '/v1/request': 'https://gateway.zibal.ir/v1/request',
+  '/v1/verify':  'https://gateway.zibal.ir/v1/verify',
+  '/v1/inquiry': 'https://gateway.zibal.ir/v1/inquiry',
+  '/sms/v1/send/verify': 'https://api.sms.ir/v1/send/verify',
+  '/sms/v1/send/bulk':   'https://api.sms.ir/v1/send/bulk',
+}
+
+// Headers forwarded upstream. x-api-key is required by sms.ir (Zibal sends its
+// key inside the body instead). x-relay-key is deliberately NOT forwarded -
+// that one belongs to the relay itself and must not leak to third parties.
+const PASS_HEADERS = ['x-api-key', 'accept']
 
 if (!RELAY_KEY) {
-  console.error('RELAY_KEY is not set — refusing to start (would be an open proxy).')
+  console.error('RELAY_KEY is not set - refusing to start (would be an open proxy).')
   process.exit(1)
 }
 
@@ -160,21 +196,22 @@ http.createServer((req, res) => {
   if (req.method !== 'POST') return send(405, { error: 'method not allowed' })
 
   const path = (req.url || '').split('?')[0]
-  if (!ALLOWED.has(path)) return send(404, { error: 'not found' })
+  const target = ROUTES[path]
+  if (!target) return send(404, { error: 'not found' })
   if (!keyOk(req.headers['x-relay-key'])) return send(401, { error: 'unauthorized' })
 
   let body = ''
   req.on('data', chunk => {
     body += chunk
-    if (body.length > 100_000) req.destroy() // size cap
+    if (body.length > 100_000) req.destroy() // size cap - avoid unbounded feed
   })
   req.on('end', async () => {
     try {
-      const upstream = await fetch(`${ZIBAL}${path.slice(3)}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body,
-      })
+      const headers = { 'Content-Type': 'application/json' }
+      for (const h of PASS_HEADERS) {
+        if (req.headers[h]) headers[h] = req.headers[h]
+      }
+      const upstream = await fetch(target, { method: 'POST', headers, body })
       const text = await upstream.text()
       res.writeHead(upstream.status, { 'Content-Type': 'application/json' })
       res.end(text)
@@ -183,7 +220,7 @@ http.createServer((req, res) => {
       send(502, { error: 'upstream failed' })
     }
   })
-}).listen(PORT, '127.0.0.1', () => console.log(`zibal relay listening on 127.0.0.1:${PORT}`))
+}).listen(PORT, '127.0.0.1', () => console.log(`relay listening on 127.0.0.1:${PORT}`))
 RELAY_EOF
 
 chown -R zibal:zibal /opt/zibal-relay
