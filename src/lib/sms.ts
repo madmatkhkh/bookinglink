@@ -35,6 +35,88 @@ const API_BASE = (process.env.SMS_IR_API_BASE || 'https://api.sms.ir/v1').replac
 
 export type SmsSendResult = { ok: true } | { ok: false; error: string }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// نقطه‌ی واحد تماس با sms.ir — چهار تابع ارسال از همین رد می‌شوند.
+//
+// چرا لازم بود: قبلا هر تابع خودش fetch می‌زد با `res.json()` خام. سه مشکل داشت:
+//   1) هیچ timeout ای نبود — اگر مقصد جواب نمی‌داد، تابع تا سقف خود ورسل معلق
+//      می‌ماند و کاربر فقط یک لودینگ بی‌پایان می‌دید.
+//   2) هدر `Accept: text/plain` فرستاده می‌شد ولی جواب با `res.json()` خوانده
+//      می‌شد؛ اگر sms.ir متن ساده برمی‌گرداند، پارس شکست می‌خورد و `data` تهی
+//      می‌شد — یعنی حتی ارسال **موفق** هم «ناموفق» گزارش می‌شد، و پیام خطا هم
+//      همان جمله‌ی کلی بی‌فایده بود چون `data.message` وجود نداشت.
+//   3) بدنه‌ی واقعی پاسخ هیچ‌وقت لاگ نمی‌شد، پس علت واقعی قابل تشخیص نبود.
+//
+// حالا: بدنه اول به‌صورت متن خوانده می‌شود، بعد تلاش برای JSON. هر شکستی با
+// وضعیت HTTP و بدنه‌ی خام لاگ می‌شود تا در لاگ ورسل دقیقا معلوم شود چه شد.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const SMS_TIMEOUT_MS = 12000
+
+// وقتی SMS_IR_API_BASE ست است یعنی از رله می‌رویم، و رله بدون هدر x-relay-key
+// همه‌چیز را 401 می‌کند (وگرنه یک پروکسی باز به sms.ir می‌شد). همان کلید رله‌ی
+// زیبال است، چون همان سرور است. عمدا فقط وقتی فرستاده می‌شود که واقعا از رله
+// عبور می‌کنیم — نه در تماس مستقیم با api.sms.ir، تا کلید به بیرون نشت نکند.
+const USING_RELAY = !!process.env.SMS_IR_API_BASE
+const RELAY_KEY = process.env.ZIBAL_RELAY_KEY || ''
+
+function smsHeaders(apiKey: string): Record<string, string> {
+  return {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+    'x-api-key': apiKey,
+    ...(USING_RELAY && RELAY_KEY ? { 'x-relay-key': RELAY_KEY } : {}),
+  }
+}
+
+type SmsPostResult =
+  | { ok: true }
+  | { ok: false; error: string }
+
+async function smsPost(path: string, apiKey: string, body: unknown, label: string): Promise<SmsPostResult> {
+  const url = `${API_BASE}${path}`
+  const started = Date.now()
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: smsHeaders(apiKey),
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(SMS_TIMEOUT_MS),
+    })
+    // متن اول، بعد JSON — تا پاسخ غیر-JSON هم قابل لاگ‌کردن باشد
+    const raw = await res.text().catch(() => '')
+    let data: any = null
+    try { data = raw ? JSON.parse(raw) : null } catch { /* پاسخ JSON نبود */ }
+
+    if (res.ok && data?.status === 1) return { ok: true }
+
+    console.error(`[SMS][${label}] ناموفق — HTTP ${res.status} در ${Date.now() - started}ms | url=${url} | مسیر: ${USING_RELAY ? 'رله' : 'مستقیم'} | بدنه: ${raw.slice(0, 400)}`)
+
+    // پیام خود sms.ir بهترین راهنماست (مثلا «اعتبار کافی نیست»)
+    if (data?.message) return { ok: false, error: String(data.message) }
+    if (res.status === 401 || res.status === 403) {
+      // 401 از رله معنای کاملا متفاوتی با 401 از خود sms.ir دارد
+      if (USING_RELAY && !RELAY_KEY)
+        return { ok: false, error: 'رله کلید نمی‌گیرد — ZIBAL_RELAY_KEY ست نشده' }
+      return { ok: false, error: USING_RELAY
+        ? 'رله یا sms.ir درخواست را رد کرد (401/403) — کلید رله و کلید sms.ir را بررسی کنید'
+        : 'کلید سرویس پیامک پذیرفته نشد (401/403) — کلید یا محدودیت آی‌پی پنل sms.ir را بررسی کنید' }
+    }
+    if (!raw)
+      return { ok: false, error: `سرویس پیامک پاسخ خالی داد (HTTP ${res.status})` }
+    return { ok: false, error: `ارسال پیامک ناموفق بود (HTTP ${res.status})` }
+  } catch (err: any) {
+    const timedOut = err?.name === 'TimeoutError' || err?.name === 'AbortError'
+    console.error(`[SMS][${label}] ${timedOut ? '[TIMEOUT]' : 'خطای شبکه'} بعد از ${Date.now() - started}ms | url=${url} |`, err?.name, err?.message)
+    return {
+      ok: false,
+      error: timedOut
+        ? 'سرویس پیامک در مهلت مقرر پاسخ نداد'
+        : 'اتصال به سرویس پیامک برقرار نشد',
+    }
+  }
+}
+
 /** آیا پیامک واقعی تنظیم شده؟ (برای تصمیم‌گیری routeها که آیا dev_code را echo کنند یا نه) */
 export function smsConfigured(): boolean {
   return !!(process.env.SMS_IR_API_KEY && process.env.SMS_IR_TEMPLATE_ID)
@@ -56,28 +138,15 @@ export async function sendReminderSms(phone: string, name: string, date: string,
   const apiKey = process.env.SMS_IR_API_KEY
   const templateId = process.env.SMS_IR_REMINDER_TEMPLATE_ID
   if (!apiKey || !templateId) return { ok: false, error: 'یادآوری پیامکی تنظیم نشده' }
-  try {
-    const res = await fetch(`${API_BASE}/send/verify`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Accept': 'text/plain', 'x-api-key': apiKey },
-      body: JSON.stringify({
-        mobile: phone,
-        templateId: Number(templateId),
-        parameters: [
-          { name: 'NAME', value: name },
-          { name: 'DATE', value: date },
-          { name: 'TIME', value: time },
-        ],
-      }),
-    })
-    const data = await res.json().catch(() => null)
-    if (res.ok && data?.status === 1) return { ok: true }
-    console.error('sms.ir reminder failed:', res.status, data)
-    return { ok: false, error: data?.message || 'ارسال پیامک ناموفق بود' }
-  } catch (err) {
-    console.error('sms.ir network error:', err)
-    return { ok: false, error: 'اتصال به سرویس پیامک برقرار نشد' }
-  }
+  return smsPost('/send/verify', apiKey, {
+    mobile: phone,
+    templateId: Number(templateId),
+    parameters: [
+      { name: 'NAME', value: name },
+      { name: 'DATE', value: date },
+      { name: 'TIME', value: time },
+    ],
+  }, 'reminder')
 }
 
 /** ارسال کد OTP به شماره‌ی موبایل از طریق الگوی تاییدیه‌ی sms.ir */
@@ -86,29 +155,11 @@ export async function sendOtpSms(phone: string, code: string): Promise<SmsSendRe
   const templateId = process.env.SMS_IR_TEMPLATE_ID
   if (!apiKey || !templateId) return { ok: false, error: 'پیامک تنظیم نشده' }
 
-  try {
-    const res = await fetch(`${API_BASE}/send/verify`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'text/plain',
-        'x-api-key': apiKey,
-      },
-      body: JSON.stringify({
-        mobile: phone,
-        templateId: Number(templateId),
-        parameters: [{ name: 'CODE', value: code }],
-      }),
-    })
-    const data = await res.json().catch(() => null)
-    // فرمت استاندارد پاسخ sms.ir: { status: 1, message: "موفق", data: {...} }
-    if (res.ok && data?.status === 1) return { ok: true }
-    console.error('sms.ir send/verify failed:', res.status, data)
-    return { ok: false, error: data?.message || 'ارسال پیامک ناموفق بود' }
-  } catch (err) {
-    console.error('sms.ir network error:', err)
-    return { ok: false, error: 'اتصال به سرویس پیامک برقرار نشد' }
-  }
+  return smsPost('/send/verify', apiKey, {
+    mobile: phone,
+    templateId: Number(templateId),
+    parameters: [{ name: 'CODE', value: code }],
+  }, 'otp')
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -136,20 +187,7 @@ export async function sendFreeTextSms(phone: string, message: string): Promise<S
   const apiKey = process.env.SMS_IR_API_KEY
   const lineNumber = process.env.SMS_IR_LINE_NUMBER
   if (!apiKey || !lineNumber) return { ok: false, error: 'پیامک آزاد تنظیم نشده (نیازمند SMS_IR_LINE_NUMBER)' }
-  try {
-    const res = await fetch(`${API_BASE}/send/bulk`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Accept': 'text/plain', 'x-api-key': apiKey },
-      body: JSON.stringify({ lineNumber: Number(lineNumber), messageText: message, mobiles: [phone] }),
-    })
-    const data = await res.json().catch(() => null)
-    if (res.ok && data?.status === 1) return { ok: true }
-    console.error('sms.ir bulk send failed:', res.status, data)
-    return { ok: false, error: data?.message || 'ارسال پیامک ناموفق بود' }
-  } catch (err) {
-    console.error('sms.ir network error:', err)
-    return { ok: false, error: 'اتصال به سرویس پیامک برقرار نشد' }
-  }
+  return smsPost('/send/bulk', apiKey, { lineNumber: Number(lineNumber), messageText: message, mobiles: [phone] }, 'bulk')
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -169,20 +207,7 @@ type TemplateParam = { name: string; value: string }
 async function sendTemplateSms(templateId: string, phone: string, parameters: TemplateParam[]): Promise<SmsSendResult> {
   const apiKey = process.env.SMS_IR_API_KEY
   if (!apiKey || !templateId) return { ok: false, error: 'پیامک تنظیم نشده' }
-  try {
-    const res = await fetch(`${API_BASE}/send/verify`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Accept': 'text/plain', 'x-api-key': apiKey },
-      body: JSON.stringify({ mobile: phone, templateId: Number(templateId), parameters }),
-    })
-    const data = await res.json().catch(() => null)
-    if (res.ok && data?.status === 1) return { ok: true }
-    console.error('sms.ir template send failed:', templateId, res.status, data)
-    return { ok: false, error: data?.message || 'ارسال پیامک ناموفق بود' }
-  } catch (err) {
-    console.error('sms.ir network error:', err)
-    return { ok: false, error: 'اتصال به سرویس پیامک برقرار نشد' }
-  }
+  return smsPost('/send/verify', apiKey, { mobile: phone, templateId: Number(templateId), parameters }, 'booking')
 }
 
 /**
