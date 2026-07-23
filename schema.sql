@@ -2220,3 +2220,33 @@ INSERT INTO public.platform_settings (key, value, updated_at) VALUES ('plan_fees
 --
 
 --
+
+
+-- ═══════════════════════════════════════════════════════════════════════════
+--  دسترسی‌های Supabase
+-- ═══════════════════════════════════════════════════════════════════════════
+--  ⚠️ این بخش حیاتی است و نباید حذف شود.
+--
+--  چون این فایل با «drop schema public cascade» شروع می‌شود، دسترسی‌های
+--  پیش‌فرضی که Supabase موقع ساخت پروژه به نقش‌های anon / authenticated /
+--  service_role داده بود هم پاک می‌شوند. بدون بازگرداندنشان، اپ (که با
+--  SUPABASE_SERVICE_ROLE_KEY وصل می‌شود) هیچ دسترسی‌ای به جداول ندارد و هر
+--  کوئری خطا می‌دهد — و چون کد خطا را نادیده می‌گیرد، همه‌جا آرایه‌ی خالی
+--  برمی‌گردد بدون هیچ پیام خطایی. (نشانه‌اش: لیست نیچ‌ها در صفحه‌ی ثبت‌نام خالی.)
+--
+--  ALTER DEFAULT PRIVILEGES هم لازم است تا جدول‌هایی که بعدا اضافه می‌شوند
+--  خودکار همین دسترسی را بگیرند و این مشکل تکرار نشود.
+-- ═══════════════════════════════════════════════════════════════════════════
+
+alter schema public owner to pg_database_owner;
+comment on schema public is 'standard public schema';
+
+grant usage on schema public to postgres, anon, authenticated, service_role;
+
+grant all on all tables    in schema public to postgres, anon, authenticated, service_role;
+grant all on all sequences in schema public to postgres, anon, authenticated, service_role;
+grant all on all functions in schema public to postgres, anon, authenticated, service_role;
+
+alter default privileges in schema public grant all on tables    to postgres, anon, authenticated, service_role;
+alter default privileges in schema public grant all on sequences to postgres, anon, authenticated, service_role;
+alter default privileges in schema public grant all on functions to postgres, anon, authenticated, service_role;
