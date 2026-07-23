@@ -22,6 +22,8 @@ type CaseStage = {
  status: 'awaiting_payment' | 'payment_submitted' | 'awaiting_booking' | 'booked' | 'cancelled'
  price: number; paid: boolean; payment_submitted?: boolean; payment_ref?: string
  session_date?: string; session_time?: string; held?: boolean
+ // «عدم حضور» (migration 0054) — کنار held می‌نشیند، جایگزینش نیست
+ no_show?: boolean
  cancel_notice?: string; payment_reject_reason?: string; meet_link?: string; resource_id?: string | null; created_at: string
  delay_minutes?: number | null
  session_type?: 'online' | 'offline' | null
@@ -893,11 +895,12 @@ function SessionCard({ session: s, num, phone, caseNumber, onUpdate }: {
   forfeited: 'bg-red-500/10 text-red-600 border-red-500/20',
   replaced: 'bg-gray-100 text-soot border-sand',
   completed: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20',
+  no_show: 'bg-red-500/10 text-red-600 border-red-500/20',
   pending: 'bg-amber-500/10 text-amber-600 border-amber-500/20',
   awaiting: 'bg-amber-500/10 text-amber-600 border-amber-500/20',
   awaiting_payment: 'bg-amber-500/10 text-amber-600 border-amber-500/20',
  }
- const STATUS_LABEL: Record<string, string> = { confirmed: 'تایید شده', cancelled: 'کنسل شده', forfeited: 'سوخت شده', replaced: 'جایگزین شد', completed: 'برگزار شده', pending: 'در انتظار', awaiting: 'منتظر زمان‌بندی', awaiting_payment: 'منتظر پرداخت' }
+ const STATUS_LABEL: Record<string, string> = { confirmed: 'تایید شده', cancelled: 'کنسل شده', forfeited: 'سوخت شده', replaced: 'جایگزین شد', completed: 'برگزار شد', no_show: 'عدم حضور', pending: 'در انتظار', awaiting: 'منتظر زمان‌بندی', awaiting_payment: 'منتظر پرداخت' }
 
  // جلسه‌ای که هنوز پرداخت نشده — فارغ از اینکه تاریخ/ساعتش (توسط دکتر) از قبل ثبت شده باشد یا نه
  const needsPayment = s.status === 'confirmed' && !s.paid
@@ -1969,6 +1972,8 @@ function StageSessionRow({ stage, sessionType }: { stage: CaseStage; sessionType
  const cancelled = stage.status === 'cancelled'
  const badge = cancelled
   ? { text: stage.cancelled_by === 'client' ? 'کنسل توسط مراجع' : 'لغو شد', cls: 'bg-red-500/10 text-red-600 border-red-500/20' }
+  : stage.no_show
+  ? { text: 'عدم حضور', cls: 'bg-red-500/10 text-red-600 border-red-500/20' }
   : held
   ? { text: '✅ برگزار شد', cls: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' }
   : scheduled
@@ -2102,6 +2107,7 @@ function MessagesView({ messages }: { messages: PatientMessage[] }) {
 // نوار پیشرفت مراحل — حالا طولش متغیر است (هر تعداد مصاحبه/ارزیابی که واقعا وجود دارد) + درمان در انتها
 function StageProgress({ stages, inTreatment }: { stages: CaseStage[]; inTreatment: boolean }) {
  const statusOf = (s: CaseStage): { text: string; cls: string } => {
+  if (s.status === 'booked' && s.no_show) return { text: 'عدم حضور', cls: 'text-red-600' }
   if (s.status === 'booked' && s.held) return { text: 'برگزار شد', cls: 'text-emerald-600' }
   if (s.status === 'booked') return { text: 'زمان‌بندی شد', cls: 'text-ink' }
   if (s.status === 'awaiting_booking') return { text: 'در انتظار انتخاب زمان', cls: 'text-amber-600' }
@@ -2115,13 +2121,15 @@ function StageProgress({ stages, inTreatment }: { stages: CaseStage[]; inTreatme
  return (
   <div className="bg-white rounded-2xl border border-sand p-2 divide-y divide-sand">
    {sorted.map(s => {
-    const done = s.status === 'booked' && !!s.held
+    const done = s.status === 'booked' && !!s.held && !s.no_show
+    // عدم حضور مرحله را می‌بندد ولی موفق نیست — نه تیک سبز می‌گیرد نه ضربدر لغو
+    const missed = s.status === 'booked' && !!s.no_show
     const cancelled = s.status === 'cancelled'
     const st = statusOf(s)
     return (
      <div key={s.id} className="flex items-center gap-3 py-2.5 px-1.5">
-      <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs shrink-0 ${done ? 'bg-emerald-500 text-white' : cancelled ? 'bg-red-500/15 text-red-500' : 'bg-accent text-white'}`}>
-       {done ? '✓' : cancelled ? '✕' : '●'}
+      <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs shrink-0 ${done ? 'bg-emerald-500 text-white' : missed ? 'bg-red-500/15 text-red-500' : cancelled ? 'bg-red-500/15 text-red-500' : 'bg-accent text-white'}`}>
+       {done ? '✓' : missed ? '—' : cancelled ? '✕' : '●'}
       </div>
       <div className="flex-1 min-w-0">
        <div className={`text-sm truncate ${cancelled ? 'text-soot line-through' : 'text-ink'}`}>{stageTitle(s)}</div>
