@@ -6,6 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "check": "node scripts/check-changelog-claims.mjs && node scripts/check-relay-sync.mjs",
     "check:claims": "node scripts/check-changelog-claims.mjs",
     "check:relay": "node scripts/check-relay-sync.mjs"
   },
