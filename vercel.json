@@ -1,4 +1,3 @@
 {
-  "_comment_crons": "یادآوری پیامکی به crontab ساعتی روی سرور رله منتقل شد (Vercel Hobby فقط cron روزانه می‌دهد و فاصله‌ی یادآوری هر مجموعه تا 2 ساعت قابل تنظیم است). ورودی subscriptions هم برداشته شد چون route‌اش هنوز ساخته نشده و هر شب 404 می‌خورد — قبل از برگرداندنش، اول /api/cron/subscriptions را بساز.",
-  "crons": []
+  "$schema": "https://openapi.vercel.sh/vercel.json"
 }
