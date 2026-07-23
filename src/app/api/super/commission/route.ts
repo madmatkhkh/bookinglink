@@ -34,7 +34,7 @@ export async function PATCH(req: NextRequest) {
   // تغییر درصد سراسری
   if (b.global_percent !== undefined) {
     const pct = Number(b.global_percent)
-    if (!Number.isFinite(pct) || pct < 0 || pct > 100) return NextResponse.json({ error: 'درصد نامعتبر است (۰ تا ۱۰۰)' }, { status: 400 })
+    if (!Number.isFinite(pct) || pct < 0 || pct > 100) return NextResponse.json({ error: 'درصد نامعتبر است (0 تا 100)' }, { status: 400 })
     const { error } = await sb().from('platform_settings')
       .upsert({ key: 'commission_percent', value: pct, updated_at: new Date().toISOString() }, { onConflict: 'key' })
     if (error) { console.error('commission PATCH global error:', error); return NextResponse.json({ error: 'ثبت ناموفق بود' }, { status: 500 }) }
@@ -47,7 +47,7 @@ export async function PATCH(req: NextRequest) {
     let override: number | null = null
     if (b.override !== null && b.override !== undefined && b.override !== '') {
       const o = Number(b.override)
-      if (!Number.isFinite(o) || o < 0 || o > 100) return NextResponse.json({ error: 'درصد نامعتبر است (۰ تا ۱۰۰)' }, { status: 400 })
+      if (!Number.isFinite(o) || o < 0 || o > 100) return NextResponse.json({ error: 'درصد نامعتبر است (0 تا 100)' }, { status: 400 })
       override = o
     }
     // psy_resource_profiles ممکن است هنوز ردیف این متخصص را نداشته باشد

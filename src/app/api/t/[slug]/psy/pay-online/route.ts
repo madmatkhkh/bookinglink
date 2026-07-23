@@ -103,7 +103,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
       { table: 'psy_sessions', caseNumber: case_number })
     if (!lockRes.ok)
       return NextResponse.json({ error: `ساعت ${lockRes.conflict.session_time} در تاریخ ${lockRes.conflict.session_date} قبلا رزرو شده. لطفا زمان دیگری انتخاب کنید.` }, { status: 409 })
-    // ردیف‌های قدیمی ممکن است price ذخیره‌شده نداشته باشند (۰) — بازمحاسبه
+    // ردیف‌های قدیمی ممکن است price ذخیره‌شده نداشته باشند (0) — بازمحاسبه
     amount = pkg.price || packageAmount(pkg, resourcePricing)
     description = 'هزینه‌ی پروتکل درمان'
   } else if (purpose === 'session') {

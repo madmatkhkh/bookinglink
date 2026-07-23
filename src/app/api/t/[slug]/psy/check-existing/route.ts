@@ -16,13 +16,13 @@ function normalizeName(s: string): string {
 //
 // ⚠️ حریم خصوصی: پاسخ این route عملا تایید می‌کند که «فلانی مراجع این کلینیک
 // روانشناسی هست» — برای یک محصول سلامت روان حساس است. به همین دلیل:
-//   ۱) rate limit سفت روی IP (همان جدول auth_throttle) — enumeration انبوه ناممکن
-//   ۲) نرمال‌سازی شماره با همان normalizePhone سراسری تا با ذخیره‌سازی یکی باشد
+//   1) rate limit سفت روی IP (همان جدول auth_throttle) — enumeration انبوه ناممکن
+//   2) نرمال‌سازی شماره با همان normalizePhone سراسری تا با ذخیره‌سازی یکی باشد
 export async function POST(req: NextRequest, { params }: { params: { slug: string } }) {
   const t = await getActiveTenant(params.slug)
   if (!t) return NextResponse.json({ error: 'یافت نشد' }, { status: 404 })
 
-  // حداکثر ۱۰ چک از هر IP در هر ۱۰ دقیقه — برای فلو عادی یک مراجع بیش از کافی،
+  // حداکثر 10 چک از هر IP در هر 10 دقیقه — برای فلو عادی یک مراجع بیش از کافی،
   // برای اسکن لیست اسامی/شماره‌ها بازدارنده. در حالت throttle پاسخ خنثی
   // برمی‌گردانیم (نه خطا) تا فرم مراجع واقعی نشکند — چک قطعی duplicate به‌هرحال
   // موقع ثبت نهایی در /psy/book انجام می‌شود.

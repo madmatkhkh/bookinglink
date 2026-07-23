@@ -5,8 +5,8 @@ import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client
 // نیست — فقط endpoint را به آدرس اکانت R2 اشاره می‌کنیم.
 //
 // آپلود از سرور خودمان انجام می‌شود (نه مستقیم از مرورگر با presigned URL) —
-// چون: (۱) آپلود مستقیم مرورگر نیازمند تنظیم CORS policy روی خود bucket است
-// (پیچیدگی راه‌اندازی اضافه که در عمل اولین چیزی بود که خطا داد)، و (۲) عکس‌ها
+// چون: (1) آپلود مستقیم مرورگر نیازمند تنظیم CORS policy روی خود bucket است
+// (پیچیدگی راه‌اندازی اضافه که در عمل اولین چیزی بود که خطا داد)، و (2) عکس‌ها
 // قبل از ارسال سمت مرورگر crop/فشرده می‌شوند (معمولا زیر ~100KB)، پس رد شدن
 // از سرور هیچ هزینه‌ی قابل‌توجهی ندارد و خطاهایش هم قابل‌کنترل‌تر است.
 //
@@ -50,7 +50,7 @@ export async function uploadToR2(key: string, body: Buffer, contentType: string)
 }
 
 // حذف عکس قبلی وقتی متخصص عکس تازه آپلود می‌کند یا عکس را برمی‌دارد — تمیز
-// نگه‌داشتن باکت (رایگان تا ۱۰ گیگ، ولی دلیلی ندارد فایل یتیم جمع شود).
+// نگه‌داشتن باکت (رایگان تا 10 گیگ، ولی دلیلی ندارد فایل یتیم جمع شود).
 export async function deleteFromR2(key: string): Promise<void> {
   try {
     await r2Client().send(new DeleteObjectCommand({ Bucket: BUCKET(), Key: key }))

@@ -48,7 +48,7 @@ export async function notifyBookingConfirmed(input: BookingNotifyInput): Promise
     const tenantName = profile?.display_name || 'نوبت‌لینک'
     const clientPhone = (kase as any)?.contact_phone || ''
     const clientName = (kase as any)?.client_name || 'مراجع'
-    // درمانگرِ همان نوبت مقدم است؛ اگر شماره‌ای ندارد، صاحب مجموعه.
+    // درمانگر همان نوبت مقدم است؛ اگر شماره‌ای ندارد، صاحب مجموعه.
     const specialistPhone = (resource as any)?.phone || (tenant as any)?.owner_phone || ''
 
     // سهمیه: این پیام‌ها مثل یادآور «اختیاری» حساب می‌شوند و با اتمام

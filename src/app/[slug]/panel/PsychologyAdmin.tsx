@@ -368,7 +368,6 @@ export function PsychologyAdmin() {
  // اگر از جای دیگری (چک‌لیست، هشدارها، ...) مستقیم وارد یک زیرتب تنظیمات شدیم،
  // کرکره باید باز باشد تا کاربر ببیند کجاست.
  useEffect(() => { if (mainTab === 'settings') setSettingsOpen(true) }, [mainTab])
- useEffect(() => { if (mainTab === 'settings') setSettingsOpen(true) }, [mainTab])
  const [togglingClinicMode, setTogglingClinicMode] = useState(false)
  const [clinicRequestNote, setClinicRequestNote] = useState('')
 
@@ -437,7 +436,7 @@ export function PsychologyAdmin() {
  // loading از SWR پرونده‌ها مشتق می‌شود (isLoading — فقط لود اول)، پایین.
  // جدا از loading (که هر بار سوییچ منبع/رفرش دوباره true می‌شود): این فقط یک‌بار
  // بعد اولین لود موفق true می‌شود و دیگر false نمی‌شود — برای گیت صفحه‌ی
- // اولیه، تا پنل با دیتای خالی/پیش‌فرض (۰ تومان، پرونده‌ی صفر) یک لحظه رندر
+ // اولیه، تا پنل با دیتای خالی/پیش‌فرض (0 تومان، پرونده‌ی صفر) یک لحظه رندر
  // نشود و بعد یهو با دیتای واقعی جایگزین شود («صفحه‌ی قدیمی/خالی، بعد یهو
  // صفحه‌ی جدید» که گزارش شد).
  const [initialLoadDone, setInitialLoadDone] = useState(false)
@@ -2509,7 +2508,7 @@ export function PsychologyAdmin() {
          <p className="text-xs text-soot mb-2">هر مدل و فرمتی که خودتان می‌خواهید — مدت جلسه، هزینه‌ی دقیقه‌ی اضافه، شرایط کنسلی هر دو طرف، یا هر نکته‌ی دیگر. دقیقا همین متن به مراجع نشان داده می‌شود.</p>
          <textarea value={profile.terms.extra} rows={7} maxLength={2000}
           onChange={e => patchProfile({ terms: { ...profile.terms, extra: e.target.value } })}
-          placeholder={'مثلا:\nمدت هر جلسه ۵۰ دقیقه است. هر دقیقه‌ی اضافه ۵۰,۰۰۰ تومان محاسبه می‌شود.\nکنسلی تا ۱۲ ساعت قبل: ۵۰٪ بازگشت وجه. دیرتر از آن: بدون بازگشت.\nدر صورت کنسلی از طرف من، جلسه‌ی جایگزین رایگان تعیین می‌شود.'}
+          placeholder={'مثلا:\nمدت هر جلسه 50 دقیقه است. هر دقیقه‌ی اضافه 50,000 تومان محاسبه می‌شود.\nکنسلی تا 12 ساعت قبل: 50٪ بازگشت وجه. دیرتر از آن: بدون بازگشت.\nدر صورت کنسلی از طرف من، جلسه‌ی جایگزین رایگان تعیین می‌شود.'}
           className="w-full text-sm px-3 py-2 border border-sand rounded-lg focus:outline-none focus:border-ink resize-none" />
         </div>
        </section>
@@ -3049,7 +3048,7 @@ export function PsychologyAdmin() {
            </p>
           )}
           <label className="text-xs text-soot block">کد ارسال‌شده به {newPhoneInput}</label>
-          <input dir="ltr" inputMode="numeric" placeholder="کد ۵ رقمی" value={changePhoneCode}
+          <input dir="ltr" inputMode="numeric" placeholder="کد 5 رقمی" value={changePhoneCode}
            onChange={e => setChangePhoneCode(e.target.value)}
            className="w-full text-sm px-3 py-2 border border-sand rounded-lg tnum tracking-widest text-center focus:outline-none focus:border-ink" />
           <div className="flex gap-2">
@@ -3356,7 +3355,7 @@ function DiscountCodesSection({ slug, isOwner, viewingResourceId }: { slug: stri
             <div>
               <label className="text-xs text-soot mb-1 block">{form.discount_type === 'percent' ? 'درصد' : 'مبلغ (تومان)'}</label>
               <input type="number" value={form.discount_value} onChange={e => setForm(s => ({ ...s, discount_value: e.target.value }))}
-                placeholder={form.discount_type === 'percent' ? '۲۰' : '۱۰۰۰۰۰'}
+                placeholder={form.discount_type === 'percent' ? '20' : '100000'}
                 className="w-24 text-sm px-3 py-2 border border-sand rounded-lg tnum" />
             </div>
             <div>

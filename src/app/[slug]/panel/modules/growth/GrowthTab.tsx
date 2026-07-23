@@ -95,7 +95,7 @@ export default function GrowthTab({ api, growthTabs, modules, waitlist, reloadWa
  }
  async function sendCampaign() {
   if (!campaignMessage.trim()) { uiAlert('متن پیام را بنویس.'); return }
-  if (!await uiConfirm(`این پیام برای گروه «${campaignSegment === 'all' ? 'همه‌ی مراجعان' : campaignSegment === 'inactive_30' ? 'غیرفعال ۳۰+ روز' : 'غیرفعال ۹۰+ روز'}» از طریق ${campaignChannel === 'sms' ? 'پیامک' : 'ایمیل'} ارسال شود؟`)) return
+  if (!await uiConfirm(`این پیام برای گروه «${campaignSegment === 'all' ? 'همه‌ی مراجعان' : campaignSegment === 'inactive_30' ? 'غیرفعال 30+ روز' : 'غیرفعال 90+ روز'}» از طریق ${campaignChannel === 'sms' ? 'پیامک' : 'ایمیل'} ارسال شود؟`)) return
   setCampaignSending(true)
   const res = await fetch(api('/campaigns'), {
    method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -184,7 +184,7 @@ export default function GrowthTab({ api, growthTabs, modules, waitlist, reloadWa
    {activeGrowthTab === 'analytics' && (
     !analytics ? <div className="text-center py-16 text-soot">در حال بارگذاری...</div> : (
      <div className="space-y-4">
-      <p className="text-xs text-soot">۹۰ روز اخیر</p>
+      <p className="text-xs text-soot">90 روز اخیر</p>
       <div className="grid grid-cols-2 gap-3">
        <div className="bg-white rounded-xl border border-sand p-4">
         <p className="text-xs text-soot mb-1">درآمد خالص</p>
@@ -260,13 +260,13 @@ export default function GrowthTab({ api, growthTabs, modules, waitlist, reloadWa
         <select value={campaignSegment} onChange={e => setCampaignSegment(e.target.value as any)}
          className="w-full text-xs px-2 py-2 border border-sand rounded-lg bg-white">
          <option value="all">همه‌ی مراجعان</option>
-         <option value="inactive_30">غیرفعال (۳۰+ روز بدون جلسه)</option>
-         <option value="inactive_90">غیرفعال (۹۰+ روز بدون جلسه)</option>
+         <option value="inactive_30">غیرفعال (30+ روز بدون جلسه)</option>
+         <option value="inactive_90">غیرفعال (90+ روز بدون جلسه)</option>
         </select>
        </div>
       </div>
       <textarea value={campaignMessage} onChange={e => setCampaignMessage(e.target.value)} rows={4}
-       placeholder="مثلا: مطب ما در تعطیلات نوروز از ۱ تا ۴ فروردین تعطیل است."
+       placeholder="مثلا: مطب ما در تعطیلات نوروز از 1 تا 4 فروردین تعطیل است."
        className="w-full text-sm px-3 py-2 border border-sand rounded-xl focus:outline-none focus:border-ink resize-none mb-3" />
       <button onClick={sendCampaign} disabled={campaignSending}
        className="w-full py-2.5 bg-ink text-white rounded-xl text-sm font-medium disabled:opacity-40">

@@ -165,13 +165,13 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
     if (k >= startOfToday) todayTotal += amt
     if (k >= startOfWeek) weekTotal += amt
   })
-  // سری روزانه = کل هفته‌ی جاری، شنبه تا جمعه (۷ ستون؛ روزهای آینده‌ی همین هفته ۰)
+  // سری روزانه = کل هفته‌ی جاری، شنبه تا جمعه (7 ستون؛ روزهای آینده‌ی همین هفته 0)
   const daily: { date: string; amount: number }[] = []
   for (let i = 0; i < 7; i++) {
     const k = startOfWeek + i * 86400000
     daily.push({ date: new Date(k).toISOString(), amount: amountByDay.get(k) || 0 })
   }
-  // سری ۴ هفته‌ی اخیر (هر ستون = یک هفته، از شنبه)
+  // سری 4 هفته‌ی اخیر (هر ستون = یک هفته، از شنبه)
   const weekly: { date: string; amount: number }[] = []
   for (let i = 3; i >= 0; i--) {
     const ws = startOfWeek - i * 7 * 86400000
@@ -180,7 +180,7 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
     amountByDay.forEach((amt, k) => { if (k >= ws && k < we) sum += amt })
     weekly.push({ date: new Date(ws).toISOString(), amount: sum })
   }
-  // سری ۱۲ ماه اخیر
+  // سری 12 ماه اخیر
   const monthlyChart: { date: string; amount: number }[] = []
   for (let i = 11; i >= 0; i--) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1)

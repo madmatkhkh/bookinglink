@@ -24,7 +24,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   const ratingNum = Number(rating)
   if (!case_number || !resource_id) return NextResponse.json({ error: 'ناقص' }, { status: 400 })
   if (!Number.isInteger(ratingNum) || ratingNum < 1 || ratingNum > 5)
-    return NextResponse.json({ error: 'امتیاز باید بین ۱ تا ۵ باشد' }, { status: 400 })
+    return NextResponse.json({ error: 'امتیاز باید بین 1 تا 5 باشد' }, { status: 400 })
 
   const { data: booking } = await sb().from('psy_cases').select('contact_phone, contact2_phone, contact_email, contact2_email')
     .eq('tenant_id', t.id).eq('case_number', case_number).single()

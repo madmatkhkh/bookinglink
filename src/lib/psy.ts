@@ -9,7 +9,7 @@ import { MeetChannel, mergeMeetChannels } from './meet'
 // تنظیم نکرده‌اند. قیمت واقعی هر متخصص per-resource است (پایین‌تر).
 // مدل عمدا ساده است: فقط دو قیمت — آنلاین و حضوری. نوع کار (مصاحبه/ارزیابی/
 // جلسه/پروتکل) فرقی نمی‌کند؛ فقط اینکه حضوری برگزار شود یا آنلاین قیمت را
-// تعیین می‌کند (تصمیم صریح صاحب پروژه، جولای ۲۰۲۶).
+// تعیین می‌کند (تصمیم صریح صاحب پروژه، جولای 2026).
 export const PSY_PRICING = {
   online: 850000,
   offline: 1200000,
@@ -93,7 +93,7 @@ export type DiscountCheckResult =
   | { ok: true; id: string; discountedAmount: number; discountAmount: number; code: string }
   | { ok: false; error: string }
 
-// چک اعتبار + محاسبه‌ی مبلغ تخفیف‌خورده — used_count را خودش +۱ نمی‌کند (آن را
+// چک اعتبار + محاسبه‌ی مبلغ تخفیف‌خورده — used_count را خودش +1 نمی‌کند (آن را
 // صدازننده بعد از موفقیت قطعی پرداخت انجام می‌دهد تا کدهای ناموفق/رهاشده مصرف نشوند)
 export async function checkDiscountCode(resourceId: string, rawCode: string, amount: number): Promise<DiscountCheckResult> {
   const code = String(rawCode || '').trim().toUpperCase()
@@ -139,11 +139,11 @@ export const PSY_BOOKING = { minLeadDays: 1 }
 
 // ── اعتبارسنجی سمت سرور اسلات انتخابی مراجع ─────────────────────────────
 // تا امروز فقط UI اسلات‌های مجاز را نشان می‌داد؛ خود API هر تاریخ/ساعتی را
-// می‌پذیرفت («گرفته‌نشده» تنها شرط بود) — یعنی با یک POST مستقیم می‌شد ساعت ۳
+// می‌پذیرفت («گرفته‌نشده» تنها شرط بود) — یعنی با یک POST مستقیم می‌شد ساعت 3
 // صبح یا روز مرخصی دکتر نوبت گرفت. این تابع سه چیز را سمت سرور تضمین می‌کند:
-//   ۱) زمان در آینده است و minLeadDays رعایت شده (نوبت امروز/گذشته ممنوع)
-//   ۲) برنامه‌ی همان روز همان دکتر در psy_schedules وجود دارد و is_off نیست
-//   ۳) ساعت انتخابی دقیقا یکی از available_times همان روز است
+//   1) زمان در آینده است و minLeadDays رعایت شده (نوبت امروز/گذشته ممنوع)
+//   2) برنامه‌ی همان روز همان دکتر در psy_schedules وجود دارد و is_off نیست
+//   3) ساعت انتخابی دقیقا یکی از available_times همان روز است
 // تاریخ‌های ذخیره‌شده ممکن است صفر پیشوند داشته یا نداشته باشند ('1405/04/05'
 // یا '1405/4/5') — هر دو شکل چک می‌شوند. ساعت هم با timeKey مقایسه می‌شود تا
 // '9:00' و '09:00' یکی حساب شوند.
@@ -159,7 +159,7 @@ export async function validateClientSlot(
     return { ok: false, error: 'تاریخ انتخابی نامعتبر است' }
   const [jy, jm, jd] = parts
 
-  // ۱) آینده بودن + رعایت minLeadDays (نوبت از «فردا» به بعد)
+  // 1) آینده بودن + رعایت minLeadDays (نوبت از «فردا» به بعد)
   const ts = jalaliDateTimeToTimestamp(dateStr, time)
   if (ts === null) return { ok: false, error: 'زمان انتخابی نامعتبر است' }
   const minStart = Date.now() + PSY_BOOKING.minLeadDays * 24 * 60 * 60 * 1000
@@ -169,7 +169,7 @@ export async function validateClientSlot(
 
   if (!resourceId) return { ok: false, error: 'منبعی برای این پرونده ثبت نشده' }
 
-  // ۲و۳) برنامه‌ی منتشرشده‌ی دکتر برای همان روز
+  // 2و3) برنامه‌ی منتشرشده‌ی دکتر برای همان روز
   const padded = jalaliKey(jy, jm, jd)
   const unpadded = `${jy}/${jm}/${jd}`
   const { data: sched } = await sb().from('psy_schedules')
@@ -315,7 +315,7 @@ export function effectivePaymentMethods(pm: PaymentMethods, cardToCardAllowed: b
   return pm
 }
 
-// اعتبارسنجی فرمت شماره‌شبا: IR + ۲۴ رقم (استاندارد ایران). فقط فرمت را چک
+// اعتبارسنجی فرمت شماره‌شبا: IR + 24 رقم (استاندارد ایران). فقط فرمت را چک
 // می‌کند، نه اینکه حساب واقعی وجود دارد یا نام صاحبش درست است (آن را خود
 // زیبال هنگام تعریف ذی‌نفع تایید می‌کند).
 export function isValidSheba(raw: string): boolean {

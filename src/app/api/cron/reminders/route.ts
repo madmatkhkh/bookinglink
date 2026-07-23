@@ -15,13 +15,13 @@ export const maxDuration = 60
 // ─────────────────────────────────────────────────────────────────────────────
 // یادآوری پیامکی خودکار — چیزی که لندینگ قولش را می‌داد ولی وجود نداشت.
 //
-// هر روز (vercel.json → crons، ساعت ۱۸ به وقت ایران) اجرا می‌شود:
-//   ۱) نوبت‌های «فردا» را در سه جدول پیدا می‌کند:
+// هر روز (vercel.json → crons، ساعت 18 به وقت ایران) اجرا می‌شود:
+//   1) نوبت‌های «فردا» را در سه جدول پیدا می‌کند:
 //        psy_sessions (جلسات confirmed و زمان‌بندی‌شده)
 //        psy_stages   (مصاحبه/ارزیابی booked)
 //        bookings     (نیچ عمومی، confirmed)
-//   ۲) به شماره‌ی مراجع پیامک یادآوری (الگوی SMS_IR_REMINDER_TEMPLATE_ID) می‌فرستد
-//   ۳) reminder_sent=true می‌کند (migration 0019) تا اجرای دوباره پیام تکراری نفرستد
+//   2) به شماره‌ی مراجع پیامک یادآوری (الگوی SMS_IR_REMINDER_TEMPLATE_ID) می‌فرستد
+//   3) reminder_sent=true می‌کند (migration 0019) تا اجرای دوباره پیام تکراری نفرستد
 //
 // امنیت: فقط با Authorization: Bearer <CRON_SECRET> اجرا می‌شود — Vercel Cron
 // اگر env با نام CRON_SECRET تعریف شده باشد، همین هدر را خودش می‌فرستد؛ یعنی
@@ -144,7 +144,7 @@ export async function GET(req: NextRequest) {
     return sendReminderSms(phone, nameOf(tid), display, time)
   }
 
-  // ۱) جلسات درمان روانشناسی
+  // 1) جلسات درمان روانشناسی
   const { data: sessions } = await db.from('psy_sessions')
     .select('id, tenant_id, case_number, session_date, session_time')
     .in('session_date', dates).eq('status', 'confirmed').eq('paid', true).eq('reminder_sent', false)
@@ -161,7 +161,7 @@ export async function GET(req: NextRequest) {
     else failed++
   }
 
-  // ۲) مراحل مصاحبه/ارزیابی زمان‌بندی‌شده
+  // 2) مراحل مصاحبه/ارزیابی زمان‌بندی‌شده
   const { data: stages } = await db.from('psy_stages')
     .select('id, tenant_id, case_number, session_date, session_time')
     .in('session_date', dates).eq('status', 'booked').eq('reminder_sent', false)
@@ -178,7 +178,7 @@ export async function GET(req: NextRequest) {
     else failed++
   }
 
-  // ۳) رزروهای نیچ عمومی
+  // 3) رزروهای نیچ عمومی
   const { data: bookings } = await db.from('bookings')
     .select('id, tenant_id, client_phone, booking_date, booking_time')
     .in('booking_date', dates).eq('status', 'confirmed').eq('reminder_sent', false)

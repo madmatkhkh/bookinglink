@@ -618,7 +618,7 @@ function SettingsTab({ ov, slug, reload, uiAlert, uiConfirm, L }: any) {
         <div className="pt-2 border-t border-sand">
           <p className="text-[11px] text-soot mb-2">شماره‌کارت برای دریافت پرداخت کارت‌به‌کارت</p>
           <input dir="ltr" value={form.card_number} onChange={e => setForm(s => ({ ...s, card_number: toLatinNum(e.target.value).replace(/\D/g, '').slice(0, 16) }))}
-            placeholder="شماره‌ی کارت (۱۶ رقم)" className="w-full text-sm px-3 py-2 border border-sand rounded-lg tnum mb-2" />
+            placeholder="شماره‌ی کارت (16 رقم)" className="w-full text-sm px-3 py-2 border border-sand rounded-lg tnum mb-2" />
           <input value={form.card_holder_name} onChange={e => setForm(s => ({ ...s, card_holder_name: e.target.value }))}
             placeholder="نام صاحب کارت" className="w-full text-sm px-3 py-2 border border-sand rounded-lg" />
         </div>

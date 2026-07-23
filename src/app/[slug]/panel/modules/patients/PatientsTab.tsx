@@ -1041,7 +1041,7 @@ export default function PatientsTab({
          const hasAny = paymentsCount > 0
          return (
           <div className="space-y-4">
-           {/* بخش ۱: پرداختی‌های مراجع — کارت کامل هر تراکنش */}
+           {/* بخش 1: پرداختی‌های مراجع — کارت کامل هر تراکنش */}
            <CollapsibleSection title="پرداختی‌های مراجع" icon="💳" badge={paymentsCount}>
              {!hasAny && <p className="text-xs text-soot text-center py-3">هنوز پرداختی ثبت نشده.</p>}
 
@@ -1084,7 +1084,7 @@ export default function PatientsTab({
              ))}
            </CollapsibleSection>
 
-           {/* بخش ۲: بازپرداخت — دکتر به مراجع پرداخت می‌کند (عمل قطعی، همان لحظه) */}
+           {/* بخش 2: بازپرداخت — دکتر به مراجع پرداخت می‌کند (عمل قطعی، همان لحظه) */}
            <CollapsibleSection title="بازپرداخت" icon="↩️" badge={outflows.length}>
              <p className="text-xs text-soot mb-3">وقتی به هر دلیلی مبلغی به این مراجع برمی‌گردانید، همین‌جا ثبت کنید — بلافاصله در دفتر حساب می‌نشیند و شماره پیگیری برای مراجع نمایش داده می‌شود.</p>
              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-2">
@@ -1117,12 +1117,12 @@ export default function PatientsTab({
              )}
            </CollapsibleSection>
 
-           {/* بخش ۳: ارسال لینک پرداخت اضافه — دکتر مبلغی مشخص می‌کند، در پنل مراجع قابل‌پرداخت می‌شود */}
+           {/* بخش 3: ارسال لینک پرداخت اضافه — دکتر مبلغی مشخص می‌کند، در پنل مراجع قابل‌پرداخت می‌شود */}
            <CollapsibleSection title="ارسال لینک پرداخت اضافه" icon="➕" badge={extraCharges.length}>
              <p className="text-xs text-soot mb-3">یک مبلغ دلخواه (مثلا هزینه‌ی دقایق اضافه) بفرستید — در پنل مراجع به‌صورت قابل‌پرداخت (آنلاین یا کارت‌به‌کارت) ظاهر می‌شود.</p>
              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-2">
               <input value={newChargeTitle} onChange={e => setNewChargeTitle(e.target.value)}
-               placeholder="بابت چه چیزی؟ (مثلا «۱۵ دقیقه اضافه»)" className="text-sm px-3 py-2 border border-sand rounded-lg focus:outline-none focus:border-ink" />
+               placeholder="بابت چه چیزی؟ (مثلا «15 دقیقه اضافه»)" className="text-sm px-3 py-2 border border-sand rounded-lg focus:outline-none focus:border-ink" />
               <input type="number" min={0} value={newChargeAmount} onChange={e => setNewChargeAmount(e.target.value)}
                placeholder="مبلغ (تومان)" className="text-sm px-3 py-2 border border-sand rounded-lg tnum focus:outline-none focus:border-ink" />
              </div>

@@ -77,7 +77,7 @@ function AccountingInner() {
 
   async function saveGlobalCommission() {
     const pct = Number(commInput)
-    if (!Number.isFinite(pct) || pct < 0 || pct > 100) { await dialog.uiAlert('درصد نامعتبر است (۰ تا ۱۰۰)'); return }
+    if (!Number.isFinite(pct) || pct < 0 || pct > 100) { await dialog.uiAlert('درصد نامعتبر است (0 تا 100)'); return }
     setCommSaving(true)
     const res = await fetch('/api/super/commission', {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
@@ -90,7 +90,7 @@ function AccountingInner() {
 
   async function setOverride(resourceId: string, resourceName: string | null) {
     const val = await dialog.uiPrompt(
-      `درصد کمیسیون اختصاصی برای ${resourceName || 'این متخصص'} (۰ تا ۱۰۰):`,
+      `درصد کمیسیون اختصاصی برای ${resourceName || 'این متخصص'} (0 تا 100):`,
       { required: true, okText: 'ثبت' }
     )
     if (val === null) return

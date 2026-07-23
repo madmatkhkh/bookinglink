@@ -43,7 +43,7 @@ export async function sendOtpEmail(email: string, code: string): Promise<EmailSe
     <div dir="rtl" style="font-family: Tahoma, Arial, sans-serif; text-align: right;">
       <p>کد ورود شما:</p>
       <p style="font-size: 28px; font-weight: bold; letter-spacing: 4px;">${code}</p>
-      <p style="color:#666; font-size: 13px;">این کد تا ۵ دقیقه معتبر است. اگر این درخواست را نداده‌اید، این ایمیل را نادیده بگیرید.</p>
+      <p style="color:#666; font-size: 13px;">این کد تا 5 دقیقه معتبر است. اگر این درخواست را نداده‌اید، این ایمیل را نادیده بگیرید.</p>
     </div>`)
 }
 

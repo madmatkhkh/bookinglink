@@ -6,17 +6,32 @@
 // «تایید» sms.ir استفاده نمی‌کنیم، فقط از سرویس ارسال پیامک الگودار.
 //
 // پیش‌نیاز (سمت پنل sms.ir، قبل از کار کردن این فایل):
-//   ۱) وارد پنل sms.ir شو → «برنامه‌نویسان» → کلید وب‌سرویس (API Key) بساز.
-//   ۲) همان‌جا → «الگوها»/«Verify» → یک الگوی تاییدیه بساز، مثلا:
+//   1) وارد پنل sms.ir شو → «برنامه‌نویسان» → کلید وب‌سرویس (API Key) بساز.
+//   2) همان‌جا → «الگوها»/«Verify» → یک الگوی تاییدیه بساز، مثلا:
 //        «کد ورود شما: %CODE%»
 //      (پارامتر را دقیقا همین اسم — CODE — بگذار تا با کد زیر یکی باشد.)
 //      بعد ساختنش، یک عدد «شناسه‌ی الگو» (templateId) به تو می‌دهد.
-//   ۳) این دو مقدار را در env بگذار: SMS_IR_API_KEY و SMS_IR_TEMPLATE_ID
+//   3) این دو مقدار را در env بگذار: SMS_IR_API_KEY و SMS_IR_TEMPLATE_ID
 //
 // وقتی این دو env ست نباشند، این تابع کاری نمی‌کند (silent no-op) — یعنی
 // پروژه همچنان با OTP_ECHO_CODE=true قابل تست‌کردن است، بدون نیاز به پیامک
 // واقعی. به‌محض ست‌شدن این دو env، پیامک واقعی جایگزین می‌شود.
 // ─────────────────────────────────────────────────────────────────────────────
+
+// ─────────────────────────────────────────────────────────────────────────────
+// آدرس پایه‌ی API — همان الگوی ZIBAL_API_BASE در lib/zibal.ts.
+//
+// چرا لازم است: ورسل از خارج ایران به api.sms.ir وصل می‌شود و این اتصال
+// می‌تواند در سطح شبکه بخوابد (خطای «اتصال به سرویس پیامک برقرار نشد» —
+// نه 401/403، یعنی درخواست اصلا به مقصد نمی‌رسد). سرور رله‌ی زیبال (همان
+// IP ثابت) از قبل مسیرهای /sms/v1/* را پاس می‌دهد؛ با ست‌کردن این env
+// پیامک هم از همان IP خارج می‌شود، بدون هیچ تغییر کد دیگری.
+//
+//   SMS_IR_API_BASE=https://<دامنه‌ی رله>/sms/v1
+//
+// ست‌نشده = رفتار قبلی، مستقیم به api.sms.ir.
+// ─────────────────────────────────────────────────────────────────────────────
+const API_BASE = (process.env.SMS_IR_API_BASE || 'https://api.sms.ir/v1').replace(/\/+$/, '')
 
 export type SmsSendResult = { ok: true } | { ok: false; error: string }
 
@@ -42,7 +57,7 @@ export async function sendReminderSms(phone: string, name: string, date: string,
   const templateId = process.env.SMS_IR_REMINDER_TEMPLATE_ID
   if (!apiKey || !templateId) return { ok: false, error: 'یادآوری پیامکی تنظیم نشده' }
   try {
-    const res = await fetch('https://api.sms.ir/v1/send/verify', {
+    const res = await fetch(`${API_BASE}/send/verify`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Accept': 'text/plain', 'x-api-key': apiKey },
       body: JSON.stringify({
@@ -72,7 +87,7 @@ export async function sendOtpSms(phone: string, code: string): Promise<SmsSendRe
   if (!apiKey || !templateId) return { ok: false, error: 'پیامک تنظیم نشده' }
 
   try {
-    const res = await fetch('https://api.sms.ir/v1/send/verify', {
+    const res = await fetch(`${API_BASE}/send/verify`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -122,7 +137,7 @@ export async function sendFreeTextSms(phone: string, message: string): Promise<S
   const lineNumber = process.env.SMS_IR_LINE_NUMBER
   if (!apiKey || !lineNumber) return { ok: false, error: 'پیامک آزاد تنظیم نشده (نیازمند SMS_IR_LINE_NUMBER)' }
   try {
-    const res = await fetch('https://api.sms.ir/v1/send/bulk', {
+    const res = await fetch(`${API_BASE}/send/bulk`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Accept': 'text/plain', 'x-api-key': apiKey },
       body: JSON.stringify({ lineNumber: Number(lineNumber), messageText: message, mobiles: [phone] }),
@@ -144,7 +159,7 @@ export async function sendFreeTextSms(phone: string, message: string): Promise<S
 // خط اختصاصی این حساب «تبلیغاتی» است، و طبق مستندات sms.ir پیامک تبلیغاتی به
 // شماره‌های لیست سیاه نمی‌رسد — یعنی مراجعی که شماره‌اش بلک‌لیست است بی‌صدا
 // تایید نوبتش را نمی‌گرفت و ما هم خبردار نمی‌شدیم (API «موفق» برمی‌گرداند).
-// در مقابل send/verify روی خط خدماتی خودِ sms.ir می‌رود و به همه می‌رسد.
+// در مقابل send/verify روی خط خدماتی خود sms.ir می‌رود و به همه می‌رسد.
 // بعد از خدماتی‌شدن خط، می‌شود این‌ها را هم به متن آزاد منتقل کرد.
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -155,7 +170,7 @@ async function sendTemplateSms(templateId: string, phone: string, parameters: Te
   const apiKey = process.env.SMS_IR_API_KEY
   if (!apiKey || !templateId) return { ok: false, error: 'پیامک تنظیم نشده' }
   try {
-    const res = await fetch('https://api.sms.ir/v1/send/verify', {
+    const res = await fetch(`${API_BASE}/send/verify`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Accept': 'text/plain', 'x-api-key': apiKey },
       body: JSON.stringify({ mobile: phone, templateId: Number(templateId), parameters }),

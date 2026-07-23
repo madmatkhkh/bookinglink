@@ -139,7 +139,7 @@ export default function BookingsTab({
           {totalPending === 0 ? 'مورد منتظر اقدامی وجود ندارد.' : `${toFarsiNum(totalPending)} مورد منتظر اقدام است.`}
          </p>
 
-         {/* بخش ۰: درخواست‌های نوبت جدید — بالاتر از همه چون آغاز یک فلوی جدیدند */}
+         {/* بخش 0: درخواست‌های نوبت جدید — بالاتر از همه چون آغاز یک فلوی جدیدند */}
          {pendingApptRequests.length > 0 && (
           <PendingSection title="درخواست‌های نوبت جدید" icon="🗓" count={pendingApptRequests.length}>
            {pendingApptRequests.map(r => (

@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 // آمار و گزارش کسب‌وکاری — از روی همان جدول‌های موجود محاسبه می‌شود (دفتر
-// حساب، جلسات، پرونده‌ها)، بدون نیاز به جدول جدید. فقط برای آخرین ۹۰ روز
+// حساب، جلسات، پرونده‌ها)، بدون نیاز به جدول جدید. فقط برای آخرین 90 روز
 // (بار سنگین‌تر روی دیتابیس بی‌فایده است؛ برای یک مطب/کلینیک همین کافی است).
 export async function GET(req: NextRequest, { params }: { params: { slug: string } }) {
   const a = await requirePanelAuth(req, params.slug)
@@ -42,7 +42,7 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
   const forfeited = (sessions || []).filter(s => s.status === 'forfeited').length
   const noShowRate = total > 0 ? Math.round((forfeited / total) * 1000) / 10 : 0
 
-  // رشد پرونده‌ها به تفکیک هفته (۱۳ نقطه‌ی اخیر ≈ ۹۰ روز)
+  // رشد پرونده‌ها به تفکیک هفته (13 نقطه‌ی اخیر ≈ 90 روز)
   const weekly: Record<string, number> = {}
   for (const c of cases || []) {
     const d = new Date(c.created_at)

@@ -13,7 +13,7 @@ export default function PrivacyPage() {
       <div className="max-w-2xl mx-auto px-6 py-14">
         <Link href="/" className="text-xs text-soot hover:text-ink">← بازگشت به صفحه‌ی اصلی</Link>
         <h1 className="font-display font-extrabold text-2xl mt-4 tracking-tightest">حریم خصوصی</h1>
-        <p className="text-xs text-soot mt-1">آخرین به‌روزرسانی: تیر ۱۴۰۵</p>
+        <p className="text-xs text-soot mt-1">آخرین به‌روزرسانی: تیر 1405</p>
 
         <div className="mt-8 space-y-7 text-sm leading-7 text-ink/90">
           <section>

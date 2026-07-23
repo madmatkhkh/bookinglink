@@ -10,11 +10,11 @@ export default function TermsPage() {
       <div className="max-w-2xl mx-auto px-6 py-14">
         <Link href="/" className="text-xs text-soot hover:text-ink">← بازگشت به صفحه‌ی اصلی</Link>
         <h1 className="font-display font-extrabold text-2xl mt-4 tracking-tightest">قوانین و شرایط استفاده</h1>
-        <p className="text-xs text-soot mt-1">آخرین به‌روزرسانی: تیر ۱۴۰۵</p>
+        <p className="text-xs text-soot mt-1">آخرین به‌روزرسانی: تیر 1405</p>
 
         <div className="mt-8 space-y-7 text-sm leading-7 text-ink/90">
           <section>
-            <h2 className="font-display font-bold text-base mb-2">۱. سرویس</h2>
+            <h2 className="font-display font-bold text-base mb-2">1. سرویس</h2>
             <p>
               نوبت‌لینک بستر نوبت‌دهی آنلاین برای متخصص‌ها و کسب‌وکارهای خدماتی است. محتوای هر صفحه‌ی
               نوبت‌دهی (خدمات، قیمت‌ها، زمان‌ها، فرم پذیرش) توسط خود آن مجموعه تعریف و مدیریت می‌شود و
@@ -22,7 +22,7 @@ export default function TermsPage() {
             </p>
           </section>
           <section>
-            <h2 className="font-display font-bold text-base mb-2">۲. حساب و ورود</h2>
+            <h2 className="font-display font-bold text-base mb-2">2. حساب و ورود</h2>
             <p>
               ورود متخصص‌ها و مراجعان با کد یک‌بارمصرف پیامکی انجام می‌شود. مسئولیت حفاظت از خط موبایل
               ثبت‌شده با صاحب آن است؛ هر اقدامی که با ورود موفق از آن شماره انجام شود، اقدام صاحب حساب
@@ -30,7 +30,7 @@ export default function TermsPage() {
             </p>
           </section>
           <section>
-            <h2 className="font-display font-bold text-base mb-2">۳. پرداخت‌ها</h2>
+            <h2 className="font-display font-bold text-base mb-2">3. پرداخت‌ها</h2>
             <p>
               پرداخت آنلاین از طریق درگاه پرداخت نوبت‌لینک (دارای مجوز رسمی پرداخت کشور) انجام می‌شود.
               کارمزد خدمات پلتفرم مطابق پلن انتخابی ارائه‌دهنده (<span className="tnum">{PLAN_PRICING.team.feePct}% تا {PLAN_PRICING.base.feePct}%</span> از مبلغ هر
@@ -43,7 +43,7 @@ export default function TermsPage() {
             </p>
           </section>
           <section>
-            <h2 className="font-display font-bold text-base mb-2">۴. کنسلی و بازپرداخت</h2>
+            <h2 className="font-display font-bold text-base mb-2">4. کنسلی و بازپرداخت</h2>
             <p>
               مراجع می‌تواند مطابق مهلت کنسلی اعلام‌شده توسط هر مجموعه، نوبت خود را از پنل شخصی‌اش لغو
               کند. در صورت لغو در مهلت مجاز یا لغو نوبت توسط خود مجموعه، وجه پرداختی طبق قواعد همان
@@ -53,14 +53,14 @@ export default function TermsPage() {
             </p>
           </section>
           <section>
-            <h2 className="font-display font-bold text-base mb-2">۵. استفاده‌ی منصفانه</h2>
+            <h2 className="font-display font-bold text-base mb-2">5. استفاده‌ی منصفانه</h2>
             <p>
               ثبت نوبت یا پرونده با هویت غیرواقعی، تلاش برای اختلال در سرویس، و هر استفاده‌ی خلاف قوانین
               جاری کشور ممنوع است و می‌تواند به تعلیق دسترسی منجر شود.
             </p>
           </section>
           <section>
-            <h2 className="font-display font-bold text-base mb-2">۶. حدود مسئولیت</h2>
+            <h2 className="font-display font-bold text-base mb-2">6. حدود مسئولیت</h2>
             <p>
               نوبت‌لینک بستر نرم‌افزاری نوبت‌دهی است و طرف ارائه‌ی خدمات تخصصی (درمانی، مشاوره‌ای و…)
               نیست؛ کیفیت و نتیجه‌ی خدمات بر عهده‌ی ارائه‌دهنده‌ی آن است. تلاش ما دسترس‌پذیری پایدار
@@ -68,11 +68,11 @@ export default function TermsPage() {
             </p>
           </section>
           <section>
-            <h2 className="font-display font-bold text-base mb-2">۷. تغییرات</h2>
+            <h2 className="font-display font-bold text-base mb-2">7. تغییرات</h2>
             <p>هر تغییر مهم در همین صفحه منتشر و تاریخ به‌روزرسانی اصلاح می‌شود.</p>
           </section>
           <section>
-            <h2 className="font-display font-bold text-base mb-2">۸. تماس</h2>
+            <h2 className="font-display font-bold text-base mb-2">8. تماس</h2>
             <p>
               برای هر سوال درباره‌ی این شرایط یا سرویس، از طریق ایمیل <a href={`mailto:${SUPPORT_EMAIL}`} dir="ltr" className="underline underline-offset-4">{SUPPORT_EMAIL}</a> یا
               بخش «تماس با ما» در صفحه‌ی اصلی با ما در ارتباط باشید. کاربران نوبت‌لینک از داخل پنل خود نیز می‌توانند تیکت پشتیبانی ثبت کنند.

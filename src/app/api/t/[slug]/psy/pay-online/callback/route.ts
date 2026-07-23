@@ -70,7 +70,7 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
       return NextResponse.redirect(`${redirectBase}?payment=failed`)
     }
     // دفاع دوم: مبلغ verifyشده‌ی زیبال (ریال) باید دقیقا همان مبلغ intent باشد
-    // (پروژه تومان نگه می‌دارد → ×۱۰). اگر زیبال amount برنگرداند، به چک authority
+    // (پروژه تومان نگه می‌دارد → ×10). اگر زیبال amount برنگرداند، به چک authority
     // بالا تکیه می‌کنیم؛ اگر برگرداند و نخواند، finalize نمی‌کنیم.
     if (verify.amountRial !== null && verify.amountRial !== Math.round((intent.amount || 0) * 10)) {
       console.error('zibal amount mismatch:', { intentId, expected: (intent.amount || 0) * 10, got: verify.amountRial })

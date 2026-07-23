@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
 
   const { data, error } = await q
   if (error) {
-    // قبل از migration 0052 → لیست خالی، نه خطای ۵۰۰
+    // قبل از migration 0052 → لیست خالی، نه خطای 500
     if (/does not exist/i.test(error.message || '')) return NextResponse.json({ templates: [] })
     console.error('super/sms-templates GET error:', error.message)
     return NextResponse.json({ error: 'خواندن لیست ناموفق بود' }, { status: 500 })

@@ -1,6 +1,6 @@
 'use client'
 // ─────────────────────────────────────────────────────────────────────────────
-// لندینگ پلتفرم — بازطراحی (جولای ۲۰۲۶)
+// لندینگ پلتفرم — بازطراحی (جولای 2026)
 // هویت برند: مونوکروم (سفید/مشکی/خاکستری) + تایپوگرافی Estedad/Vazirmatn.
 // رنگ، عمدا فقط از «تخصص‌ها» می‌آید (~10% صفحه): موکاپ چرخشی hero و کارت نیچ‌ها.
 // امضای صفحه: موکاپ زنده‌ی hero — یک صفحه‌ی رزرو که هر چرخه، تخصص/رنگش عوض
@@ -64,7 +64,7 @@ const SHOWCASE_DAYS = [
 const SHOWCASE_SLOTS = ['09:30', '11:00', '16:30', '18:00']
 const SHOWCASE_STEPS = ['صفحه‌ی اختصاصی شما', 'انتخاب زمان توسط مراجع', 'پرداخت و تایید خودکار']
 
-// موکاپ زنده — هر تیک یک مرحله جلو می‌رود؛ هر ۳ مرحله، تخصص (و رنگ) عوض می‌شود
+// موکاپ زنده — هر تیک یک مرحله جلو می‌رود؛ هر 3 مرحله، تخصص (و رنگ) عوض می‌شود
 function HeroShowcase() {
   const [tick, setTick] = useState(0)
   useEffect(() => {
@@ -102,7 +102,7 @@ function HeroShowcase() {
 
           {/* صحنه‌ی مراحل — ارتفاع ثابت تا صفحه نپرد */}
           <div className="relative h-[218px]">
-            {/* مرحله‌ی ۱: صفحه و خدمت */}
+            {/* مرحله‌ی 1: صفحه و خدمت */}
             <div className={`absolute inset-0 transition-all duration-500 ${step === 0 ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2 pointer-events-none'}`}>
               <div className="border border-sand rounded-xl p-4 mb-3">
                 <div className="flex items-center justify-between gap-3">
@@ -122,7 +122,7 @@ function HeroShowcase() {
               <p className="text-[11px] text-soot text-center mt-3">صفحه‌ی عمومی شما — با نشانی و رنگ اختصاصی</p>
             </div>
 
-            {/* مرحله‌ی ۲: انتخاب روز و ساعت */}
+            {/* مرحله‌ی 2: انتخاب روز و ساعت */}
             <div className={`absolute inset-0 transition-all duration-500 ${step === 1 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2 pointer-events-none'}`}>
               <div className="flex gap-1.5 mb-3">
                 {SHOWCASE_DAYS.map(day => (
@@ -144,7 +144,7 @@ function HeroShowcase() {
               </div>
             </div>
 
-            {/* مرحله‌ی ۳: پرداخت و تایید */}
+            {/* مرحله‌ی 3: پرداخت و تایید */}
             <div className={`absolute inset-0 transition-all duration-500 ${step === 2 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2 pointer-events-none'}`}>
               <div className="h-full flex flex-col items-center justify-center text-center">
                 <span className="w-14 h-14 rounded-full text-white flex items-center justify-center text-2xl mb-3 transition-colors duration-700" style={{ background: c }}>✓</span>

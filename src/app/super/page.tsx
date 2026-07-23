@@ -234,7 +234,7 @@ function SuperInner() {
           </button>
           <div className="bg-white border border-sand rounded-2xl p-4 text-center">
             <div className="text-2xl font-bold text-ink tnum">{summary.recent_7d}</div>
-            <div className="text-xs text-soot mt-1">تازه (۷ روز)</div>
+            <div className="text-xs text-soot mt-1">تازه (7 روز)</div>
           </div>
         </section>
       )}

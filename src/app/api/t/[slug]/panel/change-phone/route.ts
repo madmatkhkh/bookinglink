@@ -7,9 +7,9 @@ export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 // تغییر شماره‌ی ورود خود owner یا خود درمانگر (نه شماره‌ی هیچ‌کس دیگر) — دو قدم:
-//   قدم ۱ (بدون code): اعتبارسنجی + چک‌کردن اینکه این شماره قبلا مال یک
+//   قدم 1 (بدون code): اعتبارسنجی + چک‌کردن اینکه این شماره قبلا مال یک
 //           owner/درمانگر دیگر نباشد (تا دو نفر با هم قاطی نشوند) + صدور OTP.
-//   قدم ۲ (با code): تایید OTP → همان‌جا شماره در دیتابیس عوض می‌شود.
+//   قدم 2 (با code): تایید OTP → همان‌جا شماره در دیتابیس عوض می‌شود.
 export async function POST(req: NextRequest, { params }: { params: { slug: string } }) {
   const a = await requirePanelAuth(req, params.slug)
   if (isPanelAuthResponse(a)) return a

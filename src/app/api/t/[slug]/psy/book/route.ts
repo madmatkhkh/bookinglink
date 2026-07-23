@@ -9,9 +9,9 @@ import { randomInt } from 'crypto'
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-// ۶ رقم از CSPRNG (نه Math.random) — هم فضای بزرگ‌تر (۹۰۰هزار به‌جای ۹هزار؛
+// 6 رقم از CSPRNG (نه Math.random) — هم فضای بزرگ‌تر (900هزار به‌جای 9هزار؛
 // سقف عملی پرونده به‌ازای هر tenant) هم غیرقابل‌حدس. پرونده‌های قدیمی
-// ۴رقمی همچنان معتبرند — هیچ‌جا طول عدد validate نمی‌شود.
+// 4رقمی همچنان معتبرند — هیچ‌جا طول عدد validate نمی‌شود.
 function genCase(): string {
   return `PRV-${randomInt(100000, 1000000)}`
 }

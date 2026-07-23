@@ -98,7 +98,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   if ('settlement_sheba' in body) {
     const sheba = String(body.settlement_sheba || '').trim().toUpperCase().replace(/\s/g, '')
     if (sheba && !isValidSheba(sheba))
-      return NextResponse.json({ error: 'فرمت شماره‌شبا درست نیست (باید IR و ۲۴ رقم باشد)' }, { status: 400 })
+      return NextResponse.json({ error: 'فرمت شماره‌شبا درست نیست (باید IR و 24 رقم باشد)' }, { status: 400 })
     profilePatch.settlement_sheba = sheba
   }
   if ('settlement_sheba_holder_name' in body) profilePatch.settlement_sheba_holder_name = String(body.settlement_sheba_holder_name || '').trim().slice(0, 80)

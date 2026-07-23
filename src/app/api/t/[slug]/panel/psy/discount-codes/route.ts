@@ -40,11 +40,11 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   if (!resourceId) return NextResponse.json({ error: 'منبع نامعتبر' }, { status: 400 })
 
   const code = String(b.code || '').trim().toUpperCase().replace(/\s/g, '')
-  if (!/^[A-Z0-9]{3,20}$/.test(code)) return NextResponse.json({ error: 'کد باید ۳ تا ۲۰ حرف/عدد لاتین باشد' }, { status: 400 })
+  if (!/^[A-Z0-9]{3,20}$/.test(code)) return NextResponse.json({ error: 'کد باید 3 تا 20 حرف/عدد لاتین باشد' }, { status: 400 })
   const discountType = b.discount_type === 'fixed' ? 'fixed' : 'percent'
   const discountValue = Number(b.discount_value)
   if (!Number.isFinite(discountValue) || discountValue <= 0) return NextResponse.json({ error: 'مقدار تخفیف نامعتبر است' }, { status: 400 })
-  if (discountType === 'percent' && discountValue > 100) return NextResponse.json({ error: 'درصد تخفیف نمی‌تواند بیش از ۱۰۰ باشد' }, { status: 400 })
+  if (discountType === 'percent' && discountValue > 100) return NextResponse.json({ error: 'درصد تخفیف نمی‌تواند بیش از 100 باشد' }, { status: 400 })
   const maxUses = b.max_uses ? Math.max(1, parseInt(b.max_uses)) : null
   const expiresAt = b.expires_at ? new Date(b.expires_at).toISOString() : null
 

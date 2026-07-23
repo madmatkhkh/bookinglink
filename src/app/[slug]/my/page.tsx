@@ -1339,7 +1339,7 @@ function SchedulePicker({ pkg, existingSessions, phone, caseNumber, onClose, onD
  const remaining = totalNeeded - alreadyBooked
  const totalSelected = Object.values(selectedSlots).reduce((a, b) => a + b.length, 0)
 
- // ⚠️ قانون کلی: ترکیب پروتکل را دکتر تعیین می‌کند (مثلا ۲ جلسه‌ی مراجع + ۱
+ // ⚠️ قانون کلی: ترکیب پروتکل را دکتر تعیین می‌کند (مثلا 2 جلسه‌ی مراجع + 1
  // جلسه‌ی همراه) — مراجع فقط می‌تواند دقیقا همین ترکیب را زمان‌بندی کند، نه هر
  // توزیعی. قبلا فقط «مجموع» چک می‌شد و انتخاب attendee برای هر اسلات آزاد بود؛
  // یعنی مراجع می‌توانست هر سه جلسه را «مراجع» انتخاب کند و سهم همراه خالی بماند.
@@ -1554,7 +1554,7 @@ function SchedulePicker({ pkg, existingSessions, phone, caseNumber, onClose, onD
              {(['primary', 'secondary'] as const).map(a => {
               // اجازه‌ی سوییچ به دسته‌ی a فقط اگر سهم آن دسته (به‌جز خود همین
               // اسلات) هنوز پر نشده باشد — وگرنه می‌شد ترکیب تعریف‌شده‌ی دکتر
-              // (مثلا ۲ مراجع + ۱ همراه) را با سوییچ دستی به‌هم زد.
+              // (مثلا 2 مراجع + 1 همراه) را با سوییچ دستی به‌هم زد.
               const selfIsA = attendee === a
               const otherSelected = (a === 'primary' ? selectedPrimary : selectedSecondary) - (selfIsA ? 1 : 0)
               const bookedA = a === 'primary' ? bookedPrimary : bookedSecondary

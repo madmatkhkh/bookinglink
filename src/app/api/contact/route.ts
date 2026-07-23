@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 // فرم عمومی «تماس با ما» لندینگ — بدون نیاز به حساب. چون عمومی است:
-// rate-limit سختگیرانه (۳ پیام در ساعت از هر IP، با همان مکانیزم دیتابیس‌محور
+// rate-limit سختگیرانه (3 پیام در ساعت از هر IP، با همان مکانیزم دیتابیس‌محور
 // auth_throttle) + سقف طول پیام، تا برای اسپم جذاب نباشد.
 export async function POST(req: NextRequest) {
   const b = await req.json().catch(() => ({}))
