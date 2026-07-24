@@ -34,6 +34,9 @@ type Refund = { id: string; case_number: string; amount: number; note?: string |
 type CaseLedgerEntry = {
  id: string; purpose: string; method: 'online' | 'card_to_card'; direction: 'inflow' | 'outflow'
  amount: number; commission_amount: number; doctor_amount: number
+ // تفکیک پایه/مالیات کارمزد — فقط برای تراکنش‌های مدل جدید (فاز P2 قیمت‌گذاری)
+ // پر است؛ تراکنش‌های قدیمی‌تر این دو را ندارند و فقط جمع کل نمایش داده می‌شود.
+ fee_base_amount?: number | null; fee_vat_amount?: number | null
  bank_ref_number?: string | null; split_applied: boolean; note?: string | null; created_at: string
 }
 import type { ResourceRow } from '../staff/StaffTab'
@@ -1059,7 +1062,15 @@ export default function PatientsTab({
                {e.method === 'online' && (
                 <div className="mt-2 pt-2 border-t border-sand flex items-center justify-between text-xs">
                  <span className="text-soot">سهم شما</span>
-                 <span className="text-emerald-700 font-medium tnum">{money(e.doctor_amount)} ت <span className="text-soot font-normal">(کارمزد {money(e.commission_amount)})</span></span>
+                 <span className="text-emerald-700 font-medium tnum">
+                  {money(e.doctor_amount)} ت{' '}
+                  <span className="text-soot font-normal">
+                   (کارمزد {money(e.commission_amount)}
+                   {e.fee_base_amount != null && e.fee_vat_amount != null && e.fee_vat_amount > 0
+                    ? ` = ${money(e.fee_base_amount)} + ${money(e.fee_vat_amount)} مالیات`
+                    : ''})
+                  </span>
+                 </span>
                 </div>
                )}
                {(e.bank_ref_number || e.method === 'online') && (
