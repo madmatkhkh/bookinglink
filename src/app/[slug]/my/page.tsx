@@ -994,6 +994,13 @@ function SessionCard({ session: s, num, phone, caseNumber, onUpdate, pkgChannel 
       </div>
      )}
      {s.session_type === 'online' && !isAwaiting && s.status !== 'forfeited' && s.status !== 'replaced' && s.session_date && (() => {
+      // ⚠️ تا settings.loaded نرسیده، doctorForSession?.meet_channels هنوز
+      // خالی است (نه چون دکتر چیزی ثبت نکرده، بلکه چون فچ هنوز برنگشته) —
+      // نمایش مستقیم «هنوز ثبت نشده» در این حالت یعنی یک لحظه‌ی گذرا و
+      // اشتباه که با رسیدن دیتا خودش را با دکمه‌ی درست جایگزین می‌کند
+      // (دقیقا همون فلش گزارش‌شده: پیام هشدار زردرنگ یک لحظه، بعد دکمه‌ی
+      // واتساپ). تا لود نشدن، به‌جایش یک اسکلتون نشان می‌دهیم، نه پیام.
+      if (!settings.loaded) return <div className="h-8 w-40 rounded-lg bg-gray-100 animate-pulse mt-1.5" />
       // اولویت: لینک اختصاصی همین جلسه (s.meet_link، میراث گوگل‌میت) > کانالی
       // که مراجع لحظه‌ی انتخاب زمان انتخاب کرده (s.meet_channel، جلسه‌ی
       // مستقل) > کانال پروتکل که دکتر از قبل مشخص کرده (pkgChannel) > همه‌ی
