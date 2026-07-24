@@ -21,7 +21,7 @@ import { stageTitle, STAGE_STATUS_LABEL, STAGE_TYPE_LABEL } from '@/lib/flow'
 import { IntakeForm, DEFAULT_INTAKE_FORM, LEGACY_DETAIL_LABELS, INTAKE_KNOWN_COLUMNS, fieldVisible, Pricing, OfficeLocation, resolvePrice, packageAmount } from '@/lib/psy'
 import { MeetChannel, usableMeetChannels, mergeMeetChannels, MEET_META } from '@/lib/meet'
 import { PageHeader, EmptyState, SkeletonRows, enTime, Field, SelectField, TextareaField } from '../shared'
-import type { Session, Package, CaseStage, Patient, Booking } from '../../PsychologyAdmin'
+import type { Session, Package, CaseStage, Patient, Booking } from '../types'
 
 // فقط دو فیلدی که این تب از پروفایل مصرف می‌کند (برچسب همراه + قیمت‌ها)
 type ProfileBits = { companion_label?: string | null; pricing: Pricing; stage_presets?: string[]; meet_channels?: MeetChannel[]; meet_link?: string | null }

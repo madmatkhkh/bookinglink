@@ -15,7 +15,7 @@ import { Glyph } from '@/components/Glyph'
 import { PRICING } from '@/lib/config'
 import { stageTitle } from '@/lib/flow'
 import { PageHeader } from '../shared'
-import type { Session, Package, CaseStage } from '../../PsychologyAdmin'
+import type { Session, Package, CaseStage } from '../types'
 
 function PendingSection({ title, icon, count, children }: { title: string; icon: string; count: number; children: React.ReactNode }) {
  return (

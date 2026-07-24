@@ -100,3 +100,8 @@ export function TextareaField({ label, value, onChange, rows, placeholder }: {
   </div>
  )
 }
+
+// شناسه‌ی محلی برای آیتم‌های تازه‌ای که هنوز به سرور نرفته‌اند (بخش فرم، سوال،
+// مکان حضوری، شماره کارت). قبلا محلی در PsychologyAdmin بود؛ با جداشدن
+// فرم‌بیلدر مشترک شد — والد هنوز برای مکان‌ها و کارت‌ها استفاده‌اش می‌کند.
+export const genId = (prefix: string) => `${prefix}_${Date.now()}_${Math.floor(Math.random() * 1000)}`
