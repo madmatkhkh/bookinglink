@@ -33,16 +33,22 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
     return NextResponse.json({ error: 'این ساعت دیگر خالی نیست؛ ساعت دیگری انتخاب کنید' }, { status: 409 })
 
   const booking_ts = jalaliDateTimeToTimestamp(dateStr, timeStr)!
+  // پایان بازه، تا قید bookings_no_overlap (migration 0057) بتواند تداخل را
+  // ببندد. بدون این ستون، دو نوبت با ساعت شروع متفاوت ولی بازه‌ی متداخل
+  // (رنگ موی 10:00 تا 12:00 و ناخن 10:30) هر دو ثبت می‌شدند.
+  const booking_end_ts = booking_ts + service.duration_minutes * 60000
   const { data, error } = await sb().from('bookings').insert({
     tenant_id: t.id, resource_id: freeResource, service_id: service.id,
-    booking_date: dateStr, booking_time: timeStr, booking_ts,
+    booking_date: dateStr, booking_time: timeStr, booking_ts, booking_end_ts,
     client_name: name, client_phone: phone,
     client_note: String(client_note || '').slice(0, 500),
     price_snapshot: service.price, status: 'pending_payment',
   }).select('id').single()
 
   if (error) {
-    if (error.code === '23505')
+    // 23505 = ایندکس یکتای ساعت شروع، 23P01 = قید تداخل بازه‌ها.
+    // هر دو یعنی «بین چک و insert، کس دیگری این زمان را گرفت» — همان پیام.
+    if (error.code === '23505' || error.code === '23P01')
       return NextResponse.json({ error: 'این ساعت همین الان رزرو شد؛ ساعت دیگری انتخاب کنید' }, { status: 409 })
     console.error('book POST error:', error)
     return NextResponse.json({ error: 'مشکلی در ثبت رزرو پیش آمد. دوباره تلاش کنید.' }, { status: 500 })

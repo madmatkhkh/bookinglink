@@ -1,7 +1,7 @@
 -- ═══════════════════════════════════════════════════════════════════════════
 --  نوبت‌لینک — اسکیمای کامل و یکپارچه
 -- ═══════════════════════════════════════════════════════════════════════════
---  جایگزین همه‌ی فایل‌های مهاجرت (0001..0056) و schema.sql قبلی.
+--  جایگزین همه‌ی فایل‌های مهاجرت (0001..0057) و schema.sql قبلی.
 --  شامل تمام جداول، ایندکس‌ها، کلیدهای خارجی، قیدها، RLS و داده‌های اولیه.
 --
 --  ⚠️ این فایل اول همه‌چیز را پاک می‌کند و از صفر می‌سازد.
@@ -40,6 +40,14 @@ CREATE SCHEMA public;
 COMMENT ON SCHEMA public IS 'standard public schema';
 
 --
+-- Name: btree_gist; Type: EXTENSION; Schema: -; Owner: -
+-- لازم برای قید bookings_no_overlap: کنار هم گذاشتن uuid با = و range با &&
+-- در یک قید gist بدون این افزونه ممکن نیست.
+--
+
+CREATE EXTENSION IF NOT EXISTS btree_gist;
+
+--
 -- Name: auth_throttle; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -69,6 +77,7 @@ CREATE TABLE public.bookings (
     client_note text DEFAULT ''::text NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     reminder_sent boolean DEFAULT false NOT NULL,
+    booking_end_ts bigint NOT NULL,
     CONSTRAINT bookings_status_check CHECK ((status = ANY (ARRAY['pending_payment'::text, 'payment_submitted'::text, 'confirmed'::text, 'cancelled'::text, 'completed'::text, 'no_show'::text])))
 );
 
@@ -1223,6 +1232,17 @@ CREATE INDEX bookings_reminder_idx ON public.bookings USING btree (booking_date)
 --
 
 CREATE UNIQUE INDEX bookings_slot_unique ON public.bookings USING btree (tenant_id, resource_id, booking_date, booking_time) WHERE (status <> 'cancelled'::text);
+
+
+--
+-- Name: bookings_no_overlap; Type: CONSTRAINT; Schema: public; Owner: -
+-- دو نوبت فعال یک منبع نمی‌توانند بازه‌ی زمانی متداخل داشته باشند.
+-- ایندکس یکتای بالا فقط ساعت شروع را می‌پوشاند و برای سرویس‌هایی با مدت
+-- متفاوت کافی نیست (رنگ موی 10:00 تا 12:00 مانع ناخن 10:30 نمی‌شد).
+--
+
+ALTER TABLE ONLY public.bookings
+    ADD CONSTRAINT bookings_no_overlap EXCLUDE USING gist (tenant_id WITH =, resource_id WITH =, int8range(booking_ts, booking_end_ts) WITH &&) WHERE ((status <> 'cancelled'::text));
 
 --
 -- Name: bookings_tenant_id_booking_date_idx; Type: INDEX; Schema: public; Owner: -
