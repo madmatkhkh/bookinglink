@@ -18,7 +18,7 @@ import { useModalBackClose } from '@/lib/useModalBackClose'
 import useSWR, { mutate as globalMutate } from 'swr'
 import { LIVE_SWR_OPTIONS } from '@/lib/swr'
 import { stageTitle, STAGE_STATUS_LABEL, STAGE_TYPE_LABEL } from '@/lib/flow'
-import { IntakeForm, DEFAULT_INTAKE_FORM, LEGACY_DETAIL_LABELS, INTAKE_KNOWN_COLUMNS, fieldVisible, Pricing, OfficeLocation } from '@/lib/psy'
+import { IntakeForm, DEFAULT_INTAKE_FORM, LEGACY_DETAIL_LABELS, INTAKE_KNOWN_COLUMNS, fieldVisible, Pricing, OfficeLocation, resolvePrice, packageAmount } from '@/lib/psy'
 import { MeetChannel, usableMeetChannels, mergeMeetChannels, MEET_META } from '@/lib/meet'
 import { PageHeader, EmptyState, SkeletonRows, enTime, Field, SelectField, TextareaField } from '../shared'
 import type { Session, Package, CaseStage, Patient, Booking } from '../../PsychologyAdmin'
@@ -1495,8 +1495,8 @@ export default function PatientsTab({
          <label className="text-xs text-soot mb-1 block">نوع جلسه‌ی مراجع</label>
          <select value={newPkg.primary_session_type} onChange={e => setNewPkg({...newPkg, primary_session_type: e.target.value})}
           className="w-full text-sm px-3 py-2 border border-sand rounded-lg bg-white">
-          <option value="offline">حضوری — {profile.pricing.offline.toLocaleString('en-US')}</option>
-          <option value="online">آنلاین — {profile.pricing.online.toLocaleString('en-US')}</option>
+          <option value="offline">حضوری — {resolvePrice('offline', profile.pricing).toLocaleString('en-US')}</option>
+          <option value="online">آنلاین — {resolvePrice('online', profile.pricing).toLocaleString('en-US')}</option>
          </select>
         </div>
        </div>
@@ -1545,8 +1545,8 @@ export default function PatientsTab({
          <label className="text-xs text-soot mb-1 block">نوع جلسه‌ی {profile.companion_label || 'همراه'}</label>
          <select value={newPkg.secondary_session_type} onChange={e => setNewPkg({...newPkg, secondary_session_type: e.target.value})}
           className="w-full text-sm px-3 py-2 border border-sand rounded-lg bg-white">
-          <option value="offline">حضوری — {profile.pricing.offline.toLocaleString('en-US')}</option>
-          <option value="online">آنلاین — {profile.pricing.online.toLocaleString('en-US')}</option>
+          <option value="offline">حضوری — {resolvePrice('offline', profile.pricing).toLocaleString('en-US')}</option>
+          <option value="online">آنلاین — {resolvePrice('online', profile.pricing).toLocaleString('en-US')}</option>
          </select>
         </div>
        </div>
@@ -1581,8 +1581,10 @@ export default function PatientsTab({
         <div className="flex justify-between text-sm">
          <span className="text-soot">مجموع مبلغ پروتکل درمان:</span>
          <span className="font-semibold text-ink">
-          {((newPkg.primary_sessions * (newPkg.primary_session_type === 'online' ? profile.pricing.online : profile.pricing.offline)) +
-           (newPkg.secondary_sessions * (newPkg.secondary_session_type === 'online' ? profile.pricing.online : profile.pricing.offline))).toLocaleString('en-US')} تومان
+          {packageAmount({
+           primary_sessions: newPkg.primary_sessions, primary_session_type: newPkg.primary_session_type,
+           secondary_sessions: newPkg.secondary_sessions, secondary_session_type: newPkg.secondary_session_type,
+          }, profile.pricing).toLocaleString('en-US')} تومان
          </span>
         </div>
        </div>

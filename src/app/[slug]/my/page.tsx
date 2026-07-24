@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useSearchParams, useRouter } from 'next/navigation'
 import { PERSIAN_MONTHS, PERSIAN_WEEKDAYS_FULL, toFarsiNum, getCurrentJalali, getDaysInJalaliMonth, jalaliDateTimeToTimestamp, jalaliWeekday } from '@/lib/calendar'
-import { PSY_PRICING as PRICING, DEFAULT_CANCELLATION_POLICY } from '@/lib/psy'
+import { PSY_PRICING as PRICING, DEFAULT_CANCELLATION_POLICY, resolvePrice } from '@/lib/psy'
 import { usePublicClinic, usePatientFeatures, CardChooser, DiscountCodeField, DiscountApplied, TermsGate } from '@/components/PsyPublic'
 import { moduleOn } from '@/lib/moduleManifest'
 import { stageTitle } from '@/lib/flow'
@@ -841,9 +841,7 @@ function SessionCard({ session: s, num, phone, caseNumber, onUpdate }: {
  const settings = usePublicClinic(slug)
 
  const doctorForSession = settings.doctors.find(d => d.id === s.resource_id)
- const sessionPrice = doctorForSession
-  ? (s.session_type === 'online' ? doctorForSession.pricing.online : doctorForSession.pricing.offline)
-  : (s.session_type === 'online' ? PRICING.online : PRICING.offline)
+ const sessionPrice = resolvePrice(s.session_type, doctorForSession?.pricing)
  const finalSessionPrice = discount ? discount.discountedAmount : sessionPrice
 
  async function buyReplacement() {
@@ -1756,7 +1754,7 @@ function StagePayment({ icon, title, desc, amount, onPaid, onDone, resourceId, c
  // نوع جلسه (آنلاین/حضوری) را خود مراجع همین‌جا انتخاب می‌کند و قیمت از روی
  // همان محاسبه می‌شود؛ سرور دوباره اعتبارسنجی و ذخیره می‌کند.
  const [mode, setMode] = useState<'online' | 'offline'>(sessionType || 'offline')
- const baseAmount = pricing ? (mode === 'online' ? pricing.online : pricing.offline) : amount
+ const baseAmount = pricing ? resolvePrice(mode, pricing) : amount
  const finalAmount = discount ? discount.discountedAmount : baseAmount
  // روش‌های آنلاین فعال متخصص — مراجع هنگام پرداخت یکی را انتخاب می‌کند
  const doctor = settings.doctors.find(d => d.id === resourceId)

@@ -6,7 +6,7 @@ import { STAGE_TYPE_LABEL, STAGE_STATUS_LABEL, stageTitle } from '@/lib/flow'
 import { PLAN_LABELS } from '@/lib/plans'
 import { PRICING, PLATFORM_NAME, RESERVED_SLUGS, SLUG_PATTERN, SLUG_RULE_TEXT } from '@/lib/config'
 import { ClinicSettings, DEFAULT_SETTINGS, SessionMode, OfficeLocation, PaymentCardInfo } from '@/lib/settings'
-import { IntakeForm, FormField, FormFieldType, DEFAULT_INTAKE_FORM, LEGACY_DETAIL_LABELS, CancellationPolicy, PaymentMethods, DEFAULT_PAYMENT_METHODS, DEFAULT_CANCELLATION_POLICY, Pricing, DEFAULT_PRICING, TermsSettings, DEFAULT_TERMS, INTAKE_KNOWN_COLUMNS, fieldVisible } from '@/lib/psy'
+import { IntakeForm, FormField, FormFieldType, DEFAULT_INTAKE_FORM, LEGACY_DETAIL_LABELS, CancellationPolicy, PaymentMethods, DEFAULT_PAYMENT_METHODS, DEFAULT_CANCELLATION_POLICY, Pricing, DEFAULT_PRICING, TermsSettings, DEFAULT_TERMS, INTAKE_KNOWN_COLUMNS, fieldVisible, resolvePrice, PRICING_VAT_PERCENT } from '@/lib/psy'
 import { DialogHost, uiAlert, uiConfirm, uiPrompt } from '@/components/ui/Dialog'
 import { useResendCooldown } from '@/lib/useResendCooldown'
 import { Glyph } from '@/components/Glyph'
@@ -2430,6 +2430,32 @@ export function PsychologyAdmin() {
            className="w-full text-sm px-3 py-2 border border-sand rounded-lg tnum focus:outline-none focus:border-ink" />
          </div>
         </div>
+
+        {/* مالیات بر ارزش افزوده‌ی خود متخصص — اختیاری، جدا از کارمزد پلتفرم.
+            وقتی روشن است، همین‌جا قیمت نهایی (پایه+مالیات) هم نشان داده
+            می‌شود؛ همان عددی که واقعا از مراجع گرفته می‌شود (resolvePrice). */}
+        <label className="flex items-center justify-between p-3 rounded-xl border border-sand cursor-pointer mt-4">
+         <div>
+          <span className="text-sm text-ink block">احتساب مالیات بر ارزش افزوده ({PRICING_VAT_PERCENT}٪)</span>
+          <span className="text-xs text-soot">روی قیمت جلسات اضافه و از مراجع دریافت می‌شود.</span>
+         </div>
+         <input type="checkbox" checked={profile.pricing.vat_enabled}
+          onChange={e => patchProfile({ pricing: { ...profile.pricing, vat_enabled: e.target.checked } })}
+          className="w-5 h-5 accent-ink shrink-0" />
+        </label>
+
+        {profile.pricing.vat_enabled && (
+         <div className="mt-3 bg-gray-50 rounded-xl p-3.5 text-xs text-soot space-y-1.5">
+          <div className="flex items-center justify-between">
+           <span>قیمت نهایی جلسه‌ی آنلاین (با مالیات)</span>
+           <span className="font-medium text-ink tnum">{resolvePrice('online', profile.pricing).toLocaleString('en-US')} تومان</span>
+          </div>
+          <div className="flex items-center justify-between">
+           <span>قیمت نهایی جلسه‌ی حضوری (با مالیات)</span>
+           <span className="font-medium text-ink tnum">{resolvePrice('offline', profile.pricing).toLocaleString('en-US')} تومان</span>
+          </div>
+         </div>
+        )}
 
         <div className="border-t border-sand mt-4 pt-4">
          <label className="text-xs text-soot mb-1 block">هزینه‌ی هر دقیقه‌ی اضافه (تومان)</label>

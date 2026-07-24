@@ -2,7 +2,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useParams } from 'next/navigation'
 import { toFarsiNum, toLatinNum, getCurrentJalali } from '@/lib/calendar'
-import { PSY_PRICING as PRICING } from '@/lib/psy'
+import { PSY_PRICING as PRICING, resolvePrice } from '@/lib/psy'
 import { usePublicClinic, CardChooser, TermsGate, DiscountCodeField } from '@/components/PsyPublic'
 import { onlineAvailable, offlineAvailable, fieldVisible, missingIntakeFields } from '@/lib/psy'
 import { usableMeetChannels, mergeMeetChannels } from '@/lib/meet'
@@ -441,9 +441,7 @@ function InterviewPayScreen({ doctor, resourceId, slug, phone, cards, loaded, se
   // eslint-disable-next-line react-hooks/exhaustive-deps
  }, [officeLocations.length])
 
- const baseAmount = mode === 'online'
-  ? (pricing?.online ?? PRICING.online)
-  : (pricing?.offline ?? PRICING.offline)
+ const baseAmount = resolvePrice(mode, pricing)
  const [discount, setDiscount] = useState<{ code: string; discountedAmount: number; discountAmount: number } | null>(null)
  const finalAmount = discount ? discount.discountedAmount : baseAmount
 

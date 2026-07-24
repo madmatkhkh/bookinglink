@@ -23,16 +23,27 @@ export type Pricing = {
   online: number; offline: number
   duration_online: number; duration_offline: number  // دقیقه
   extra_minute_price: number                         // تومان به‌ازای هر دقیقه‌ی اضافه
+  // مالیات بر ارزش افزوده‌ی خود متخصص روی قیمت جلسات (نه کارمزد پلتفرم) —
+  // اختیاری، پیش‌فرض خاموش. وقتی روشن است، resolvePrice قیمت نهایی
+  // (پایه+مالیات) را برمی‌گرداند؛ یعنی همان چیزی که مراجع واقعا پرداخت می‌کند.
+  vat_enabled: boolean
 }
+export const PRICING_VAT_PERCENT = 10
 export const DEFAULT_PRICING: Pricing = {
   ...PSY_PRICING,
   duration_online: 50, duration_offline: 50,
   extra_minute_price: 0,
+  vat_enabled: false,
 }
 
-// قیمت بر اساس نوع حضور (نه نوع کار) — مصاحبه/ارزیابی/جلسه/پروتکل همه از همین برمی‌آیند
+// قیمت بر اساس نوع حضور (نه نوع کار) — مصاحبه/ارزیابی/جلسه/پروتکل همه از همین برمی‌آیند.
+// اگر مالیات فعال باشد، همین‌جا روی قیمت پایه اضافه می‌شود — تنها نقطه‌ای که
+// «قیمت واقعی قابل‌پرداخت» را محاسبه می‌کند؛ همه‌ی نمایش‌های قیمت به مراجع
+// (فرم مصاحبه، پنل مراجع) باید از همین تابع بخوانند، نه مستقیم از pricing.online/offline،
+// وگرنه عددی که نشان داده می‌شود با عددی که واقعا کسر می‌شود فرق می‌کند.
 export function resolvePrice(mode: string, pricing: Pricing = DEFAULT_PRICING): number {
-  return mode === 'online' ? pricing.online : pricing.offline
+  const base = mode === 'online' ? pricing.online : pricing.offline
+  return pricing.vat_enabled ? Math.round(base * (1 + PRICING_VAT_PERCENT / 100)) : base
 }
 
 export function mergePricing(raw: any): Pricing {
@@ -47,6 +58,7 @@ export function mergePricing(raw: any): Pricing {
       duration_online: clamp(raw?.duration_online, DEFAULT_PRICING.duration_online),
       duration_offline: clamp(raw?.duration_offline, DEFAULT_PRICING.duration_offline),
       extra_minute_price: clamp(raw?.extra_minute_price, DEFAULT_PRICING.extra_minute_price),
+      vat_enabled: raw?.vat_enabled === true,
     }
   }
   return {
@@ -55,6 +67,7 @@ export function mergePricing(raw: any): Pricing {
     duration_online: clamp(raw?.duration_online, DEFAULT_PRICING.duration_online),
     duration_offline: clamp(raw?.duration_offline, DEFAULT_PRICING.duration_offline),
     extra_minute_price: clamp(raw?.extra_minute_price, DEFAULT_PRICING.extra_minute_price),
+    vat_enabled: raw?.vat_enabled === true,
   }
 }
 
