@@ -2,7 +2,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useSearchParams, useRouter } from 'next/navigation'
 import { PERSIAN_MONTHS, PERSIAN_WEEKDAYS_FULL, toFarsiNum, getCurrentJalali, getDaysInJalaliMonth, jalaliDateTimeToTimestamp, jalaliWeekday } from '@/lib/calendar'
-import { DEFAULT_CANCELLATION_POLICY, resolvePrice, packageAmount, priceBreakdown } from '@/lib/psy'
+import { DEFAULT_CANCELLATION_POLICY, resolvePrice, packageAmount, priceBreakdown, packagePriceBreakdown } from '@/lib/psy'
+import PriceSummaryBox from '@/components/PriceSummaryBox'
 import { usePublicClinic, usePatientFeatures, CardChooser, DiscountCodeField, DiscountApplied, TermsGate } from '@/components/PsyPublic'
 import { moduleOn } from '@/lib/moduleManifest'
 import { stageTitle } from '@/lib/flow'
@@ -847,6 +848,7 @@ function SessionCard({ session: s, num, phone, caseNumber, onUpdate }: {
 
  const doctorForSession = settings.doctors.find(d => d.id === s.resource_id)
  const sessionPrice = resolvePrice(s.session_type, doctorForSession?.pricing)
+ const sessionVatInfo = priceBreakdown(s.session_type, doctorForSession?.pricing)
  const finalSessionPrice = discount ? discount.discountedAmount : sessionPrice
 
  async function buyReplacement() {
@@ -1043,6 +1045,8 @@ function SessionCard({ session: s, num, phone, caseNumber, onUpdate }: {
     const termsBlocked = !!doctorForSession?.terms.enabled && !termsAccepted
     return !payOpen ? (
      <div className="mt-3">
+      <PriceSummaryBox base={sessionVatInfo.base} vat={sessionVatInfo.vat} final={finalSessionPrice} showVat={sessionVatInfo.showVat}
+       discount={discount ? { originalFinal: sessionPrice, discountedFinal: finalSessionPrice } : null} />
       <DiscountCodeField slug={slug} resourceId={s.resource_id} amount={sessionPrice} onApplied={setDiscount} />
       <TermsGate doctor={doctorForSession} accepted={termsAccepted} onAcceptedChange={setTermsAccepted} />
       <div className="flex gap-2">
@@ -1241,6 +1245,12 @@ function PayButton({ pkg, phone, onSuccess, total, onPrepayOnline }: { pkg: Pack
  const finalTotal = discount ? discount.discountedAmount : total
  const { slug } = useParams<{ slug: string }>()
  const settings = usePublicClinic(slug)
+ // اگر پروتکل قیمت ذخیره‌شده دارد (pkg.price)، آن مبلغ از زمان ثبت قفل شده و
+ // نمی‌دانیم چقدرش وقت ثبت مالیات بوده — پس فقط عدد نهایی نشان داده می‌شود،
+ // بدون تفکیک. فقط برای پروتکل‌های تازه (بدون قیمت ذخیره‌شده، یعنی total از
+ // قیمت *زنده*ی امروز محاسبه شده) تفکیک واقعا معنا دارد.
+ const pkgPricing = settings.doctors.find(d => d.id === pkg.resource_id)?.pricing
+ const pkgBreakdown = pkg.price ? null : packagePriceBreakdown(pkg, pkgPricing)
  const pm = settings.doctors.find(d => d.id === pkg.resource_id)?.payment_methods
  const onlineOn = !!pm?.online
  const cardOn = pm ? pm.card_to_card : false  // همان دلیل بالا: «نمی‌دانیم» != «کارت‌به‌کارت»
@@ -1268,19 +1278,23 @@ function PayButton({ pkg, phone, onSuccess, total, onPrepayOnline }: { pkg: Pack
  if (!settings.loaded) return <div className="h-11 rounded-xl bg-gray-100 animate-pulse" />
 
  if (!open) return (
-  <div className="flex gap-2">
-   {onlineOn && (
-    <button onClick={payOnline} disabled={onlineLoading}
-     className="flex-1 py-2.5 bg-accent text-white rounded-xl text-sm font-medium disabled:opacity-40">
-     {onlineLoading ? 'در حال اتصال...' : `پرداخت آنلاین ${total.toLocaleString()}`}
-    </button>
-   )}
-   {cardOn && (
-    <button onClick={() => setOpen(true)}
-     className={`py-2.5 rounded-xl text-sm font-medium ${onlineOn ? 'flex-1 border border-gray-300 text-soot' : 'w-full bg-accent text-white'}`}>
-     {onlineOn ? 'کارت‌به‌کارت' : `پرداخت کارت‌به‌کارت ${total.toLocaleString()} تومان`}
-    </button>
-   )}
+  <div>
+   <PriceSummaryBox base={pkgBreakdown?.base ?? total} vat={pkgBreakdown?.vat ?? 0} final={finalTotal} showVat={!!pkgBreakdown?.showVat}
+    discount={discount ? { originalFinal: total, discountedFinal: finalTotal } : null} />
+   <div className="flex gap-2">
+    {onlineOn && (
+     <button onClick={payOnline} disabled={onlineLoading}
+      className="flex-1 py-2.5 bg-accent text-white rounded-xl text-sm font-medium disabled:opacity-40">
+      {onlineLoading ? 'در حال اتصال...' : `پرداخت آنلاین ${total.toLocaleString()}`}
+     </button>
+    )}
+    {cardOn && (
+     <button onClick={() => setOpen(true)}
+      className={`py-2.5 rounded-xl text-sm font-medium ${onlineOn ? 'flex-1 border border-gray-300 text-soot' : 'w-full bg-accent text-white'}`}>
+      {onlineOn ? 'کارت‌به‌کارت' : `پرداخت کارت‌به‌کارت ${total.toLocaleString()} تومان`}
+     </button>
+    )}
+   </div>
   </div>
  )
 
@@ -1292,6 +1306,8 @@ function PayButton({ pkg, phone, onSuccess, total, onPrepayOnline }: { pkg: Pack
    <label className="text-xs text-soot mb-1 block">متن فیش واریزی <span className="text-red-500">*</span></label>
    <textarea value={ref} onChange={e => setRef(e.target.value)} rows={3} placeholder="اطلاعات فیش واریزی را وارد کنید..."
     className="w-full text-sm px-3 py-2 border border-sand rounded-xl focus:outline-none focus:border-ink mb-2 resize-none" />
+   <PriceSummaryBox base={pkgBreakdown?.base ?? total} vat={pkgBreakdown?.vat ?? 0} final={finalTotal} showVat={!!pkgBreakdown?.showVat}
+    discount={discount ? { originalFinal: total, discountedFinal: finalTotal } : null} />
    <DiscountCodeField slug={slug} resourceId={pkg.resource_id} amount={total} onApplied={setDiscount} />
    <TermsGate doctor={settings.doctors.find(d => d.id === pkg.resource_id)} accepted={termsAccepted} onAcceptedChange={setTermsAccepted} />
    <button onClick={pay} disabled={paying || !ref.trim() || (!!settings.doctors.find(d => d.id === pkg.resource_id)?.terms.enabled && !termsAccepted)}
@@ -1888,20 +1904,8 @@ function StagePayment({ icon, title, desc, amount, onPaid, onDone, resourceId, c
     </div>
    )}
 
-   <div className="bg-sand border border-sand rounded-xl p-4 mb-3">
-    <div className="flex items-center justify-between">
-     <span className="text-xs text-soot">مبلغ قابل پرداخت</span>
-     <span className="text-base font-bold text-ink">
-      {discount && <span className="text-soot line-through text-xs ml-1.5">{baseAmount.toLocaleString()}</span>}
-      {finalAmount.toLocaleString()} تومان
-     </span>
-    </div>
-    {!discount && vatInfo.showVat && (
-     <div className="text-[11px] text-soot mt-1 text-left">
-      {vatInfo.base.toLocaleString()} + {vatInfo.vat.toLocaleString()} مالیات ارزش‌افزوده
-     </div>
-    )}
-   </div>
+   <PriceSummaryBox base={vatInfo.base} vat={vatInfo.vat} final={finalAmount} showVat={vatInfo.showVat}
+    discount={discount ? { originalFinal: baseAmount, discountedFinal: finalAmount } : null} />
 
    <DiscountCodeField slug={slug} resourceId={resourceId} amount={baseAmount} onApplied={setDiscount} />
    <TermsGate doctor={settings.doctors.find(d => d.id === resourceId)} accepted={termsAccepted} onAcceptedChange={setTermsAccepted} />

@@ -3,6 +3,7 @@ import { useState, useEffect, useMemo, useRef } from 'react'
 import { useParams } from 'next/navigation'
 import { toFarsiNum, toLatinNum, getCurrentJalali } from '@/lib/calendar'
 import { resolvePrice, priceBreakdown } from '@/lib/psy'
+import PriceSummaryBox from '@/components/PriceSummaryBox'
 import { usePublicClinic, CardChooser, TermsGate, DiscountCodeField } from '@/components/PsyPublic'
 import { onlineAvailable, offlineAvailable, fieldVisible, missingIntakeFields } from '@/lib/psy'
 import { usableMeetChannels, mergeMeetChannels } from '@/lib/meet'
@@ -603,20 +604,8 @@ function InterviewPayScreen({ doctor, resourceId, slug, phone, cards, loaded, se
      </div>
     )}
 
-    <div className="bg-sand border border-sand rounded-xl p-4 mb-3">
-     <div className="flex items-center justify-between">
-      <span className="text-xs text-soot">مبلغ قابل پرداخت</span>
-      <span className="text-base font-bold text-ink">
-       {discount && <span className="text-soot line-through text-xs ml-1.5">{baseAmount.toLocaleString()}</span>}
-       {finalAmount.toLocaleString()} تومان
-      </span>
-     </div>
-     {!discount && vatInfo.showVat && (
-      <div className="text-[11px] text-soot mt-1 text-left">
-       {vatInfo.base.toLocaleString()} + {vatInfo.vat.toLocaleString()} مالیات ارزش‌افزوده
-      </div>
-     )}
-    </div>
+    <PriceSummaryBox base={vatInfo.base} vat={vatInfo.vat} final={finalAmount} showVat={vatInfo.showVat}
+     discount={discount ? { originalFinal: baseAmount, discountedFinal: finalAmount } : null} />
 
     <DiscountCodeField slug={slug} resourceId={resourceId} amount={baseAmount} onApplied={setDiscount} />
     <TermsGate doctor={doctor} accepted={termsAccepted} onAcceptedChange={setTermsAccepted} />

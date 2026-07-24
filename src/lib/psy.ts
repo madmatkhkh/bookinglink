@@ -118,6 +118,20 @@ export function packageAmount(p: { primary_sessions: number; primary_session_typ
     + (p.secondary_sessions * resolvePrice(p.secondary_session_type, pricing))
 }
 
+// تفکیک پایه/مالیات برای مجموع یک پروتکل چندجلسه‌ای — برای نمایش شفاف در
+// پنل مراجع. چون مالیات یک درصد یکسان روی هر دو نرخ آنلاین/حضوری است، جمع
+// قیمت‌های پایه × (1+مالیات) دقیقا با جمع resolvePrice تک‌تک برابر است؛
+// یعنی محاسبه‌ی تجمعی (نه ردیف‌به‌ردیف) امن است.
+export function packagePriceBreakdown(
+  p: { primary_sessions: number; primary_session_type: string; secondary_sessions: number; secondary_session_type: string },
+  pricing: Pricing = DEFAULT_PRICING
+) {
+  const rawBase = (mode: string) => mode === 'online' ? pricing.online : pricing.offline
+  const base = p.primary_sessions * rawBase(p.primary_session_type) + p.secondary_sessions * rawBase(p.secondary_session_type)
+  const final = packageAmount(p, pricing)
+  return { base, vat: final - base, final, showVat: !!pricing.vat_enabled && !!pricing.vat_visible_to_client }
+}
+
 // ── کد تخفیف — per-resource، اختیاری برای بعضی مراجعان ─────────────────────
 export type DiscountCheckResult =
   | { ok: true; id: string; discountedAmount: number; discountAmount: number; code: string }
