@@ -10,6 +10,7 @@ import { IntakeForm, FormField, FormFieldType, DEFAULT_INTAKE_FORM, LEGACY_DETAI
 import { DialogHost, uiAlert, uiConfirm, uiPrompt } from '@/components/ui/Dialog'
 import { useResendCooldown } from '@/lib/useResendCooldown'
 import { Glyph } from '@/components/Glyph'
+import PriceInput from '@/components/PriceInput'
 import { MonthYearWheel, JalaliDateWheel } from '@/components/WheelPicker'
 import { useModalBackClose } from '@/lib/useModalBackClose'
 import useSWR, { mutate as globalMutate } from 'swr'
@@ -2418,14 +2419,14 @@ export function PsychologyAdmin() {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
          <div>
           <label className="text-xs text-soot mb-1 block">هزینه‌ی هر جلسه‌ی آنلاین (تومان)</label>
-          <input type="number" min={0} value={profile.pricing.online}
-           onChange={e => patchProfile({ pricing: { ...profile.pricing, online: Math.max(0, Number(e.target.value) || 0) } })}
+          <PriceInput value={profile.pricing.online}
+           onChange={n => patchProfile({ pricing: { ...profile.pricing, online: n } })}
            className="w-full text-sm px-3 py-2 border border-sand rounded-lg tnum focus:outline-none focus:border-ink" />
          </div>
          <div>
           <label className="text-xs text-soot mb-1 block">هزینه‌ی هر جلسه‌ی حضوری (تومان)</label>
-          <input type="number" min={0} value={profile.pricing.offline}
-           onChange={e => patchProfile({ pricing: { ...profile.pricing, offline: Math.max(0, Number(e.target.value) || 0) } })}
+          <PriceInput value={profile.pricing.offline}
+           onChange={n => patchProfile({ pricing: { ...profile.pricing, offline: n } })}
            className="w-full text-sm px-3 py-2 border border-sand rounded-lg tnum focus:outline-none focus:border-ink" />
          </div>
         </div>
@@ -2433,8 +2434,8 @@ export function PsychologyAdmin() {
         <div className="border-t border-sand mt-4 pt-4">
          <label className="text-xs text-soot mb-1 block">هزینه‌ی هر دقیقه‌ی اضافه (تومان)</label>
          <p className="text-xs text-soot mb-2">اگر جلسه‌ای بیشتر از مدت معمول طول بکشد، برای محاسبه‌ی هزینه‌ی دقایق اضافه (هنگام ارسال شارژ اضافه) استفاده می‌شود. صفر یعنی هزینه‌ی اضافه محاسبه نمی‌شود.</p>
-         <input type="number" min={0} value={profile.pricing.extra_minute_price}
-          onChange={e => patchProfile({ pricing: { ...profile.pricing, extra_minute_price: Math.max(0, Number(e.target.value) || 0) } })}
+         <PriceInput value={profile.pricing.extra_minute_price}
+          onChange={n => patchProfile({ pricing: { ...profile.pricing, extra_minute_price: n } })}
           className="w-full sm:w-56 text-sm px-3 py-2 border border-sand rounded-lg tnum focus:outline-none focus:border-ink" />
         </div>
        </section>

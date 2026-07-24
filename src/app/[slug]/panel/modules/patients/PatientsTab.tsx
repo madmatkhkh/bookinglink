@@ -9,7 +9,7 @@
 //   تغییر زمان/وضعیت جلسه تا برنامه و داشبورد تازه بمانند).
 // گیت ماژول یادداشت بالینی با mod('clinical_notes') از props می‌آید.
 import React, { useState } from 'react'
-import { toFarsiNum, getCurrentJalali, PERSIAN_MONTHS, jalaliDateTimeToTimestamp } from '@/lib/calendar'
+import { toFarsiNum, toLatinNum, getCurrentJalali, PERSIAN_MONTHS, jalaliDateTimeToTimestamp } from '@/lib/calendar'
 import { uiAlert, uiConfirm, uiPrompt } from '@/components/ui/Dialog'
 import { Glyph } from '@/components/Glyph'
 import { PRICING } from '@/lib/config'
@@ -1088,7 +1088,9 @@ export default function PatientsTab({
            <CollapsibleSection title="بازپرداخت" icon="↩️" badge={outflows.length}>
              <p className="text-xs text-soot mb-3">وقتی به هر دلیلی مبلغی به این مراجع برمی‌گردانید، همین‌جا ثبت کنید — بلافاصله در دفتر حساب می‌نشیند و شماره پیگیری برای مراجع نمایش داده می‌شود.</p>
              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-2">
-              <input type="number" min={0} value={newRefundAmount} onChange={e => setNewRefundAmount(e.target.value)}
+              <input type="text" inputMode="numeric" dir="ltr"
+               value={newRefundAmount ? Number(newRefundAmount).toLocaleString('en-US') : ''}
+               onChange={e => setNewRefundAmount(toLatinNum(e.target.value).replace(/[^\d]/g, ''))}
                placeholder="مبلغ (تومان)" className="text-sm px-3 py-2 border border-sand rounded-lg tnum focus:outline-none focus:border-ink" />
               <input value={newRefundBankRef} onChange={e => setNewRefundBankRef(e.target.value)} dir="ltr"
                placeholder="شماره پیگیری بانکی *" className="text-sm px-3 py-2 border border-sand rounded-lg tnum focus:outline-none focus:border-ink" />
@@ -1123,7 +1125,9 @@ export default function PatientsTab({
              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-2">
               <input value={newChargeTitle} onChange={e => setNewChargeTitle(e.target.value)}
                placeholder="بابت چه چیزی؟ (مثلا «15 دقیقه اضافه»)" className="text-sm px-3 py-2 border border-sand rounded-lg focus:outline-none focus:border-ink" />
-              <input type="number" min={0} value={newChargeAmount} onChange={e => setNewChargeAmount(e.target.value)}
+              <input type="text" inputMode="numeric" dir="ltr"
+               value={newChargeAmount ? Number(newChargeAmount).toLocaleString('en-US') : ''}
+               onChange={e => setNewChargeAmount(toLatinNum(e.target.value).replace(/[^\d]/g, ''))}
                placeholder="مبلغ (تومان)" className="text-sm px-3 py-2 border border-sand rounded-lg tnum focus:outline-none focus:border-ink" />
              </div>
              <button onClick={() => createExtraCharge(selectedPatient.case_number)} disabled={chargeSaving || !newChargeTitle.trim() || !newChargeAmount}
