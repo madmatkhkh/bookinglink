@@ -127,9 +127,18 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   const originalAmount = amount
   let discountCodeCheck: Awaited<ReturnType<typeof checkDiscountCode>> | null = null
   // کد تخفیف برای شارژ اضافه معنا ندارد — دکتر مبلغ دقیق را خودش تعیین کرده.
+  //
+  // 🐛→✅ باگ جدی (گزارش کاربر: «کد تخفیف توی پنل اعمال میشه ولی توی درگاه
+  // همون قیمت قبلی رو میاره»): تا این‌جا اگر discount_code نامعتبر بود
+  // (مثلا بین لحظه‌ی پیش‌نمایش در UI و لحظه‌ی واقعی پرداخت، ظرفیتش پر شده
+  // بود یا دکتر غیرفعالش کرده بود)، کد بی‌سروصدا با قیمت کامل ادامه می‌داد —
+  // مراجع در پنل «کد اعمال شد» می‌دید (پیش‌نمایش موفق بود) ولی در درگاه
+  // قیمت کامل حساب می‌شد، بدون هیچ خطایی. مسیر کارت‌به‌کارت (`psy/pay`)
+  // از اول درست بود (خطا را برمی‌گرداند)؛ این‌جا هم‌تراز شد.
   if (discount_code && purpose !== 'extra_charge') {
     discountCodeCheck = await checkDiscountCode(c.resource_id, discount_code, amount)
     if (discountCodeCheck.ok) amount = discountCodeCheck.discountedAmount
+    else return NextResponse.json({ error: discountCodeCheck.error }, { status: 400 })
   }
 
   // تفکیک پایه/مالیات قیمت جلسه (نه کارمزد پلتفرم) — از خود amount نهایی
