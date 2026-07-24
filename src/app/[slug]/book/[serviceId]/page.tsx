@@ -38,7 +38,10 @@ function BookingFlow() {
  // گام 1
  const now = getCurrentJalali()
  const [calY, setCalY] = useState(now.year)
- const [calM, setCalM] = useState(now.month)
+ // ⚠️ getCurrentJalali().month صفرپایه است (فروردین=0)، ولی prevMonth/nextMonth
+ // و MonthCalendar هر دو ماه یک‌پایه (1..12) می‌خواهند — بدون این +1، ماه اول
+ // که نشان داده می‌شود همیشه یک ماه قبل از ماه واقعی بود.
+ const [calM, setCalM] = useState(now.month + 1)
  const [monthAvail, setMonthAvail] = useState<Record<number, number>>({})
  const [pickedDate, setPickedDate] = useState('')
  const [daySlots, setDaySlots] = useState<string[] | null>(null)

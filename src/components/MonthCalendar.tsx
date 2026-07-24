@@ -1,7 +1,7 @@
 'use client'
 // تقویم ماهانه‌ی جلالی عمومی — روزها بی‌درنگ رندر می‌شوند، محتوای هر روز
 // (تعداد اسلات و…) از بیرون تزریق می‌شود تا لود آسنکرون تقویم را فلش ندهد.
-import { PERSIAN_MONTHS, PERSIAN_WEEKDAYS_SHORT, getDaysInJalaliMonth, jalaliWeekday, toFarsiNum } from '@/lib/calendar'
+import { PERSIAN_MONTHS, PERSIAN_WEEKDAYS_FULL, getDaysInJalaliMonth, jalaliWeekday, toFarsiNum } from '@/lib/calendar'
 import { ReactNode } from 'react'
 
 export default function MonthCalendar({
@@ -24,8 +24,8 @@ export default function MonthCalendar({
         <button onClick={onNext} className="w-9 h-9 rounded-xl border border-gray-200 text-gray-500">›</button>
       </div>
       <div className="grid grid-cols-7 gap-1 text-center">
-        {PERSIAN_WEEKDAYS_SHORT.map(w => (
-          <div key={w} className="text-[11px] text-gray-400 py-1">{w}</div>
+        {PERSIAN_WEEKDAYS_FULL.map(w => (
+          <div key={w} className="text-[10px] leading-tight text-gray-400 py-1">{w}</div>
         ))}
         {Array.from({ length: firstWd }).map((_, i) => <div key={`e${i}`} />)}
         {Array.from({ length: days }).map((_, i) => (

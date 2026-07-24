@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
-import { PERSIAN_MONTHS, PERSIAN_WEEKDAYS, toFarsiNum, getCurrentJalali, getDaysInJalaliMonth, jalaliDateTimeToTimestamp } from '@/lib/calendar'
+import { PERSIAN_MONTHS, PERSIAN_WEEKDAYS_FULL, toFarsiNum, getCurrentJalali, getDaysInJalaliMonth, jalaliDateTimeToTimestamp, jalaliWeekday } from '@/lib/calendar'
 import { uiAlert } from '@/components/ui/Dialog'
 import { useModalBackClose } from '@/lib/useModalBackClose'
 import { usePatientFeatures } from '@/components/PsyPublic'
@@ -128,7 +128,10 @@ export default function SlotPicker({ session, phone, caseNumber, onClose, onDone
  }
 
  const daysInMonth = getDaysInJalaliMonth(curYear, curMonth)
- const startDay = 2
+ // آفست شروع ماه (چند خانه‌ی خالی قبل از روز 1) — باید هر ماه دوباره محاسبه
+ // شود، چون هر ماه با روز هفته‌ی متفاوتی شروع می‌شود. curMonth این‌جا
+ // صفرپایه است (فروردین=0)، ولی jalaliWeekday ماه یک‌پایه می‌خواهد، پس +1.
+ const startDay = jalaliWeekday(curYear, curMonth + 1, 1)
  const isPastDay = (d: number) =>
   curYear < today.year || (curYear === today.year && (curMonth < today.month || (curMonth === today.month && d <= today.day)))
  const slotsForDay = (d: number) => {
@@ -172,7 +175,7 @@ export default function SlotPicker({ session, phone, caseNumber, onClose, onDone
       <button onClick={() => changeMonth(1)} className="w-8 h-8 border border-sand rounded-lg text-soot">‹</button>
      </div>
      <div className="grid grid-cols-7 gap-1 mb-2">
-      {PERSIAN_WEEKDAYS.map(d => <div key={d} className="text-center text-xs text-soot py-1">{d}</div>)}
+      {PERSIAN_WEEKDAYS_FULL.map(d => <div key={d} className="text-center text-[10px] leading-tight text-soot py-1">{d}</div>)}
      </div>
      <div className="grid grid-cols-7 gap-1 mb-4">
       {Array(startDay).fill(null).map((_, i) => <div key={i} />)}

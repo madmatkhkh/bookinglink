@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useSearchParams, useRouter } from 'next/navigation'
-import { PERSIAN_MONTHS, PERSIAN_WEEKDAYS, toFarsiNum, getCurrentJalali, getDaysInJalaliMonth, jalaliDateTimeToTimestamp } from '@/lib/calendar'
+import { PERSIAN_MONTHS, PERSIAN_WEEKDAYS_FULL, toFarsiNum, getCurrentJalali, getDaysInJalaliMonth, jalaliDateTimeToTimestamp, jalaliWeekday } from '@/lib/calendar'
 import { PSY_PRICING as PRICING, DEFAULT_CANCELLATION_POLICY } from '@/lib/psy'
 import { usePublicClinic, usePatientFeatures, CardChooser, DiscountCodeField, DiscountApplied, TermsGate } from '@/components/PsyPublic'
 import { moduleOn } from '@/lib/moduleManifest'
@@ -1503,10 +1503,10 @@ function SchedulePicker({ pkg, existingSessions, phone, caseNumber, onClose, onD
       <button onClick={() => changeMonth(1)} className="w-8 h-8 border border-sand rounded-lg text-soot flex items-center justify-center">‹</button>
      </div>
      <div className="grid grid-cols-7 gap-1 mb-2">
-      {PERSIAN_WEEKDAYS.map(d => <div key={d} className="text-center text-xs text-soot py-1">{d}</div>)}
+      {PERSIAN_WEEKDAYS_FULL.map(d => <div key={d} className="text-center text-[10px] leading-tight text-soot py-1">{d}</div>)}
      </div>
      <div className="grid grid-cols-7 gap-1 mb-4">
-      {Array(2).fill(null).map((_, i) => <div key={i} />)}
+      {Array(jalaliWeekday(curYear, curMonth + 1, 1)).fill(null).map((_, i) => <div key={i} />)}
       {Array(daysInMonth).fill(null).map((_, i) => {
        const d = i + 1
        const isPast = curYear === today.year && curMonth === today.month && d <= today.day

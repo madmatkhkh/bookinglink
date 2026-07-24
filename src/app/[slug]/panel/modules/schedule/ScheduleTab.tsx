@@ -10,7 +10,7 @@
 // پرش «مشاهده‌ی همه» از داشبورد با prop یک‌بارمصرف jump/onJumpConsumed
 // انجام می‌شود (والد فقط درخواست را ثبت می‌کند، این‌جا اجرا می‌شود).
 import { useState, useEffect } from 'react'
-import { toFarsiNum, toLatinNum, getCurrentJalali, getDaysInJalaliMonth, jalaliDateTimeToTimestamp, PERSIAN_MONTHS } from '@/lib/calendar'
+import { toFarsiNum, toLatinNum, getCurrentJalali, getDaysInJalaliMonth, jalaliDateTimeToTimestamp, PERSIAN_MONTHS, PERSIAN_WEEKDAYS_FULL, jalaliWeekday } from '@/lib/calendar'
 import { uiAlert } from '@/components/ui/Dialog'
 import { PageHeader, timeKey, enTime } from '../shared'
 
@@ -225,12 +225,12 @@ export default function ScheduleTab({
 
         <div className="bg-white rounded-2xl border border-sand p-5 mb-4">
          <div className="grid grid-cols-7 gap-1 mb-2">
-          {['ش','ی','د','س','چ','پ','ج'].map(d => (
-           <div key={d} className="text-center text-xs text-soot py-1">{d}</div>
+          {PERSIAN_WEEKDAYS_FULL.map(d => (
+           <div key={d} className="text-center text-[10px] leading-tight text-soot py-1">{d}</div>
           ))}
          </div>
          <div className="grid grid-cols-7 gap-1">
-          {Array(2).fill(null).map((_, i) => <div key={i} />)}
+          {Array(jalaliWeekday(schedYear, schedMonth + 1, 1)).fill(null).map((_, i) => <div key={i} />)}
           {Array(daysInMonth).fill(null).map((_, i) => {
            const d = i + 1
            const isPast = schedYear === today.year && schedMonth === today.month && d < today.day
