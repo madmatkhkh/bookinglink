@@ -4,6 +4,7 @@ import { getActiveTenant } from '@/lib/tenant'
 import { validateClientSlot } from '@/lib/psy'
 import { acquireActiveLock, releaseLockBySlot } from '@/lib/slotLocks'
 import { getClientPhone, matchesClientIdentity } from '@/lib/auth'
+import { isMeetMethod } from '@/lib/meet'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -11,7 +12,7 @@ export const revalidate = 0
 export async function POST(req: NextRequest, { params }: { params: { slug: string } }) {
   const t = await getActiveTenant(params.slug)
   if (!t) return NextResponse.json({ error: 'یافت نشد' }, { status: 404 })
-  const { session_id, case_number, session_date, session_time } = await req.json()
+  const { session_id, case_number, session_date, session_time, meet_channel } = await req.json()
   const phone = getClientPhone(req)
   if (!phone) return NextResponse.json({ error: 'ابتدا با کد یک‌بارمصرف وارد شوید' }, { status: 401 })
   if (!session_id || !session_date || !session_time) return NextResponse.json({ error: 'ناقص' }, { status: 400 })
@@ -37,7 +38,13 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   if (!locked)
     return NextResponse.json({ error: 'این ساعت قبلا رزرو شده. لطفا زمان دیگری انتخاب کنید.' }, { status: 409 })
 
-  const { error } = await sb().from('psy_sessions').update({ session_date, session_time }).eq('id', session_id)
+  // کانال آنلاین انتخابی مراجع (اگر جلسه آنلاین است و مراجع یکی را انتخاب کرده) —
+  // فقط برای جلسات مستقل معنا دارد (جلسات پروتکل از psy_packages می‌خوانند).
+  // مقدار نامعتبر بی‌سروصدا نادیده گرفته می‌شود، نه خطا — انتخاب کانال اختیاری است.
+  const patch: Record<string, any> = { session_date, session_time }
+  if (session.session_type === 'online' && isMeetMethod(meet_channel)) patch.meet_channel = meet_channel
+
+  const { error } = await sb().from('psy_sessions').update(patch).eq('id', session_id)
   if (error) {
     await releaseLockBySlot(t.id, booking.resource_id, { session_date, session_time })
     if ((error as any).code === '23505')

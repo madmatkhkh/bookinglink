@@ -607,7 +607,13 @@ function InterviewPayScreen({ doctor, resourceId, slug, phone, cards, loaded, se
     <PriceSummaryBox base={vatInfo.base} vat={vatInfo.vat} final={finalAmount} showVat={vatInfo.showVat}
      discount={discount ? { originalFinal: baseAmount, discountedFinal: finalAmount } : null} />
 
-    <DiscountCodeField slug={slug} resourceId={resourceId} amount={baseAmount} onApplied={setDiscount} />
+    {/* key={mode}: تعویض نوع جلسه (حضوری/آنلاین) discount را در state بالا
+       null می‌کند (چون قیمت پایه فرق می‌کند)، ولی خود این کامپوننت state
+       داخلی «کد اعمال شد» را نگه می‌داشت و پیام سبز باقی می‌ماند — یعنی مراجع
+       فکر می‌کرد کد هنوز فعال است درحالی‌که discount واقعی از بین رفته بود و
+       در درگاه قیمت کامل حساب می‌شد. با تغییر key، کل کامپوننت (و state
+       داخلی‌اش) دقیقا هم‌زمان با پاک‌شدن discount واقعی از نو می‌سازد. */}
+    <DiscountCodeField key={mode} slug={slug} resourceId={resourceId} amount={baseAmount} onApplied={setDiscount} />
     <TermsGate doctor={doctor} accepted={termsAccepted} onAcceptedChange={setTermsAccepted} />
 
     {!loaded ? (

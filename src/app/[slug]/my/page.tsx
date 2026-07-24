@@ -62,6 +62,8 @@ type Session = {
  attendee: string; status: string; doctor_note_for_patient: string
  paid: boolean; payment_submitted?: boolean
  price?: number; payment_reject_reason?: string; meet_link?: string
+ // کانالی که مراجع لحظه‌ی انتخاب زمان جلسه (فقط برای جلسات مستقل) انتخاب کرده
+ meet_channel?: string | null
  refund_percent?: number; refund_status?: string; refund_card?: string; cancelled_by?: string | null
  resource_id?: string | null
  delay_minutes?: number | null
@@ -661,7 +663,8 @@ export default function PatientPanel() {
             return sorted.map((s) => {
              const active = s.status !== 'forfeited' && s.status !== 'replaced' && s.status !== 'cancelled'
              const num = active ? ++n : null
-             return <SessionCard key={s.id} session={s} num={num} phone={phone} caseNumber={booking.case_number} onUpdate={() => loadData(booking.case_number)} />
+             return <SessionCard key={s.id} session={s} num={num} phone={phone} caseNumber={booking.case_number} onUpdate={() => loadData(booking.case_number)}
+              pkgChannel={s.attendee === 'secondary' ? pkg.secondary_meet_channel : pkg.primary_meet_channel} />
             })
            })()}
           </div>
@@ -830,8 +833,13 @@ function RequestAppointmentCard({ slug, caseNumber, onDone }: { slug: string; ca
 }
 
 // ==================== SESSION CARD ====================
-function SessionCard({ session: s, num, phone, caseNumber, onUpdate }: {
+function SessionCard({ session: s, num, phone, caseNumber, onUpdate, pkgChannel }: {
  session: Session; num: number | null; phone: string; caseNumber: string; onUpdate: () => void
+ // کانال آنلاینی که دکتر برای این دسته از پروتکل (primary/secondary) از قبل
+ // مشخص کرده — فقط برای جلسات وصل به پروتکل معنا دارد. اگر ندارد (جلسه‌ی
+ // مستقل یا پروتکل قدیمی‌تر از این قابلیت)، undefined می‌ماند و رفتار قبلی
+ // (نمایش همه‌ی کانال‌های فعال دکتر) بدون تغییر ادامه پیدا می‌کند.
+ pkgChannel?: string | null
 }) {
  const [cancelling, setCancelling] = useState(false)
  const [showConfirm, setShowConfirm] = useState(false)
@@ -847,6 +855,15 @@ function SessionCard({ session: s, num, phone, caseNumber, onUpdate }: {
  const settings = usePublicClinic(slug)
 
  const doctorForSession = settings.doctors.find(d => d.id === s.resource_id)
+ // روش‌های آنلاین فعال دکتر — برای جلسات مستقل (بدون پروتکل)، مراجع لحظه‌ی
+ // انتخاب زمان جلسه یکی را انتخاب می‌کند (همان الگوی مراحل پیش‌ازدرمان).
+ // جلسات پروتکل نیازی به این ندارند چون pkgChannel از قبل مشخص است.
+ const onlineChannelsForBooking = usableMeetChannels(mergeMeetChannels(doctorForSession?.meet_channels, doctorForSession?.meet_link))
+ const [meetChannel, setMeetChannel] = useState<string | null>(null)
+ useEffect(() => {
+  if (!pkgChannel && s.session_type === 'online' && !meetChannel && onlineChannelsForBooking.length === 1) setMeetChannel(onlineChannelsForBooking[0].method)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+ }, [onlineChannelsForBooking.length])
  const sessionPrice = resolvePrice(s.session_type, doctorForSession?.pricing)
  const sessionVatInfo = priceBreakdown(s.session_type, doctorForSession?.pricing)
  const finalSessionPrice = discount ? discount.discountedAmount : sessionPrice
@@ -977,13 +994,17 @@ function SessionCard({ session: s, num, phone, caseNumber, onUpdate }: {
       </div>
      )}
      {s.session_type === 'online' && !isAwaiting && s.status !== 'forfeited' && s.status !== 'replaced' && s.session_date && (() => {
-      // همه‌ی روش‌های فعال دکتر نشان داده می‌شوند. اگر برای همین جلسه لینک
-      // اختصاصی (s.meet_link) ست شده باشد، به‌عنوان میراث گوگل‌میت اولویت دارد.
-      const channels = usableMeetChannels(
+      // اولویت: لینک اختصاصی همین جلسه (s.meet_link، میراث گوگل‌میت) > کانالی
+      // که مراجع لحظه‌ی انتخاب زمان انتخاب کرده (s.meet_channel، جلسه‌ی
+      // مستقل) > کانال پروتکل که دکتر از قبل مشخص کرده (pkgChannel) > همه‌ی
+      // روش‌های فعال دکتر (جلسه/پروتکل قدیمی‌تر از این قابلیت‌ها).
+      const all = usableMeetChannels(
        s.meet_link
         ? mergeMeetChannels(null, s.meet_link)
         : mergeMeetChannels(doctorForSession?.meet_channels, doctorForSession?.meet_link)
       )
+      const chosen = s.meet_channel || pkgChannel
+      const channels = (!s.meet_link && chosen) ? all.filter(c => c.method === chosen) : all
       return channels.length > 0 ? (
        <div className="flex flex-wrap gap-1.5 mt-1.5">
         {channels.map(ch => (
@@ -1025,10 +1046,30 @@ function SessionCard({ session: s, num, phone, caseNumber, onUpdate }: {
 
    {/* اقدامات بر اساس وضعیت */}
    {needsScheduling && (
-    <button onClick={() => setShowSlot(true)}
-     className="w-full mt-3 py-2.5 border-2 border-ink text-ink rounded-xl text-sm font-medium hover:bg-sand">
-     انتخاب زمان جلسه
-    </button>
+    <>
+     {/* کانال آنلاین — فقط جلسات مستقل (بدون پروتکل)، وقتی بیش از یک روش فعال
+        است. جلسات پروتکل نیازی ندارند چون pkgChannel از قبل مشخص است. */}
+     {!pkgChannel && s.session_type === 'online' && onlineChannelsForBooking.length > 1 && (
+      <div className="mt-3">
+       <div className="text-xs text-soot mb-1.5 text-center">روش برگزاری جلسه‌ی آنلاین را انتخاب کنید</div>
+       <div className="grid grid-cols-2 gap-2">
+        {onlineChannelsForBooking.map(ch => (
+         <button key={ch.method} onClick={() => setMeetChannel(ch.method)}
+          className={`py-2 rounded-lg text-xs border transition-colors ${meetChannel === ch.method ? 'bg-accent text-white border-accent' : 'border-sand text-ink hover:bg-sand'}`}>
+          {ch.action}
+         </button>
+        ))}
+       </div>
+      </div>
+     )}
+     <button onClick={() => {
+       if (!pkgChannel && s.session_type === 'online' && onlineChannelsForBooking.length > 0 && !meetChannel) { uiAlert('روش برگزاری جلسه‌ی آنلاین را انتخاب کنید.'); return }
+       setShowSlot(true)
+      }}
+      className="w-full mt-3 py-2.5 border-2 border-ink text-ink rounded-xl text-sm font-medium hover:bg-sand">
+      انتخاب زمان جلسه
+     </button>
+    </>
    )}
    {needsPayment && s.payment_submitted && (
     <div className="w-full mt-3 py-2.5 text-center text-xs text-ink bg-gray-100 rounded-xl border border-sand">پرداخت ثبت شد — در انتظار تأیید</div>
@@ -1090,7 +1131,22 @@ function SessionCard({ session: s, num, phone, caseNumber, onUpdate }: {
    {showSlot && (
     <SlotPicker session={s} phone={phone} caseNumber={caseNumber} resourceId={s.resource_id}
      onClose={() => setShowSlot(false)}
-     onDone={() => { setShowSlot(false); onUpdate() }} />
+     onDone={() => { setShowSlot(false); onUpdate() }}
+     // فقط جلسات مستقل کانال انتخابی دارند (pkgChannel نداشته باشد)؛ جلسات
+     // پروتکل مثل قبل از مسیر پیش‌فرض SlotPicker (بدون onConfirm) رد می‌شوند.
+     {...(!pkgChannel && s.session_type === 'online' ? {
+      onConfirm: async (date: string, time: string): Promise<SlotConfirmResult> => {
+       try {
+        const res = await fetch(`/api/t/${slug}/psy/schedule-one`, {
+         method: 'POST', headers: { 'Content-Type': 'application/json' },
+         body: JSON.stringify({ session_id: s.id, case_number: caseNumber, phone, session_date: date, session_time: time, meet_channel: meetChannel || undefined })
+        })
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok) return { ok: false, error: data.error || 'ثبت نشد' }
+        return { ok: true }
+       } catch { return { ok: false, error: 'خطا در ارتباط با سرور' } }
+      },
+     } : {})} />
    )}
 
    {/* Cancel Confirm */}
@@ -1907,7 +1963,10 @@ function StagePayment({ icon, title, desc, amount, onPaid, onDone, resourceId, c
    <PriceSummaryBox base={vatInfo.base} vat={vatInfo.vat} final={finalAmount} showVat={vatInfo.showVat}
     discount={discount ? { originalFinal: baseAmount, discountedFinal: finalAmount } : null} />
 
-   <DiscountCodeField slug={slug} resourceId={resourceId} amount={baseAmount} onApplied={setDiscount} />
+   {/* key={mode}: همان باگ صفحه‌ی مصاحبه — عوض‌کردن نوع جلسه discount واقعی را
+      null می‌کند ولی پیام «کد اعمال شد» داخل خود کامپوننت می‌ماند. با تغییر
+      key، کل کامپوننت هم‌زمان با discount واقعی از نو می‌سازد. */}
+   <DiscountCodeField key={mode} slug={slug} resourceId={resourceId} amount={baseAmount} onApplied={setDiscount} />
    <TermsGate doctor={settings.doctors.find(d => d.id === resourceId)} accepted={termsAccepted} onAcceptedChange={setTermsAccepted} />
 
    {/* تا وقتی روش‌های پرداخت این متخصص نرسیده، هیچ روشی نشان نمی‌دهیم — نشان‌دادن
