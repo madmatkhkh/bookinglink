@@ -556,7 +556,7 @@ function InterviewPayScreen({ doctor, resourceId, slug, phone, cards, loaded, se
        {modesOffline && (
         <button onClick={() => { setMode('offline'); setDiscount(null) }}
          className={`py-2 rounded-lg text-xs font-medium transition-colors ${mode === 'offline' ? 'bg-white shadow-sm text-ink' : 'text-soot'}`}>
-         🏥 حضوری{mode === 'offline' && officeLoc ? ` — ${officeLoc}` : ''}
+         🏥 حضوری
         </button>
        )}
        {modesOnline && (

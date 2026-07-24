@@ -1842,7 +1842,7 @@ function StagePayment({ icon, title, desc, amount, onPaid, onDone, resourceId, c
      <div className="grid grid-cols-2 gap-2 p-1 bg-gray-100 rounded-xl">
       <button onClick={() => { setMode('offline'); setDiscount(null) }}
        className={`py-2 rounded-lg text-xs font-medium transition-colors ${mode === 'offline' ? 'bg-white shadow-sm text-ink' : 'text-soot'}`}>
-       🏥 حضوری{mode === 'offline' && (officeLoc || officeLocation) ? ` — ${officeLoc || officeLocation}` : ''}
+       🏥 حضوری
       </button>
       <button onClick={() => { setMode('online'); setDiscount(null) }}
        className={`py-2 rounded-lg text-xs font-medium transition-colors ${mode === 'online' ? 'bg-white shadow-sm text-ink' : 'text-soot'}`}>
