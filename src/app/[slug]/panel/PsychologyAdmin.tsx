@@ -1828,11 +1828,6 @@ export function PsychologyAdmin() {
            done: hasWorkingDays === true,
            go: () => navigateTab('schedule'),
           },
-          {
-           key: 'payment', label: 'تنظیم روش دریافت پرداخت',
-           done: (profile.payment_methods.card_to_card && profile.cards.length > 0) || (profile.payment_methods.online && !!profile.settlement_sheba),
-           go: () => navigateSettingsSub('payments'),
-          },
           ...(profile.session_modes !== 'offline' ? [{
            key: 'meet', label: 'افزودن روش جلسه‌ی آنلاین',
            done: usableMeetChannels(profile.meet_channels).length > 0,
@@ -2533,7 +2528,7 @@ export function PsychologyAdmin() {
        {settingsSubTab === 'terms' && (
        <section className="bg-white rounded-2xl border border-sand p-5">
         <h2 className="text-sm font-display font-semibold text-ink mb-1">شرایط و مقررات قبل از پرداخت</h2>
-        <p className="text-xs text-soot mb-4">اگر روشن باشد، مراجع پیش از هر پرداخت (آنلاین یا کارت‌به‌کارت) باید این متن را ببیند و با تیک‌زدن آن را بپذیرد — وگرنه دکمه‌ی پرداخت غیرفعال می‌ماند. اگر خاموش باشد، این بخش برای مراجع اصلا نمایش داده نمی‌شود.</p>
+        <p className="text-xs text-soot mb-4">اگر روشن باشد، مراجع پیش از هر پرداخت باید این متن را ببیند و با تیک‌زدن آن را بپذیرد — وگرنه دکمه‌ی پرداخت غیرفعال می‌ماند. اگر خاموش باشد، این بخش برای مراجع اصلا نمایش داده نمی‌شود.</p>
 
         <label className="flex items-center gap-2.5 mb-4 cursor-pointer">
          <input type="checkbox" checked={profile.terms.enabled}
