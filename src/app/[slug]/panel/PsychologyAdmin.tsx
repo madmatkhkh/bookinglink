@@ -18,6 +18,9 @@ import { LIVE_SWR_OPTIONS, FetchError } from '@/lib/swr'
 import { moduleOn, GROWTH_SUBTABS, type ModuleFlags } from '@/lib/moduleManifest'
 import { PageHeader, EmptyState, SkeletonRows, timeKey, enTime, genId } from './modules/shared'
 import IntakeFormBuilder from './modules/settings/IntakeFormBuilder'
+import SettingsPayments from './modules/settings/SettingsPayments'
+import SettingsProfile from './modules/settings/SettingsProfile'
+import type { ResourceProfileView, SettingsSub } from './modules/settings/types'
 import type { Patient, CaseStage, Booking, Package, Session } from './modules/types'
 import ScheduleTab, { type SchedJump } from './modules/schedule/ScheduleTab'
 import FinanceTab, { type FinanceData } from './modules/finance/FinanceTab'
@@ -48,28 +51,7 @@ export type { Patient, CaseStage, Booking, Package, Session } from './modules/ty
 // ورود مستقل کارمند به پنل است (اختیاری — خالی یعنی فقط owner برایش کار می‌کند).
 // ResourceRow به panel/modules/staff/StaffTab.tsx منتقل شد (فاز 4).
 
-// پروفایل per-resource که در تب تنظیمات ویرایش می‌شود
-type ResourceProfileView = {
- resource_id: string
- name: string
- title: string
- avatar_url: string
- phone?: string | null
- badges: string[]
- session_modes: SessionMode
- cards: PaymentCardInfo[]
- cancellation_policy: CancellationPolicy
- payment_methods: PaymentMethods
- quick_times: string[]
- settlement_sheba: string
- settlement_sheba_holder_name: string
- pricing: Pricing
- companion_label: string
- meet_channels: MeetChannel[]
- terms: TermsSettings
- first_stage_label: string
- stage_presets: string[]
-}
+ // ResourceProfileView به modules/settings/types.ts منتقل شد.
 
 const ALL_TIMES = ['8:00','9:00','10:00','11:00','12:00','13:00','14:00','15:00','16:00','17:00','18:00']
 
@@ -184,7 +166,7 @@ export function PsychologyAdmin() {
  // زیرمجموعه‌هایش (صفحه‌ی عمومی + پنل مراجع) همین‌جا زیرش باز می‌شوند.
  // تیم/حساب/پشتیبانی هم از تنظیمات جدا شدند و تب مستقل خودشان را دارند.
  type MainTab = 'dashboard' | 'patients' | 'bookings' | 'schedule' | 'settings' | 'finance' | 'growth' | 'staff' | 'account' | 'capabilities' | 'tickets'
- type SettingsSub = 'profile' | 'payments' | 'pricing' | 'terms' | 'appearance' | 'form' | 'patient_panel'
+ // SettingsSub به modules/settings/types.ts منتقل شد (بالا import می‌شود).
 
  const [mainTab, setMainTab] = useState<MainTab>('dashboard')
  // null = هیچ زیرتبی باز نیست → «نمای کلی تنظیمات» نشان داده می‌شود. کلیک روی
@@ -1747,98 +1729,15 @@ export function PsychologyAdmin() {
        )}
 
        {/* پروفایل عمومی — حالا per-resource؛ دقیقا شبیه‌سازی سر صفحه‌ی مصاحبه، مستقیم روی خودش ویرایش می‌شود */}
-       {settingsSubTab === 'profile' && (
-       <section className="bg-white rounded-2xl border border-sand p-5">
-        <h2 className="text-sm font-display font-semibold text-ink mb-1">پروفایل عمومی</h2>
-        <p className="text-xs text-soot mb-4">دقیقا همین‌طور بالای صفحه‌ی مصاحبه به مراجع نمایش داده می‌شود — روی هرکدام بزنید تا ویرایش کنید.</p>
-
-        <div className="bg-gray-50 rounded-2xl p-6 text-center">
-         <div className="relative w-24 h-24 rounded-full bg-sand border border-sand flex items-center justify-center mx-auto text-3xl overflow-hidden shrink-0 group cursor-pointer"
-          onClick={() => !avatarUploading && avatarInputRef.current?.click()}>
-          <input ref={avatarInputRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden"
-           onChange={e => { handleAvatarFile(e.target.files?.[0]); e.target.value = '' }} />
-          {profile.avatar_url ? <img src={profile.avatar_url} alt="" className="w-full h-full object-cover" /> : ''}
-          <div className={`absolute inset-0 bg-black/40 flex items-center justify-center text-white text-[10px] transition-opacity ${avatarUploading ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
-           {avatarUploading ? 'در حال آپلود...' : 'تغییر عکس'}
-          </div>
-         </div>
-         <div className="flex items-center justify-center gap-4 mt-2 mb-3">
-          <button type="button" onClick={() => avatarInputRef.current?.click()} disabled={avatarUploading}
-           className="text-xs text-soot hover:text-ink underline underline-offset-4 disabled:opacity-50">
-           {profile.avatar_url ? 'تغییر عکس' : 'افزودن عکس'}
-          </button>
-          {profile.avatar_url && (
-           <button type="button" onClick={() => patchProfile({ avatar_url: '' })} disabled={avatarUploading}
-            className="text-xs text-red-600 hover:text-red-700 underline underline-offset-4 disabled:opacity-50">
-            حذف عکس
-           </button>
-          )}
-         </div>
-         <input value={profile.name} onChange={e => patchProfile({ name: e.target.value })} placeholder="نام"
-          className="text-lg font-medium text-ink text-center bg-transparent border-b border-dashed border-gray-300 hover:border-gray-400 focus:outline-none focus:border-ink w-full max-w-[260px] mx-auto block py-0.5" />
-         <input value={profile.title} onChange={e => patchProfile({ title: e.target.value })} placeholder="عنوان / تخصص"
-          className="text-sm text-soot text-center bg-transparent border-b border-dashed border-transparent hover:border-gray-300 focus:outline-none focus:border-ink w-full max-w-[260px] mx-auto block mt-1 py-0.5" />
-         <div className="flex gap-2 justify-center mt-3 flex-wrap">
-          {profile.badges.map((b, i) => (
-           <span key={i} className="text-xs pl-1.5 pr-3 py-1 bg-white border border-sand rounded-lg text-soot flex items-center gap-1">
-            <input value={b} size={Math.max(b.length, 3)}
-             onChange={e => { const next = [...profile.badges]; next[i] = e.target.value; patchProfile({ badges: next }) }}
-             className="bg-transparent focus:outline-none text-soot" />
-            <button onClick={() => patchProfile({ badges: profile.badges.filter((_, j) => j !== i) })}
-             className="text-gray-300 hover:text-soot leading-none">×</button>
-           </span>
-          ))}
-          <button onClick={() => patchProfile({ badges: [...profile.badges, 'نشان جدید'] })}
-           className="text-xs px-3 py-1 border border-dashed border-gray-300 rounded-lg text-soot hover:border-gray-400 hover:text-soot">
-           + نشان
-          </button>
-         </div>
-        </div>
-       </section>
-       )}
+       {/* پروفایل + ظاهر — به modules/settings/SettingsProfile.tsx منتقل شدند */}
+       <SettingsProfile sub={settingsSubTab} profile={profile} patchProfile={patchProfile}
+        settings={settings} patchSettings={patchSettings}
+        themeProfile={themeProfile} patchTheme={patchTheme} saveTheme={saveTheme}
+        themeLoaded={themeLoaded} themeSaving={themeSaving} themeSaved={themeSaved}
+        avatarInputRef={avatarInputRef} avatarUploading={avatarUploading}
+        handleAvatarFile={handleAvatarFile} isOwner={me?.isOwner !== false} slug={slug} />
 
        {/* نوع جلسات — per-resource (هر دکتر مد خودش را دارد) */}
-       {settingsSubTab === 'profile' && (
-       <section className="bg-white rounded-2xl border border-sand p-5">
-        <h2 className="text-sm font-display font-semibold text-ink mb-1">نوع جلسات قابل ارائه</h2>
-        <p className="text-xs text-soot mb-4">تعیین می‌کند مراجع هنگام رزرو چه گزینه‌هایی ببیند.</p>
-        <div className="grid grid-cols-3 gap-2">
-         {([
-          ['both', '', 'هردو'],
-          ['online', '', 'فقط آنلاین'],
-          ['offline', '', 'فقط حضوری'],
-         ] as [SessionMode, string, string][]).map(([val, icon, label]) => (
-          <button key={val} onClick={() => patchProfile({ session_modes: val })}
-           className={`p-3 rounded-xl border text-center transition-all ${
-            profile.session_modes === val
-             ? 'border-ink border-2 bg-sand'
-             : 'border-sand hover:border-gray-300'}`}>
-           <div className="mb-1 flex justify-center"><Glyph icon={icon} className="w-6 h-6" /></div>
-           <div className="text-xs font-medium text-ink">{label}</div>
-          </button>
-         ))}
-        </div>
-
-        <div className="border-t border-sand mt-4 pt-4">
-         <h3 className="text-xs font-medium text-ink mb-1">مدت زمان جلسات</h3>
-         <p className="text-xs text-soot mb-3">صرفا نمایشی/مرجع است — روی ساعت‌های قابل‌رزرو اثر نمی‌گذارد.</p>
-         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-           <label className="text-xs text-soot mb-1 block">مدت جلسه‌ی آنلاین (دقیقه)</label>
-           <input type="number" min={1} value={profile.pricing.duration_online}
-            onChange={e => patchProfile({ pricing: { ...profile.pricing, duration_online: Math.max(1, Number(e.target.value) || 1) } })}
-            className="w-24 text-sm px-3 py-2 border border-sand rounded-lg tnum focus:outline-none focus:border-ink" />
-          </div>
-          <div>
-           <label className="text-xs text-soot mb-1 block">مدت جلسه‌ی حضوری (دقیقه)</label>
-           <input type="number" min={1} value={profile.pricing.duration_offline}
-            onChange={e => patchProfile({ pricing: { ...profile.pricing, duration_offline: Math.max(1, Number(e.target.value) || 1) } })}
-            className="w-24 text-sm px-3 py-2 border border-sand rounded-lg tnum focus:outline-none focus:border-ink" />
-          </div>
-         </div>
-        </div>
-       </section>
-       )}
 
        {/* جلسه‌ی آنلاین — متخصص می‌تواند «چند روش» را هم‌زمان فعال کند (مثلا هم
            واتساپ هم تماس تلفنی)؛ مراجع در زمان جلسه هرکدام را خواست می‌زند.
@@ -1846,258 +1745,23 @@ export function PsychologyAdmin() {
        {/* روند جلسات — عنوان اولین جلسه + عنوان‌های آماده. این همان چیزی است که
            سیستم را از فلوی ثابت «مصاحبه/ارزیابی» آزاد می‌کند: هر متخصص روند و
            نام‌گذاری خودش را تعریف می‌کند. */}
-       {settingsSubTab === 'profile' && (
-       <section className="bg-white rounded-2xl border border-sand p-5">
-        <h2 className="text-sm font-display font-semibold text-ink mb-1">روند جلسات</h2>
-        <p className="text-xs text-soot mb-4">
-         سیستم هیچ روند ثابتی به شما تحمیل نمی‌کند. نام اولین جلسه‌ی مراجع جدید و عنوان‌های آماده‌ی جلسات بعدی را خودتان تعیین کنید.
-        </p>
 
-        <label className="text-xs text-soot mb-1 block">عنوان اولین جلسه‌ی مراجع جدید</label>
-        <p className="text-[11px] text-soot mb-2">وقتی مراجع تازه‌ای فرم را پر می‌کند، اولین جلسه‌اش این عنوان را می‌گیرد (مثلا «مصاحبه»، «ویزیت اول»، «جلسه‌ی آشنایی»).</p>
-        <input value={profile.first_stage_label} maxLength={40}
-         onChange={e => patchProfile({ first_stage_label: e.target.value })}
-         placeholder="مصاحبه"
-         className="w-full text-sm px-3 py-2 border border-sand rounded-lg mb-4 focus:outline-none focus:border-ink" />
-
-        <label className="text-xs text-soot mb-1 block">عنوان‌های آماده‌ی جلسات (اختیاری)</label>
-        <p className="text-[11px] text-soot mb-2">این‌ها موقع «افزودن جلسه‌ی جدید» برای یک مراجع به‌صورت دکمه‌ی سریع نشان داده می‌شوند تا هر بار تایپ نکنید. هر عنوان یک خط.</p>
-        <div className="space-y-2">
-         {profile.stage_presets.map((p, i) => (
-          <div key={i} className="flex items-center gap-2">
-           <input value={p} maxLength={40}
-            onChange={e => {
-             const next = [...profile.stage_presets]; next[i] = e.target.value
-             patchProfile({ stage_presets: next })
-            }}
-            placeholder="مثلا: جلسه‌ی پیگیری"
-            className="flex-1 text-sm px-3 py-2 border border-sand rounded-lg focus:outline-none focus:border-ink" />
-           <button onClick={() => patchProfile({ stage_presets: profile.stage_presets.filter((_, j) => j !== i) })}
-            className="text-xs px-2.5 py-2 border border-red-500/30 text-red-600 rounded-lg shrink-0 hover:bg-red-500/5">حذف</button>
-          </div>
-         ))}
-        </div>
-        {profile.stage_presets.length < 20 && (
-         <button onClick={() => patchProfile({ stage_presets: [...profile.stage_presets, ''] })}
-          className="mt-2 text-xs px-3 py-1.5 border border-sand text-ink rounded-lg hover:bg-sand">+ افزودن عنوان</button>
-        )}
-       </section>
-       )}
-
-       {settingsSubTab === 'profile' && profile.session_modes !== 'offline' && (
-       <section className="bg-white rounded-2xl border border-sand p-5">
-        <h2 className="text-sm font-display font-semibold text-ink mb-1">جلسه‌ی آنلاین</h2>
-        <p className="text-xs text-soot mb-4">
-         هر روشی را که می‌خواهید اضافه کنید؛ همه‌ی روش‌های فعال به مراجع نشان داده می‌شوند و او یکی را انتخاب می‌کند.
-        </p>
-
-        {/* کانال‌های فعال */}
-        <div className="space-y-2.5 mb-3">
-         {profile.meet_channels.map((ch, i) => {
-          const meta = MEET_META[ch.method]
-          const invalid = !!ch.value.trim() && !meetHref(ch.method, ch.value)
-          return (
-           <div key={ch.method} className="border border-sand rounded-xl p-3">
-            <div className="flex items-center justify-between gap-2 mb-2">
-             <span className="text-sm font-medium text-ink">{meta.label}</span>
-             <button type="button" onClick={() => patchProfile({ meet_channels: profile.meet_channels.filter((_, j) => j !== i) })}
-              className="text-xs text-red-600 hover:text-red-700">حذف</button>
-            </div>
-            <input value={ch.value} dir="ltr" placeholder={meta.placeholder}
-             inputMode={meta.kind === 'phone' ? 'tel' : 'url'}
-             onChange={e => {
-              const next = [...profile.meet_channels]
-              next[i] = { ...ch, value: e.target.value }
-              patchProfile({ meet_channels: next })
-             }}
-             className="w-full text-sm px-3 py-2 border border-sand rounded-lg focus:outline-none focus:border-ink" />
-            <p className={`text-[11px] mt-1.5 ${invalid ? 'text-amber-700' : 'text-soot'}`}>
-             {invalid
-              ? (meta.kind === 'phone' ? 'شماره‌ی موبایل معتبر وارد کنید (مثال: 09123456789)' : 'نشانی کامل با https:// وارد کنید')
-              : meta.hint}
-            </p>
-           </div>
-          )
-         })}
-        </div>
-
-        {/* افزودن روش تازه — فقط روش‌هایی که هنوز اضافه نشده‌اند */}
-        {MEET_METHODS.filter(m => !profile.meet_channels.some(ch => ch.method === m)).length > 0 && (
-         <div>
-          <p className="text-xs text-soot mb-2">افزودن روش:</p>
-          <div className="flex flex-wrap gap-2">
-           {MEET_METHODS.filter(m => !profile.meet_channels.some(ch => ch.method === m)).map(m => (
-            <button key={m} type="button"
-             onClick={() => patchProfile({ meet_channels: [...profile.meet_channels, { method: m, value: '' }] })}
-             className="px-3 py-2 rounded-xl border border-sand text-xs text-soot hover:border-ink hover:text-ink transition-colors">
-             + {MEET_META[m].label}
-            </button>
-           ))}
-          </div>
-         </div>
-        )}
-
-        {profile.meet_channels.length === 0 && (
-         <p className="text-[11px] text-soot mt-3">هنوز هیچ روشی اضافه نشده — تا زمانی که روشی اضافه نکنید، مراجع راهی برای پیوستن به جلسه‌ی آنلاین نخواهد داشت.</p>
-        )}
-       </section>
-       )}
 
        {/* روش‌های پرداخت — per-resource؛ کارت‌به‌کارت فقط وقتی سوپرادمین برای
           این tenant فعالش کرده باشد اصلا دیده می‌شود؛ وگرنه فقط آنلاین. */}
-       {settingsSubTab === 'payments' && (
-       <section className="bg-white rounded-2xl border border-sand p-5">
-        <h2 className="text-sm font-display font-semibold text-ink mb-1">روش‌های پرداخت</h2>
-        {!cardToCardAllowed ? (
-         <>
-          <p className="text-xs text-soot mb-4">
-           پرداخت مراجعان به‌صورت آنلاین (درگاه پرداخت نوبت‌لینک) انجام می‌شود — تایید خودکار، بدون نیاز به بررسی دستی شما.
-          </p>
-          <div className="flex items-center justify-between p-3 rounded-xl border border-sand">
-           <div>
-            <span className="text-sm text-ink block">پرداخت آنلاین (درگاه نوبت‌لینک)</span>
-            <span className="text-[11px] text-soot">فعال — مراجع بلافاصله بعد از پرداخت می‌تواند ادامه دهد</span>
-           </div>
-           <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-full">فعال</span>
-          </div>
-         </>
-        ) : (
-         <>
-          <p className="text-xs text-soot mb-4">
-           آنلاین یعنی مراجع بلافاصله بعد پرداخت می‌تواند ادامه دهد (بدون نیاز به تایید شما).
-           کارت‌به‌کارت مثل قبل: مراجع فیشش را می‌فرستد و شما تایید می‌کنید.
-          </p>
-          <div className="space-y-2">
-           <label className="flex items-center justify-between p-3 rounded-xl border border-sand cursor-pointer">
-            <div>
-             <span className="text-sm text-ink block">کارت‌به‌کارت</span>
-             <span className="text-[11px] text-soot">نیاز به تایید دستی شما دارد</span>
-            </div>
-            <input type="checkbox" checked={profile.payment_methods.card_to_card}
-             onChange={e => patchProfile({ payment_methods: { ...profile.payment_methods, card_to_card: e.target.checked } })}
-             className="w-5 h-5 accent-ink" />
-           </label>
-           <label className="flex items-center justify-between p-3 rounded-xl border border-sand cursor-pointer">
-            <div>
-             <span className="text-sm text-ink block">پرداخت آنلاین (درگاه نوبت‌لینک)</span>
-             <span className="text-[11px] text-soot">تایید خودکار — مراجع بلافاصله می‌تواند نوبت بگیرد</span>
-            </div>
-            <input type="checkbox" checked={profile.payment_methods.online}
-             onChange={e => patchProfile({ payment_methods: { ...profile.payment_methods, online: e.target.checked } })}
-             className="w-5 h-5 accent-ink" />
-           </label>
-           {!profile.payment_methods.card_to_card && !profile.payment_methods.online && (
-            <p className="text-[11px] text-ink px-1">حداقل یک روش باید فعال بماند.</p>
-           )}
-          </div>
-         </>
-        )}
-       </section>
-       )}
+       {/* پرداخت‌ها / قیمت‌گذاری / شرایط — به modules/settings/SettingsPayments.tsx منتقل شدند */}
+       <SettingsPayments sub={settingsSubTab} profile={profile} patchProfile={patchProfile}
+        cardToCardAllowed={cardToCardAllowed} isOwner={!!me?.isOwner} moduleOn={mod}
+        slug={slug} viewingResourceId={viewingResourceId} />
 
        {/* مکان‌های حضوری — سطح tenant، مشترک همه‌ی دکترها؛ فقط owner ویرایش می‌کند.
            قبلا تب مستقل خودش بود؛ چون فقط یک بخش کوچک از تنظیمات پروفایل است،
            به همین تب منتقل شد. */}
-       {settingsSubTab === 'profile' && me?.isOwner !== false && (
-        <section className="bg-white rounded-2xl border border-sand p-5">
-         <div className="flex items-center justify-between mb-1">
-          <h2 className="text-sm font-display font-semibold text-ink">مکان‌های جلسه‌ی حضوری</h2>
-         </div>
-         <p className="text-xs text-soot mb-4">می‌توانید چند مطب/آدرس تعریف کنید؛ بین همه‌ی دکترهای این مجموعه مشترک است.</p>
-         <div className="space-y-3">
-          {settings.office_locations.map((loc, i) => (
-           <div key={loc.id} className="border border-sand rounded-xl p-3 bg-gray-50">
-            <div className="flex items-center gap-2 mb-2">
-             <input value={loc.title}
-              onChange={e => {
-               const next = [...settings.office_locations]; next[i] = { ...loc, title: e.target.value }
-               patchSettings({ office_locations: next })
-              }}
-              placeholder="نام مطب (مثلا مطب ولنجک)"
-              className="flex-1 text-sm px-3 py-2 border border-sand rounded-lg bg-white focus:outline-none focus:border-ink" />
-             <button onClick={() => patchSettings({ office_locations: settings.office_locations.filter((_, j) => j !== i) })}
-              className="text-xs px-2.5 py-2 border border-red-500/30 text-red-600 rounded-lg shrink-0 hover:bg-red-500/5">حذف</button>
-            </div>
-            <input value={loc.address}
-             onChange={e => {
-              const next = [...settings.office_locations]; next[i] = { ...loc, address: e.target.value }
-              patchSettings({ office_locations: next })
-             }}
-             placeholder="آدرس کامل"
-             className="w-full text-sm px-3 py-2 border border-sand rounded-lg bg-white focus:outline-none focus:border-ink" />
-           </div>
-          ))}
-         </div>
-         <button onClick={() => patchSettings({ office_locations: [...settings.office_locations, { id: genId('loc'), title: '', address: '' }] })}
-          className="mt-3 text-xs px-3 py-1.5 border border-sand text-ink rounded-lg hover:bg-sand">+ افزودن مکان</button>
-        </section>
-       )}
 
        {/* ظاهر و برند — تم صفحه‌ی عمومی و پنل مراجع؛ سطح tenant، فقط owner */}
-       {settingsSubTab === 'appearance' && me?.isOwner !== false && (
-        <section className="bg-white rounded-2xl border border-sand p-5">
-         <h2 className="text-sm font-display font-semibold text-ink mb-1">ظاهر و برند</h2>
-         <p className="text-xs text-soot mb-4">
-          رنگ اصلی صفحه‌ی عمومی و پنل مراجع خودتان را انتخاب کنید — یا از رنگ‌های آماده، یا با آپلود لوگو تا سیستم خودش رنگ برند شما را استخراج کند. برای خوانایی، رنگ نهایی همیشه کنتراست کافی روی زمینه‌ی سفید خواهد داشت.
-         </p>
-         {!themeLoaded ? (
-          <SkeletonRows count={1} height="h-56" />
-         ) : (
-          <>
-           <ThemeModePicker slug={slug} themeMode={themeProfile?.theme_mode || 'preset'} themeColor={themeProfile?.theme_color || DEFAULT_SAFE_THEME}
-            logoUrl={themeProfile?.logo_url || null} onChange={patchTheme} uiAlert={uiAlert} />
-           <button onClick={saveTheme} disabled={themeSaving}
-            className="w-full mt-4 py-2.5 bg-ink text-white rounded-xl text-sm font-medium disabled:opacity-50 hover:bg-ink/90 transition-colors">
-            {themeSaving ? 'در حال ذخیره...' : themeSaved ? '✓ ذخیره شد' : 'ذخیره‌ی تم'}
-           </button>
-          </>
-         )}
-        </section>
-       )}
 
        {/* شماره کارت‌ها — per-resource (کارت دریافت وجه/بازپرداخت خود هر دکتر)؛
           فقط وقتی کارت‌به‌کارت برای این tenant فعال است معنا دارد */}
-       {settingsSubTab === 'payments' && cardToCardAllowed && (
-       <section className="bg-white rounded-2xl border border-sand p-5">
-        <h2 className="text-sm font-display font-semibold text-ink mb-1">شماره کارت‌های واریزی</h2>
-        <p className="text-xs text-soot mb-4">این کارت‌ها در صفحه‌ی پرداخت کارت‌به‌کارت به مراجع نمایش داده می‌شوند.</p>
-        <div className="space-y-3">
-         {profile.cards.map((c, i) => (
-          <div key={c.id} className="border border-sand rounded-xl p-3 bg-gray-50 space-y-2">
-           <div className="flex items-center gap-2">
-            <input value={c.number}
-             onChange={e => {
-              const next = [...profile.cards]; next[i] = { ...c, number: e.target.value }
-              patchProfile({ cards: next })
-             }}
-             dir="ltr" placeholder="6037-9900-0000-0000"
-             className="flex-1 text-sm px-3 py-2 border border-sand rounded-lg bg-white font-mono tracking-wider focus:outline-none focus:border-ink" />
-            <button onClick={() => patchProfile({ cards: profile.cards.filter((_, j) => j !== i) })}
-             className="text-xs px-2.5 py-2 border border-red-500/30 text-red-600 rounded-lg shrink-0 hover:bg-red-500/5">حذف</button>
-           </div>
-           <div className="grid grid-cols-2 gap-2">
-            <input value={c.holder}
-             onChange={e => {
-              const next = [...profile.cards]; next[i] = { ...c, holder: e.target.value }
-              patchProfile({ cards: next })
-             }}
-             placeholder="نام صاحب کارت"
-             className="text-sm px-3 py-2 border border-sand rounded-lg bg-white focus:outline-none focus:border-ink" />
-            <input value={c.bank || ''}
-             onChange={e => {
-              const next = [...profile.cards]; next[i] = { ...c, bank: e.target.value }
-              patchProfile({ cards: next })
-             }}
-             placeholder="نام بانک (اختیاری)"
-             className="text-sm px-3 py-2 border border-sand rounded-lg bg-white focus:outline-none focus:border-ink" />
-           </div>
-          </div>
-         ))}
-        </div>
-        <button onClick={() => patchProfile({ cards: [...profile.cards, { id: genId('card'), number: '', holder: '' }] })}
-         className="mt-3 text-xs px-3 py-1.5 border border-sand text-ink rounded-lg hover:bg-sand">+ افزودن کارت</button>
-       </section>
-       )}
 
        {/* شبای تسویه — برای واریز خودکار سهم شما از پرداخت آنلاین. قبلا در تب
            «حساب من» بود؛ چون منطقا به «روش پرداخت» مربوط است (این‌جا هم
@@ -2106,170 +1770,21 @@ export function PsychologyAdmin() {
            هر دو از قبل این زیرتب را پوشش می‌دهند، پس این‌جا نیازی به
            سوییچر/دکمه‌ی ذخیره‌ی جداگانه نیست — برخلاف قبل که در «حساب من»
            این پوشش را نداشت. */}
-       {settingsSubTab === 'payments' && (
-       <section className="bg-white rounded-2xl border border-sand p-5">
-        <h2 className="text-sm font-display font-semibold text-ink mb-1">شبای دریافت سهم از پرداخت آنلاین</h2>
-        <p className="text-xs text-soot mb-4">
-         برای واریز خودکار سهم شما لازم است. تا ثبت نشود، تسویه به‌صورت دستی هماهنگ می‌شود.
-        </p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-         <input
-          dir="ltr"
-          placeholder="IR00 0000 0000 0000 0000 0000 00"
-          value={profile.settlement_sheba}
-          onChange={e => patchProfile({ settlement_sheba: e.target.value })}
-          className="border border-sand rounded-xl px-3 py-2 text-sm tnum focus:outline-none focus:border-ink" />
-         <input
-          placeholder="نام صاحب حساب"
-          value={profile.settlement_sheba_holder_name}
-          onChange={e => patchProfile({ settlement_sheba_holder_name: e.target.value })}
-          className="border border-sand rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-ink" />
-        </div>
-       </section>
-       )}
 
        {/* قیمت‌گذاری — per-resource؛ فقط دو قیمت: آنلاین/حضوری. نوع کار (مصاحبه/
            ارزیابی/جلسه/پروتکل) فرقی نمی‌کند، فقط نوع حضور قیمت را تعیین می‌کند. */}
-       {settingsSubTab === 'pricing' && (
-       <section className="bg-white rounded-2xl border border-sand p-5">
-        <h2 className="text-sm font-display font-semibold text-ink mb-1">قیمت‌گذاری</h2>
-        <p className="text-xs text-soot mb-4">فقط نوع حضور قیمت را تعیین می‌کند — مصاحبه، ارزیابی، و جلسه هرکدام با همین دو قیمت حساب می‌شوند. روی رزروهای تازه اعمال می‌شود (رزروهای قبلی با همان قیمت زمان ثبت‌شان می‌مانند).</p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-         <div>
-          <label className="text-xs text-soot mb-1 block">هزینه‌ی هر جلسه‌ی آنلاین (تومان)</label>
-          <PriceInput value={profile.pricing.online}
-           onChange={n => patchProfile({ pricing: { ...profile.pricing, online: n } })}
-           className="w-full text-sm px-3 py-2 border border-sand rounded-lg tnum focus:outline-none focus:border-ink" />
-         </div>
-         <div>
-          <label className="text-xs text-soot mb-1 block">هزینه‌ی هر جلسه‌ی حضوری (تومان)</label>
-          <PriceInput value={profile.pricing.offline}
-           onChange={n => patchProfile({ pricing: { ...profile.pricing, offline: n } })}
-           className="w-full text-sm px-3 py-2 border border-sand rounded-lg tnum focus:outline-none focus:border-ink" />
-         </div>
-        </div>
-
-        {/* مالیات بر ارزش افزوده‌ی خود متخصص — اختیاری، جدا از کارمزد پلتفرم.
-            وقتی روشن است، همین‌جا قیمت نهایی (پایه+مالیات) هم نشان داده
-            می‌شود؛ همان عددی که واقعا از مراجع گرفته می‌شود (resolvePrice). */}
-        <label className="flex items-center justify-between p-3 rounded-xl border border-sand cursor-pointer mt-4">
-         <div>
-          <span className="text-sm text-ink block">احتساب مالیات بر ارزش افزوده ({PRICING_VAT_PERCENT}٪)</span>
-          <span className="text-xs text-soot">روی قیمت جلسات اضافه و از مراجع دریافت می‌شود.</span>
-         </div>
-         <input type="checkbox" checked={profile.pricing.vat_enabled}
-          onChange={e => patchProfile({ pricing: { ...profile.pricing, vat_enabled: e.target.checked } })}
-          className="w-5 h-5 accent-ink shrink-0" />
-        </label>
-
-        {profile.pricing.vat_enabled && (
-         <label className="flex items-center justify-between p-3 rounded-xl border border-sand cursor-pointer mt-2 mr-4">
-          <div>
-           <span className="text-sm text-ink block">نمایش تفکیک مالیات به مراجع</span>
-           <span className="text-xs text-soot">مثلا «50,000 + مالیات = 55,000»، به‌جای فقط عدد نهایی.</span>
-          </div>
-          <input type="checkbox" checked={profile.pricing.vat_visible_to_client}
-           onChange={e => patchProfile({ pricing: { ...profile.pricing, vat_visible_to_client: e.target.checked } })}
-           className="w-5 h-5 accent-ink shrink-0" />
-         </label>
-        )}
-
-        {profile.pricing.vat_enabled && (
-         <div className="mt-3 bg-gray-50 rounded-xl p-3.5 text-xs text-soot space-y-1.5">
-          <div className="flex items-center justify-between">
-           <span>قیمت نهایی جلسه‌ی آنلاین (با مالیات)</span>
-           <span className="font-medium text-ink tnum">{resolvePrice('online', profile.pricing).toLocaleString('en-US')} تومان</span>
-          </div>
-          <div className="flex items-center justify-between">
-           <span>قیمت نهایی جلسه‌ی حضوری (با مالیات)</span>
-           <span className="font-medium text-ink tnum">{resolvePrice('offline', profile.pricing).toLocaleString('en-US')} تومان</span>
-          </div>
-         </div>
-        )}
-
-        <div className="border-t border-sand mt-4 pt-4">
-         <label className="text-xs text-soot mb-1 block">هزینه‌ی هر دقیقه‌ی اضافه (تومان)</label>
-         <p className="text-xs text-soot mb-2">اگر جلسه‌ای بیشتر از مدت معمول طول بکشد، برای محاسبه‌ی هزینه‌ی دقایق اضافه (هنگام ارسال شارژ اضافه) استفاده می‌شود. صفر یعنی هزینه‌ی اضافه محاسبه نمی‌شود.</p>
-         <PriceInput value={profile.pricing.extra_minute_price}
-          onChange={n => patchProfile({ pricing: { ...profile.pricing, extra_minute_price: n } })}
-          className="w-36 text-sm px-3 py-2 border border-sand rounded-lg tnum focus:outline-none focus:border-ink" />
-        </div>
-       </section>
-       )}
 
        {/* سیاست کنسلی — per-resource؛ وقتی مراجع خودش کنسل می‌کند این محاسبه
            می‌شود. قبلا در تب «ماژول‌ها و سیاست‌ها» بود؛ چون مستقیم به قیمت‌گذاری
            مربوط است (چند درصد از همان مبلغ برگردد)، به این تب منتقل شد. */}
-       {settingsSubTab === 'pricing' && (
-       <section className="bg-white rounded-2xl border border-sand p-5">
-        <h2 className="text-sm font-display font-semibold text-ink mb-1">سیاست کنسلی جلسه</h2>
-        <p className="text-xs text-soot mb-4">وقتی مراجع خودش یک جلسه را کنسل می‌کند، طبق همین قانون بازپرداخت محاسبه می‌شود.</p>
-        <label className="flex items-center justify-between p-3 rounded-xl border border-sand cursor-pointer mb-3">
-         <span className="text-sm text-ink">مراجع اجازه‌ی کنسل‌کردن خودکار داشته باشد</span>
-         <input type="checkbox" checked={profile.cancellation_policy.enabled}
-          onChange={e => patchProfile({ cancellation_policy: { ...profile.cancellation_policy, enabled: e.target.checked } })}
-          className="w-5 h-5 accent-ink shrink-0" />
-        </label>
-        {profile.cancellation_policy.enabled && (
-         <div className="space-y-3 bg-gray-50 rounded-xl p-3.5">
-          <div className="flex items-center gap-2">
-           <span className="text-xs text-soot shrink-0">اگه حداقل</span>
-           <input type="number" min={0} value={profile.cancellation_policy.threshold_hours}
-            onChange={e => patchProfile({ cancellation_policy: { ...profile.cancellation_policy, threshold_hours: parseInt(e.target.value) || 0 } })}
-            className="w-16 text-sm px-2 py-1.5 border border-sand rounded-lg bg-white text-center" />
-           <span className="text-xs text-soot shrink-0">ساعت قبل از جلسه کنسل کرد:</span>
-          </div>
-          <div className="flex items-center gap-2 pr-2">
-           <span className="text-xs text-soot shrink-0">چند درصد پول برگردد؟</span>
-           <input type="number" min={0} max={100} value={profile.cancellation_policy.early_refund_percent}
-            onChange={e => patchProfile({ cancellation_policy: { ...profile.cancellation_policy, early_refund_percent: Math.min(100, Math.max(0, parseInt(e.target.value) || 0)) } })}
-            className="w-16 text-sm px-2 py-1.5 border border-sand rounded-lg bg-white text-center" />
-           <span className="text-xs text-soot shrink-0">٪</span>
-          </div>
-          <div className="flex items-center gap-2 pt-2 border-t border-sand">
-           <span className="text-xs text-soot shrink-0">اگه دیرتر از اون (نزدیک‌تر به جلسه) کنسل کرد، چند درصد برگردد؟</span>
-           <input type="number" min={0} max={100} value={profile.cancellation_policy.late_refund_percent}
-            onChange={e => patchProfile({ cancellation_policy: { ...profile.cancellation_policy, late_refund_percent: Math.min(100, Math.max(0, parseInt(e.target.value) || 0)) } })}
-            className="w-16 text-sm px-2 py-1.5 border border-sand rounded-lg bg-white text-center shrink-0" />
-           <span className="text-xs text-soot shrink-0">٪</span>
-          </div>
-         </div>
-        )}
-       </section>
-       )}
 
        {/* کدهای تخفیف — per-resource؛ اختیاری برای بعضی مراجعان.
            فقط وقتی ماژول discount_codes روشن است (API‌اش هم از فاز 2 گیت دارد). */}
-       {settingsSubTab === 'pricing' && mod('discount_codes') && (
-        <DiscountCodesSection slug={slug} isOwner={!!me?.isOwner} viewingResourceId={viewingResourceId} />
-       )}
 
        {/* شرایط و مقررات قبل از پرداخت — کاملا اختیاری و کاملا متن آزاد خود
            دکتر. عمدا هیچ متن پیش‌فرض/قالبی (مثل مدت جلسه یا سیاست کنسلی)
            به آن اضافه نمی‌شود — چون هر دکتری ممکن است مدل کاملا متفاوتی
            برای نوشتن شرایطش بخواهد. */}
-       {settingsSubTab === 'terms' && (
-       <section className="bg-white rounded-2xl border border-sand p-5">
-        <h2 className="text-sm font-display font-semibold text-ink mb-1">شرایط و مقررات قبل از پرداخت</h2>
-        <p className="text-xs text-soot mb-4">اگر روشن باشد، مراجع پیش از هر پرداخت باید این متن را ببیند و با تیک‌زدن آن را بپذیرد — وگرنه دکمه‌ی پرداخت غیرفعال می‌ماند. اگر خاموش باشد، این بخش برای مراجع اصلا نمایش داده نمی‌شود.</p>
-
-        <label className="flex items-center gap-2.5 mb-4 cursor-pointer">
-         <input type="checkbox" checked={profile.terms.enabled}
-          onChange={e => patchProfile({ terms: { ...profile.terms, enabled: e.target.checked } })}
-          className="w-4 h-4" />
-         <span className="text-sm text-ink">پیش از پرداخت از مراجع تاییدیه بگیر</span>
-        </label>
-
-        <div className={profile.terms.enabled ? '' : 'opacity-50 pointer-events-none'}>
-         <label className="text-xs text-soot mb-1 block">متن شرایط و مقررات</label>
-         <p className="text-xs text-soot mb-2">هر مدل و فرمتی که خودتان می‌خواهید — مدت جلسه، هزینه‌ی دقیقه‌ی اضافه، شرایط کنسلی هر دو طرف، یا هر نکته‌ی دیگر. دقیقا همین متن به مراجع نشان داده می‌شود.</p>
-         <textarea value={profile.terms.extra} rows={7} maxLength={2000}
-          onChange={e => patchProfile({ terms: { ...profile.terms, extra: e.target.value } })}
-          placeholder={'مثلا:\nمدت هر جلسه 50 دقیقه است. هر دقیقه‌ی اضافه 50,000 تومان محاسبه می‌شود.\nکنسلی تا 12 ساعت قبل: 50٪ بازگشت وجه. دیرتر از آن: بدون بازگشت.\nدر صورت کنسلی از طرف من، جلسه‌ی جایگزین رایگان تعیین می‌شود.'}
-          className="w-full text-sm px-3 py-2 border border-sand rounded-lg focus:outline-none focus:border-ink resize-none" />
-        </div>
-       </section>
-       )}
 
        {/* همراه/تماس دوم — کاملا اختیاری، برچسبش را خود متخصص تعیین می‌کند.
            اینجاست چون مستقیم به فرم رزرو مربوط می‌شود (بخش «همراه» توی فرم و
@@ -2676,135 +2191,6 @@ export function PsychologyAdmin() {
  )
 }
 
-// ─── کدهای تخفیف — کامپوننت مستقل (نه nested) تا با ری‌رندرهای پنل اصلی
-// state‌ش (لیست کد/فرم) پاک نشود ──────────────────────────────────────────────
-type DiscountCode = {
-  id: string; code: string; discount_type: string; discount_value: number
-  is_active: boolean; max_uses: number | null; used_count: number; expires_at: string | null
-}
-
-function DiscountCodesSection({ slug, isOwner, viewingResourceId }: { slug: string; isOwner: boolean; viewingResourceId: string }) {
-  const [codes, setCodes] = useState<DiscountCode[]>([])
-  const [loaded, setLoaded] = useState(false)
-  const [showForm, setShowForm] = useState(false)
-  const [form, setForm] = useState({ code: '', discount_type: 'percent', discount_value: '', max_uses: '' })
-  const [saving, setSaving] = useState(false)
-
-  const url = (extra?: string) => {
-    const qs = isOwner && viewingResourceId ? `?resource_id=${viewingResourceId}${extra ? '&' + extra : ''}` : (extra ? `?${extra}` : '')
-    return `/api/t/${slug}/panel/psy/discount-codes${qs}`
-  }
-
-  const load = useCallback(async () => {
-    const res = await fetch(url(), { cache: 'no-store' })
-    const d = await res.json().catch(() => ({}))
-    setCodes(d.codes || [])
-    setLoaded(true)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [slug, isOwner, viewingResourceId])
-
-  useEffect(() => { load() }, [load])
-
-  async function save() {
-    if (!form.code.trim() || !form.discount_value) { await uiAlert('کد و مقدار تخفیف را وارد کن'); return }
-    setSaving(true)
-    const res = await fetch(url(), {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        code: form.code, discount_type: form.discount_type, discount_value: Number(form.discount_value),
-        max_uses: form.max_uses ? Number(form.max_uses) : null,
-      }),
-    })
-    const d = await res.json().catch(() => ({}))
-    setSaving(false)
-    if (!res.ok) { await uiAlert(d.error || 'ثبت کد ناموفق بود'); return }
-    setForm({ code: '', discount_type: 'percent', discount_value: '', max_uses: '' })
-    setShowForm(false)
-    load()
-  }
-
-  async function toggle(c: DiscountCode) {
-    await fetch(url(), { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: c.id, is_active: !c.is_active }) })
-    load()
-  }
-
-  async function remove(c: DiscountCode) {
-    if (!await uiConfirm(`کد «${c.code}» حذف شود؟`)) return
-    await fetch(url(), { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: c.id }) })
-    load()
-  }
-
-  return (
-    <section className="bg-white rounded-2xl border border-sand p-5">
-      <div className="flex items-center justify-between mb-1">
-        <h2 className="text-sm font-display font-semibold text-ink">کدهای تخفیف</h2>
-        {!showForm && <button onClick={() => setShowForm(true)} className="text-xs text-ink underline">+ کد تازه</button>}
-      </div>
-      <p className="text-xs text-soot mb-4">اختیاری — اگر خواستی به بعضی مراجعان تخفیف بدهی، یک کد بساز و به آن‌ها بگو موقع پرداخت وارد کنند.</p>
-
-      {showForm && (
-        <div className="border border-sand rounded-xl p-3 mb-3 space-y-3">
-          <div>
-            <label className="text-xs text-soot mb-1 block">کد</label>
-            <input dir="ltr" value={form.code} onChange={e => setForm(s => ({ ...s, code: e.target.value.toUpperCase() }))}
-              placeholder="SUMMER10" className="w-36 text-sm px-3 py-2 border border-sand rounded-lg tnum" />
-          </div>
-          <div className="flex gap-2 items-end flex-wrap">
-            <div>
-              <label className="text-xs text-soot mb-1 block">نوع</label>
-              <select value={form.discount_type} onChange={e => setForm(s => ({ ...s, discount_type: e.target.value }))}
-                className="w-32 text-sm px-3 py-2 border border-sand rounded-lg bg-white">
-                <option value="percent">درصدی</option>
-                <option value="fixed">مبلغ ثابت</option>
-              </select>
-            </div>
-            <div>
-              <label className="text-xs text-soot mb-1 block">{form.discount_type === 'percent' ? 'درصد' : 'مبلغ (تومان)'}</label>
-              <input type="number" value={form.discount_value} onChange={e => setForm(s => ({ ...s, discount_value: e.target.value }))}
-                placeholder={form.discount_type === 'percent' ? '20' : '100000'}
-                className="w-24 text-sm px-3 py-2 border border-sand rounded-lg tnum" />
-            </div>
-            <div>
-              <label className="text-xs text-soot mb-1 block">سقف استفاده</label>
-              <input type="number" value={form.max_uses} onChange={e => setForm(s => ({ ...s, max_uses: e.target.value }))}
-                placeholder="نامحدود" className="w-24 text-sm px-3 py-2 border border-sand rounded-lg tnum" />
-            </div>
-          </div>
-          <div className="flex gap-2">
-            <button onClick={save} disabled={saving} className="px-5 py-2 bg-ink text-white rounded-lg text-xs font-medium disabled:opacity-50">
-              {saving ? '...' : 'ساخت کد'}
-            </button>
-            <button onClick={() => setShowForm(false)} className="px-4 py-2 border border-sand rounded-lg text-xs text-soot">انصراف</button>
-          </div>
-        </div>
-      )}
-
-      {!loaded ? (
-        <p className="text-xs text-soot text-center py-3">در حال بارگذاری…</p>
-      ) : codes.length === 0 ? (
-        <p className="text-xs text-soot text-center py-3">هنوز کدی نساخته‌ای.</p>
-      ) : (
-        <div className="space-y-2">
-          {codes.map(c => (
-            <div key={c.id} className="flex items-center justify-between text-sm p-2.5 border border-sand rounded-xl">
-              <div>
-                <span dir="ltr" className={`font-bold tnum ${!c.is_active ? 'text-soot line-through' : 'text-ink'}`}>{c.code}</span>
-                <span className="text-xs text-soot mr-2">
-                  {c.discount_type === 'percent' ? `${toFarsiNum(c.discount_value)}٪` : `${toFarsiNum(c.discount_value.toLocaleString('en-US'))} ت`}
-                  {' · '}{toFarsiNum(c.used_count)}{c.max_uses ? `/${toFarsiNum(c.max_uses)}` : ''} استفاده
-                </span>
-              </div>
-              <div className="flex gap-2 shrink-0">
-                <button onClick={() => toggle(c)} className="text-[11px] text-soot underline">{c.is_active ? 'غیرفعال' : 'فعال'}</button>
-                <button onClick={() => remove(c)} className="text-[11px] text-red-600 underline">حذف</button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </section>
-  )
-}
 
 // Field/SelectField/TextareaField به panel/modules/shared.tsx منتقل شدند (فاز 4).
 
