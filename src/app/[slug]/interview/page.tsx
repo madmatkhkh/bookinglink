@@ -2,7 +2,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useParams } from 'next/navigation'
 import { toFarsiNum, toLatinNum, getCurrentJalali } from '@/lib/calendar'
-import { PSY_PRICING as PRICING, resolvePrice } from '@/lib/psy'
+import { resolvePrice, priceBreakdown } from '@/lib/psy'
 import { usePublicClinic, CardChooser, TermsGate, DiscountCodeField } from '@/components/PsyPublic'
 import { onlineAvailable, offlineAvailable, fieldVisible, missingIntakeFields } from '@/lib/psy'
 import { usableMeetChannels, mergeMeetChannels } from '@/lib/meet'
@@ -442,6 +442,7 @@ function InterviewPayScreen({ doctor, resourceId, slug, phone, cards, loaded, se
  }, [officeLocations.length])
 
  const baseAmount = resolvePrice(mode, pricing)
+ const vatInfo = priceBreakdown(mode, pricing)
  const [discount, setDiscount] = useState<{ code: string; discountedAmount: number; discountAmount: number } | null>(null)
  const finalAmount = discount ? discount.discountedAmount : baseAmount
 
@@ -610,6 +611,11 @@ function InterviewPayScreen({ doctor, resourceId, slug, phone, cards, loaded, se
        {finalAmount.toLocaleString()} تومان
       </span>
      </div>
+     {!discount && vatInfo.showVat && (
+      <div className="text-[11px] text-soot mt-1 text-left">
+       {vatInfo.base.toLocaleString()} + {vatInfo.vat.toLocaleString()} مالیات ارزش‌افزوده
+      </div>
+     )}
     </div>
 
     <DiscountCodeField slug={slug} resourceId={resourceId} amount={baseAmount} onApplied={setDiscount} />

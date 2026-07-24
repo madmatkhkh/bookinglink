@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useSearchParams, useRouter } from 'next/navigation'
 import { PERSIAN_MONTHS, PERSIAN_WEEKDAYS_FULL, toFarsiNum, getCurrentJalali, getDaysInJalaliMonth, jalaliDateTimeToTimestamp, jalaliWeekday } from '@/lib/calendar'
-import { PSY_PRICING as PRICING, DEFAULT_CANCELLATION_POLICY, resolvePrice } from '@/lib/psy'
+import { DEFAULT_CANCELLATION_POLICY, resolvePrice, packageAmount, priceBreakdown } from '@/lib/psy'
 import { usePublicClinic, usePatientFeatures, CardChooser, DiscountCodeField, DiscountApplied, TermsGate } from '@/components/PsyPublic'
 import { moduleOn } from '@/lib/moduleManifest'
 import { stageTitle } from '@/lib/flow'
@@ -278,9 +278,14 @@ export default function PatientPanel() {
  // می‌کند — این کار را حالا خود SWR انجام می‌دهد (کلید تا وقتی هویت restore/ورود
  // نشده null است، پس در restoring اصلا poll نمی‌شود). هوک useAutoRevalidate حذف شد.
 
- const pkgPrice = (p: Package) =>
-  p.price || ((p.primary_sessions * (p.primary_session_type === 'online' ? PRICING.online : PRICING.offline)) +
-  (p.secondary_sessions * (p.secondary_session_type === 'online' ? PRICING.online : PRICING.offline)))
+ const pkgPrice = (p: Package) => {
+  if (p.price) return p.price
+  const doctorPricing = settings.doctors.find(d => d.id === p.resource_id)?.pricing
+  return packageAmount({
+   primary_sessions: p.primary_sessions, primary_session_type: p.primary_session_type,
+   secondary_sessions: p.secondary_sessions, secondary_session_type: p.secondary_session_type,
+  }, doctorPricing)
+ }
 
  const pkgSessions = (pkgId: string) => sessions.filter(s => s.package_id === pkgId)
 
@@ -507,7 +512,7 @@ export default function PatientPanel() {
            icon="💳"
            title={`هزینه‌ی ${stageTitle(currentStage!)}`}
            desc="برای ادامه، هزینه‌ی این جلسه را پرداخت کنید."
-           amount={currentStage!.price || ((currentStage!.session_type || booking.session_type) === 'online' ? PRICING.online : PRICING.offline)}
+           amount={currentStage!.price || resolvePrice(currentStage!.session_type || booking.session_type || 'offline', settings.doctors.find(d => d.id === booking.resource_id)?.pricing)}
            resourceId={booking.resource_id} caseNumber={booking.case_number} phone={phone} stageId={currentStage!.id}
            stageLabel={stageTitle(currentStage!)}
            sessionType={currentStage!.session_type || booking.session_type} officeLocation={booking.office_location}
@@ -1755,6 +1760,7 @@ function StagePayment({ icon, title, desc, amount, onPaid, onDone, resourceId, c
  // همان محاسبه می‌شود؛ سرور دوباره اعتبارسنجی و ذخیره می‌کند.
  const [mode, setMode] = useState<'online' | 'offline'>(sessionType || 'offline')
  const baseAmount = pricing ? resolvePrice(mode, pricing) : amount
+ const vatInfo = pricing ? priceBreakdown(mode, pricing) : { base: amount, vat: 0, final: amount, showVat: false }
  const finalAmount = discount ? discount.discountedAmount : baseAmount
  // روش‌های آنلاین فعال متخصص — مراجع هنگام پرداخت یکی را انتخاب می‌کند
  const doctor = settings.doctors.find(d => d.id === resourceId)
@@ -1890,6 +1896,11 @@ function StagePayment({ icon, title, desc, amount, onPaid, onDone, resourceId, c
       {finalAmount.toLocaleString()} تومان
      </span>
     </div>
+    {!discount && vatInfo.showVat && (
+     <div className="text-[11px] text-soot mt-1 text-left">
+      {vatInfo.base.toLocaleString()} + {vatInfo.vat.toLocaleString()} مالیات ارزش‌افزوده
+     </div>
+    )}
    </div>
 
    <DiscountCodeField slug={slug} resourceId={resourceId} amount={baseAmount} onApplied={setDiscount} />

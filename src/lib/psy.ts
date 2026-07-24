@@ -27,6 +27,10 @@ export type Pricing = {
   // اختیاری، پیش‌فرض خاموش. وقتی روشن است، resolvePrice قیمت نهایی
   // (پایه+مالیات) را برمی‌گرداند؛ یعنی همان چیزی که مراجع واقعا پرداخت می‌کند.
   vat_enabled: boolean
+  // آیا تفکیک مالیات به مراجع نشان داده شود (مثلا «50,000 + مالیات = 55,000»)
+  // یا فقط عدد نهایی به‌عنوان «قیمت» دیده شود، بدون اشاره به مالیات. فقط وقتی
+  // vat_enabled باشد معنا دارد.
+  vat_visible_to_client: boolean
 }
 export const PRICING_VAT_PERCENT = 10
 export const DEFAULT_PRICING: Pricing = {
@@ -34,6 +38,7 @@ export const DEFAULT_PRICING: Pricing = {
   duration_online: 50, duration_offline: 50,
   extra_minute_price: 0,
   vat_enabled: false,
+  vat_visible_to_client: false,
 }
 
 // قیمت بر اساس نوع حضور (نه نوع کار) — مصاحبه/ارزیابی/جلسه/پروتکل همه از همین برمی‌آیند.
@@ -44,6 +49,16 @@ export const DEFAULT_PRICING: Pricing = {
 export function resolvePrice(mode: string, pricing: Pricing = DEFAULT_PRICING): number {
   const base = mode === 'online' ? pricing.online : pricing.offline
   return pricing.vat_enabled ? Math.round(base * (1 + PRICING_VAT_PERCENT / 100)) : base
+}
+
+// اجزای قیمت برای نمایش شفاف به مراجع — پایه/مالیات/نهایی + آیا اصلا باید
+// تفکیک نشان داده شود (تصمیم متخصص با vat_visible_to_client). اگر مالیات
+// خاموش باشد یا متخصص نخواهد نشانش دهد، showVat=false و UI فقط باید final
+// را نشان دهد، دقیقا مثل قبل.
+export function priceBreakdown(mode: string, pricing: Pricing = DEFAULT_PRICING) {
+  const base = mode === 'online' ? pricing.online : pricing.offline
+  const final = resolvePrice(mode, pricing)
+  return { base, vat: final - base, final, showVat: !!pricing.vat_enabled && !!pricing.vat_visible_to_client }
 }
 
 export function mergePricing(raw: any): Pricing {
@@ -59,6 +74,7 @@ export function mergePricing(raw: any): Pricing {
       duration_offline: clamp(raw?.duration_offline, DEFAULT_PRICING.duration_offline),
       extra_minute_price: clamp(raw?.extra_minute_price, DEFAULT_PRICING.extra_minute_price),
       vat_enabled: raw?.vat_enabled === true,
+      vat_visible_to_client: raw?.vat_visible_to_client === true,
     }
   }
   return {
@@ -68,6 +84,7 @@ export function mergePricing(raw: any): Pricing {
     duration_offline: clamp(raw?.duration_offline, DEFAULT_PRICING.duration_offline),
     extra_minute_price: clamp(raw?.extra_minute_price, DEFAULT_PRICING.extra_minute_price),
     vat_enabled: raw?.vat_enabled === true,
+    vat_visible_to_client: raw?.vat_visible_to_client === true,
   }
 }
 

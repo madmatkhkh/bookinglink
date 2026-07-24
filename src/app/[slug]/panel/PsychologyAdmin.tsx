@@ -2445,6 +2445,18 @@ export function PsychologyAdmin() {
         </label>
 
         {profile.pricing.vat_enabled && (
+         <label className="flex items-center justify-between p-3 rounded-xl border border-sand cursor-pointer mt-2 mr-4">
+          <div>
+           <span className="text-sm text-ink block">نمایش تفکیک مالیات به مراجع</span>
+           <span className="text-xs text-soot">مثلا «50,000 + مالیات = 55,000»، به‌جای فقط عدد نهایی.</span>
+          </div>
+          <input type="checkbox" checked={profile.pricing.vat_visible_to_client}
+           onChange={e => patchProfile({ pricing: { ...profile.pricing, vat_visible_to_client: e.target.checked } })}
+           className="w-5 h-5 accent-ink shrink-0" />
+         </label>
+        )}
+
+        {profile.pricing.vat_enabled && (
          <div className="mt-3 bg-gray-50 rounded-xl p-3.5 text-xs text-soot space-y-1.5">
           <div className="flex items-center justify-between">
            <span>قیمت نهایی جلسه‌ی آنلاین (با مالیات)</span>
