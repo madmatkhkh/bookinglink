@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { sb } from '@/lib/supabase'
 import { getActiveTenant } from '@/lib/tenant'
-import { getPaymentMethods, effectivePaymentMethods, isCardToCardAllowed, getResourceProfile, isValidSheba, getResourcePricing, packageAmount, resolvePrice, checkDiscountCode, validateClientSlot } from '@/lib/psy'
+import { getPaymentMethods, effectivePaymentMethods, isCardToCardAllowed, getResourceProfile, isValidSheba, getResourcePricing, packageAmount, resolvePrice, reverseVatSplit, checkDiscountCode, validateClientSlot } from '@/lib/psy'
 import { acquirePendingLocksAtomic, sweepExpiredLocks } from '@/lib/slotLocks'
 import { stageTitle } from '@/lib/flow'
 import { isMeetMethod } from '@/lib/meet'
@@ -132,6 +132,15 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
     if (discountCodeCheck.ok) amount = discountCodeCheck.discountedAmount
   }
 
+  // تفکیک پایه/مالیات قیمت جلسه (نه کارمزد پلتفرم) — از خود amount نهایی
+  // معکوس محاسبه می‌شود (reverseVatSplit)، پس همیشه base+vat=amount دقیقا
+  // برقرار است، چه amount امروز تازه محاسبه شده باشد چه از قبل قفل بوده.
+  // برای شارژ اضافه معنا ندارد (مبلغ دلخواه دکتر است، نه قیمت جلسه). با
+  // تخفیف هم — مثل UI (PriceSummaryBox) — اصلا تفکیک نشان/ذخیره نمی‌شود،
+  // چون ترکیب دو تفکیک هم‌زمان گیج‌کننده است.
+  const sessionVatInfo = (purpose !== 'extra_charge' && !discountCodeCheck?.ok)
+    ? reverseVatSplit(amount, resourcePricing) : null
+
   // فاز P2 قیمت‌گذاری: کارمزد سقف‌دار per-پلن + تفکیک پایه/VAT (بخش 9.4/9.6
   // در MODULES.md). تا وقتی ردیف plan_fees در platform_settings نیست، عینا
   // مدل قدیمی (7% سراسری / override متخصص) برمی‌گردد و ستون‌های تفکیک هم
@@ -146,6 +155,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
     tenant_id: t.id, resource_id: c.resource_id, case_number, phone, purpose, ref_id: ref_id || null, amount,
     commission_percent: fee.percent, commission_amount: commissionAmount,
     ...(fee.baseAmount != null ? { fee_base_amount: fee.baseAmount, fee_vat_amount: fee.vatAmount || 0 } : {}),
+    ...(sessionVatInfo != null ? { session_base_amount: sessionVatInfo.base, session_vat_amount: sessionVatInfo.vat } : {}),
     settlement_sheba: shebaOk ? profile.settlement_sheba : null,
     // فقط برای مرحله معنا دارد — کال‌بک بعد از verify موفق همین را روی مرحله ثبت می‌کند
     ...(purpose === 'stage' ? { booking_date: session_date, booking_time: session_time } : {}),

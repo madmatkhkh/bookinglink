@@ -114,6 +114,8 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
     commissionAmount: intent.commission_amount || 0,
     feeBaseAmount: intent.fee_base_amount ?? null,
     feeVatAmount: intent.fee_vat_amount ?? null,
+    sessionBaseAmount: intent.session_base_amount ?? null,
+    sessionVatAmount: intent.session_vat_amount ?? null,
     doctorAmount: (intent.amount || 0) - (intent.commission_amount || 0),
     sourceTable: 'psy_payment_intents',
     sourceId: intent.id,

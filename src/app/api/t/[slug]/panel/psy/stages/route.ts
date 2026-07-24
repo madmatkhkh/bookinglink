@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { sb } from '@/lib/supabase'
 import { requirePanelAuth, isPanelAuthResponse } from '@/lib/tenant'
 import { STAGE_TYPES, STAGE_STATUS } from '@/lib/flow'
-import { getResourcePricing, resolvePrice, redeemDiscountCodeByCode } from '@/lib/psy'
+import { getResourcePricing, resolvePrice, reverseVatSplit, redeemDiscountCodeByCode } from '@/lib/psy'
 import { recordLedgerEntry } from '@/lib/ledger'
 
 export const dynamic = 'force-dynamic'
@@ -165,6 +165,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { slug: stri
     await sb().from('psy_cases').update({ status: 'confirmed' }).eq('tenant_id', a.tenant.id).eq('case_number', stage.case_number).eq('status', 'pending')
     // ثبت در دفتر حساب — پرداخت کارت‌به‌کارت مستقیم بین مراجع و دکتر است، سهم
     // پلتفرم = 0. idempotent: اگر قبلا ثبت شده (دابل‌کلیک) دوباره ثبت نمی‌شود.
+    // تفکیک مالیات خود متخصص از amount منجمد معکوس محاسبه می‌شود (reverseVatSplit)
+    // تا همیشه پایه+مالیات=مبلغ برقرار بماند.
+    const stageVat = reverseVatSplit(stage.price || 0, await getResourcePricing(stage.resource_id))
     const freshEntry = await recordLedgerEntry({
       tenantId: a.tenant.id,
       resourceId: stage.resource_id || null,
@@ -173,6 +176,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { slug: stri
       method: 'card_to_card',
       amount: stage.price || 0,
       commissionAmount: 0,
+      sessionBaseAmount: stageVat.base,
+      sessionVatAmount: stageVat.vat,
       doctorAmount: stage.price || 0,
       sourceTable: 'psy_stages',
       sourceId: stage.id,

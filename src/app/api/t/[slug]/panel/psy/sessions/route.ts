@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { sb } from '@/lib/supabase'
 import { requirePanelAuth, isPanelAuthResponse } from '@/lib/tenant'
-import { redeemDiscountCodeByCode } from '@/lib/psy'
+import { getResourcePricing, reverseVatSplit, redeemDiscountCodeByCode } from '@/lib/psy'
 import { recordLedgerEntry } from '@/lib/ledger'
 
 export const dynamic = 'force-dynamic'
@@ -95,10 +95,11 @@ export async function PATCH(req: NextRequest, { params }: { params: { slug: stri
 
   // گذار به paid (تایید کارت‌به‌کارت جلسه‌ی جایگزین) → دفتر حساب
   if (updates.paid === true && before && !before.paid && data) {
+    const sessVat = reverseVatSplit(data.price || 0, await getResourcePricing(data.resource_id))
     const freshEntry = await recordLedgerEntry({
       tenantId: a.tenant.id, resourceId: data.resource_id || null, caseNumber: data.case_number,
       purpose: 'session', method: 'card_to_card', amount: data.price || 0,
-      commissionAmount: 0, doctorAmount: data.price || 0,
+      commissionAmount: 0, sessionBaseAmount: sessVat.base, sessionVatAmount: sessVat.vat, doctorAmount: data.price || 0,
       sourceTable: 'psy_sessions', sourceId: data.id, recordedBy: a.isOwner ? 'owner' : 'staff',
     })
     // مصرف کد تخفیف کارت‌به‌کارت فقط لحظه‌ی تایید واقعی — و فقط یک بار (گیت روی ثبت تازه‌ی ledger)

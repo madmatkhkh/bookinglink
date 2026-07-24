@@ -29,6 +29,12 @@ export type RecordLedgerInput = {
   // «کل کسر» است (پایه+VAT) تا معنای ستون قدیمی و همه‌ی گزارش‌ها دست نخورد.
   feeBaseAmount?: number | null
   feeVatAmount?: number | null
+  // مالیات بر ارزش افزوده‌ی خود متخصص روی قیمت جلسه (نه کارمزد پلتفرم؛
+  // آن یکی همان دو فیلد بالاست). اختیاری، فقط وقتی متخصص vat_enabled دارد پر
+  // می‌شود. amount کل تراکنش بدون تغییر می‌ماند؛ این دو فقط برای شفافیت
+  // گزارش‌ها (مالی متخصص، سوپرادمین، حسابرسی) تفکیکش را نگه می‌دارند.
+  sessionBaseAmount?: number | null
+  sessionVatAmount?: number | null
   doctorAmount?: number
   sourceTable?: string | null
   sourceId?: string | null
@@ -64,6 +70,10 @@ export async function recordLedgerEntry(input: RecordLedgerInput): Promise<boole
       ...(input.feeBaseAmount != null ? {
         fee_base_amount: Math.round(input.feeBaseAmount),
         fee_vat_amount: Math.round(input.feeVatAmount || 0),
+      } : {}),
+      ...(input.sessionBaseAmount != null ? {
+        session_base_amount: Math.round(input.sessionBaseAmount),
+        session_vat_amount: Math.round(input.sessionVatAmount || 0),
       } : {}),
       doctor_amount: Math.round(input.doctorAmount ?? (input.amount - (input.commissionAmount || 0))),
       source_table: input.sourceTable || null,

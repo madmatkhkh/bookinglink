@@ -23,7 +23,10 @@ export type FinanceData = {
  daily: { date: string; amount: number }[]
  weekly: { date: string; amount: number }[]
  monthlyChart: { date: string; amount: number }[]
- transactions: { type: string; method: 'online' | 'card_to_card'; amount: number; commission: number; doctorAmount: number; bankRef: string | null; date: string; case_number: string; name: string }[]
+ transactions: { type: string; method: 'online' | 'card_to_card'; amount: number; commission: number; doctorAmount: number; sessionVat: number | null; bankRef: string | null; date: string; case_number: string; name: string }[]
+ // مالیات بر ارزش افزوده‌ی خود متخصص که در همین بازه از مراجعان جمع شده
+ // (فقط تراکنش‌های بعد از فعال‌شدن این قابلیت این را دارند؛ قدیمی‌تر=0)
+ totalSessionVat: number
  stageBreakdown: { title: string; paid: number; paidCount: number; pending: number; pendingCount: number }[]
  paid: { stages: number; packages: number; sessions: number }
  pending: { stages: number; packages: number; sessions: number }
@@ -299,6 +302,9 @@ export default function FinanceTab({ api, onUnauthorized }: {
                    {tr.method === 'online' && tr.commission > 0 && (
                     <div className="text-[10px] text-soot tnum">سهم شما {moneyShort(tr.doctorAmount)}</div>
                    )}
+                   {!!tr.sessionVat && tr.sessionVat > 0 && (
+                    <div className="text-[10px] text-soot tnum">شامل {moneyShort(tr.sessionVat)} مالیات</div>
+                   )}
                   </div>
                  </div>
                 )
@@ -328,6 +334,17 @@ export default function FinanceTab({ api, onUnauthorized }: {
               <div className={`text-base font-bold tnum ${f.settlement.owed > 0 ? 'text-amber-800' : 'text-ink'}`}>{moneyShort(f.settlement.owed)}</div>
              </div>
             </div>
+
+            {/* مالیات بر ارزش افزوده‌ی جمع‌آوری‌شده از مراجعان در همین بازه —
+                فقط وقتی چیزی جمع شده نشان داده می‌شود (یعنی مالیات را در تب
+                قیمت‌گذاری فعال کرده‌اید). داخل «درآمد خالص» بالا هم حساب شده؛
+                این فقط سهم مالیاتش را جدا نشان می‌دهد، برای اظهارنامه‌ی مالیاتی. */}
+            {f.totalSessionVat > 0 && (
+             <div className="rounded-xl border border-sand p-3 flex items-center justify-between">
+              <div className="text-[11px] text-soot">مالیات بر ارزش افزوده‌ی جمع‌آوری‌شده از مراجعان</div>
+              <div className="text-sm font-semibold text-ink tnum">{moneyShort(f.totalSessionVat)}</div>
+             </div>
+            )}
 
             {/* تسویه‌ی پرداخت آنلاین */}
             {f.settlement.count > 0 && (

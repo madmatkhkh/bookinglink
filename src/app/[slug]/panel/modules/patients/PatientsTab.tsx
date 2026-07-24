@@ -37,6 +37,9 @@ type CaseLedgerEntry = {
  // تفکیک پایه/مالیات کارمزد — فقط برای تراکنش‌های مدل جدید (فاز P2 قیمت‌گذاری)
  // پر است؛ تراکنش‌های قدیمی‌تر این دو را ندارند و فقط جمع کل نمایش داده می‌شود.
  fee_base_amount?: number | null; fee_vat_amount?: number | null
+ // مالیات بر ارزش افزوده‌ی خود متخصص (نه کارمزد پلتفرم) — روی هر دو روش
+ // پرداخت معنا دارد، برخلاف fee_base/fee_vat که فقط پرداخت آنلاین دارد
+ session_base_amount?: number | null; session_vat_amount?: number | null
  bank_ref_number?: string | null; split_applied: boolean; note?: string | null; created_at: string
 }
 import type { ResourceRow } from '../staff/StaffTab'
@@ -1059,6 +1062,11 @@ export default function PatientsTab({
                 <span className="text-sm font-bold text-ink tnum shrink-0">{money(e.amount)} ت</span>
                </div>
                <div className="text-[11px] text-soot mt-0.5 tnum">{new Date(e.created_at).toLocaleDateString('fa-IR-u-nu-latn')}</div>
+               {!!e.session_vat_amount && e.session_vat_amount > 0 && (
+                <div className="text-[11px] text-soot mt-0.5 tnum">
+                 شامل {money(e.session_base_amount || 0)} ت قیمت جلسه + {money(e.session_vat_amount)} ت مالیات بر ارزش افزوده
+                </div>
+               )}
                {e.method === 'online' && (
                 <div className="mt-2 pt-2 border-t border-sand flex items-center justify-between text-xs">
                  <span className="text-soot">سهم شما</span>

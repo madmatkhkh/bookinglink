@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
     applyFilters(sb().from('ledger_entries').select('*').order('created_at', { ascending: false })).limit(limit),
     // ردیف سبک، بدون سقف نمایش — پایه‌ی محاسبه‌ی «بر اساس متخصص» تا با محدودیت
     // لیست نمایشی قاطی نشود و همیشه دقیق بماند
-    applyFilters(sb().from('ledger_entries').select('resource_id, tenant_id, method, direction, amount, commission_amount, doctor_amount')),
+    applyFilters(sb().from('ledger_entries').select('resource_id, tenant_id, method, direction, amount, commission_amount, doctor_amount, session_vat_amount')),
   ])
 
   // مجموعه‌های تستی از همه‌ی محاسبات مالی واقعی کنار گذاشته می‌شوند.
@@ -77,21 +77,22 @@ export async function GET(req: NextRequest) {
     acc.gross += e.amount
     acc.commission += e.commission_amount || 0
     acc.doctorShare += e.doctor_amount || 0
+    acc.specialistVat += e.session_vat_amount || 0
     if (e.method === 'online') acc.online += e.amount; else acc.cardToCard += e.amount
     return acc
-  }, { gross: 0, commission: 0, doctorShare: 0, online: 0, cardToCard: 0, refunds: 0 })
+  }, { gross: 0, commission: 0, doctorShare: 0, specialistVat: 0, online: 0, cardToCard: 0, refunds: 0 })
 
   // خلاصه‌ی «بر اساس متخصص» — هر متخصص چقدر گردش داشته/چقدرش سهم نوبت‌لینک/چقدرش سهم خودش
   const byResourceMap = new Map<string, {
     resource_id: string; tenant_id: string; gross: number; commission: number
-    specialistShare: number; online: number; cardToCard: number; refunds: number; count: number
+    specialistShare: number; specialistVat: number; online: number; cardToCard: number; refunds: number; count: number
   }>()
   for (const e of aggRows || []) {
     if (!e.resource_id) continue
     if (!byResourceMap.has(e.resource_id)) {
       byResourceMap.set(e.resource_id, {
         resource_id: e.resource_id, tenant_id: e.tenant_id, gross: 0, commission: 0,
-        specialistShare: 0, online: 0, cardToCard: 0, refunds: 0, count: 0,
+        specialistShare: 0, specialistVat: 0, online: 0, cardToCard: 0, refunds: 0, count: 0,
       })
     }
     const agg = byResourceMap.get(e.resource_id)!
@@ -99,6 +100,7 @@ export async function GET(req: NextRequest) {
     agg.gross += e.amount
     agg.commission += e.commission_amount || 0
     agg.specialistShare += e.doctor_amount || 0
+    agg.specialistVat += e.session_vat_amount || 0
     if (e.method === 'online') agg.online += e.amount; else agg.cardToCard += e.amount
     agg.count++
   }

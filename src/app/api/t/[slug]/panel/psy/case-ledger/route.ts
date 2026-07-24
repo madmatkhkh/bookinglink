@@ -18,7 +18,7 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
   if (!case_number) return NextResponse.json({ error: 'case_number لازم است' }, { status: 400 })
 
   let q = sb().from('ledger_entries')
-    .select('id, purpose, method, direction, amount, commission_amount, fee_base_amount, fee_vat_amount, doctor_amount, bank_ref_number, split_applied, note, created_at')
+    .select('id, purpose, method, direction, amount, commission_amount, fee_base_amount, fee_vat_amount, session_base_amount, session_vat_amount, doctor_amount, bank_ref_number, split_applied, note, created_at')
     .eq('tenant_id', a.tenant.id).eq('case_number', case_number)
     .order('created_at', { ascending: false })
   // کارمند فقط پرونده‌های منبع خودش را می‌بیند

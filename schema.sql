@@ -1,7 +1,7 @@
 -- ═══════════════════════════════════════════════════════════════════════════
 --  نوبت‌لینک — اسکیمای کامل و یکپارچه
 -- ═══════════════════════════════════════════════════════════════════════════
---  جایگزین همه‌ی فایل‌های مهاجرت (0001..0054) و schema.sql قبلی.
+--  جایگزین همه‌ی فایل‌های مهاجرت (0001..0055) و schema.sql قبلی.
 --  شامل تمام جداول، ایندکس‌ها، کلیدهای خارجی، قیدها، RLS و داده‌های اولیه.
 --
 --  ⚠️ این فایل اول همه‌چیز را پاک می‌کند و از صفر می‌سازد.
@@ -143,7 +143,9 @@ CREATE TABLE public.ledger_entries (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     bank_ref_number text,
     fee_base_amount bigint,
-    fee_vat_amount bigint
+    fee_vat_amount bigint,
+    session_base_amount bigint,
+    session_vat_amount bigint
 );
 
 --
@@ -433,7 +435,9 @@ CREATE TABLE public.psy_payment_intents (
     package_slots jsonb,
     bank_ref_number text,
     fee_base_amount bigint,
-    fee_vat_amount bigint
+    fee_vat_amount bigint,
+    session_base_amount bigint,
+    session_vat_amount bigint
 );
 
 --

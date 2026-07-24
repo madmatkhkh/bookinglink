@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { sb } from '@/lib/supabase'
 import { requirePanelAuth, isPanelAuthResponse } from '@/lib/tenant'
-import { getResourcePricing, packageAmount, redeemDiscountCodeByCode } from '@/lib/psy'
+import { getResourcePricing, packageAmount, reverseVatSplit, redeemDiscountCodeByCode } from '@/lib/psy'
 import { recordLedgerEntry } from '@/lib/ledger'
 
 export const dynamic = 'force-dynamic'
@@ -77,6 +77,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { slug: stri
   // گذار به paid → ثبت در دفتر حساب (کارت‌به‌کارت؛ آنلاین از callback ثبت می‌شود
   // که این ردیف idempotent است پس تداخل ندارد). فقط وقتی قبلا paid نبوده.
   if (updates.paid === true && before && !before.paid && data) {
+    const pkgVat = reverseVatSplit(data.price || 0, await getResourcePricing(data.resource_id))
     const freshEntry = await recordLedgerEntry({
       tenantId: a.tenant.id,
       resourceId: data.resource_id || null,
@@ -85,6 +86,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { slug: stri
       method: 'card_to_card',
       amount: data.price || 0,
       commissionAmount: 0,
+      sessionBaseAmount: pkgVat.base,
+      sessionVatAmount: pkgVat.vat,
       doctorAmount: data.price || 0,
       sourceTable: 'psy_packages',
       sourceId: data.id,

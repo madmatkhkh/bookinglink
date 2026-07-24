@@ -17,13 +17,13 @@ import { PLATFORM_NAME } from '@/lib/config'
 type LedgerEntry = {
   id: string; tenant_slug: string | null; tenant_name: string | null; resource_name: string | null
   resource_id: string | null; case_number: string | null; purpose: string; method: string; direction: string
-  amount: number; commission_amount: number; doctor_amount: number
+  amount: number; commission_amount: number; doctor_amount: number; session_vat_amount?: number | null
   split_applied: boolean; recorded_by: string | null; note: string | null; created_at: string
 }
-type Totals = { gross: number; commission: number; doctorShare: number; online: number; cardToCard: number; refunds: number }
+type Totals = { gross: number; commission: number; doctorShare: number; specialistVat: number; online: number; cardToCard: number; refunds: number }
 type BySpecialist = {
   resource_id: string; resource_name: string | null; tenant_name: string | null; tenant_slug: string | null
-  gross: number; commission: number; specialistShare: number; online: number; cardToCard: number; refunds: number; count: number
+  gross: number; commission: number; specialistShare: number; specialistVat: number; online: number; cardToCard: number; refunds: number; count: number
 }
 type UnsettledItem = { id: string; doctor_amount: number; case_number: string | null; bank_ref_number: string | null; created_at: string }
 type SettlementSummary = {
@@ -208,7 +208,7 @@ function AccountingInner() {
                   <div className="min-w-0">
                     <div className="text-sm font-bold text-ink">{s.resource_name || '—'}</div>
                     <div className="text-[11px] text-soot mt-0.5">
-                      {s.tenant_name || s.tenant_slug} · <span className="tnum">{s.count.toLocaleString('fa-IR')}</span> تراکنش
+                      {s.tenant_name || s.tenant_slug} · <span className="tnum">{s.count.toLocaleString('fa-IR-u-nu-latn')}</span> تراکنش
                     </div>
                     <div className="text-[11px] text-soot mt-1 flex items-center gap-2 flex-wrap">
                       <span>آنلاین: <strong className="text-ink tnum">{money(s.online)}</strong></span>
@@ -230,6 +230,12 @@ function AccountingInner() {
                       <div className="text-[10px] text-soot">سهم متخصص</div>
                       <div className="text-xs font-medium text-ink tnum">{money(s.specialistShare)}</div>
                     </div>
+                    {s.specialistVat > 0 && (
+                     <div>
+                      <div className="text-[10px] text-soot">شامل مالیات</div>
+                      <div className="text-xs font-medium text-soot tnum">{money(s.specialistVat)}</div>
+                     </div>
+                    )}
                   </div>
                 </button>
               ))}
@@ -273,6 +279,16 @@ function AccountingInner() {
               <span>آنلاین: <strong className="text-ink tnum">{money(totals.online)}</strong></span>
               <span>·</span>
               <span>کارت‌به‌کارت: <strong className="text-ink tnum">{money(totals.cardToCard)}</strong></span>
+            </div>
+          )}
+          {/* مالیات بر ارزش افزوده‌ی خود متخصص‌ها (نه کارمزد پلتفرم) — قسمتی از
+              «سهم متخصص‌ها»ی بالاست، این‌جا فقط سهم مالیاتش را جدا نشان می‌دهد.
+              فقط وقتی حداقل یک متخصص مالیات را فعال کرده و چیزی جمع شده نشان
+              داده می‌شود. */}
+          {totals && totals.specialistVat > 0 && (
+            <div className="bg-white rounded-2xl border border-sand p-4 flex items-center justify-between">
+              <div className="text-xs text-soot">مالیات بر ارزش افزوده‌ی خود متخصص‌ها (جمع‌آوری‌شده از مراجعان)</div>
+              <div className="text-sm font-semibold text-ink tnum">{money(totals.specialistVat)}</div>
             </div>
           )}
 
@@ -321,7 +337,7 @@ function AccountingInner() {
                         )}
                         {e.case_number && <><span>·</span><span dir="ltr">{e.case_number}</span></>}
                         <span>·</span>
-                        <span className="tnum">{new Date(e.created_at).toLocaleDateString('fa-IR')} {new Date(e.created_at).toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' })}</span>
+                        <span className="tnum">{new Date(e.created_at).toLocaleDateString('fa-IR-u-nu-latn')} {new Date(e.created_at).toLocaleTimeString('fa-IR-u-nu-latn', { hour: '2-digit', minute: '2-digit' })}</span>
                       </div>
                     </div>
                     <div className="text-left shrink-0">
@@ -330,6 +346,9 @@ function AccountingInner() {
                       </div>
                       {e.method === 'online' && e.commission_amount > 0 && (
                         <div className="text-[10px] text-soot tnum">کارمزد {money(e.commission_amount)}</div>
+                      )}
+                      {!!e.session_vat_amount && e.session_vat_amount > 0 && (
+                        <div className="text-[10px] text-soot tnum">شامل {money(e.session_vat_amount)} مالیات متخصص</div>
                       )}
                     </div>
                   </div>
@@ -401,7 +420,7 @@ function AccountingInner() {
                         <div>
                           <div className="text-sm text-ink">{s.resource_name || '—'} <span className="text-[11px] text-soot">({s.tenant_slug})</span></div>
                           <div className="text-[11px] text-soot">
-                            {new Date(s.paid_at || s.created_at).toLocaleDateString('fa-IR')}
+                            {new Date(s.paid_at || s.created_at).toLocaleDateString('fa-IR-u-nu-latn')}
                             {s.bank_ref_number ? ` · پیگیری بانکی: ${s.bank_ref_number}` : s.reference ? ` · پیگیری: ${s.reference}` : ''}
                           </div>
                         </div>

@@ -194,8 +194,14 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
   // ── فهرست تک‌تک تراکنش‌ها (برای جدول جزئیات) ─────────────────────────────
   // منبع: ledger_entries (منبع حقیقت مالی — روش پرداخت، مبلغ، کمیسیون را دارد).
   // فقط ورودی‌ها (inflow) در بازه‌ی گزارش انتخابی.
+  //
+  // مالیات بر ارزش افزوده‌ی خود متخصص (session_vat_amount) از همین ردیف‌ها
+  // جمع می‌شود، نه از بازمحاسبه‌ی psy_stages/packages/sessions با قیمت
+  // *فعلی* — چون ledger مقدار واقعی زمان تراکنش را نگه می‌دارد (فاز مالیات
+  // متخصص، migration 0055)؛ تراکنش‌های قبل از آن migration این ستون را
+  // ندارند و در جمع صفر حساب می‌شوند (نه خطا، نه تخمین نادرست).
   let txnQ = sb().from('ledger_entries')
-    .select('purpose, method, amount, commission_amount, doctor_amount, bank_ref_number, case_number, created_at')
+    .select('purpose, method, amount, commission_amount, doctor_amount, session_base_amount, session_vat_amount, bank_ref_number, case_number, created_at')
     .eq('tenant_id', t.id).eq('direction', 'inflow')
     .order('created_at', { ascending: false })
   if (resourceFilter) txnQ = txnQ.eq('resource_id', resourceFilter)
@@ -211,11 +217,13 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
     amount: r.amount || 0,
     commission: r.commission_amount || 0,
     doctorAmount: r.doctor_amount || 0,
+    sessionVat: r.session_vat_amount ?? null,
     bankRef: r.bank_ref_number || null,
     date: r.created_at,
     case_number: r.case_number || '',
     name: '',
   }))
+  const totalSessionVat = (txnRows || []).reduce((sum, r) => sum + (r.session_vat_amount || 0), 0)
 
   const perCase: Record<string, number> = {}
   const bump = (cn: string, amt: number) => { if (cn) perCase[cn] = (perCase[cn] || 0) + amt }
@@ -272,7 +280,7 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
 
   return NextResponse.json({
     totalPaid, totalPending, refundsTotal, refundsCount, netPaid, refundsList,
-    todayTotal, weekTotal, daily, weekly, monthlyChart, transactions,
+    todayTotal, weekTotal, daily, weekly, monthlyChart, transactions, totalSessionVat,
     stageBreakdown, paid, pending, split, monthly: monthlySorted, topCases, settlement: settlementWithManual,
   }, { headers: NO_STORE })
 }

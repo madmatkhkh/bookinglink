@@ -51,14 +51,29 @@ export function resolvePrice(mode: string, pricing: Pricing = DEFAULT_PRICING): 
   return pricing.vat_enabled ? Math.round(base * (1 + PRICING_VAT_PERCENT / 100)) : base
 }
 
-// اجزای قیمت برای نمایش شفاف به مراجع — پایه/مالیات/نهایی + آیا اصلا باید
-// تفکیک نشان داده شود (تصمیم متخصص با vat_visible_to_client). اگر مالیات
-// خاموش باشد یا متخصص نخواهد نشانش دهد، showVat=false و UI فقط باید final
-// را نشان دهد، دقیقا مثل قبل.
+// اجزای قیمت برای نمایش شفاف به مراجع، رو-به-جلو از قیمت پایه — پایه/مالیات/
+// نهایی + آیا اصلا باید تفکیک نشان داده شود (تصمیم متخصص با
+// vat_visible_to_client). برای UI پیش از پرداخت، جایی که هنوز amount منجمد
+// نشده و مستقیم از pricing.online/offline محاسبه می‌شود.
 export function priceBreakdown(mode: string, pricing: Pricing = DEFAULT_PRICING) {
   const base = mode === 'online' ? pricing.online : pricing.offline
   const final = resolvePrice(mode, pricing)
   return { base, vat: final - base, final, showVat: !!pricing.vat_enabled && !!pricing.vat_visible_to_client }
+}
+
+// تفکیک معکوس یک مبلغ نهایی (منجمد) به پایه/مالیات، طبق نرخ *فعلی* مالیات
+// متخصص — برای جایی که فقط مبلغ نهایی در دست است (مثلا amount قفل‌شده‌ی یک
+// پرداخت یا رکورد قدیمی)، نه محاسبه‌ی رو-به-جلو از قیمت پایه. مزیتش نسبت به
+// priceBreakdown/packagePriceBreakdown: همیشه base+vat=finalAmount دقیقا
+// برقرار است (چون از خود finalAmount معکوس می‌شود)، حتی اگر نرخ مالیات از
+// لحظه‌ی انجماد قیمت عوض شده باشد — در آن صورت فقط تفکیکش کمی نادقیق
+// می‌شود، نه ناسازگار با مبلغ واقعی. با تست عددی روی بازه‌ی وسیعی از
+// قیمت‌ها تایید شد که رفت‌وبرگشت (محاسبه‌ی رو-به-جلو، بعد این تابع) دقیقا
+// همان عدد پایه‌ی اصلی را برمی‌گرداند، بدون خطای گرد کردن.
+export function reverseVatSplit(finalAmount: number, pricing: Pricing = DEFAULT_PRICING): { base: number; vat: number; final: number; showVat: boolean } {
+  if (!pricing.vat_enabled) return { base: finalAmount, vat: 0, final: finalAmount, showVat: false }
+  const base = Math.round(finalAmount / (1 + PRICING_VAT_PERCENT / 100))
+  return { base, vat: finalAmount - base, final: finalAmount, showVat: !!pricing.vat_visible_to_client }
 }
 
 export function mergePricing(raw: any): Pricing {
