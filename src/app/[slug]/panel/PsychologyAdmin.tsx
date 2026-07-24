@@ -2405,6 +2405,35 @@ export function PsychologyAdmin() {
        </section>
        )}
 
+       {/* شبای تسویه — برای واریز خودکار سهم شما از پرداخت آنلاین. قبلا در تب
+           «حساب من» بود؛ چون منطقا به «روش پرداخت» مربوط است (این‌جا هم
+           می‌گویید چطور پول را بگیرید)، به این تب منتقل شد. سوییچر دکتر
+           («پروفایل کدام دکتر؟» بالای همین تب) و نوار ذخیره‌ی چسبیده‌به‌پایین
+           هر دو از قبل این زیرتب را پوشش می‌دهند، پس این‌جا نیازی به
+           سوییچر/دکمه‌ی ذخیره‌ی جداگانه نیست — برخلاف قبل که در «حساب من»
+           این پوشش را نداشت. */}
+       {settingsSubTab === 'payments' && (
+       <section className="bg-white rounded-2xl border border-sand p-5">
+        <h2 className="text-sm font-display font-semibold text-ink mb-1">شبای دریافت سهم از پرداخت آنلاین</h2>
+        <p className="text-xs text-soot mb-4">
+         برای واریز خودکار سهم شما لازم است. تا ثبت نشود، تسویه به‌صورت دستی هماهنگ می‌شود.
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+         <input
+          dir="ltr"
+          placeholder="IR00 0000 0000 0000 0000 0000 00"
+          value={profile.settlement_sheba}
+          onChange={e => patchProfile({ settlement_sheba: e.target.value })}
+          className="border border-sand rounded-xl px-3 py-2 text-sm tnum focus:outline-none focus:border-ink" />
+         <input
+          placeholder="نام صاحب حساب"
+          value={profile.settlement_sheba_holder_name}
+          onChange={e => patchProfile({ settlement_sheba_holder_name: e.target.value })}
+          className="border border-sand rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-ink" />
+        </div>
+       </section>
+       )}
+
        {/* قیمت‌گذاری — per-resource؛ فقط دو قیمت: آنلاین/حضوری. نوع کار (مصاحبه/
            ارزیابی/جلسه/پروتکل) فرقی نمی‌کند، فقط نوع حضور قیمت را تعیین می‌کند. */}
        {settingsSubTab === 'pricing' && (
@@ -3173,56 +3202,6 @@ export function PsychologyAdmin() {
         )
        })()}
       </div>
-     </section>
-
-     {/* شبای تسویه — برای واریز خودکار سهم خودتان از پرداخت آنلاین. per-resource
-         است، نه صفحه‌ی عمومی، پس اینجا (حساب من) جایش درست‌تر از تب «روش
-         پرداخت» بود. این تب بخشی از سیستم نوار ذخیره‌ی مشترک تنظیمات نیست، پس
-         سوییچر دکتر و دکمه‌ی ذخیره‌ی خودش را دارد. */}
-     <section className="bg-white rounded-2xl border border-sand p-5">
-      <h2 className="text-sm font-display font-bold text-ink mb-1">شبای دریافت سهم از پرداخت آنلاین</h2>
-      <p className="text-xs text-soot mb-4">
-       برای واریز خودکار سهم شما لازم است. تا ثبت نشود، تسویه به‌صورت دستی هماهنگ می‌شود.
-      </p>
-
-      {me?.isOwner && staffList.filter(r => r.is_active).length > 1 && (
-       <select value={viewingResourceId || staffList.find(r => r.is_active)?.id || ''}
-        onChange={e => { setViewingResourceId(e.target.value); setProfileLoaded(false) }}
-        className="w-full text-sm px-3 py-2 border border-sand rounded-lg mb-4 focus:outline-none focus:border-ink">
-        {staffList.filter(r => r.is_active).map(r => (
-         <option key={r.id} value={r.id}>{r.name}{r.title ? ` — ${r.title}` : ''}</option>
-        ))}
-       </select>
-      )}
-
-      {!profileLoaded ? (
-       <div className="text-center py-8 text-soot text-sm">در حال بارگذاری...</div>
-      ) : (
-       <>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-         <input
-          dir="ltr"
-          placeholder="IR00 0000 0000 0000 0000 0000 00"
-          value={profile.settlement_sheba}
-          onChange={e => patchProfile({ settlement_sheba: e.target.value })}
-          className="border border-sand rounded-xl px-3 py-2 text-sm tnum"
-         />
-         <input
-          placeholder="نام صاحب حساب"
-          value={profile.settlement_sheba_holder_name}
-          onChange={e => patchProfile({ settlement_sheba_holder_name: e.target.value })}
-          className="border border-sand rounded-xl px-3 py-2 text-sm"
-         />
-        </div>
-        <div className="flex items-center justify-end gap-3 mt-4">
-         {profileSaved && <span className="text-xs text-emerald-600 font-medium">✓ ذخیره شد</span>}
-         <button onClick={saveProfile} disabled={profileSaving}
-          className="px-5 py-2 bg-ink text-white rounded-xl text-sm font-medium disabled:opacity-40 hover:bg-ink/90">
-          {profileSaving ? 'در حال ذخیره...' : 'ذخیره‌ی شبا'}
-         </button>
-        </div>
-       </>
-      )}
      </section>
 
      <button onClick={doLogout}
