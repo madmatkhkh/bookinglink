@@ -63,6 +63,7 @@ export default async function PublicProfile({ params }: { params: { slug: string
    doctor_name: primary?.name || '', doctor_title: primary?.title || '',
    avatar_url: primary?.avatar_url || '', badges: primary?.badges || [],
    rating_avg: primary?.rating_avg || 0, rating_count: primary?.rating_count || 0,
+   first_stage_label: primary?.first_stage_label || 'مصاحبه',
   }
   return <PsychologyLanding slug={params.slug} c={c} themeColor={themeProfile?.theme_color || null} />
  }
@@ -111,7 +112,7 @@ function PsychologyLanding({ slug, c, themeColor }: { slug: string; c: any; them
         <Glyph icon="📝" className="w-6 h-6 text-accent" />
        </div>
        <div className="flex-1">
-        <div className="font-medium text-ink text-sm mb-0.5">مصاحبه‌ی اولیه</div>
+        <div className="font-medium text-ink text-sm mb-0.5">{c.first_stage_label}</div>
         <div className="text-xs text-soot">مراجع جدید؟ فرم را پر کنید و وقت مصاحبه بگیرید</div>
        </div>
        <div className="text-sand text-lg">←</div>
@@ -133,7 +134,7 @@ function PsychologyLanding({ slug, c, themeColor }: { slug: string; c: any; them
      </Link>
     </div>
 
-    <p className="text-center text-xs text-soot/70 mt-6">برای شروع درمان، ابتدا مصاحبه‌ی اولیه انجام می‌شود.</p>
+    <p className="text-center text-xs text-soot/70 mt-6">برای شروع درمان، ابتدا {c.first_stage_label} انجام می‌شود.</p>
     <p className="text-center text-[11px] text-soot/50 mt-4">ساخته‌شده با {PLATFORM_NAME}</p>
    </div>
   </div>

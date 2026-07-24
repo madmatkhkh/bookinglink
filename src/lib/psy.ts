@@ -519,6 +519,10 @@ export type PublicDoctor = {
   pricing: Pricing
   terms: TermsSettings
   companion_label: string
+  // عنوان اولین جلسه که خود متخصص در تنظیمات تعیین کرده (پیش‌فرض «مصاحبه»).
+  // صفحات عمومی (کارت ورود، فرم مصاحبه) باید همیشه از این بخوانند، نه رشته‌ی
+  // ثابت «مصاحبه‌ی اولیه» — وگرنه با تغییر عنوان توسط متخصص هماهنگ نمی‌ماند.
+  first_stage_label: string
   meet_link: string
   meet_channels: MeetChannel[]
   // امتیاز واقعی محاسبه‌شده از psy_reviews (فقط approved) — نه بج خودنوشت.
@@ -554,7 +558,7 @@ export async function listPublicDoctors(tenantId: string): Promise<PublicDoctor[
       id: r.id, name: r.name, title: r.title, avatar_url: r.avatar_url,
       badges: prof.badges, session_modes: prof.session_modes, cards: prof.cards,
       payment_methods: effectivePaymentMethods(prof.payment_methods, cardToCardAllowed), cancellation_policy: prof.cancellation_policy,
-      pricing: prof.pricing, terms: prof.terms, companion_label: prof.companion_label, meet_link: prof.meet_link, meet_channels: prof.meet_channels,
+      pricing: prof.pricing, terms: prof.terms, companion_label: prof.companion_label, first_stage_label: prof.first_stage_label, meet_link: prof.meet_link, meet_channels: prof.meet_channels,
       rating_avg, rating_count,
     }
   })

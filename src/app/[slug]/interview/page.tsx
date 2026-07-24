@@ -166,7 +166,7 @@ export default function InterviewPage() {
      {settings.loaded ? (
       <>
        <h1 className="text-xl font-display font-medium text-ink mb-1">{needsDoctorPick && !selectedDoctorId ? 'مصاحبه‌ی اولیه' : (displayDoctor?.name || settings.doctor_name)}</h1>
-       <p className="text-sm text-soot">مصاحبه‌ی اولیه</p>
+       <p className="text-sm text-soot">{displayDoctor?.first_stage_label || 'مصاحبه'}</p>
        <div className="flex gap-2 justify-center mt-3 flex-wrap">
         {(displayDoctor?.badges || settings.badges).map((b, i) => (
          <span key={i} className="text-xs px-3 py-1 bg-white border border-sand rounded-lg text-soot">{b}</span>
@@ -544,8 +544,8 @@ function InterviewPayScreen({ doctor, resourceId, slug, phone, cards, loaded, se
    <div className="max-w-sm w-full bg-white rounded-2xl border border-sand p-6 text-right">
     <div className="text-center mb-4">
      <div className="w-16 h-16 rounded-full bg-sand flex items-center justify-center mx-auto mb-3 text-3xl">💳</div>
-     <h1 className="text-lg font-display font-medium text-ink">پرداخت هزینه‌ی مصاحبه</h1>
-     <p className="text-sm text-soot mt-1">برای ادامه، هزینه‌ی مصاحبه‌ی اولیه را پرداخت کنید.</p>
+     <h1 className="text-lg font-display font-medium text-ink">پرداخت هزینه‌ی {doctor?.first_stage_label || 'مصاحبه'}</h1>
+     <p className="text-sm text-soot mt-1">برای ادامه، هزینه‌ی {doctor?.first_stage_label || 'مصاحبه'} را پرداخت کنید.</p>
     </div>
 
     {/* نوع جلسه — فقط حالت‌هایی که متخصص ارائه می‌دهد */}
