@@ -2138,13 +2138,13 @@ export function PsychologyAdmin() {
            <label className="text-xs text-soot mb-1 block">مدت جلسه‌ی آنلاین (دقیقه)</label>
            <input type="number" min={1} value={profile.pricing.duration_online}
             onChange={e => patchProfile({ pricing: { ...profile.pricing, duration_online: Math.max(1, Number(e.target.value) || 1) } })}
-            className="w-full text-sm px-3 py-2 border border-sand rounded-lg tnum focus:outline-none focus:border-ink" />
+            className="w-24 text-sm px-3 py-2 border border-sand rounded-lg tnum focus:outline-none focus:border-ink" />
           </div>
           <div>
            <label className="text-xs text-soot mb-1 block">مدت جلسه‌ی حضوری (دقیقه)</label>
            <input type="number" min={1} value={profile.pricing.duration_offline}
             onChange={e => patchProfile({ pricing: { ...profile.pricing, duration_offline: Math.max(1, Number(e.target.value) || 1) } })}
-            className="w-full text-sm px-3 py-2 border border-sand rounded-lg tnum focus:outline-none focus:border-ink" />
+            className="w-24 text-sm px-3 py-2 border border-sand rounded-lg tnum focus:outline-none focus:border-ink" />
           </div>
          </div>
         </div>
@@ -2436,7 +2436,7 @@ export function PsychologyAdmin() {
          <p className="text-xs text-soot mb-2">اگر جلسه‌ای بیشتر از مدت معمول طول بکشد، برای محاسبه‌ی هزینه‌ی دقایق اضافه (هنگام ارسال شارژ اضافه) استفاده می‌شود. صفر یعنی هزینه‌ی اضافه محاسبه نمی‌شود.</p>
          <PriceInput value={profile.pricing.extra_minute_price}
           onChange={n => patchProfile({ pricing: { ...profile.pricing, extra_minute_price: n } })}
-          className="w-full sm:w-56 text-sm px-3 py-2 border border-sand rounded-lg tnum focus:outline-none focus:border-ink" />
+          className="w-36 text-sm px-3 py-2 border border-sand rounded-lg tnum focus:outline-none focus:border-ink" />
         </div>
        </section>
        )}

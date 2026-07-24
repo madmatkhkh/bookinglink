@@ -1478,7 +1478,7 @@ export default function PatientsTab({
         <div>
          <label className="text-xs text-soot mb-1 block">تعداد جلسه‌ی مراجع</label>
          <input type="number" value={newPkg.primary_sessions} onChange={e => setNewPkg({...newPkg, primary_sessions: parseInt(e.target.value) || 0})}
-          className="w-full text-sm px-3 py-2 border border-sand rounded-lg" />
+          className="w-20 text-sm px-3 py-2 border border-sand rounded-lg" />
         </div>
         <div>
          <label className="text-xs text-soot mb-1 block">نوع جلسه‌ی مراجع</label>
@@ -1528,7 +1528,7 @@ export default function PatientsTab({
         <div>
          <label className="text-xs text-soot mb-1 block">تعداد جلسه‌ی {profile.companion_label || 'همراه'}</label>
          <input type="number" value={newPkg.secondary_sessions} onChange={e => setNewPkg({...newPkg, secondary_sessions: parseInt(e.target.value) || 0})}
-          className="w-full text-sm px-3 py-2 border border-sand rounded-lg" />
+          className="w-20 text-sm px-3 py-2 border border-sand rounded-lg" />
         </div>
         <div>
          <label className="text-xs text-soot mb-1 block">نوع جلسه‌ی {profile.companion_label || 'همراه'}</label>

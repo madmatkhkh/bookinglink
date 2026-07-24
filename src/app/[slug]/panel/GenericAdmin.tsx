@@ -266,7 +266,7 @@ function ServicesTab({ ov, slug, reload, uiAlert, uiConfirm }: any) {
               <label className="text-[11px] text-soot block mb-1">مدت (دقیقه)</label>
               <input type="number" value={form.duration_minutes}
                 onChange={e => setForm(s => ({ ...s, duration_minutes: parseInt(toLatinNum(e.target.value)) || 60 }))}
-                className="w-full text-sm px-3 py-2 border border-sand rounded-lg tnum" />
+                className="w-24 text-sm px-3 py-2 border border-sand rounded-lg tnum" />
             </div>
             <div>
               <label className="text-[11px] text-soot block mb-1">قیمت (تومان)</label>
