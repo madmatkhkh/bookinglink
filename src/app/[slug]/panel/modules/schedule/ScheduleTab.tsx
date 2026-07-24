@@ -399,8 +399,14 @@ export default function ScheduleTab({
 
         {(() => {
          const WEEK = ['شنبه', 'یک‌شنبه', 'دوشنبه', 'سه‌شنبه', 'چهارشنبه', 'پنج‌شنبه', 'جمعه']
-         // مرز هفته‌ها (شنبه‌ها در روزهای 6، 13، 20، 27 شروع می‌شوند؛ هفته‌ی اول 1 تا 5)
-         const weekStarts = [1, 6, 13, 20, 27].filter(s => s <= daysInMonth)
+         // مرز هفته‌ها از روی روز هفته‌ی واقعی روز 1 همین ماه محاسبه می‌شود —
+         // نه فرض ثابت که هر ماه دوشنبه شروع می‌شود (باگ قبلی: [1,6,13,20,27]
+         // فرض می‌کرد روز 1 همیشه دوشنبه است؛ برای مرداد 1405 که با پنجشنبه
+         // شروع می‌شود، این باعث می‌شد روز 3 (شنبه‌ی واقعی) با برچسب «چهارشنبه»
+         // نمایش داده شود). هفته‌ی اول ممکن است ناقص باشد (تا اولین شنبه‌ی ماه).
+         const firstWd = jalaliWeekday(schedYear, schedMonth + 1, 1) // 0=شنبه ... 6=جمعه
+         const weekStarts: number[] = [1]
+         for (let next = firstWd === 0 ? 8 : 1 + (7 - firstWd); next <= daysInMonth; next += 7) weekStarts.push(next)
          const wIdx = Math.min(weekIdx, weekStarts.length - 1)
          let rangeStart = 1, rangeEnd = daysInMonth
          if (agendaMode === 'week') {
@@ -417,7 +423,7 @@ export default function ScheduleTab({
           const extra = appts.map(a => a.time).filter(t => !slotTimes.includes(t))
           const allTimes = Array.from(new Set([...slotTimes, ...extra])).sort((a, b) => timeKey(a) - timeKey(b))
           if (allTimes.length === 0) continue
-          days.push({ d, dateStr, appts, allTimes, weekday: WEEK[(d + 1) % 7] })
+          days.push({ d, dateStr, appts, allTimes, weekday: WEEK[jalaliWeekday(schedYear, schedMonth + 1, d)] })
          }
 
          return (
