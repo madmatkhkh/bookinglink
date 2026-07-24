@@ -412,11 +412,6 @@ export default function PatientPanel() {
        <div className="flex items-center gap-2 flex-wrap">
         <span className="text-xs text-soot">پرونده:</span>
         <span className="text-xs font-mono text-ink bg-sand px-2 py-0.5 rounded">{booking.case_number}</span>
-        {booking.session_type && (
-         <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-soot">
-          {booking.session_type === 'online' ? '🎥 آنلاین' : `🏥 حضوری${booking.office_location ? ` — ${booking.office_location}` : ''}`}
-         </span>
-        )}
        </div>
       </button>
 
